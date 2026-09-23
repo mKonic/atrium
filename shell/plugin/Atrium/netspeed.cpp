@@ -16,6 +16,8 @@ void NetSpeed::setActive(bool active) {
         return;
     if (active) {
         primed_ = false;
+        down_.reset();
+        up_.reset();
         sample();
         timer_.start();
     } else {
@@ -32,10 +34,10 @@ void NetSpeed::sample() {
     const double seconds = clock_.isValid() ? clock_.restart() / 1000.0 : (clock_.start(), 0.0);
     if (primed_ && seconds > 0) {
         // Counters that went backwards (an interface went away) read as idle.
-        down_ = t.rx >= rx_ ? (t.rx - rx_) / seconds : 0;
-        up_ = t.tx >= tx_ ? (t.tx - tx_) / seconds : 0;
-        downText_ = QString::fromStdString(netspeed::format_rate(down_));
-        upText_ = QString::fromStdString(netspeed::format_rate(up_));
+        down_.add(t.rx >= rx_ ? (t.rx - rx_) / seconds : 0, seconds);
+        up_.add(t.tx >= tx_ ? (t.tx - tx_) / seconds : 0, seconds);
+        downText_ = QString::fromStdString(netspeed::format_rate(down_.rate()));
+        upText_ = QString::fromStdString(netspeed::format_rate(up_.rate()));
         emit changed();
     }
     rx_ = t.rx;

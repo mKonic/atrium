@@ -165,6 +165,7 @@ TEST(SysInfo, LargestPciWindow) {
 }
 
 #include "netspeed_core.hpp"
+#include <cmath>
 
 TEST(NetSpeed, SumsRealInterfaces) {
     using namespace atrium::netspeed;
@@ -180,6 +181,25 @@ TEST(NetSpeed, SumsRealInterfaces) {
     EXPECT_EQ(t.tx, 250u);
     EXPECT_FALSE(counts("veth12ab"));
     EXPECT_TRUE(counts("enp6s0"));
+}
+
+TEST(NetSpeed, SmoothsOverSeconds) {
+    atrium::netspeed::Smoother s;
+    EXPECT_DOUBLE_EQ(s.add(1000, 1), 1000);  // seeded, not climbing from zero
+    // A steady transfer that samples 2x apart stays within the swing, not on it.
+    for (int i = 0; i < 20; ++i)
+        s.add(i % 2 ? 2000 : 500, 1);
+    EXPECT_GT(s.rate(), 1000);
+    EXPECT_LT(s.rate(), 1500);
+    // A stop shows within seconds: after 3 s, ~63% of the step is covered.
+    s.reset();
+    s.add(1000, 1);
+    s.add(0, 3);
+    EXPECT_NEAR(s.rate(), 1000 * std::exp(-1.0), 1e-9);
+    // A late sample weighs more than an on-time one.
+    atrium::netspeed::Smoother late, onTime;
+    late.add(0, 1), onTime.add(0, 1);
+    EXPECT_GT(late.add(1000, 2), onTime.add(1000, 1));
 }
 
 TEST(NetSpeed, FormatsRates) {

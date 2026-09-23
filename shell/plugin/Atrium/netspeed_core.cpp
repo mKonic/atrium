@@ -39,6 +39,16 @@ Totals read_totals(std::string_view text) {
     return t;
 }
 
+double Smoother::add(double instant, double seconds) {
+    if (!seeded_) {
+        rate_ = instant;
+        seeded_ = true;
+    } else if (seconds > 0) {
+        rate_ += (1.0 - std::exp(-seconds / kSeconds)) * (instant - rate_);
+    }
+    return rate_;
+}
+
 std::string format_rate(double bps) {
     const char* units[] = {"KB/s", "MB/s", "GB/s"};
     double v = std::max(0.0, bps) / 1000.0;

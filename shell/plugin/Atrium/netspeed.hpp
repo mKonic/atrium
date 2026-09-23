@@ -1,12 +1,14 @@
 #pragma once
-// Download and upload speed, sampled once a second while something shows
-// it: `NetSpeed { active: shown }`.
+// Download and upload speed, sampled once a second and averaged over a few
+// (netspeed::Smoother) while something shows it: `NetSpeed { active: shown }`.
 
 #include <QElapsedTimer>
 #include <QObject>
 #include <QTimer>
 
 #include <cstdint>
+
+#include "netspeed_core.hpp"
 
 namespace atrium {
 
@@ -23,8 +25,8 @@ public:
 
     bool active() const { return timer_.isActive(); }
     void setActive(bool active);
-    double down() const { return down_; }
-    double up() const { return up_; }
+    double down() const { return down_.rate(); }
+    double up() const { return up_.rate(); }
     QString downText() const { return downText_; }
     QString upText() const { return upText_; }
 
@@ -39,7 +41,7 @@ private:
     QElapsedTimer clock_;
     uint64_t rx_ = 0, tx_ = 0;
     bool primed_ = false;
-    double down_ = 0, up_ = 0;
+    netspeed::Smoother down_, up_;
     QString downText_ = "0 KB/s", upText_ = "0 KB/s";
 };
 
