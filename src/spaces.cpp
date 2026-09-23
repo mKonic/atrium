@@ -50,6 +50,8 @@ void Server::prune_space(Space* space) {
 }
 
 void Server::spaces_changed() {
+    if (overview)
+        overview->spaces_changed();
     if (!ipc)
         return;
     json list = json::array();
