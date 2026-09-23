@@ -297,7 +297,7 @@ json Ipc::handle(Client& c, const json& req) {
             int count = 0;
             for (View* v : server_.views)
                 count += v->space == s.get();
-            list.push_back({{"id", s->id()}, {"label", s->label()}, {"secret", s->secret},
+            list.push_back({{"id", s->id()}, {"label", s->label()}, {"number", s->number}, {"secret", s->secret},
                             {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()},
                             {"windows", count}});
         }
@@ -373,8 +373,7 @@ json Ipc::handle(Client& c, const json& req) {
         Keybind k{0, 0, *action};
         if (req.contains("arg") && req["arg"].is_string())
             k.arg = req["arg"];
-        if (*action == Action::SwitchVt)
-            k.iarg = std::atoi(k.arg.c_str());
+        k.iarg = std::atoi(k.arg.c_str());  // space numbers, VT numbers
         server_.run_action(k);
         return ok();
     }

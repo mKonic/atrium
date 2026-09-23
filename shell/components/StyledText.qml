@@ -1,0 +1,14 @@
+import QtQuick
+import qs.services
+
+Text {
+    color: Theme.palette.m3OnSurface
+    font.family: Theme.font.sans
+    font.pointSize: Theme.font.size.normal
+    renderType: Text.NativeRendering
+    verticalAlignment: Text.AlignVCenter
+
+    Behavior on color {
+        CAnim {}
+    }
+}
