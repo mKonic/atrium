@@ -1,66 +1,50 @@
-# atrium
+<div align = center>
 
-A floating-window Wayland compositor for Linux, built on wlroots and scenefx.
+<br>
 
-## Features
+atrium is a floating Wayland desktop that feels like a finished OS, not a pile of configs.
 
-- Floating windows, centered on open, cascaded when stacked
-- Click to focus and raise
-- Rounded corners and soft shadows on every window
-- Move and resize by the app's own title bar and edges, or Mod + drag
-- Edge snapping while dragging
+It keeps windows where apps expect them, gives every window rounded corners and soft shadows,
+and puts panels, docks and settings in one place, with your own keybinds on top.
+
+<br>
+
+</div>
+
+# Features
+
+- Floating windows that open centered and cascade
+- Rounded corners and soft shadows
+- Click to focus, drag to move, Mod + drag to move or resize
+- Edge snapping
 - Maximize, fullscreen and minimize
-- Panels, docks and wallpapers (wlr-layer-shell)
-- Screen locking (ext-session-lock)
-- Window lists for docks and task switchers (foreign-toplevel)
+- Panels, docks and wallpapers
+- Screen locking
+- Window lists for docks and task switchers
 - Screen and per-window capture
 - X11 apps through Xwayland
 
-## Build from source
-
-Dependencies: `wlroots0.20`, `scenefx0.5` (CachyOS repo or AUR), `wayland`, `wayland-protocols`,
-`libinput`, `libxkbcommon`, `pixman`, and `xorg-xwayland`, `libxcb` and `xcb-util-wm` for X11
-apps. Needs meson and a C++23 compiler. `ghostty` is the terminal `Mod` + `Return` opens.
+# Building
 
 ```sh
 meson setup build
 ninja -C build
-```
-
-## Usage
-
-From a TTY:
-
-```sh
 ./build/src/atrium
 ```
 
-Inside a running Wayland or X11 session, atrium opens as a window. `-s CMD` runs a command once
-it is up, `-d` turns on verbose logging:
+# Special Thanks
 
-```sh
-./build/src/atrium -s foot
-```
+**[dwl]** - *For the base atrium grew from*
 
-### Keys
+**[wlroots]** - *For powering atrium*
 
-`Mod` is Super, or Alt when atrium runs inside another session.
+**[scenefx]** - *For the eyecandy*
 
-| Keys | Action |
-|---|---|
-| `Mod` + `Return` | Open a terminal (ghostty) |
-| `Mod` + `Q` | Close window |
-| `Mod` + `F` | Toggle fullscreen |
-| `Mod` + `Up` | Toggle maximize |
-| `Mod` + `H` | Minimize |
-| `Mod` + `Tab` / `Mod` + `Shift` + `Tab` | Cycle windows on this output |
-| `Mod` + left drag | Move window |
-| `Mod` + right drag | Resize from the nearest corner |
-| `Mod` + `Shift` + `E` | Quit |
-| `Ctrl` + `Alt` + `F1`…`F12` | Switch VT (TTY only) |
+**[labwc]** - *For showing how floating windows should behave*
 
-Minimized windows come back through a dock or task switcher.
+<!----------------------------------------------------------------------------->
 
-## License
-
-GPL-3.0-or-later. Derived from [dwl](https://codeberg.org/dwl/dwl); see `LICENSE`.
+[dwl]: https://codeberg.org/dwl/dwl
+[wlroots]: https://gitlab.freedesktop.org/wlroots/wlroots
+[scenefx]: https://github.com/wlrfx/scenefx
+[labwc]: https://github.com/labwc/labwc

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace atrium {
 
@@ -107,8 +108,11 @@ void View::place() {
         g.y = area.y + (area.height - g.height) / 2;
         const int step = server.config.cascade_step;
         for (int tries = 0; tries < 32; ++tries) {
+            // "Taken" means close enough that the new window would hide the
+            // other one's title bar, not just the exact same spot.
             bool taken = std::ranges::any_of(server.views, [&](View* v) {
-                return v != this && v->visible() && v->geom.x == g.x && v->geom.y == g.y;
+                return v != this && v->visible() && std::abs(v->geom.x - g.x) < step &&
+                       std::abs(v->geom.y - g.y) < step;
             });
             if (!taken)
                 break;
