@@ -68,6 +68,9 @@ constexpr ActionName kActions[] = {
     {Action::SpaceNext, "space-next"},
     {Action::ToggleSecret, "toggle-secret"},
     {Action::MoveToSecret, "move-to-secret"},
+    {Action::SnapLeft, "snap-left"},
+    {Action::SnapRight, "snap-right"},
+    {Action::Restore, "restore"},
 };
 
 } // namespace
@@ -150,6 +153,9 @@ json default_keybinds() {
         {{"keys", "Mod+Tab"}, {"action", "focus-next"}},
         {{"keys", "Mod+Shift+Tab"}, {"action", "focus-prev"}},
         {{"keys", "Mod+Shift+E"}, {"action", "quit"}},
+        {{"keys", "Mod+Left"}, {"action", "snap-left"}},
+        {{"keys", "Mod+Right"}, {"action", "snap-right"}},
+        {{"keys", "Mod+Down"}, {"action", "restore"}},
         {{"keys", "Mod+Ctrl+Left"}, {"action", "space-prev"}},
         {{"keys", "Mod+Ctrl+Right"}, {"action", "space-next"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
@@ -316,6 +322,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         [](Config& c, const json& v) { c.rules = parse_rules(v); }));
     s.push_back(color("windows.secret_backdrop", "Windows", "Secret space backdrop",
         "Color that dims the screen behind a secret space.", &Config::secret_backdrop, d));
+    s.push_back(boolean("windows.snapping", "Windows", "Snap to edges",
+        "Drag a window to a screen edge or corner to fill half or a quarter of it; to the top to maximize.",
+        &Config::snapping, d));
+    s.push_back(number("windows.snap_gap", T::Int, "Windows", "Gap between snapped windows",
+        "Space around and between windows snapped side by side.", &Config::snap_gap, d, 0, 64));
     s.push_back(number("windows.cascade_step", T::Int, "Windows", "Cascade offset",
         "How far a new window steps down and right when it would cover another.", &Config::cascade_step, d, 0, 200));
 

@@ -58,6 +58,10 @@ public:
     // (resizing a maximized window) instead of returning to `restore`.
     void set_maximized(bool maximized, bool restore_geometry = true);
     void set_fullscreen(bool fullscreen);
+    // Fill half or a quarter of the screen (geometry::snap_zone bits); TOP
+    // alone maximizes.
+    void snap(uint32_t zone);
+    void unsnap(bool restore_geometry);
     void set_minimized(bool minimized);
     void raise();
     bool visible() const;
@@ -97,6 +101,7 @@ public:
     bool minimized = false;
     bool maximized = false;
     bool fullscreen = false;
+    uint32_t snapped = 0;  // snap zone the window fills, 0 when free
     bool urgent = false;
 
 protected:

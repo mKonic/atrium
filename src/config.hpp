@@ -11,6 +11,12 @@ namespace atrium {
 
 using Color = std::array<float, 4>;
 
+// Scene rects take premultiplied color: straight (1, 1, 1, 0.1) would draw
+// as solid white. Settings store straight alpha; convert at the scene.
+inline Color premultiplied(Color c) {
+    return {c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]};
+}
+
 enum class Action {
     Spawn,            // arg: shell command
     SpawnTerminal,
@@ -28,6 +34,9 @@ enum class Action {
     SpaceNext,
     ToggleSecret,     // arg: secret space name
     MoveToSecret,     // arg: secret space name
+    SnapLeft,
+    SnapRight,
+    Restore,          // out of fullscreen, maximized or snapped
 };
 
 struct Keybind {
@@ -76,6 +85,8 @@ struct Config {
     // Windows
     int snap_distance = 16;   // px from a screen edge where a dragged window sticks
     int cascade_step = 28;    // offset for a new window that would cover another exactly
+    bool snapping = true;     // drag to screen edges and corners to tile
+    int snap_gap = 8;         // between and around snapped windows
 
     // Keyboard
     std::string xkb_rules, xkb_model, xkb_layout = "us", xkb_variant, xkb_options;

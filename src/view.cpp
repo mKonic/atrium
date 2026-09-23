@@ -72,7 +72,7 @@ void View::handle_map() {
     shadow = wlr_scene_shadow_create(tree, 0, 0, c.corner_radius, c.shadow_sigma,
                                      c.shadow_color.data());
     wlr_scene_node_lower_to_bottom(&shadow->node);
-    outline = wlr_scene_rect_create(tree, 0, 0, c.outline_color.data());
+    outline = wlr_scene_rect_create(tree, 0, 0, premultiplied(c.outline_color).data());
     outline->accepts_input = false;
     wlr_scene_node_place_above(&outline->node, &shadow->node);
     blur = wlr_scene_blur_create(tree, 0, 0);
@@ -143,6 +143,7 @@ void View::handle_unmap() {
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
     minimized = maximized = fullscreen = activated = false;
+    snapped = 0;
     resize_edges_ = 0;
     resize_settling_ = false;
 
@@ -242,7 +243,7 @@ void View::animate_close() {
     }
     if (outline && outline->node.enabled) {
         g->outline_color = activated ? c.outline_color : c.outline_color_inactive;
-        g->outline = wlr_scene_rect_create(g->tree, outline->width, outline->height, g->outline_color.data());
+        g->outline = wlr_scene_rect_create(g->tree, outline->width, outline->height, premultiplied(g->outline_color).data());
         g->outline->accepts_input = false;
         wlr_scene_node_set_position(&g->outline->node, outline->node.x, outline->node.y);
         wlr_scene_rect_set_corner_radii(g->outline, outline->corners);
@@ -264,7 +265,7 @@ void View::animate_close() {
         if (g->outline) {
             Color oc = g->outline_color;
             oc[3] *= a;
-            wlr_scene_rect_set_color(g->outline, oc.data());
+            wlr_scene_rect_set_color(g->outline, premultiplied(oc).data());
         }
         wlr_scene_node_set_position(&g->tree->node, g->x, g->y + int(std::lround(t * 10)));
     }, [g] {
@@ -419,11 +420,38 @@ void View::set_maximized(bool m, bool restore_geometry) {
     if (fullscreen)
         return;  // takes effect when fullscreen ends
     if (m) {
-        restore = geom;
+        if (!snapped)
+            restore = geom;  // a snapped window already remembers where it was
+        snapped = 0;
         request_geometry(usable_area());
     } else if (restore_geometry) {
         request_geometry(restore);
     }
+}
+
+void View::snap(uint32_t zone) {
+    if (!zone || unmanaged() || fullscreen || !mapped)
+        return;
+    if (zone == WLR_EDGE_TOP) {
+        set_maximized(true);
+        return;
+    }
+    if (maximized)
+        set_maximized(false, false);
+    else if (!snapped)
+        restore = geom;
+    snapped = zone;
+    request_geometry(geometry::snap_box(usable_area(), zone, server.config.snap_gap));
+    server.notify_window(*this, "changed");
+}
+
+void View::unsnap(bool restore_geometry) {
+    if (!snapped)
+        return;
+    snapped = 0;
+    if (restore_geometry)
+        request_geometry(restore);
+    server.notify_window(*this, "changed");
 }
 
 void View::set_fullscreen(bool f) {
@@ -569,7 +597,7 @@ void View::update_decorations() {
     if (!fullscreen) {
         Color oc = activated ? c.outline_color : c.outline_color_inactive;
         oc[3] *= alpha_;
-        wlr_scene_rect_set_color(outline, oc.data());
+        wlr_scene_rect_set_color(outline, premultiplied(oc).data());
         wlr_scene_rect_set_size(outline, geom.width + 2, geom.height + 2);
         wlr_scene_node_set_position(&outline->node, -1, -1);
         wlr_scene_rect_set_corner_radius(outline, radius > 0 ? radius + 1 : 0);

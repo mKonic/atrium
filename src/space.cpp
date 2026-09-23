@@ -2,6 +2,7 @@
 
 #include "output.hpp"
 #include "server.hpp"
+#include "snap_preview.hpp"
 #include "view.hpp"
 
 #include <algorithm>
@@ -38,7 +39,7 @@ Space::Space(Server& srv, std::string n)
     const Color& dim = server.config.secret_backdrop;
     backdrop_blur = wlr_scene_blur_create(tree, 0, 0);
     wlr_scene_blur_set_should_only_blur_bottom_layer(backdrop_blur, false);  // blur the windows too
-    backdrop = wlr_scene_rect_create(tree, 0, 0, dim.data());
+    backdrop = wlr_scene_rect_create(tree, 0, 0, premultiplied(dim).data());
     backdrop->node.data = this;
     fullscreen_tree = wlr_scene_tree_create(tree);
     wlr_scene_node_set_enabled(&tree->node, false);
@@ -52,6 +53,8 @@ Space::Space(Server& srv, std::string n)
 
 Space::~Space() {
     server.animator.cancel_owner(this, false);
+    if (server.snap_preview)
+        server.snap_preview->rescue(this);
     // A switch sliding this space in or out belongs to its output; finish it
     // while both spaces still exist.
     if (output && !secret)
@@ -119,7 +122,7 @@ void Space::attach(Output* out) {
     wlr_scene_node_set_position(&backdrop_blur->node, out->box.x, out->box.y);
     wlr_scene_blur_set_size(backdrop_blur, out->box.width, out->box.height);
     wlr_scene_node_set_enabled(&backdrop_blur->node, server.config.blur);
-    wlr_scene_rect_set_color(backdrop, server.config.secret_backdrop.data());
+    wlr_scene_rect_set_color(backdrop, premultiplied(server.config.secret_backdrop).data());
 }
 
 } // namespace atrium

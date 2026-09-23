@@ -98,7 +98,8 @@ private:
     double grab_x_ = 0, grab_y_ = 0;  // cursor at grab start
     wlr_box grab_geom_{};             // view geometry at grab start
     uint32_t grab_edges_ = 0;
-    bool grab_unmaximize_ = false;  // moving a maximized window; restore once it drags
+    bool grab_unmaximize_ = false;  // moving a maximized/snapped window; restore once it drags
+    uint32_t snap_zone_ = 0;        // snap zone under the cursor while moving
     void unmaximize_for_drag();
 
     // Frame edges of decorated windows: a band just outside the frame that

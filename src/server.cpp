@@ -7,6 +7,7 @@
 #include "session_lock.hpp"
 #include "space.hpp"
 #include "settings.hpp"
+#include "snap_preview.hpp"
 #include "theme.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
@@ -78,6 +79,7 @@ void Server::setup() {
         tree = wlr_scene_tree_create(&scene->tree);
     drag_icons = wlr_scene_tree_create(&scene->tree);
     wlr_scene_node_place_below(&drag_icons->node, &layer(Layer::Lock)->node);
+    snap_preview = std::make_unique<SnapPreview>(*this);
     background_blur = wlr_scene_optimized_blur_create(&scene->tree, 0, 0);
     wlr_scene_node_place_above(&background_blur->node, &layer(Layer::Bottom)->node);
     apply_blur_settings();
@@ -275,6 +277,7 @@ void Server::teardown() {
 
     shutting_down = true;
     shown_secret = nullptr;
+    snap_preview.reset();
     spaces.clear();
     seat.reset();
 
@@ -768,6 +771,16 @@ void Server::run_action(const Keybind& b) {
     case Action::FocusPrev: cycle_focus(-1); break;
     case Action::SwitchVt: change_vt(unsigned(b.iarg)); break;
     case Action::Quit: quit(); break;
+    case Action::SnapLeft: if (v) v->snap(WLR_EDGE_LEFT); break;
+    case Action::SnapRight: if (v) v->snap(WLR_EDGE_RIGHT); break;
+    case Action::Restore:
+        if (v && v->fullscreen)
+            v->set_fullscreen(false);
+        else if (v && v->maximized)
+            v->set_maximized(false);
+        else if (v && v->snapped)
+            v->unsnap(true);
+        break;
     case Action::Space: switch_space(focused_output, b.iarg); break;
     case Action::MoveToSpace:
         if (v && focused_output)

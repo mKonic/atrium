@@ -17,6 +17,7 @@ class Output;
 class Titlebar;
 class Seat;
 class SessionLock;
+class SnapPreview;
 class Space;
 class Settings;
 class View;
@@ -159,6 +160,7 @@ public:
 #endif
 
     std::unique_ptr<Settings> settings;
+    std::unique_ptr<SnapPreview> snap_preview;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     uint64_t next_view_id = 1;

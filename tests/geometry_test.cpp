@@ -138,3 +138,36 @@ TEST(NearestCorner, PicksTheQuarterUnderTheCursor) {
     EXPECT_EQ(nearest_corner(w, 10, 90), uint32_t(WLR_EDGE_LEFT | WLR_EDGE_BOTTOM));
     EXPECT_EQ(nearest_corner(w, 90, 90), uint32_t(WLR_EDGE_RIGHT | WLR_EDGE_BOTTOM));
 }
+
+namespace {
+constexpr uint32_t L = WLR_EDGE_LEFT, R = WLR_EDGE_RIGHT, T = WLR_EDGE_TOP, B = WLR_EDGE_BOTTOM;
+const wlr_box kScreen{0, 30, 1440, 870};  // a 30px bar on top
+} // namespace
+
+TEST(SnapZone, EdgesAndCorners) {
+    EXPECT_EQ(snap_zone(kScreen, 0, 400, 4, 80), L);
+    EXPECT_EQ(snap_zone(kScreen, 1439, 400, 4, 80), R);
+    EXPECT_EQ(snap_zone(kScreen, 700, 31, 4, 80), T);
+    EXPECT_EQ(snap_zone(kScreen, 0, 50, 4, 80), L | T);
+    EXPECT_EQ(snap_zone(kScreen, 1439, 880, 4, 80), R | B);
+    EXPECT_EQ(snap_zone(kScreen, 40, 31, 4, 80), L | T);
+    EXPECT_EQ(snap_zone(kScreen, 700, 899, 4, 80), 0u);  // bottom edge alone does nothing
+    EXPECT_EQ(snap_zone(kScreen, 700, 400, 4, 80), 0u);
+    EXPECT_EQ(snap_zone(kScreen, 5, 400, 4, 80), 0u);     // not quite at the edge
+}
+
+TEST(SnapBox, HalvesQuartersAndMaximize) {
+    EXPECT_BOX(snap_box(kScreen, T, 8), 0, 30, 1440, 870);
+    EXPECT_BOX(snap_box(kScreen, L, 8), 8, 38, 708, 854);
+    EXPECT_BOX(snap_box(kScreen, R, 8), 724, 38, 708, 854);
+    EXPECT_BOX(snap_box(kScreen, R | B, 8), 724, 469, 708, 423);
+    EXPECT_BOX(snap_box(kScreen, L | T, 8), 8, 38, 708, 423);
+}
+
+TEST(SnapBox, HalvesMeetWithOneGapBetween) {
+    const wlr_box l = snap_box(kScreen, L, 8), r = snap_box(kScreen, R, 8);
+    EXPECT_EQ(r.x - (l.x + l.width), 8);
+    EXPECT_EQ(kScreen.x + kScreen.width - (r.x + r.width), 8);
+    const wlr_box noGap = snap_box(kScreen, L, 0);
+    EXPECT_EQ(noGap.width * 2, kScreen.width);
+}

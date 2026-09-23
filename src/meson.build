@@ -10,6 +10,7 @@ atrium_sources = files(
   'server.cpp',
   'rules.cpp',
   'session_lock.cpp',
+  'snap_preview.cpp',
   'space.cpp',
   'spaces.cpp',
   'settings.cpp',

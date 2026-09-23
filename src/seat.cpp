@@ -5,6 +5,7 @@
 #include "output.hpp"
 #include "server.hpp"
 #include "space.hpp"
+#include "snap_preview.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
 
@@ -456,6 +457,19 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             geometry::snap(nx, ny, grab_view_->geom.width, grab_view_->geom.height, o->usable,
                            server.config.snap_distance);
         grab_view_->move_to(nx, ny);
+
+        // Screen edges and corners offer to tile the window.
+        Output* o = server.output_at(cursor->x, cursor->y);
+        const uint32_t zone = (o && server.config.snapping)
+            ? geometry::snap_zone(o->box, cursor->x, cursor->y, 4, 80) : 0;
+        if (zone != snap_zone_) {
+            snap_zone_ = zone;
+            if (zone)
+                server.snap_preview->show(geometry::snap_box(o->usable, zone, zone == WLR_EDGE_TOP ? 0 : server.config.snap_gap),
+                                          &grab_view_->tree->node, grab_view_->geom);
+            else
+                server.snap_preview->hide();
+        }
         return;
     }
     if (mode == Mode::Resize && grab_view_) {
@@ -587,7 +601,12 @@ void Seat::button(wlr_pointer_button_event* e) {
         }
         if (!server.locked && (mode == Mode::Move || mode == Mode::Resize)) {
             // The grab ate the press; the release ends it and is ours too.
+            // Dropped over a snap zone, the window takes it.
+            View* dropped = mode == Mode::Move ? grab_view_ : nullptr;
+            const uint32_t zone = snap_zone_;
             cancel_grab();
+            if (dropped && zone)
+                dropped->snap(zone);
             wlr_seat_pointer_clear_focus(wlr);
             set_default_cursor();
             refresh_pointer();
@@ -714,7 +733,8 @@ void Seat::begin_move(View* view) {
     grab_geom_ = view->geom;
     // A maximized window stays put until the pointer really drags it: a
     // click (or the first half of a double-click) must not restore it.
-    grab_unmaximize_ = view->maximized;
+    grab_unmaximize_ = view->maximized || view->snapped;
+    snap_zone_ = 0;
     mode = Mode::Move;
     wlr_seat_pointer_clear_focus(wlr);
     wlr_cursor_set_xcursor(cursor, xcursor, "grabbing");
@@ -727,7 +747,10 @@ void Seat::unmaximize_for_drag() {
     grab_unmaximize_ = false;
     const wlr_box before = view->geom;
     const double fx = before.width > 0 ? (grab_x_ - before.x) / before.width : 0.5;
-    view->set_maximized(false);
+    if (view->maximized)
+        view->set_maximized(false);
+    else
+        view->unsnap(true);
     const int nx = int(std::lround(grab_x_ - fx * view->restore.width));
     view->move_to(nx, before.y);
     view->geom.width = view->restore.width;  // grab math uses the size it is heading to
@@ -755,6 +778,9 @@ void Seat::begin_resize(View* view, uint32_t edges) {
 void Seat::cancel_grab() {
     if (grab_view_ && mode == Mode::Resize)
         grab_view_->end_resize();
+    snap_zone_ = 0;
+    if (server.snap_preview)
+        server.snap_preview->hide();
     grab_view_ = nullptr;
     grab_unmaximize_ = false;
     grab_edges_ = 0;

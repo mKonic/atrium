@@ -4,6 +4,7 @@
 #include "seat.hpp"
 #include "server.hpp"
 #include "view.hpp"
+#include "geometry.hpp"
 
 #include <algorithm>
 #include <ctime>
@@ -146,6 +147,8 @@ void Output::refit_views() {
             v->request_geometry(box);
         else if (v->maximized)
             v->request_geometry(usable);
+        else if (v->snapped)
+            v->request_geometry(geometry::snap_box(usable, v->snapped, server.config.snap_gap));
     }
     wlr_scene_node_set_enabled(&fullscreen_bg->node,
         std::ranges::any_of(server.views, [this](View* v) {

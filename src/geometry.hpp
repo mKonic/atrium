@@ -37,4 +37,15 @@ wlr_box clamp_to_hints(wlr_box box, const wlr_box& min, const wlr_box& max);
 // cursor is in.
 uint32_t nearest_corner(const wlr_box& window, double cx, double cy);
 
+// Snapping: which part of `area` a window dragged with the cursor at (cx, cy)
+// wants. Returns WLR_EDGE_* bits: LEFT or RIGHT alone for a half, a LEFT/RIGHT
+// + TOP/BOTTOM pair for a quarter, TOP alone for the whole area, 0 for none.
+// `edge` is how close to the screen edge the cursor must be; `corner` is how
+// far along an edge from a corner still counts as that corner.
+uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corner);
+
+// The box a snap zone stands for, with `gap` between snapped windows and
+// around them. TOP alone (maximize) fills the area without a gap.
+wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap);
+
 } // namespace atrium::geometry

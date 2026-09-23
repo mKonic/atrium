@@ -79,4 +79,58 @@ uint32_t nearest_corner(const wlr_box& window, double cx, double cy) {
            (cy < window.y + window.height / 2.0 ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM);
 }
 
+uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corner) {
+    const bool left = cx < area.x + edge;
+    const bool right = cx >= area.x + area.width - edge;
+    const bool top = cy < area.y + edge;
+    const bool bottom = cy >= area.y + area.height - edge;
+    const bool near_top = cy < area.y + corner;
+    const bool near_bottom = cy >= area.y + area.height - corner;
+    const bool near_left = cx < area.x + corner;
+    const bool near_right = cx >= area.x + area.width - corner;
+
+    if (left || right) {
+        const uint32_t side = left ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
+        if (near_top)
+            return side | WLR_EDGE_TOP;
+        if (near_bottom)
+            return side | WLR_EDGE_BOTTOM;
+        return side;
+    }
+    if (top) {
+        if (near_left)
+            return WLR_EDGE_LEFT | WLR_EDGE_TOP;
+        if (near_right)
+            return WLR_EDGE_RIGHT | WLR_EDGE_TOP;
+        return WLR_EDGE_TOP;
+    }
+    if (bottom) {
+        if (near_left)
+            return WLR_EDGE_LEFT | WLR_EDGE_BOTTOM;
+        if (near_right)
+            return WLR_EDGE_RIGHT | WLR_EDGE_BOTTOM;
+    }
+    return 0;
+}
+
+wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap) {
+    if (zone == WLR_EDGE_TOP || !zone)
+        return area;
+    wlr_box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};
+    wlr_box b = inner;
+    const int half_w = (inner.width - gap) / 2;
+    const int half_h = (inner.height - gap) / 2;
+    if (zone & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) {
+        b.width = half_w;
+        if (zone & WLR_EDGE_RIGHT)
+            b.x = inner.x + inner.width - half_w;
+    }
+    if ((zone & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) && (zone & (WLR_EDGE_TOP | WLR_EDGE_BOTTOM))) {
+        b.height = half_h;
+        if (zone & WLR_EDGE_BOTTOM)
+            b.y = inner.y + inner.height - half_h;
+    }
+    return b;
+}
+
 } // namespace atrium::geometry
