@@ -265,4 +265,30 @@ std::vector<wlr_box> dwindle(size_t count, const wlr_box& area, int gap) {
     return out;
 }
 
+int neighbor(const wlr_box& from, std::span<const wlr_box> others, uint32_t direction) {
+    const double fx = from.x + from.width / 2.0, fy = from.y + from.height / 2.0;
+    int best = -1;
+    double best_cost = 0;
+    for (size_t i = 0; i < others.size(); ++i) {
+        const wlr_box& o = others[i];
+        const double dx = o.x + o.width / 2.0 - fx, dy = o.y + o.height / 2.0 - fy;
+        double ahead = 0, side = 0;
+        switch (direction) {
+        case WLR_EDGE_LEFT: ahead = -dx; side = dy; break;
+        case WLR_EDGE_RIGHT: ahead = dx; side = dy; break;
+        case WLR_EDGE_TOP: ahead = -dy; side = dx; break;
+        case WLR_EDGE_BOTTOM: ahead = dy; side = dx; break;
+        default: return -1;
+        }
+        if (ahead <= 0)
+            continue;
+        const double cost = ahead + 2 * std::abs(side);
+        if (best < 0 || cost < best_cost) {
+            best = int(i);
+            best_cost = cost;
+        }
+    }
+    return best;
+}
+
 } // namespace atrium::geometry

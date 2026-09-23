@@ -1,6 +1,10 @@
 #include "registry.hpp"
 
 #include <gtest/gtest.h>
+#include <sqlite3.h>
+
+#include <cstdio>
+#include <optional>
 
 using namespace atrium;
 
@@ -103,4 +107,44 @@ TEST(Registry, RemembersDisplays) {
     r.put_display(*d);
     EXPECT_FALSE(r.display("Dell U2720Q 123")->enabled);
     EXPECT_FALSE(r.display("Dell U2720Q 123")->x);
+}
+
+// A registry from before directional keys: its untouched arrow defaults
+// become caelestia's, what the user changed stays, and the new keys arrive.
+TEST(Registry, MigratesOldArrowDefaults) {
+    const std::string path = ::testing::TempDir() + "atrium-migrate.db";
+    std::remove(path.c_str());
+    {
+        Registry r(path);
+        ASSERT_TRUE(r.ok());
+        r.replace_shortcuts({{0, "Mod+Left", "snap-left", "", false},
+                             {0, "Mod+Right", "terminal", "", false},  // changed by the user
+                             {0, "Mod+Up", "maximize", "", false},
+                             {0, "Mod+Down", "restore", "", false}});
+    }
+    {
+        // Back to how version 2 left it.
+        sqlite3* db = nullptr;
+        ASSERT_EQ(sqlite3_open(path.c_str(), &db), SQLITE_OK);
+        sqlite3_exec(db, "PRAGMA user_version=2; DELETE FROM shortcuts WHERE action = 'toggle-tiling'", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    Registry r(path);
+    auto find = [&](const std::string& keys) -> std::optional<ShortcutRecord> {
+        for (const ShortcutRecord& s : r.shortcuts())
+            if (s.keys == keys)
+                return s;
+        return std::nullopt;
+    };
+    ASSERT_TRUE(find("Mod+Left"));
+    EXPECT_EQ(find("Mod+Left")->action, "focus-direction");
+    EXPECT_EQ(find("Mod+Left")->arg, "left");
+    EXPECT_EQ(find("Mod+Right")->action, "terminal");
+    EXPECT_EQ(find("Mod+Alt+F")->action, "maximize");
+    EXPECT_EQ(find("Mod+Up")->action, "focus-direction");
+    EXPECT_EQ(find("Mod+Down")->arg, "down");
+    EXPECT_EQ(find("Mod+Shift+Left")->action, "move-direction");
+    EXPECT_EQ(find("Mod+0")->arg, "10");
+    EXPECT_EQ(find("Mod+backslash")->action, "toggle-tiling");
+    std::remove(path.c_str());
 }

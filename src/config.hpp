@@ -45,6 +45,12 @@ enum class Action {
     RestartShell,     // the bar, dock and the rest of the desktop shell
     Shell,            // arg: something the shell shows ("launcher")
     ToggleTiling,     // the current space tiles its windows, or floats them again
+    FocusDirection,   // arg: left, right, up, down: the nearest window that way
+    MoveDirection,    // arg: the same; tiled: trade places; floating: snap that way
+    MoveToSpacePrev,  // the window to the space before or after, and follow it
+    MoveToSpaceNext,
+    ToggleFloating,   // on a tiled space: out of the tiles and back
+    TogglePin,        // on every space (sticky)
 };
 
 struct Keybind {

@@ -14,6 +14,7 @@ namespace atrium {
 
 bool Server::tileable(const View* v) const {
     return v->mapped && !v->unmanaged() && !v->minimized && !v->fullscreen && !v->maximized && !v->parent() &&
+           !v->float_in_tiling &&
            !v->is_dialog() && !v->splash() && !v->passive() && v->space && !v->space->secret;
 }
 
@@ -98,6 +99,60 @@ void Server::tile_drop(View* view, double lx, double ly) {
         }
     }
     retile(space);  // back into a slot, swapped or not
+}
+
+// --- keyboard ------------------------------------------------------------------------
+
+uint32_t Server::direction_from(const std::string& word) {
+    if (word == "left") return WLR_EDGE_LEFT;
+    if (word == "right") return WLR_EDGE_RIGHT;
+    if (word == "up") return WLR_EDGE_TOP;
+    if (word == "down") return WLR_EDGE_BOTTOM;
+    return WLR_EDGE_NONE;
+}
+
+View* Server::neighbor_of(View* from, uint32_t direction) const {
+    if (!from || !direction)
+        return nullptr;
+    std::vector<View*> candidates;
+    std::vector<wlr_box> boxes;
+    for (View* v : views)
+        if (v != from && v->visible() && !v->unmanaged() && !v->hidden_from_lists() &&
+            v->space == from->space) {
+            candidates.push_back(v);
+            boxes.push_back(v->geom);
+        }
+    const int i = geometry::neighbor(from->geom, boxes, direction);
+    return i < 0 ? nullptr : candidates[size_t(i)];
+}
+
+void Server::move_direction(View* view, uint32_t direction) {
+    if (!direction || view->fullscreen)
+        return;
+    if (view->tiled() && view->space) {
+        View* other = neighbor_of(view, direction);
+        if (!other || !other->tiled())
+            return;
+        std::vector<uint64_t>& order = view->space->tile_order;
+        auto a = std::ranges::find(order, view->id), b = std::ranges::find(order, other->id);
+        if (a != order.end() && b != order.end())
+            std::iter_swap(a, b);
+        retile(view->space);
+        return;
+    }
+    // Floating: to that half of the screen, up to all of it, down back to
+    // where it was.
+    switch (direction) {
+    case WLR_EDGE_LEFT:
+    case WLR_EDGE_RIGHT: view->snap(direction); break;
+    case WLR_EDGE_TOP: view->set_maximized(true); break;
+    default:
+        if (view->maximized)
+            view->set_maximized(false);
+        else if (view->snapped)
+            view->unsnap(true);
+        break;
+    }
 }
 
 // --- the window's side ---------------------------------------------------------------

@@ -277,3 +277,24 @@ TEST(Dwindle, EachNewWindowHalvesTheLastAlongItsLongerSide) {
 TEST(Dwindle, NoWindowsNoBoxes) {
     EXPECT_TRUE(atrium::geometry::dwindle(0, {0, 0, 100, 100}, 5).empty());
 }
+
+TEST(Neighbor, PicksTheNearestThatWay) {
+    const wlr_box from{400, 400, 200, 200};
+    const std::vector<wlr_box> others{
+        {800, 400, 200, 200},   // 0: straight right
+        {700, 0, 200, 200},     // 1: up and a bit right
+        {0, 400, 200, 200},     // 2: straight left
+        {400, 800, 200, 200},   // 3: straight down
+        {650, 750, 200, 200},   // 4: down and right, nearer than 0 but mostly down
+    };
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_RIGHT), 0);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_LEFT), 2);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_TOP), 1);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_BOTTOM), 3);
+}
+
+TEST(Neighbor, NothingThatWay) {
+    const std::vector<wlr_box> others{{0, 0, 100, 100}};
+    EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, others, WLR_EDGE_RIGHT), -1);
+    EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, {}, WLR_EDGE_LEFT), -1);
+}

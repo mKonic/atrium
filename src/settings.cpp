@@ -79,6 +79,12 @@ constexpr ActionName kActions[] = {
     {Action::RestartShell, "restart-shell"},
     {Action::Shell, "shell"},
     {Action::ToggleTiling, "toggle-tiling"},
+    {Action::FocusDirection, "focus-direction"},
+    {Action::MoveDirection, "move-direction"},
+    {Action::MoveToSpacePrev, "move-to-space-prev"},
+    {Action::MoveToSpaceNext, "move-to-space-next"},
+    {Action::ToggleFloating, "toggle-floating"},
+    {Action::TogglePin, "toggle-pin"},
 };
 
 } // namespace
@@ -178,16 +184,27 @@ json default_keybinds() {
         {{"keys", "Mod+Return"}, {"action", "terminal"}},
         {{"keys", "Mod+Q"}, {"action", "close"}},
         {{"keys", "Mod+F"}, {"action", "fullscreen"}},
-        {{"keys", "Mod+Up"}, {"action", "maximize"}},
+        {{"keys", "Mod+Alt+F"}, {"action", "maximize"}},
         {{"keys", "Mod+H"}, {"action", "minimize"}},
         {{"keys", "Alt+Tab"}, {"action", "switch-next"}},
         {{"keys", "Alt+Shift+Tab"}, {"action", "switch-prev"}},
         {{"keys", "Mod+Tab"}, {"action", "cycle-space-next"}},
         {{"keys", "Mod+Shift+Tab"}, {"action", "cycle-space-prev"}},
         {{"keys", "Mod+Shift+E"}, {"action", "quit"}},
-        {{"keys", "Mod+Left"}, {"action", "snap-left"}},
-        {{"keys", "Mod+Right"}, {"action", "snap-right"}},
-        {{"keys", "Mod+Down"}, {"action", "restore"}},
+        {{"keys", "Mod+Left"}, {"action", "focus-direction"}, {"arg", "left"}},
+        {{"keys", "Mod+Right"}, {"action", "focus-direction"}, {"arg", "right"}},
+        {{"keys", "Mod+Up"}, {"action", "focus-direction"}, {"arg", "up"}},
+        {{"keys", "Mod+Down"}, {"action", "focus-direction"}, {"arg", "down"}},
+        {{"keys", "Mod+Shift+Left"}, {"action", "move-direction"}, {"arg", "left"}},
+        {{"keys", "Mod+Shift+Right"}, {"action", "move-direction"}, {"arg", "right"}},
+        {{"keys", "Mod+Shift+Up"}, {"action", "move-direction"}, {"arg", "up"}},
+        {{"keys", "Mod+Shift+Down"}, {"action", "move-direction"}, {"arg", "down"}},
+        {{"keys", "Mod+Ctrl+Shift+Left"}, {"action", "move-to-space-prev"}},
+        {{"keys", "Mod+Ctrl+Shift+Right"}, {"action", "move-to-space-next"}},
+        {{"keys", "Mod+Alt+Space"}, {"action", "toggle-floating"}},
+        {{"keys", "Mod+P"}, {"action", "toggle-pin"}},
+        {{"keys", "Mod+Page_Up"}, {"action", "space-prev"}},
+        {{"keys", "Mod+Page_Down"}, {"action", "space-next"}},
         {{"keys", "Mod+Ctrl+Left"}, {"action", "space-prev"}},
         {{"keys", "Mod+Ctrl+Right"}, {"action", "space-next"}},
         {{"keys", "Mod+Ctrl+Up"}, {"action", "overview"}},
@@ -211,10 +228,10 @@ json default_keybinds() {
     };
     for (const auto& [keys, arg] : media)
         binds.push_back({{"keys", keys}, {"action", "shell"}, {"arg", arg}, {"locked", true}});
-    for (int n = 1; n <= 9; ++n) {
-        binds.push_back({{"keys", "Mod+" + std::to_string(n)}, {"action", "space"}, {"arg", std::to_string(n)}});
-        binds.push_back({{"keys", "Mod+Shift+" + std::to_string(n)}, {"action", "move-to-space"},
-                         {"arg", std::to_string(n)}});
+    for (int n = 1; n <= 10; ++n) {
+        const std::string key = std::to_string(n % 10);  // Mod+0 is space 10
+        binds.push_back({{"keys", "Mod+" + key}, {"action", "space"}, {"arg", std::to_string(n)}});
+        binds.push_back({{"keys", "Mod+Shift+" + key}, {"action", "move-to-space"}, {"arg", std::to_string(n)}});
     }
     for (int vt = 1; vt <= 12; ++vt)
         binds.push_back({{"keys", "Ctrl+Alt+F" + std::to_string(vt)},
@@ -257,7 +274,8 @@ std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod, std::vect
             k.locked = b["locked"];
         if (*action == Action::SwitchVt || *action == Action::Space || *action == Action::MoveToSpace)
             k.iarg = std::atoi(k.arg.c_str());
-        if ((*action == Action::Spawn || *action == Action::ToggleSecret || *action == Action::MoveToSecret) &&
+        if ((*action == Action::Spawn || *action == Action::ToggleSecret || *action == Action::MoveToSecret ||
+             *action == Action::FocusDirection || *action == Action::MoveDirection) &&
             k.arg.empty()) {
             fail("'" + keys + "': " + b["action"].get<std::string>() + " needs \"arg\"");
             continue;

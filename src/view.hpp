@@ -130,6 +130,7 @@ public:
     bool keep_below = false;    // stays under them
     bool skip_taskbar = false;  // not in the Dock or the switcher
     bool sticky = false;        // follows you from space to space
+    bool float_in_tiling = false;  // stays out of the tiles on a tiled space
     // Out of the Dock, the switcher and the bar's space icons.
     bool hidden_from_lists() const { return skip_taskbar || passive(); }
     std::string icon;  // an icon name, or the path of the picture the app sent

@@ -63,6 +63,11 @@ wlr_box fit_into(wlr_box box, const wlr_box& area);
 // (the newer window right or below). `gap` goes between windows.
 std::vector<wlr_box> dwindle(size_t count, const wlr_box& area, int gap);
 
+// The window next to `from` in a direction (WLR_EDGE_LEFT/RIGHT/TOP/BOTTOM):
+// of the ones whose center lies that way, the nearest, with sideways
+// distance counting double so straight ahead wins. -1 when there is none.
+int neighbor(const wlr_box& from, std::span<const wlr_box> others, uint32_t direction);
+
 // Overview: every window scaled into `area` as rows of equal height, keeping
 // their rough arrangement (top rows stay on top, left stays left) and never
 // enlarged. `gap` separates windows and rows; `label` is extra room kept

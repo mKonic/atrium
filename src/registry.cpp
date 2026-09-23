@@ -61,7 +61,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 3;
+constexpr int kSchemaVersion = 4;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -176,6 +176,29 @@ void Registry::migrate() {
         exec("INSERT INTO shortcuts (position, keys, action) "
              "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+backslash', 'toggle-tiling' FROM shortcuts "
              "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE action = 'toggle-tiling')");
+    // 4: arrows as in caelestia (focus and move by direction). Old defaults
+    // that were never changed become the new ones; the rest are added.
+    if (version >= 2 && version < 4) {
+        exec("UPDATE shortcuts SET action = 'focus-direction', arg = 'left' WHERE keys = 'Mod+Left' AND action = 'snap-left'");
+        exec("UPDATE shortcuts SET action = 'focus-direction', arg = 'right' WHERE keys = 'Mod+Right' AND action = 'snap-right'");
+        exec("UPDATE shortcuts SET action = 'focus-direction', arg = 'down' WHERE keys = 'Mod+Down' AND action = 'restore'");
+        exec("UPDATE shortcuts SET keys = 'Mod+Alt+F' WHERE keys = 'Mod+Up' AND action = 'maximize'");
+        const char* added[][3] = {
+            {"Mod+Up", "focus-direction", "up"},
+            {"Mod+Shift+Left", "move-direction", "left"}, {"Mod+Shift+Right", "move-direction", "right"},
+            {"Mod+Shift+Up", "move-direction", "up"}, {"Mod+Shift+Down", "move-direction", "down"},
+            {"Mod+Ctrl+Shift+Left", "move-to-space-prev", ""}, {"Mod+Ctrl+Shift+Right", "move-to-space-next", ""},
+            {"Mod+Alt+Space", "toggle-floating", ""}, {"Mod+P", "toggle-pin", ""},
+            {"Mod+Page_Up", "space-prev", ""}, {"Mod+Page_Down", "space-next", ""},
+            {"Mod+0", "space", "10"}, {"Mod+Shift+0", "move-to-space", "10"},
+        };
+        for (const auto& a : added) {
+            Stmt add(db_, "INSERT INTO shortcuts (position, keys, action, arg) "
+                          "SELECT COALESCE(MAX(position), 0) + 1, ?1, ?2, ?3 FROM shortcuts "
+                          "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = ?1)");
+            add.bind(1, std::string(a[0])).bind(2, std::string(a[1])).bind(3, std::string(a[2])).run();
+        }
+    }
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

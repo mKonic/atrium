@@ -1044,6 +1044,36 @@ void Server::run_action(const Keybind& b) {
     case Action::CycleSpaceNext: cycle_space(+1); break;
     case Action::CycleSpacePrev: cycle_space(-1); break;
     case Action::RestartShell: if (shell) shell->restart(); break;
+    case Action::FocusDirection:
+        if (View* next = neighbor_of(v, direction_from(b.arg)))
+            focus_view(next);
+        break;
+    case Action::MoveDirection: if (v) move_direction(v, direction_from(b.arg)); break;
+    case Action::MoveToSpacePrev:
+    case Action::MoveToSpaceNext:
+        if (v && v->space && !v->space->secret && focused_output) {
+            const int n = v->space->number + (b.action == Action::MoveToSpaceNext ? 1 : -1);
+            if (n >= 1) {
+                move_to_space(v, ensure_space(focused_output, n));
+                switch_space(focused_output, n);
+                focus_view(v);
+            }
+        }
+        break;
+    case Action::ToggleFloating:
+        if (v && v->space && v->space->tiled) {
+            v->float_in_tiling = !v->float_in_tiling;
+            if (v->float_in_tiling)
+                v->untile();
+            retile(v->space);
+        }
+        break;
+    case Action::TogglePin:
+        if (v) {
+            v->sticky = !v->sticky;
+            notify_window(*v, "changed");
+        }
+        break;
     case Action::ToggleTiling:
         if (focused_output && focused_output->active && !(shown_secret && shown_secret->output == focused_output))
             toggle_tiling(focused_output->active);

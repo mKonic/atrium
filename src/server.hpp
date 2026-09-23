@@ -107,6 +107,11 @@ public:
     bool tileable(const View* view) const;
     // A tiled window dropped at a point: it trades places with the one there.
     void tile_drop(View* view, double lx, double ly);
+    // Keyboard navigation (tiling.cpp): the window beside `from` on screen,
+    // and moving one that way (tiled: trade places; floating: snap).
+    static uint32_t direction_from(const std::string& word);  // "left" → WLR_EDGE_LEFT
+    View* neighbor_of(View* from, uint32_t direction) const;
+    void move_direction(View* view, uint32_t direction);
     void toggle_secret(const std::string& name);
     void hide_secret();
     // Make `space` visible: switch to it, or show it if it is secret.

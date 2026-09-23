@@ -26,11 +26,15 @@ Rectangle {
             "snap-left": "Snap left", "snap-right": "Snap right", "restore": "Restore window",
             "overview": "Mission Control", "switch-next": "Switch windows", "switch-prev": "Switch windows backwards",
             "cycle-space-next": "Cycle spaces", "cycle-space-prev": "Cycle spaces backwards",
-            "restart-shell": "Restart the shell", "shell": "Shell", "toggle-tiling": "Tile windows"
+            "restart-shell": "Restart the shell", "shell": "Shell", "toggle-tiling": "Tile windows",
+            "focus-direction": "Focus the window beside", "move-direction": "Move window",
+            "move-to-space-prev": "Move window to previous space", "move-to-space-next": "Move window to next space",
+            "toggle-floating": "Float out of the tiles", "toggle-pin": "Show on every space"
         })
     readonly property var argHints: ({
             "spawn": "Command", "space": "Number", "move-to-space": "Number", "switch-vt": "Number",
-            "toggle-secret": "Space name", "move-to-secret": "Space name", "shell": "What"
+            "toggle-secret": "Space name", "move-to-secret": "Space name", "shell": "What",
+            "focus-direction": "left, right, up, down", "move-direction": "left, right, up, down"
         })
 
     function add(): void {

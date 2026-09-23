@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "settings.hpp"
 
 #include <gtest/gtest.h>
@@ -104,9 +105,14 @@ TEST(Shortcuts, DefaultsNeverClash) {
     for (size_t i = 0; i < list.size(); ++i)
         list[i].id = int64_t(i + 1);
     EXPECT_TRUE(shortcut_clashes(list, WLR_MODIFIER_LOGO).empty());
-    // With Alt as Mod, Mod+Tab (spaces) lands on Alt+Tab (windows): shown as a clash.
-    for (const auto& [id, others] : shortcut_clashes(list, WLR_MODIFIER_ALT))
-        EXPECT_TRUE(list[id - 1].keys.ends_with("Tab")) << list[id - 1].keys;
+    // With Alt as Mod, Mod+Tab (spaces) lands on Alt+Tab (windows), and
+    // Mod+Alt+X on Mod+X: shown as clashes, and only those.
+    for (const auto& [id, others] : shortcut_clashes(list, WLR_MODIFIER_ALT)) {
+        const std::string& k = list[id - 1].keys;
+        const bool alt_pair = k.starts_with("Mod+Alt+") ||
+            std::ranges::any_of(others, [&](int64_t o) { return list[o - 1].keys.starts_with("Mod+Alt+"); });
+        EXPECT_TRUE(k.ends_with("Tab") || alt_pair) << k;
+    }
     list.push_back({999, list.front().keys, "close", ""});
     EXPECT_TRUE(shortcut_clashes(list, WLR_MODIFIER_LOGO).contains(999));
 }
