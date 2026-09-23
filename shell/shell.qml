@@ -10,6 +10,7 @@ import qs.modules.dock
 import qs.modules.launcher
 import qs.modules.notifications
 import qs.modules.osd
+import qs.modules.polkit
 import qs.modules.session
 
 // atrium's desktop shell.
@@ -55,6 +56,8 @@ ShellRoot {
     ControlCenter {}
 
     Osd {}
+
+    Polkit {}
 
     SystemMenu {}
 
