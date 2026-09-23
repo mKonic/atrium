@@ -84,6 +84,33 @@ TEST(Shortcuts, FollowTheModifier) {
     EXPECT_EQ(find_keybind(alt, WLR_MODIFIER_LOGO, XKB_KEY_q), nullptr);
 }
 
+TEST(Shortcuts, ClashesAreTheSameKeysHoweverWritten) {
+    const std::vector<ShortcutRecord> list{{1, "Mod+Q", "close", ""},
+                                           {2, "Super+q", "terminal", ""},
+                                           {3, "Shift+Mod+E", "quit", ""},
+                                           {4, "Mod+Shift+E", "overview", ""},
+                                           {5, "Mod+W", "close", ""}};
+    const auto super = shortcut_clashes(list, WLR_MODIFIER_LOGO);
+    EXPECT_EQ(super.at(1), std::vector<int64_t>{2});
+    EXPECT_EQ(super.at(2), std::vector<int64_t>{1});
+    EXPECT_EQ(super.at(3), std::vector<int64_t>{4});
+    EXPECT_FALSE(super.contains(5));
+    // With Alt as Mod, Mod+Q and Super+Q are different keys.
+    EXPECT_FALSE(shortcut_clashes(list, WLR_MODIFIER_ALT).contains(1));
+}
+
+TEST(Shortcuts, DefaultsNeverClash) {
+    auto list = shortcuts_from_json(default_keybinds());
+    for (size_t i = 0; i < list.size(); ++i)
+        list[i].id = int64_t(i + 1);
+    EXPECT_TRUE(shortcut_clashes(list, WLR_MODIFIER_LOGO).empty());
+    // With Alt as Mod, Mod+Tab (spaces) lands on Alt+Tab (windows): shown as a clash.
+    for (const auto& [id, others] : shortcut_clashes(list, WLR_MODIFIER_ALT))
+        EXPECT_TRUE(list[id - 1].keys.ends_with("Tab")) << list[id - 1].keys;
+    list.push_back({999, list.front().keys, "close", ""});
+    EXPECT_TRUE(shortcut_clashes(list, WLR_MODIFIER_LOGO).contains(999));
+}
+
 TEST(Shortcuts, BadOnesAreSkippedWithAReason) {
     std::vector<std::string> errors;
     const auto binds = resolve_keybinds(json::array({{{"keys", "Mod+B"}, {"action", "spawn"}, {"arg", "firefox"}},

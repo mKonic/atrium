@@ -108,9 +108,11 @@ Rectangle {
                 required property var modelData
                 required property int index
                 readonly property string hint: root.argHints[modelData.action] ?? ""
+                // The first other shortcut on the same keys, if any.
+                readonly property var clash: modelData.clashes ? Atrium.shortcuts.find(s => s.id === modelData.clashes[0]) : null
 
                 width: column.width
-                height: 44
+                height: clash ? 62 : 44
 
                 Rectangle {
                     visible: row.index > 0
@@ -119,9 +121,30 @@ Rectangle {
                     color: Theme.alpha(Theme.palette.m3Outline, 0.12)
                 }
 
+                Row {
+                    visible: row.clash !== null
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 6
+                    spacing: 5
+
+                    MaterialIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "warning"
+                        font.pointSize: Theme.font.size.small
+                        color: "#ffb74d"
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: row.clash ? `Same keys as “${root.labels[row.clash.action] ?? row.clash.action}”. Only one of them will work.` : ""
+                        font.pointSize: Theme.font.size.smaller
+                        color: "#ffb74d"
+                    }
+                }
+
                 Item {
                     anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
+                    y: 7
                     width: 230
                     height: 30
 
@@ -145,7 +168,7 @@ Rectangle {
                     id: action
 
                     x: 240
-                    anchors.verticalCenter: parent.verticalCenter
+                    y: 7
                     fieldWidth: 210
                     value: row.modelData.action
                     options: Atrium.actions.map(a => ({ value: a, label: root.labels[a] ?? a }))
@@ -157,7 +180,7 @@ Rectangle {
                     anchors.leftMargin: 8
                     anchors.right: remove.left
                     anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
+                    y: 7
                     visible: row.hint.length > 0
                     placeholder: row.hint
                     value: row.modelData.arg ?? ""
@@ -168,7 +191,7 @@ Rectangle {
                     id: remove
 
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
+                    y: 22 - height / 2
                     text: "remove_circle"
                     font.pointSize: Theme.font.size.larger
                     color: removeArea.containsMouse ? "#ffb4ab" : Theme.palette.m3OnSurfaceVariant

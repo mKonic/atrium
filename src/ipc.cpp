@@ -198,8 +198,14 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         return ok(action_names());
     if (cmd == "shortcuts.list") {
         json list = json::array();
-        for (const ShortcutRecord& k : reg.shortcuts())
-            list.push_back(shortcut_json(k));
+        const std::vector<ShortcutRecord> all = reg.shortcuts();
+        const auto clashes = shortcut_clashes(all, server.config.mod);
+        for (const ShortcutRecord& k : all) {
+            json j = shortcut_json(k);
+            if (auto it = clashes.find(k.id); it != clashes.end())
+                j["clashes"] = it->second;
+            list.push_back(std::move(j));
+        }
         return ok(list);
     }
     if (cmd == "shortcut.add" || cmd == "shortcut.set") {

@@ -117,6 +117,21 @@ std::optional<KeyChord> parse_chord(const std::string& text) {
     return chord;
 }
 
+std::map<int64_t, std::vector<int64_t>> shortcut_clashes(const std::vector<ShortcutRecord>& shortcuts, uint32_t mod) {
+    std::map<std::pair<uint32_t, xkb_keysym_t>, std::vector<int64_t>> by_keys;
+    for (const ShortcutRecord& s : shortcuts)
+        if (auto chord = parse_chord(s.keys))
+            by_keys[{chord->mods | (chord->uses_mod ? mod : 0), chord->sym}].push_back(s.id);
+    std::map<int64_t, std::vector<int64_t>> out;
+    for (const auto& [keys, ids] : by_keys)
+        if (ids.size() > 1)
+            for (int64_t id : ids)
+                for (int64_t other : ids)
+                    if (other != id)
+                        out[id].push_back(other);
+    return out;
+}
+
 std::optional<Action> action_from_name(const std::string& name) {
     for (const auto& a : kActions)
         if (name == a.name)

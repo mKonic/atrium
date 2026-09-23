@@ -97,6 +97,10 @@ json default_dock();
 std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod,
                                       std::vector<std::string>* errors = nullptr);
 
+// Shortcuts whose keys another one also uses, with `mod` standing for "Mod":
+// each one's id → the ids it clashes with. Only the first of them works.
+std::map<int64_t, std::vector<int64_t>> shortcut_clashes(const std::vector<ShortcutRecord>& shortcuts, uint32_t mod);
+
 uint32_t modifier_from_name(const std::string& name);  // "super", "alt", "ctrl"
 const char* modifier_name(uint32_t mod);
 
