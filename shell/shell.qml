@@ -5,6 +5,7 @@ import Quickshell
 import qs.modules.bar
 import qs.modules.desktop
 import qs.modules.dock
+import qs.modules.launcher
 
 // atrium's desktop shell.
 ShellRoot {
@@ -37,4 +38,6 @@ ShellRoot {
             screen: modelData
         }
     }
+
+    Launcher {}
 }

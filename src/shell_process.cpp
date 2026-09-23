@@ -53,6 +53,19 @@ std::string builtin_dir() {
     return {};
 }
 
+// The Atrium QML module: from the build tree when running from it, else the
+// installed copy.
+std::string qml_import_dir() {
+    std::error_code ec;
+    const fs::path exe = fs::read_symlink("/proc/self/exe", ec);
+    const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "shell" / "plugin";
+    if (!ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built / "Atrium" / "qmldir"))
+        return built;
+    if (fs::exists(fs::path(ATRIUM_QML_DIR) / "Atrium" / "qmldir"))
+        return ATRIUM_QML_DIR;
+    return built;
+}
+
 } // namespace
 
 // Called from Server's SIGCHLD handler for every reaped child.
@@ -113,8 +126,12 @@ void ShellProcess::start() {
         wlr_log_errno(WLR_ERROR, "shell: fork failed");
         return;
     }
+    const std::string qml = qml_import_dir();
     if (pid == 0) {
         setsid();
+        // Where the shell finds its C++ module (`import Atrium`).
+        if (!qml.empty())
+            setenv("QML_IMPORT_PATH", qml.c_str(), 1);
         struct sigaction sa{};
         sa.sa_handler = SIG_DFL;
         sigemptyset(&sa.sa_mask);

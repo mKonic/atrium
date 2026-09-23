@@ -865,6 +865,11 @@ void Server::run_action(const Keybind& b) {
     case Action::CycleSpaceNext: cycle_space(+1); break;
     case Action::CycleSpacePrev: cycle_space(-1); break;
     case Action::RestartShell: if (shell) shell->restart(); break;
+    case Action::Shell:
+        // The shell listens on the IPC socket; it decides what "launcher" means.
+        if (ipc)
+            ipc->broadcast("shell", {{"event", "shell.action"}, {"name", b.arg}});
+        break;
     case Action::ToggleSecret: toggle_secret(b.arg); break;
     case Action::MoveToSecret:
         if (v) {

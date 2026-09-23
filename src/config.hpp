@@ -43,6 +43,7 @@ enum class Action {
     CycleSpaceNext,   // existing spaces on the output, wrapping around
     CycleSpacePrev,
     RestartShell,     // the bar, dock and the rest of the desktop shell
+    Shell,            // arg: something the shell shows ("launcher")
 };
 
 struct Keybind {

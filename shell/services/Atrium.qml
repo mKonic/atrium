@@ -19,6 +19,9 @@ Singleton {
 
     readonly property string socketPath: `${Quickshell.env("XDG_RUNTIME_DIR")}/atrium.${Quickshell.env("WAYLAND_DISPLAY")}.sock`
 
+    // A shortcut asked the shell to show something ("launcher").
+    signal shellAction(string name)
+
     property int _nextId: 1
     property var _pending: ({})
 
@@ -64,6 +67,8 @@ Singleton {
     function setSetting(key: string, value: var): void {
         request({ cmd: "settings.set", key: key, value: value });
     }
+
+    readonly property var focusedOutput: outputs.find(o => o.focused) ?? null
 
     function closeWindow(id: int): void {
         request({ cmd: "window.close", window: id });
@@ -126,12 +131,20 @@ Singleton {
         onConnectedChanged: {
             if (!connected)
                 return;
-            write(JSON.stringify({ cmd: "subscribe", topics: ["windows", "spaces", "outputs", "settings"] }) + "\n");
+            write(JSON.stringify({ cmd: "subscribe", topics: ["windows", "spaces", "outputs", "settings", "shell"] }) + "\n");
             flush();
         }
 
         parser: SplitParser {
-            onRead: coalesce.restart()
+            onRead: line => {
+                if (line.includes('"shell.action"')) {
+                    try {
+                        root.shellAction(JSON.parse(line).name ?? "");
+                    } catch (e) {}
+                    return;
+                }
+                coalesce.restart();
+            }
         }
     }
 

@@ -1,0 +1,20 @@
+# The Atrium QML module the shell imports. It is built into this directory
+# (next to its qmldir), so the parent directory is a QML import path both
+# here in the build tree and where it is installed.
+qt6 = import('qt6')
+qt = dependency('qt6', modules: ['Core', 'Qml'])
+
+plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', dependencies: qt)
+
+atrium_qml_dir = get_option('libdir') / 'atrium' / 'qml' / 'Atrium'
+
+shared_module('atriumplugin',
+  'plugin.cpp', 'search.cpp', plugin_moc,
+  dependencies: qt,
+  install: true,
+  install_dir: atrium_qml_dir,
+)
+
+configure_file(input: 'qmldir', output: 'qmldir', copy: true, install: true, install_dir: atrium_qml_dir)
+
+search_core = files('search.cpp')

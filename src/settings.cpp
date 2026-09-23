@@ -77,6 +77,7 @@ constexpr ActionName kActions[] = {
     {Action::CycleSpaceNext, "cycle-space-next"},
     {Action::CycleSpacePrev, "cycle-space-prev"},
     {Action::RestartShell, "restart-shell"},
+    {Action::Shell, "shell"},
 };
 
 } // namespace
@@ -167,6 +168,7 @@ json default_keybinds() {
         {{"keys", "Mod+Ctrl+Left"}, {"action", "space-prev"}},
         {{"keys", "Mod+Ctrl+Right"}, {"action", "space-next"}},
         {{"keys", "Mod+Ctrl+Up"}, {"action", "overview"}},
+        {{"keys", "Mod+Space"}, {"action", "shell"}, {"arg", "launcher"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
     });

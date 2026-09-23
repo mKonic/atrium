@@ -7,10 +7,12 @@ if gtest.found()
     'settings_test.cpp',
     'placements_test.cpp',
     'rules_test.cpp',
-    files('../src/geometry.cpp', '../src/config.cpp', '../src/settings.cpp', '../src/rules.cpp', '../src/placements.cpp'),
+    'search_test.cpp',
+    files('../src/geometry.cpp', '../src/config.cpp', '../src/settings.cpp', '../src/rules.cpp', '../src/placements.cpp', '../shell/plugin/Atrium/search.cpp'),
     protocol_headers,
-    include_directories: include_directories('../src'),
+    include_directories: include_directories('../src', '../shell/plugin/Atrium'),
     dependencies: deps + [gtest],
   )
   test('unit', unit)
 endif
+
