@@ -1,0 +1,178 @@
+#pragma once
+#include "listener.hpp"
+
+#include <string>
+
+namespace atrium {
+
+class Output;
+class Server;
+
+// A top-level application window: an xdg_toplevel or an X11 window.
+//
+// Windows float. `geom` is the visible window (xdg geometry, so client-side
+// shadows are excluded) in layout coordinates, and the view's scene tree sits
+// at geom.x/geom.y. The position is ours; the size is whatever the client last
+// committed, requested through configure().
+class View {
+public:
+    enum class Kind { Xdg, X11 };
+
+    View(Server& server, Kind kind);
+    virtual ~View();
+    View(const View&) = delete;
+    View& operator=(const View&) = delete;
+
+    // --- backend specifics -------------------------------------------------
+    virtual wlr_surface* surface() const = 0;
+    virtual const char* app_id() const = 0;
+    virtual const char* title() const = 0;
+    virtual View* parent() const = 0;
+    virtual void size_hints(wlr_box& min, wlr_box& max) const = 0;
+    virtual bool is_dialog() const = 0;   // should be placed over its parent
+    virtual bool unmanaged() const { return false; }  // X11 override-redirect
+    virtual bool wants_focus() const { return false; }
+    virtual void close() = 0;
+    // Layout position of the root surface's origin. For xdg windows that is
+    // offset from geom by the client-side shadow margin.
+    virtual void surface_origin(double& x, double& y) const { x = geom.x; y = geom.y; }
+
+    // --- window management -------------------------------------------------
+    void move_to(int x, int y);
+    // Ask for a new size and position. The size lands when the client commits.
+    void request_geometry(wlr_box box);
+    void set_activated(bool activated);
+    // `restore_geometry` false drops the maximized state where the window is
+    // (resizing a maximized window) instead of returning to `restore`.
+    void set_maximized(bool maximized, bool restore_geometry = true);
+    void set_fullscreen(bool fullscreen);
+    void set_minimized(bool minimized);
+    void raise();
+    bool visible() const { return mapped && !minimized; }
+
+    // During an interactive resize from the left or top edge the opposite edge
+    // stays put: when a new size arrives, x/y are derived from this anchor.
+    void begin_resize(uint32_t edges);
+    void end_resize();
+
+    Server& server;
+    const Kind kind;
+    Output* output = nullptr;
+    wlr_scene_tree* tree = nullptr;      // root of the view, at geom.x/geom.y
+    wlr_scene_tree* content = nullptr;   // the client's surfaces
+    wlr_scene_shadow* shadow = nullptr;
+    wlr_box geom{};
+    wlr_box restore{};  // geometry to return to from maximized/fullscreen
+
+    bool mapped = false;
+    bool activated = false;
+    bool minimized = false;
+    bool maximized = false;
+    bool fullscreen = false;
+    bool urgent = false;
+
+protected:
+    // Backend hooks for the state changes above.
+    virtual void configure(const wlr_box& box) = 0;
+    virtual void send_activated(bool activated) = 0;
+    virtual void send_maximized(bool maximized) = 0;
+    virtual void send_fullscreen(bool fullscreen) = 0;
+    virtual void send_suspended(bool) {}
+    virtual void notify_position() {}  // X11 windows are told where they are
+    // True while the client has not yet acked the last size we asked for.
+    virtual bool awaiting_configure() const { return false; }
+    virtual wlr_scene_tree* create_content(wlr_scene_tree* parent) = 0;
+
+    // Shared map/unmap/commit logic, called by the backends.
+    void handle_map();
+    void handle_unmap();
+    void handle_size(int width, int height);
+    void update_title();
+    void update_decorations();
+    // Cheap enough for every commit: subsurfaces come and go between resizes.
+    void update_corners();
+
+    wlr_box usable_area() const;
+
+    // Only xdg windows need anchoring: an X11 configure carries the position
+    // along with the size, so X11 windows are simply placed where asked.
+    bool anchored() const { return resize_edges_ && kind == Kind::Xdg; }
+    // The grab has ended but the final size has not landed yet; the anchor
+    // holds until it does (see XdgView::commit).
+    void settle_resize();
+
+    uint32_t resize_edges_ = 0;
+    bool resize_settling_ = false;
+    int anchor_right_ = 0, anchor_bottom_ = 0;
+
+private:
+    void place();
+    void set_output(Output* output);
+    void create_toplevel_handles();
+    void destroy_toplevel_handles();
+    void update_output_from_position();
+
+    wlr_ext_foreign_toplevel_handle_v1* ext_handle_ = nullptr;
+    wlr_foreign_toplevel_handle_v1* handle_ = nullptr;
+    wlr_scene* capture_scene_ = nullptr;
+    wlr_ext_image_capture_source_v1* capture_source_ = nullptr;
+
+    Listener<wlr_foreign_toplevel_handle_v1_activated_event> handle_activate_;
+    Listener<wlr_foreign_toplevel_handle_v1_maximized_event> handle_maximize_;
+    Listener<wlr_foreign_toplevel_handle_v1_minimized_event> handle_minimize_;
+    Listener<wlr_foreign_toplevel_handle_v1_fullscreen_event> handle_fullscreen_;
+    Listener<> handle_close_;
+
+    friend class Server;  // image capture requests
+};
+
+// Wayland-native window.
+class XdgView final : public View {
+public:
+    XdgView(Server& server, wlr_xdg_toplevel* toplevel);
+    ~XdgView() override;
+
+    wlr_surface* surface() const override { return toplevel->base->surface; }
+    const char* app_id() const override;
+    const char* title() const override;
+    View* parent() const override;
+    void size_hints(wlr_box& min, wlr_box& max) const override;
+    bool is_dialog() const override;
+    void close() override;
+    void surface_origin(double& x, double& y) const override;
+
+    void dismiss_popups();
+    void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
+
+    wlr_xdg_toplevel* const toplevel;
+
+protected:
+    void configure(const wlr_box& box) override;
+    void send_activated(bool activated) override;
+    void send_maximized(bool maximized) override;
+    void send_fullscreen(bool fullscreen) override;
+    void send_suspended(bool suspended) override;
+    bool awaiting_configure() const override;
+    wlr_scene_tree* create_content(wlr_scene_tree* parent) override;
+
+private:
+    void commit();
+
+    uint32_t last_size_serial_ = 0;
+    void apply_decoration_mode();
+
+    wlr_xdg_toplevel_decoration_v1* decoration_ = nullptr;
+    wlr_box bounds_{};
+
+    Listener<> commit_, map_, unmap_, destroy_;
+    Listener<> request_fullscreen_, request_maximize_, request_minimize_;
+    Listener<wlr_xdg_toplevel_move_event> request_move_;
+    Listener<wlr_xdg_toplevel_resize_event> request_resize_;
+    Listener<> set_title_, set_app_id_;
+    Listener<> decoration_request_, decoration_destroy_;
+};
+
+// Attach the popup machinery for a new xdg_popup (of a view or a layer surface).
+void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup);
+
+} // namespace atrium
