@@ -1,6 +1,7 @@
 // The Atrium QML module: C++ helpers for atrium's shell, so its QML stays
 // layout and bindings. `import Atrium` in the shell.
 
+#include "clipboard.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
 #include "views.hpp"
@@ -109,6 +110,8 @@ public:
         });
         qmlRegisterSingletonType<NotificationHistory>(uri, 1, 0, "NotificationHistory",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new NotificationHistory; });
+        qmlRegisterSingletonType<ClipboardHistory>(uri, 1, 0, "Clipboard",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new ClipboardHistory; });
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
     }

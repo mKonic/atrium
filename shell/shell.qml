@@ -3,6 +3,7 @@
 import QtQuick
 import Quickshell
 import qs.modules.bar
+import qs.modules.clipboard
 import qs.modules.desktop
 import qs.modules.dock
 import qs.modules.launcher
@@ -41,6 +42,8 @@ ShellRoot {
     }
 
     Launcher {}
+
+    ClipboardPicker {}
 
     Notifications {}
 

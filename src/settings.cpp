@@ -169,6 +169,7 @@ json default_keybinds() {
         {{"keys", "Mod+Ctrl+Right"}, {"action", "space-next"}},
         {{"keys", "Mod+Ctrl+Up"}, {"action", "overview"}},
         {{"keys", "Mod+Space"}, {"action", "shell"}, {"arg", "launcher"}},
+        {{"keys", "Mod+V"}, {"action", "shell"}, {"arg", "clipboard"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
     });
@@ -417,6 +418,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Desktop (read by the shell)
     s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
         "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));
+
+    s.push_back(boolean("session.clipboard_history", "Session", "Clipboard history",
+        "Remember what you copy (text and pictures) so Super+V can bring it back.",
+        &Config::clipboard_history, d));
 
     // Dock (read by the shell; the compositor itself has no use for them)
     s.push_back(make("dock.pinned", SettingType::StringList, "Dock", "Apps in the Dock",

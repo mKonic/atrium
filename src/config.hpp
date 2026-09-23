@@ -129,6 +129,7 @@ struct Config {
     uint32_t mod = WLR_MODIFIER_LOGO;
     std::string terminal = "ghostty";
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
+    bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
     std::vector<Keybind> keybinds;
 
     // `nested` = running as a window inside another compositor, which owns

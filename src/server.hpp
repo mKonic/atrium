@@ -205,6 +205,7 @@ private:
     void setup();
     void teardown();
     void prepare_session_environment();
+    void start_clipboard_history();
 #ifdef ATRIUM_XWAYLAND
     void allow_root_x11(const char* display);
 #endif

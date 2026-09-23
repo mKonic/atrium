@@ -303,6 +303,24 @@ void Server::allow_root_x11(const char* display) {
 }
 #endif
 
+// The watchers that feed cliphist, the store the Super+V picker reads. A
+// nested atrium leaves them to the host session (they would record into
+// the same history) unless pointed at another one.
+void Server::start_clipboard_history() {
+    namespace fs = std::filesystem;
+    if (!config.clipboard_history)
+        return;
+    if (nested && !std::getenv("CLIPHIST_DB_PATH"))
+        return;
+    for (const char* tool : {"/usr/bin/cliphist", "/usr/bin/wl-paste"})
+        if (!fs::exists(tool)) {
+            wlr_log(WLR_INFO, "clipboard history: %s not installed", tool);
+            return;
+        }
+    spawn("exec wl-paste --type text --watch cliphist store");
+    spawn("exec wl-paste --type image --watch cliphist store");
+}
+
 void Server::run_startup() {
     if (startup_timer_) {
         wl_event_source_remove(startup_timer_);
@@ -390,6 +408,7 @@ void Server::run(const char* startup_cmd) {
 
     shell = std::make_unique<ShellProcess>(*this);
     shell->start();
+    start_clipboard_history();
 
     if (startup_cmd) {
         startup_cmd_ = startup_cmd;
