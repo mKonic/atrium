@@ -1,4 +1,5 @@
 #include "ipc.hpp"
+#include "layer_surface.hpp"
 #include "registry.hpp"
 #include "rules.hpp"
 
@@ -497,6 +498,21 @@ json Ipc::handle(Client& c, const json& req) {
         json list = json::array();
         for (View* v : server_.views)
             list.push_back(window_json(*v));
+        return ok(list);
+    }
+
+    if (cmd == "layers") {
+        static constexpr const char* kNames[] = {"background", "bottom", "top", "overlay"};
+        json list = json::array();
+        for (Output* o : server_.outputs)
+            for (int i = 0; i < 4; ++i)
+                for (LayerSurface* l : o->layers[i]) {
+                    const wlr_box g = {l->tree ? l->tree->node.x : 0, l->tree ? l->tree->node.y : 0,
+                                       int(l->wlr->current.actual_width), int(l->wlr->current.actual_height)};
+                    list.push_back({{"namespace", l->wlr->namespace_ ? l->wlr->namespace_ : ""},
+                                    {"layer", kNames[i]}, {"output", o->wlr->name},
+                                    {"geometry", box_json(g)}, {"mapped", l->mapped}});
+                }
         return ok(list);
     }
 

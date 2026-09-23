@@ -87,8 +87,15 @@ Output::~Output() {
 
 void Output::frame() {
     server.animator.tick();
-    if (!wlr_scene_output_needs_frame(scene_output))
+    // Frame callbacks go out even when nothing changed: a client that asked
+    // for one without new damage (Qt between animation steps) would
+    // otherwise wait forever, frozen mid-animation.
+    if (!wlr_scene_output_needs_frame(scene_output)) {
+        timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        wlr_scene_output_send_frame_done(scene_output, &now);
         return;
+    }
     if (tearing_view(server, *this)) {
         // Show the frame the moment it is ready, torn if need be; fall back
         // to waiting for vblank when the hardware won't.

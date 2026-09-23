@@ -13,6 +13,8 @@ shared_module('atriumplugin',
   dependencies: qt,
   # GCC 16 trips over Qt's own headers; nothing of ours.
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),
+  # Loaded into an ordinary qs, which has no sanitizer runtime to host it.
+  override_options: ['b_sanitize=none'],
   install: true,
   install_dir: atrium_qml_dir,
 )

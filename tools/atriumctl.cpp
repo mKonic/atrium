@@ -27,6 +27,7 @@ void usage() {
         "  version                   compositor version\n"
         "  windows                   open windows\n"
         "  outputs                   monitors\n"
+        "  layers                    panels, docks and overlays (layer surfaces)\n"
         "  spaces                    spaces and secret spaces\n"
         "  space N                   go to space N\n"
         "  secret NAME               show or hide a secret space\n"
@@ -44,7 +45,7 @@ void usage() {
         "  rule add FIELD=VALUE...   add one (app_pattern, title_pattern, secret, space, ...)\n"
         "  rule rm ID                remove one\n"
         "  shortcuts                 key combinations and what they do\n"
-        "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset"
+        "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
         "  focus|close|minimize|maximize|fullscreen [ID]   act on a window (default: focused)\n"
         "  move ID X Y | resize ID W H\n"
@@ -168,6 +169,14 @@ void print_human(const std::string& cmd, const json& r) {
                         o["refresh"].get<double>(), o["scale"].get<double>(),
                         o["enabled"].get<bool>() ? "" : " (off)", o["focused"].get<bool>() ? " (focused)" : "");
         }
+    } else if (cmd == "layers") {
+        for (const auto& l : r) {
+            const auto& g = l["geometry"];
+            std::printf("%-24s %-8s %-10s %dx%d+%d+%d%s\n", l["namespace"].get<std::string>().c_str(),
+                        l["layer"].get<std::string>().c_str(), l["output"].get<std::string>().c_str(),
+                        g["width"].get<int>(), g["height"].get<int>(), g["x"].get<int>(), g["y"].get<int>(),
+                        l["mapped"].get<bool>() ? "" : " (hidden)");
+        }
     } else if (cmd == "spaces") {
         for (const auto& s : r)
             std::printf("%-26s %-8s %2d window%s%s\n", s["id"].get<std::string>().c_str(),
@@ -246,7 +255,7 @@ int main(int argc, char** argv) {
     };
 
     json req;
-    if (cmd == "version" || cmd == "windows" || cmd == "outputs") {
+    if (cmd == "version" || cmd == "windows" || cmd == "outputs" || cmd == "layers") {
         req = {{"cmd", cmd}};
     } else if (cmd == "schema") {
         req = {{"cmd", "settings.schema"}};
