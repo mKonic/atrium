@@ -52,6 +52,7 @@ struct Keybind {
     Action action;
     std::string arg{};
     int iarg = 0;
+    bool locked = false;  // also works on the lock screen (media keys)
 };
 
 // Caps Lock and Num Lock never change which binding a key means.

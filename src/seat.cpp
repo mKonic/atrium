@@ -347,7 +347,8 @@ void Seat::clear_keyboard_focus() {
 }
 
 const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
-    return find_keybind(server.config.keybinds, mods, sym);
+    const Keybind* bind = find_keybind(server.config.keybinds, mods, sym);
+    return bind && (!server.locked || bind->locked) ? bind : nullptr;
 }
 
 void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
@@ -364,7 +365,7 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
 
     const Keybind* bind = nullptr;
-    if (!server.locked && e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
+    if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
         for (xkb_keysym_t sym : g.syms)
             if ((bind = find_binding(g.mods, sym)))
                 break;
@@ -414,7 +415,7 @@ void Seat::modifiers(KeyboardGroup& g) {
 
 int Seat::key_repeat(KeyboardGroup& g) {
     wlr_keyboard* kb = &g.group->keyboard;
-    if (server.locked || kb->repeat_info.rate <= 0)
+    if (kb->repeat_info.rate <= 0)
         return 0;
     wl_event_source_timer_update(g.repeat_source, 1000 / kb->repeat_info.rate);
     for (xkb_keysym_t sym : g.syms)

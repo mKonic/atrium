@@ -173,6 +173,19 @@ json default_keybinds() {
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
     });
+    // Media keys go to the shell, which holds the audio and display
+    // connections and shows what changed. Shift makes the steps finer.
+    const std::pair<const char*, const char*> media[] = {
+        {"XF86AudioRaiseVolume", "volume-up"}, {"Shift+XF86AudioRaiseVolume", "volume-up-fine"},
+        {"XF86AudioLowerVolume", "volume-down"}, {"Shift+XF86AudioLowerVolume", "volume-down-fine"},
+        {"XF86AudioMute", "volume-mute"}, {"XF86AudioMicMute", "mic-mute"},
+        {"XF86MonBrightnessUp", "brightness-up"}, {"Shift+XF86MonBrightnessUp", "brightness-up-fine"},
+        {"XF86MonBrightnessDown", "brightness-down"}, {"Shift+XF86MonBrightnessDown", "brightness-down-fine"},
+        {"XF86AudioPlay", "media-play-pause"}, {"XF86AudioPause", "media-play-pause"},
+        {"XF86AudioNext", "media-next"}, {"XF86AudioPrev", "media-previous"},
+    };
+    for (const auto& [keys, arg] : media)
+        binds.push_back({{"keys", keys}, {"action", "shell"}, {"arg", arg}, {"locked", true}});
     for (int n = 1; n <= 9; ++n) {
         binds.push_back({{"keys", "Mod+" + std::to_string(n)}, {"action", "space"}, {"arg", std::to_string(n)}});
         binds.push_back({{"keys", "Mod+Shift+" + std::to_string(n)}, {"action", "move-to-space"},
@@ -215,6 +228,8 @@ std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod, std::vect
         Keybind k{chord->mods | (chord->uses_mod ? mod : 0), chord->sym, *action};
         if (b.contains("arg") && b["arg"].is_string())
             k.arg = b["arg"];
+        if (b.contains("locked") && b["locked"].is_boolean())
+            k.locked = b["locked"];
         if (*action == Action::SwitchVt || *action == Action::Space || *action == Action::MoveToSpace)
             k.iarg = std::atoi(k.arg.c_str());
         if ((*action == Action::Spawn || *action == Action::ToggleSecret || *action == Action::MoveToSecret) &&

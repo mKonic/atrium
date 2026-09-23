@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Services.Pipewire
 import qs.components
 import qs.services
+import Atrium
 
 // The default output's volume: scroll to change it, click to mute.
 Pill {
@@ -48,8 +49,9 @@ Pill {
         onWheel: event => {
             if (!root.sink?.audio)
                 return;
-            const step = event.angleDelta.y > 0 ? 0.05 : -0.05;
-            root.sink.audio.volume = Math.max(0, Math.min(1.5, root.sink.audio.volume + step));
+            // The media keys' steps; a touchpad's small scrolls take the fine ones.
+            // Never past 100%: boosting past full gain only clips.
+            root.sink.audio.volume = Levels.step(root.sink.audio.volume, event.angleDelta.y > 0 ? 1 : -1, Math.abs(event.angleDelta.y) < 120);
         }
     }
 }

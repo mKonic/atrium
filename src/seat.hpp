@@ -76,6 +76,7 @@ private:
     void key(KeyboardGroup& group, wlr_keyboard_key_event* event);
     void modifiers(KeyboardGroup& group);
     int key_repeat(KeyboardGroup& group);
+    // While locked, only bindings marked for the lock screen.
     const Keybind* find_binding(uint32_t mods, xkb_keysym_t sym) const;
 
     void motion(uint32_t time, wlr_input_device* device, double dx, double dy,

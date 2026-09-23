@@ -9,7 +9,7 @@ plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 
 atrium_qml_dir = get_option('libdir') / 'atrium' / 'qml' / 'Atrium'
 
 shared_module('atriumplugin',
-  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', plugin_moc,
+  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', plugin_moc,
   dependencies: qt,
   # GCC 16 trips over Qt's own headers; nothing of ours.
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),

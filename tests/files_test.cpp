@@ -88,3 +88,18 @@ TEST(ListSync, KeepsWhatStays) {
     EXPECT_TRUE(cur.empty());
     EXPECT_EQ(empty.removes, 4);
 }
+
+#include "levels.hpp"
+
+TEST(Levels, StepsOnTheGrid) {
+    using atrium::levels::step;
+    EXPECT_DOUBLE_EQ(step(0.5, 1, 16), 0.5625);
+    EXPECT_DOUBLE_EQ(step(0.5, -1, 16), 0.4375);
+    EXPECT_DOUBLE_EQ(step(0.53, 1, 16), 0.5625);   // off the grid: to the next line
+    EXPECT_DOUBLE_EQ(step(0.53, -1, 16), 0.5);
+    EXPECT_DOUBLE_EQ(step(0.5625 - 1e-6, 1, 16), 0.625);  // rounding noise is on the line
+    EXPECT_DOUBLE_EQ(step(1.0, 1, 16), 1.0);
+    EXPECT_DOUBLE_EQ(step(0.0, -1, 16), 0.0);
+    EXPECT_DOUBLE_EQ(step(1.3, -1, 16), 0.9375);
+    EXPECT_DOUBLE_EQ(step(0.5, 1, 64), 0.515625);
+}

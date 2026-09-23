@@ -4,6 +4,7 @@
 #include "apps.hpp"
 #include "brightness.hpp"
 #include "desktop_files.hpp"
+#include "levels.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -41,6 +42,19 @@ public:
     }
 };
 
+// Level stepping for the media keys, exposed as the `Levels` singleton.
+class LevelsApi : public QObject {
+    Q_OBJECT
+
+public:
+    using QObject::QObject;
+
+    // `value` one step up or down: 16 steps, or 64 when `fine`.
+    Q_INVOKABLE double step(double value, int direction, bool fine) const {
+        return levels::step(value, direction, fine ? levels::kFineSteps : levels::kSteps);
+    }
+};
+
 class AtriumPlugin : public QQmlExtensionPlugin {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID QQmlExtensionInterface_iid)
@@ -64,6 +78,9 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Brightness; });
         qmlRegisterSingletonType<Recorder>(uri, 1, 0, "Recorder",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Recorder; });
+        qmlRegisterSingletonType<LevelsApi>(uri, 1, 0, "Levels", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return new LevelsApi;
+        });
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
