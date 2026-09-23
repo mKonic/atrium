@@ -114,6 +114,12 @@ void Compositor::refreshAll() {
         schema_ = r.toArray().toVariantList();
         emit schemaChanged();
     });
+    request({{"cmd", "actions"}}, [this](const QJsonValue& r) {
+        actions_.clear();
+        for (const QJsonValue& v : r.toArray())
+            actions_.push_back(v.toString());
+        emit shortcutsChanged();
+    });
     for (const char* table : {"apps", "rules", "shortcuts"})
         refreshTable(table);
 }
@@ -353,6 +359,17 @@ void Compositor::setDock(const QStringList& appIds) {
     change({{"cmd", "dock.set"}, {"apps", QJsonArray::fromStringList(appIds)}});
 }
 
+void Compositor::setPinned(const QString& appId, bool pinned) {
+    QStringList pins = dockPins();
+    if (pinned == pins.contains(appId))
+        return;
+    if (pinned)
+        pins.push_back(appId);
+    else
+        pins.removeAll(appId);
+    setDock(pins);
+}
+
 void Compositor::addRule(const QVariantMap& fields) {
     QJsonObject req = QJsonObject::fromVariantMap(fields);
     req["cmd"] = "rule.add";
@@ -362,12 +379,12 @@ void Compositor::addRule(const QVariantMap& fields) {
 void Compositor::setRule(qint64 id, const QVariantMap& fields) {
     QJsonObject req = QJsonObject::fromVariantMap(fields);
     req["cmd"] = "rule.set";
-    req["id"] = id;
+    req["rule"] = id;
     change(req);
 }
 
 void Compositor::removeRule(qint64 id) {
-    change({{"cmd", "rule.remove"}, {"id", id}});
+    change({{"cmd", "rule.remove"}, {"rule", id}});
 }
 
 void Compositor::addShortcut(const QVariantMap& fields) {
@@ -379,12 +396,12 @@ void Compositor::addShortcut(const QVariantMap& fields) {
 void Compositor::setShortcut(qint64 id, const QVariantMap& fields) {
     QJsonObject req = QJsonObject::fromVariantMap(fields);
     req["cmd"] = "shortcut.set";
-    req["id"] = id;
+    req["shortcut"] = id;
     change(req);
 }
 
 void Compositor::removeShortcut(qint64 id) {
-    change({{"cmd", "shortcut.remove"}, {"id", id}});
+    change({{"cmd", "shortcut.remove"}, {"shortcut", id}});
 }
 
 void Compositor::resetShortcuts() {

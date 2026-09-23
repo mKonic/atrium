@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=System Settings
+GenericName=Settings
+Comment=Appearance, apps, shortcuts, displays and the rest of atrium
+Icon=atrium-settings
+Exec=atriumctl action shell settings
+Terminal=false
+Categories=Settings;System;
+Keywords=preferences;configuration;control;shortcuts;dock;appearance;
+StartupWMClass=atrium-settings
+OnlyShowIn=atrium;

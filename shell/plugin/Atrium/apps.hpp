@@ -37,9 +37,11 @@ class LauncherResults : public QAbstractListModel {
     Q_PROPERTY(QString query READ query WRITE setQuery NOTIFY queryChanged)
     Q_PROPERTY(int current READ current WRITE setCurrent NOTIFY currentChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    // Only apps, no windows, sums or commands (the Settings app's picker).
+    Q_PROPERTY(bool appsOnly MEMBER appsOnly_ NOTIFY queryChanged)
 
 public:
-    enum Role { KindRole = Qt::UserRole + 1, TitleRole, SubtitleRole, IconRole, GlyphRole };
+    enum Role { KindRole = Qt::UserRole + 1, TitleRole, SubtitleRole, IconRole, GlyphRole, AppIdRole };
 
     explicit LauncherResults(QObject* parent = nullptr);
 
@@ -88,6 +90,7 @@ private:
     std::vector<Row> rows_;
     QVariantMap counts_;  // entry id → launches
     QString countsFile_;
+    bool appsOnly_ = false;
 };
 
 // The Dock's apps: pinned ones, then running ones that aren't:

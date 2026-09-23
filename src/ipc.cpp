@@ -114,6 +114,12 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         AppRecord a = reg.app(req["app_id"]).value_or(AppRecord{.app_id = req["app_id"]});
         if (auto err = placement_fields(req, a.secret, a.space, a.launch, a.maximized, a.fullscreen))
             return fail(*err);
+        // Only forgetting: where a window was is remembered, not set.
+        if (req.contains("placement")) {
+            if (!req["placement"].is_null())
+                return fail("placement can only be forgotten (null)");
+            a.placement.reset();
+        }
         reg.put_app(a);
         changed("apps");
         auto now = reg.app(a.app_id);
@@ -144,16 +150,16 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
     if (cmd == "rule.add" || cmd == "rule.set") {
         RuleRecord r;
         if (cmd == "rule.set") {
-            if (!req.contains("id") || !req["id"].is_number_integer())
-                return fail("rule.set needs an \"id\"");
+            if (!req.contains("rule") || !req["rule"].is_number_integer())
+                return fail("rule.set needs a \"rule\" (its id)");
             bool found = false;
             for (const RuleRecord& e : reg.rules())
-                if (e.id == req["id"].get<int64_t>()) {
+                if (e.id == req[cmd.substr(0, cmd.find('.'))].get<int64_t>()) {
                     r = e;
                     found = true;
                 }
             if (!found)
-                return fail("no rule " + req["id"].dump());
+                return fail("no rule " + req["rule"].dump());
         }
         for (auto [key, field] : {std::pair{"app_pattern", &r.app_pattern}, std::pair{"title_pattern", &r.title_pattern}})
             if (req.contains(key)) {
@@ -180,14 +186,16 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         return ok(rule_json(r));
     }
     if (cmd == "rule.remove") {
-        if (!req.contains("id") || !req["id"].is_number_integer())
-            return fail("rule.remove needs an \"id\"");
-        if (!reg.remove_rule(req["id"]))
-            return fail("no rule " + req["id"].dump());
+        if (!req.contains("rule") || !req["rule"].is_number_integer())
+            return fail("rule.remove needs a \"rule\" (its id)");
+        if (!reg.remove_rule(req["rule"]))
+            return fail("no rule " + req["rule"].dump());
         changed("rules");
         return ok();
     }
 
+    if (cmd == "actions")
+        return ok(action_names());
     if (cmd == "shortcuts.list") {
         json list = json::array();
         for (const ShortcutRecord& k : reg.shortcuts())
@@ -197,16 +205,16 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
     if (cmd == "shortcut.add" || cmd == "shortcut.set") {
         ShortcutRecord k;
         if (cmd == "shortcut.set") {
-            if (!req.contains("id") || !req["id"].is_number_integer())
-                return fail("shortcut.set needs an \"id\"");
+            if (!req.contains("shortcut") || !req["shortcut"].is_number_integer())
+                return fail("shortcut.set needs a \"shortcut\" (its id)");
             bool found = false;
             for (const ShortcutRecord& e : reg.shortcuts())
-                if (e.id == req["id"].get<int64_t>()) {
+                if (e.id == req[cmd.substr(0, cmd.find('.'))].get<int64_t>()) {
                     k = e;
                     found = true;
                 }
             if (!found)
-                return fail("no shortcut " + req["id"].dump());
+                return fail("no shortcut " + req["shortcut"].dump());
         }
         for (auto [key, field] : {std::pair{"keys", &k.keys}, std::pair{"action", &k.action}, std::pair{"arg", &k.arg}})
             if (req.contains(key)) {
@@ -228,10 +236,10 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         return ok(shortcut_json(k));
     }
     if (cmd == "shortcut.remove") {
-        if (!req.contains("id") || !req["id"].is_number_integer())
-            return fail("shortcut.remove needs an \"id\"");
-        if (!reg.remove_shortcut(req["id"]))
-            return fail("no shortcut " + req["id"].dump());
+        if (!req.contains("shortcut") || !req["shortcut"].is_number_integer())
+            return fail("shortcut.remove needs a \"shortcut\" (its id)");
+        if (!reg.remove_shortcut(req["shortcut"]))
+            return fail("no shortcut " + req["shortcut"].dump());
         changed("shortcuts");
         return ok();
     }

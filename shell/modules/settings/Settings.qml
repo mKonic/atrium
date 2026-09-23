@@ -17,7 +17,7 @@ FloatingWindow {
 
     // Types that need a whole card rather than a control at the row's end.
     function wide(type: string): bool {
-        return type === "keybinds" || type === "rules" || type === "list";
+        return type === "list";
     }
 
     function openPage(name: string): void {
@@ -26,6 +26,10 @@ FloatingWindow {
         query = "";
         search.text = "";
         visible = true;
+        // Already open behind other windows: bring it forward.
+        const self = Atrium.windows.find(w => w.app_id === "atrium-settings");
+        if (self)
+            Atrium.focusWindow(self.id);
     }
 
     title: "System Settings"
@@ -206,8 +210,50 @@ FloatingWindow {
                 color: Theme.palette.m3OnSurfaceVariant
             }
 
+            // Why a change didn't take, for a moment.
+            Rectangle {
+                visible: refusal.text.length > 0
+                width: parent.width
+                height: refusal.implicitHeight + 20
+                radius: 10
+                color: Theme.alpha("#ffb4ab", 0.14)
+                border.width: 1
+                border.color: Theme.alpha("#ffb4ab", 0.5)
+
+                StyledText {
+                    id: refusal
+
+                    x: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 28
+                    wrapMode: Text.WordWrap
+                    color: "#ffb4ab"
+                }
+
+                Timer {
+                    id: clearRefusal
+
+                    interval: 5000
+                    onTriggered: refusal.text = ""
+                }
+
+                Connections {
+                    target: Atrium
+
+                    function onRefused(why: string): void {
+                        refusal.text = why.charAt(0).toUpperCase() + why.slice(1) + ".";
+                        clearRefusal.restart();
+                    }
+                }
+            }
+
             AboutPage {
                 visible: root.query === "" && root.page === "About"
+                width: parent.width
+            }
+
+            AppsPage {
+                visible: root.query === "" && root.page === "Apps"
                 width: parent.width
             }
 
@@ -225,6 +271,17 @@ FloatingWindow {
 
                     rows: [modelData]
                 }
+            }
+
+            ShortcutsEditor {
+                visible: root.query === "" && root.page === "Keyboard Shortcuts"
+                width: parent.width
+                window: root
+            }
+
+            RulesEditor {
+                visible: root.query === "" && root.page === "Windows"
+                width: parent.width
             }
         }
     }

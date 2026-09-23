@@ -29,6 +29,7 @@ class Compositor : public QObject {
     Q_PROPERTY(QVariantList apps READ apps NOTIFY appsChanged)
     Q_PROPERTY(QVariantList rules READ rules NOTIFY rulesChanged)
     Q_PROPERTY(QVariantList shortcuts READ shortcuts NOTIFY shortcutsChanged)
+    Q_PROPERTY(QStringList actions READ actions NOTIFY shortcutsChanged)  // what a shortcut can do
     Q_PROPERTY(QVariant focusedWindow READ focusedWindow NOTIFY windowsChanged)
     Q_PROPERTY(QVariant focusedOutput READ focusedOutput NOTIFY outputsChanged)
     Q_PROPERTY(QVariant shownSecret READ shownSecret NOTIFY spacesChanged)
@@ -47,6 +48,7 @@ public:
     QVariantList apps() const { return apps_; }
     QVariantList rules() const { return rules_; }
     QVariantList shortcuts() const { return shortcuts_; }
+    QStringList actions() const { return actions_; }
     // Desktop entry ids pinned in the Dock, in order.
     QStringList dockPins() const;
     QVariant focusedWindow() const;
@@ -74,6 +76,7 @@ public:
     Q_INVOKABLE void setApp(const QString& appId, const QVariantMap& fields);
     Q_INVOKABLE void forgetApp(const QString& appId);
     Q_INVOKABLE void setDock(const QStringList& appIds);
+    Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
     Q_INVOKABLE void addRule(const QVariantMap& fields);
     Q_INVOKABLE void setRule(qint64 id, const QVariantMap& fields);
     Q_INVOKABLE void removeRule(qint64 id);
@@ -122,6 +125,7 @@ private:
     QVariantList windows_, spaces_, outputs_;
     QVariantMap settings_;
     QVariantList schema_, apps_, rules_, shortcuts_;
+    QStringList actions_;
     void refreshTable(const QString& table);
     void change(QJsonObject req);
 };

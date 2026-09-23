@@ -47,6 +47,8 @@ PanelWindow {
         actions: [
             { icon: "info", text: "About This Computer", run: () => Panels.open = "about" },
             "-",
+            { icon: "settings", text: "System Settings…", run: () => Atrium.action("shell", "settings") },
+            "-",
             { icon: "bedtime", text: "Sleep", run: () => Session.request("sleep") },
             { icon: "restart_alt", text: "Restart…", run: () => Session.request("restart") },
             { icon: "power_settings_new", text: "Shut Down…", run: () => Session.request("shutdown") },

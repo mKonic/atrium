@@ -72,6 +72,9 @@ paths.set_quoted('ATRIUM_QML_DIR', get_option('prefix') / get_option('libdir') /
 paths_h = configure_file(output: 'paths.hpp', configuration: paths)
 
 install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin'])
+# System Settings' desktop entry and icon.
+install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
+install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
 subdir('shell/plugin/Atrium')
 
 subdir('src')

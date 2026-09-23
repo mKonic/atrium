@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
         need(1);
         if (args[0] == "rm") {
             need(2);
-            req = {{"cmd", "rule.remove"}, {"id", std::stoll(args[1])}};
+            req = {{"cmd", "rule.remove"}, {"rule", std::stoll(args[1])}};
         } else if (args[0] == "add") {
             req = {{"cmd", "rule.add"}};
             for (size_t k = 1; k < args.size(); ++k) {
@@ -346,7 +346,7 @@ int main(int argc, char** argv) {
             req = {{"cmd", "shortcuts.reset"}};
         } else if (args[0] == "rm") {
             need(2);
-            req = {{"cmd", "shortcut.remove"}, {"id", std::stoll(args[1])}};
+            req = {{"cmd", "shortcut.remove"}, {"shortcut", std::stoll(args[1])}};
         } else if (args[0] == "add") {
             need(3);
             req = {{"cmd", "shortcut.add"}, {"keys", args[1]}, {"action", args[2]}};

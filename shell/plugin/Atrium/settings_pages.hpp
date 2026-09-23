@@ -25,6 +25,11 @@ public:
     // Settings whose title, description or page match `query`, best first.
     Q_INVOKABLE QVariantList search(const QString& query) const;
 
+    // A key press as a shortcut is written ("Mod+Shift+E"): `modifier` is
+    // the shortcut modifier's name ("super", "alt"), which becomes "Mod".
+    // "" for a press of a modifier alone.
+    Q_INVOKABLE QString chord(int key, int modifiers, const QString& modifier) const;
+
 signals:
     void changed();
 

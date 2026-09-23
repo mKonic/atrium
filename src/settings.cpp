@@ -124,6 +124,13 @@ std::optional<Action> action_from_name(const std::string& name) {
     return std::nullopt;
 }
 
+std::vector<std::string> action_names() {
+    std::vector<std::string> out;
+    for (const auto& a : kActions)
+        out.push_back(a.name);
+    return out;
+}
+
 const char* action_name(Action action) {
     for (const auto& a : kActions)
         if (a.action == action)
@@ -170,6 +177,7 @@ json default_keybinds() {
         {{"keys", "Mod+Ctrl+Up"}, {"action", "overview"}},
         {{"keys", "Mod+Space"}, {"action", "shell"}, {"arg", "launcher"}},
         {{"keys", "Mod+V"}, {"action", "shell"}, {"arg", "clipboard"}},
+        {{"keys", "Mod+comma"}, {"action", "shell"}, {"arg", "settings"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
     });

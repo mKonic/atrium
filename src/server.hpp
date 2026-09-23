@@ -168,6 +168,7 @@ public:
     wlr_ext_foreign_toplevel_list_v1* ext_toplevel_list = nullptr;
     wlr_foreign_toplevel_manager_v1* toplevel_manager = nullptr;
     wlr_ext_foreign_toplevel_image_capture_source_manager_v1* toplevel_capture_manager = nullptr;
+    wlr_keyboard_shortcuts_inhibit_manager_v1* shortcuts_inhibit_manager = nullptr;
     wlr_pointer_constraints_v1* pointer_constraints = nullptr;
     wlr_relative_pointer_manager_v1* relative_pointer_manager = nullptr;
     wlr_cursor_shape_manager_v1* cursor_shape_manager = nullptr;
@@ -238,6 +239,7 @@ private:
     Listener<wlr_xdg_toplevel> new_xdg_toplevel_;
     Listener<wlr_xdg_popup> new_xdg_popup_;
     Listener<wlr_xdg_toplevel_decoration_v1> new_decoration_;
+    Listener<wlr_keyboard_shortcuts_inhibitor_v1> new_shortcuts_inhibitor_;
     Listener<wlr_server_decoration> new_kde_decoration_;
     Listener<wlr_layer_surface_v1> new_layer_surface_;
     Listener<wlr_xdg_activation_v1_request_activate_event> activation_request_;

@@ -85,6 +85,7 @@ std::optional<KeyChord> parse_chord(const std::string& text);
 // Action names as they appear in keybind settings and IPC ("close", "terminal").
 std::optional<Action> action_from_name(const std::string& name);
 const char* action_name(Action action);
+std::vector<std::string> action_names();
 
 // Default keybinds as settings JSON: [{"keys": "Mod+Q", "action": "close"}, ...].
 json default_keybinds();

@@ -2,6 +2,7 @@
 
 import QtQuick
 import Quickshell
+import Atrium
 import qs.modules.bar
 import qs.modules.clipboard
 import qs.modules.controlcenter
@@ -60,6 +61,19 @@ ShellRoot {
     Polkit {}
 
     SystemMenu {}
+
+    // System Settings runs as its own app (see settings.qml); a running one
+    // hears the same action and switches page itself.
+    Connections {
+        target: Atrium
+
+        function onShellAction(name: string): void {
+            if (name !== "settings" && !name.startsWith("settings:"))
+                return;
+            Quickshell.execDetached(["env", `ATRIUM_SETTINGS_PAGE=${name.slice(9)}`, "qs", "-n", "-p",
+                                     `${Quickshell.shellDir}/settings.qml`]);
+        }
+    }
 
     About {}
 

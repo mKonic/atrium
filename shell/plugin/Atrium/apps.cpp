@@ -152,13 +152,14 @@ QVariant LauncherResults::data(const QModelIndex& index, int role) const {
     case SubtitleRole: return r.subtitle;
     case IconRole: return r.icon;
     case GlyphRole: return r.glyph;
+    case AppIdRole: return r.entry ? r.entry->property("id") : QVariant();
     default: return {};
     }
 }
 
 QHash<int, QByteArray> LauncherResults::roleNames() const {
     return {{KindRole, "kind"}, {TitleRole, "title"}, {SubtitleRole, "subtitle"}, {IconRole, "icon"},
-            {GlyphRole, "glyph"}};
+            {GlyphRole, "glyph"}, {AppIdRole, "appId"}};
 }
 
 void LauncherResults::rebuildLater() {
@@ -169,12 +170,12 @@ void LauncherResults::rebuild() {
     const QString q = query_.trimmed();
     std::vector<Row> rows;
 
-    if (q.startsWith('>')) {
+    if (q.startsWith('>') && !appsOnly_) {
         const QString cmd = q.mid(1).trimmed();
         if (!cmd.isEmpty())
             rows.push_back({.kind = "run", .title = cmd, .subtitle = "Run command", .glyph = "terminal", .text = cmd});
     } else {
-        if (const auto sum = search::calculate(q.toStdString())) {
+        if (const auto sum = appsOnly_ ? std::nullopt : search::calculate(q.toStdString())) {
             const QString v = QString::fromStdString(search::format_number(*sum));
             rows.push_back({.kind = "calc", .title = v, .subtitle = q + " · Enter copies", .glyph = "calculate",
                             .text = v});
@@ -220,7 +221,7 @@ void LauncherResults::rebuild() {
         }
 
         // Open windows, to jump to.
-        if (!lq.empty()) {
+        if (!lq.empty() && !appsOnly_) {
             struct Hit {
                 int score;
                 QVariantMap w;
@@ -418,14 +419,7 @@ void DockApps::launch(const QString& appId) {
 }
 
 void DockApps::setPinned(const QString& appId, bool pinned) {
-    QStringList list = Compositor::instance()->dockPins();
-    if (pinned == list.contains(appId))
-        return;
-    if (pinned)
-        list.push_back(appId);
-    else
-        list.removeAll(appId);
-    Compositor::instance()->setDock(list);
+    Compositor::instance()->setPinned(appId, pinned);
 }
 
 void DockApps::placePin(const QString& appId, int index) {

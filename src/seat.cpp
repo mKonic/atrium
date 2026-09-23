@@ -348,7 +348,24 @@ void Seat::clear_keyboard_focus() {
 
 const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
     const Keybind* bind = find_keybind(server.config.keybinds, mods, sym);
-    return bind && (!server.locked || bind->locked) ? bind : nullptr;
+    if (!bind || (server.locked && !bind->locked))
+        return nullptr;
+    // The focused client asked for the keys; only switching VTs stays ours,
+    // so there is always a way out.
+    if (bind->action != Action::SwitchVt && shortcuts_inhibited())
+        return nullptr;
+    return bind;
+}
+
+bool Seat::shortcuts_inhibited() const {
+    wlr_surface* focused = wlr->keyboard_state.focused_surface;
+    if (!focused || !server.shortcuts_inhibit_manager)
+        return false;
+    wlr_keyboard_shortcuts_inhibitor_v1* inhibitor;
+    wl_list_for_each(inhibitor, &server.shortcuts_inhibit_manager->inhibitors, link)
+        if (inhibitor->active && inhibitor->surface == focused && inhibitor->seat == wlr)
+            return true;
+    return false;
 }
 
 void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {

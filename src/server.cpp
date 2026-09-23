@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "paths.hpp"
 #include <cstring>
 #include <fstream>
 #include "registry.hpp"
@@ -296,6 +297,13 @@ void Server::setup() {
         });
 
     pointer_constraints = wlr_pointer_constraints_v1_create(display);
+    // A client that asks (a VM, remote desktop, the Settings app recording a
+    // shortcut) gets the keys atrium would otherwise take, while focused.
+    shortcuts_inhibit_manager = wlr_keyboard_shortcuts_inhibit_v1_create(display);
+    new_shortcuts_inhibitor_.connect(&shortcuts_inhibit_manager->events.new_inhibitor,
+        [](wlr_keyboard_shortcuts_inhibitor_v1* inhibitor) {
+            wlr_keyboard_shortcuts_inhibitor_v1_activate(inhibitor);
+        });
     relative_pointer_manager = wlr_relative_pointer_manager_v1_create(display);
     cursor_shape_manager = wlr_cursor_shape_manager_v1_create(display, 1);
     virtual_keyboard_manager = wlr_virtual_keyboard_manager_v1_create(display);
@@ -484,6 +492,15 @@ void Server::prepare_session_environment() {
     if ((!prefix || !*prefix) && !fs::exists("/etc/xdg/menus/applications.menu") &&
         fs::exists("/etc/xdg/menus/plasma-applications.menu"))
         setenv("XDG_MENU_PREFIX", "plasma-", 1);
+    // Running from the source tree: atrium's own desktop entries and icons
+    // (System Settings) aren't installed, so point at them where they are.
+    std::error_code ec;
+    const fs::path exe = fs::read_symlink("/proc/self/exe", ec);
+    if (!ec && exe.string().starts_with(ATRIUM_SOURCE_DIR)) {
+        const char* dirs = std::getenv("XDG_DATA_DIRS");
+        const std::string ours = std::string(ATRIUM_SOURCE_DIR) + "/data/share";
+        setenv("XDG_DATA_DIRS", (ours + ":" + (dirs && *dirs ? dirs : "/usr/local/share:/usr/share")).c_str(), 1);
+    }
     if (nested)
         return;  // the host session's environment is not ours to change
     spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "

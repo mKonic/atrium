@@ -62,101 +62,13 @@ PanelWindow {
             anchors.fill: parent  // clicks on the card stay on it
         }
 
-        Column {
+        SystemFacts {
             id: column
 
             anchors.horizontalCenter: parent.horizontalCenter
             y: 30
             width: parent.width - 56
-            spacing: 4
-
-            IconImage {
-                anchors.horizontalCenter: parent.horizontalCenter
-                implicitSize: 96
-                source: Quickshell.iconPath(SystemInfo.logo, "start-here")
-            }
-
-            Item {
-                width: 1
-                height: 10
-            }
-
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: SystemInfo.osName
-                font.pointSize: 20
-                font.weight: Font.Bold
-            }
-
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: `atrium ${SystemInfo.version}`
-                font.pointSize: Theme.font.size.small
-                color: Theme.palette.m3OnSurfaceVariant
-            }
-
-            Item {
-                width: 1
-                height: 14
-            }
-
-            Fact {
-                label: "Name"
-                value: SystemInfo.hostname
-            }
-            Fact {
-                label: "Processor"
-                value: SystemInfo.cpu
-            }
-            Fact {
-                label: "Graphics"
-                value: SystemInfo.gpus.join("\n")
-            }
-            Fact {
-                label: "Memory"
-                value: SystemInfo.memory
-            }
-            Fact {
-                label: "Kernel"
-                value: SystemInfo.kernel
-            }
-            Fact {
-                label: "Uptime"
-                value: root.uptime
-            }
-        }
-    }
-
-    // A label on the left, its value on the right, as macOS lays these out.
-    component Fact: Item {
-        id: fact
-
-        property string label
-        property string value
-
-        visible: value.length > 0
-        width: column.width
-        height: Math.max(labelText.implicitHeight, valueText.implicitHeight) + 6
-
-        StyledText {
-            id: labelText
-
-            width: parent.width * 0.3
-            horizontalAlignment: Text.AlignRight
-            text: fact.label
-            font.pointSize: Theme.font.size.small
-            font.weight: Font.DemiBold
-        }
-
-        StyledText {
-            id: valueText
-
-            x: parent.width * 0.3 + 12
-            width: parent.width - x
-            text: fact.value
-            wrapMode: Text.WordWrap
-            font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            uptime: root.uptime
         }
     }
 }

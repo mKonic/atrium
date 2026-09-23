@@ -15,7 +15,7 @@ Item {
     readonly property string type: setting.type
     readonly property var value: Atrium.settings[key] ?? setting.default
     readonly property bool changed: JSON.stringify(value) !== JSON.stringify(setting.default)
-    readonly property bool wide: type === "keybinds" || type === "rules" || type === "list"
+    readonly property bool wide: type === "list"
 
     function set(v: var): void {
         Atrium.setSetting(key, v);
@@ -102,9 +102,7 @@ Item {
         width: parent.width - 32
         height: item?.implicitHeight ?? 0
         active: root.wide
-        sourceComponent: root.type === "keybinds" ? keybindsEditor
-                       : root.type === "rules" ? rulesEditor
-                       : listEditor
+        sourceComponent: listEditor
     }
 
     Component {
@@ -165,21 +163,4 @@ Item {
         }
     }
 
-    Component {
-        id: keybindsEditor
-
-        ShortcutsEditor {
-            value: root.value ?? []
-            onCommitted: v => root.set(v)
-        }
-    }
-
-    Component {
-        id: rulesEditor
-
-        RulesEditor {
-            value: root.value ?? []
-            onCommitted: v => root.set(v)
-        }
-    }
 }
