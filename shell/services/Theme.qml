@@ -73,6 +73,14 @@ Singleton {
         readonly property int inner: 30  // height of the pills inside it
     }
 
+    // Panels turn to frosted glass only with appearance.transparency on
+    // (atrium blurs behind them then); otherwise they are solid.
+    readonly property bool glass: Atrium.setting("appearance.transparency", false)
+
+    function panel(c: color, glassAlpha: real): color {
+        return glass ? alpha(c, glassAlpha) : c;
+    }
+
     // A color with its alpha replaced.
     function alpha(c: color, a: real): color {
         return Qt.rgba(c.r, c.g, c.b, a);

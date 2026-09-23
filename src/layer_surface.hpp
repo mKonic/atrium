@@ -15,6 +15,8 @@ public:
     LayerSurface& operator=(const LayerSurface&) = delete;
 
     bool wants_exclusive_keyboard() const;
+    // A setting that decides blur changed.
+    void refresh_blur() { update_blur(); }
 
     Server& server;
     wlr_layer_surface_v1* const wlr;
@@ -27,6 +29,10 @@ public:
 private:
     void commit();
     void unmap();
+    // Frost what is behind the panel, only where it draws, per appearance.blurred_panels.
+    void update_blur();
+
+    wlr_scene_blur* blur_ = nullptr;  // in `tree`, which frees it
 
     Listener<> destroy_;
     Listener<> unmap_;

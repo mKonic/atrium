@@ -81,6 +81,7 @@ struct Config {
     // Blur
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;
+    std::vector<std::string> blurred_panels{"atrium-*"};  // layer namespaces frosted behind (with transparency)
     int blur_radius = 6;
     int blur_passes = 3;
 

@@ -13,6 +13,7 @@ Singleton {
     property var windows: []
     property var spaces: []
     property var outputs: []
+    property var settings: ({})  // the settings store: key → value
     readonly property var focusedWindow: windows.find(w => w.focused) ?? null
     readonly property var shownSecret: spaces.find(s => s.secret && s.shown) ?? null
 
@@ -47,6 +48,19 @@ Singleton {
         request({ cmd: "windows" }, r => root.windows = r);
         request({ cmd: "spaces" }, r => root.spaces = r);
         request({ cmd: "outputs" }, r => root.outputs = r);
+        request({ cmd: "settings.get" }, r => root.settings = r);
+    }
+
+    function setting(key: string, fallback: var): var {
+        return settings[key] ?? fallback;
+    }
+
+    function setSetting(key: string, value: var): void {
+        request({ cmd: "settings.set", key: key, value: value });
+    }
+
+    function closeWindow(id: int): void {
+        request({ cmd: "window.close", window: id });
     }
 
     function switchSpace(n: int): void {
@@ -106,7 +120,7 @@ Singleton {
         onConnectedChanged: {
             if (!connected)
                 return;
-            write(JSON.stringify({ cmd: "subscribe", topics: ["windows", "spaces", "outputs"] }) + "\n");
+            write(JSON.stringify({ cmd: "subscribe", topics: ["windows", "spaces", "outputs", "settings"] }) + "\n");
             flush();
         }
 

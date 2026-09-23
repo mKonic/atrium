@@ -865,6 +865,10 @@ void Server::setting_changed(const std::string& key) {
         wlr_scene_rect_set_color(root_bg, config.background.data());
         for (View* v : views)
             v->update_decorations();
+        for (Output* o : outputs)
+            for (auto& list : o->layers)
+                for (LayerSurface* l : list)
+                    l->refresh_blur();
     }
     if (key == "windows.tiled_titlebars")
         for (View* v : views)

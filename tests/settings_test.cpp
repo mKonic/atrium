@@ -154,3 +154,12 @@ TEST(Settings, EverySchemaDefaultValidates) {
     for (const auto& entry : s.schema())
         EXPECT_FALSE(s.set(entry.key, entry.default_value)) << entry.key;
 }
+
+TEST(Settings, TextLists) {
+    Settings s(Config::defaults(false), temp_file("lists"));
+    EXPECT_EQ(s.set("dock.pinned", json::array({"foot", "org.kde.dolphin"})), std::nullopt);
+    EXPECT_EQ(s.get("dock.pinned"), json::array({"foot", "org.kde.dolphin"}));
+    EXPECT_EQ(s.set("dock.pinned", json::array()), std::nullopt);  // an empty Dock is fine
+    EXPECT_NE(s.set("dock.pinned", json::array({"foot", 3})), std::nullopt);
+    EXPECT_NE(s.set("dock.pinned", "foot"), std::nullopt);
+}

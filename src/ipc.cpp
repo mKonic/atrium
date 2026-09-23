@@ -31,6 +31,7 @@ const char* type_name(SettingType t) {
     case SettingType::Choice: return "choice";
     case SettingType::Keybinds: return "keybinds";
     case SettingType::Rules: return "rules";
+    case SettingType::StringList: return "list";
     }
     return "unknown";
 }

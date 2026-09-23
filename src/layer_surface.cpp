@@ -97,6 +97,56 @@ void LayerSurface::commit() {
     }
 
     output->arrange_layers();
+    update_blur();
+}
+
+namespace {
+
+bool namespace_matches(const std::string& ns, const std::vector<std::string>& patterns) {
+    for (const std::string& p : patterns) {
+        if (!p.empty() && p.back() == '*' ? ns.starts_with(std::string_view(p).substr(0, p.size() - 1)) : ns == p)
+            return true;
+    }
+    return false;
+}
+
+wlr_scene_buffer* main_buffer(wlr_scene_tree* tree, wlr_surface* surface) {
+    struct Find {
+        wlr_surface* surface;
+        wlr_scene_buffer* found = nullptr;
+    } find{surface};
+    wlr_scene_node_for_each_buffer(&tree->node, [](wlr_scene_buffer* b, int, int, void* data) {
+        auto* f = static_cast<Find*>(data);
+        if (wlr_scene_surface* s = wlr_scene_surface_try_from_buffer(b); s && s->surface == f->surface)
+            f->found = b;
+    }, &find);
+    return find.found;
+}
+
+} // namespace
+
+void LayerSurface::update_blur() {
+    const Config& c = server.config;
+    const bool want = mapped && c.blur && c.transparency && wlr->namespace_ &&
+                      namespace_matches(wlr->namespace_, c.blurred_panels);
+    if (!want) {
+        if (blur_)
+            wlr_scene_node_set_enabled(&blur_->node, false);
+        return;
+    }
+    wlr_scene_buffer* mask = main_buffer(tree, wlr->surface);
+    if (!mask)
+        return;
+    if (!blur_) {
+        blur_ = wlr_scene_blur_create(tree, 0, 0);
+        wlr_scene_blur_set_should_only_blur_bottom_layer(blur_, false);  // windows under a bar too
+    }
+    wlr_scene_node_lower_to_bottom(&blur_->node);
+    wlr_scene_node_set_enabled(&blur_->node, true);
+    wlr_scene_node_set_position(&blur_->node, mask->node.x, mask->node.y);
+    wlr_scene_blur_set_size(blur_, wlr->surface->current.width, wlr->surface->current.height);
+    // Only where the panel actually draws: a dock's window is mostly empty.
+    wlr_scene_blur_set_transparency_mask_source(blur_, mask);
 }
 
 void LayerSurface::unmap() {

@@ -314,6 +314,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));
+    s.push_back(make("appearance.blurred_panels", SettingType::StringList, "Appearance", "Frosted panels",
+        "Panels (by layer namespace; a trailing * matches the rest) that get blur behind them when transparency is on.",
+        json(d.blurred_panels), [](Config& c, const json& v) { c.blurred_panels = v.get<std::vector<std::string>>(); }));
     s.push_back(number("appearance.blur_radius", T::Int, "Appearance", "Blur radius",
         "How far each blur pass reaches.", &Config::blur_radius, d, 1, 20));
     s.push_back(number("appearance.blur_passes", T::Int, "Appearance", "Blur strength",
@@ -397,6 +400,15 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("power.hidden_windows_keep_awake", "Power", "Hidden windows keep the screen on",
         "A video playing in a window you can't see still stops the screen from sleeping.",
         &Config::idle_inhibit_ignore_visibility, d));
+
+    // Dock (read by the shell; the compositor itself has no use for them)
+    s.push_back(make("dock.pinned", SettingType::StringList, "Dock", "Apps in the Dock",
+        "Desktop entry ids kept in the Dock whether or not they are running.",
+        json::array({"org.kde.dolphin", "com.mitchellh.ghostty", "google-chrome", "code-oss", "obsidian",
+                     "discord", "spotify", "steam"}),
+        [](Config&, const json&) {}));
+    s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
+        "Icons grow as the pointer passes over them.", false, [](Config&, const json&) {}));
 
     // Shortcuts (the modifier must apply before the bindings that use it)
     s.push_back(choice("shortcuts.modifier", "Keyboard Shortcuts", "Shortcut key",
@@ -507,6 +519,10 @@ std::optional<std::string> Settings::validate(const SettingSchema& s, json& v) c
             return errors.front();
         break;
     }
+    case SettingType::StringList:
+        if (!v.is_array() || !std::ranges::all_of(v, [](const json& e) { return e.is_string(); }))
+            return s.key + " is a list of text";
+        break;
     }
     return std::nullopt;
 }

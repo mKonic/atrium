@@ -23,7 +23,11 @@ PanelWindow {
 
     Rectangle {
         anchors.fill: parent
-        color: Theme.alpha(Theme.palette.m3Surface, 0.92)
+        color: Theme.panel(Theme.palette.m3Surface, 0.7)
+
+        Behavior on color {
+            CAnim {}
+        }
     }
 
     Row {
