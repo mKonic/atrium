@@ -36,6 +36,29 @@ Pill {
         radius: Theme.rounding.full
         color: Theme.palette.m3Primary
         visible: target !== null
+        clip: true
+        z: 1  // over the row: its copy is what shows where it covers
+
+        // The same row again in the highlight's colours, lined up with the
+        // real one: whatever the highlight covers turns, crisply, even
+        // halfway through a slide (caelestia's Colouriser).
+        Row {
+            x: row.x - indicator.x
+            y: row.y - indicator.y
+
+            Repeater {
+                model: root.shown
+
+                Space {
+                    required property int index
+
+                    number: root.groupOffset + index + 1
+                    output: root.output
+                    active: number === root.active
+                    inverted: true
+                }
+            }
+        }
 
         Behavior on x {
             Anim {

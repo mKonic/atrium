@@ -13,6 +13,9 @@ Item {
     required property int number
     required property string output
     required property bool active
+    // Drawn in the highlight's colours: the copy of the row that shows
+    // through the sliding highlight (see Spaces).
+    property bool inverted: false
 
     readonly property var windows: onSpace.windows
 
@@ -45,7 +48,7 @@ Item {
             text: root.number
             font.pointSize: Theme.font.size.normal
             font.weight: root.active ? Font.DemiBold : Font.Medium
-            color: root.active ? Theme.palette.m3OnPrimary : root.occupied ? Theme.palette.m3OnSurface : Theme.palette.m3Outline
+            color: root.inverted ? Theme.palette.m3OnPrimary : root.occupied ? Theme.palette.m3OnSurface : Theme.palette.m3Outline
         }
 
         Repeater {
@@ -64,7 +67,7 @@ Item {
                 text: Icons.appCategoryIcon(window.app_id)
                 font.pointSize: Theme.font.size.larger
                 fill: window.focused ? 1 : 0
-                color: root.active ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+                color: root.inverted ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
 
                 // Pops in when the app opens.
                 Anim on scale {
