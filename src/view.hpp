@@ -70,6 +70,12 @@ public:
     // Rounded corners, shadow and title bar from the current settings and focus state.
     void update_decorations();
 
+    // Visual-only state for animations: opacity of the whole window and an
+    // offset from its real position. Neither changes geometry or input.
+    void set_alpha(float alpha);
+    void set_anim_offset(int dx, int dy);
+    float alpha() const { return alpha_; }
+
     std::unique_ptr<Titlebar> titlebar;
 
     Server& server;
@@ -127,12 +133,17 @@ protected:
     // holds until it does (see XdgView::commit).
     void settle_resize();
 
+    void place_tree();  // tree at geom + animation offset
+
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;
+    float alpha_ = 1.0f;
+    int anim_dx_ = 0, anim_dy_ = 0;
     int anchor_right_ = 0, anchor_bottom_ = 0;
 
 private:
     void place();
+    void animate_close();
     void set_output(Output* output);
     void create_toplevel_handles();
     void destroy_toplevel_handles();

@@ -40,6 +40,7 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
 }
 
 Output::~Output() {
+    server.animator.cancel_owner(this, true);
     if (!server.shutting_down)
         server.output_removing(this);
     // Layer surfaces cannot outlive their output.
@@ -81,6 +82,7 @@ Output::~Output() {
 }
 
 void Output::frame() {
+    server.animator.tick();
     if (!wlr_scene_output_needs_frame(scene_output))
         return;
     wlr_scene_output_commit(scene_output, nullptr);

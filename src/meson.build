@@ -1,4 +1,5 @@
 atrium_sources = files(
+  'anim.cpp',
   'config.cpp',
   'geometry.cpp',
   'ipc.cpp',

@@ -1,4 +1,5 @@
 #pragma once
+#include "anim.hpp"
 #include "config.hpp"
 #include "listener.hpp"
 
@@ -92,6 +93,7 @@ public:
     // Delete a numbered space nobody is looking at and nothing lives in.
     void prune_space(Space* space);
     void spaces_changed();
+    void fade_secret(Space* space, bool in);
     // Decide a new window's space from the rules; returns what else they ask for.
     RuleResult assign_space(View* view);
     void output_added(Output* output);
@@ -113,6 +115,7 @@ public:
 
     Config config;
     const bool nested;
+    Animator animator{*this};
 
     wl_display* display = nullptr;
     wl_event_loop* loop = nullptr;

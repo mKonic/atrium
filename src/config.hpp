@@ -64,6 +64,10 @@ struct Config {
     Color outline_color{1.0f, 1.0f, 1.0f, 0.11f};
     Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 
+    // Motion
+    bool animations = true;
+    double animation_speed = 1.0;  // multiplier: 2 = twice as fast
+
     // Windows
     int snap_distance = 16;   // px from a screen edge where a dragged window sticks
     int cascade_step = 28;    // offset for a new window that would cover another exactly

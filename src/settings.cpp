@@ -294,6 +294,12 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(color("appearance.background", "Appearance", "Desktop color",
         "Shown where no wallpaper covers the screen.", &Config::background, d));
 
+    // Motion
+    s.push_back(boolean("appearance.animations", "Appearance", "Animations",
+        "Windows and spaces move instead of jumping.", &Config::animations, d));
+    s.push_back(number("appearance.animation_speed", T::Float, "Appearance", "Animation speed",
+        "1 is normal; 2 is twice as fast.", &Config::animation_speed, d, 0.25, 4));
+
     // Windows
     s.push_back(number("windows.snap_distance", T::Int, "Windows", "Edge snapping",
         "Distance from a screen edge at which a dragged window sticks to it.", &Config::snap_distance, d, 0, 200));

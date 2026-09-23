@@ -16,7 +16,26 @@ namespace atrium {
 View::View(Server& srv, Kind k) : server(srv), kind(k), id(srv.next_view_id++) {}
 
 View::~View() {
+    server.animator.cancel_owner(this, false);
     destroy_toplevel_handles();
+}
+
+void View::place_tree() {
+    if (tree)
+        wlr_scene_node_set_position(&tree->node, geom.x + anim_dx_, geom.y + anim_dy_);
+}
+
+void View::set_anim_offset(int dx, int dy) {
+    anim_dx_ = dx;
+    anim_dy_ = dy;
+    place_tree();
+}
+
+void View::set_alpha(float a) {
+    alpha_ = a;
+    if (!tree || unmanaged())
+        return;
+    update_decorations();  // shadow, outline, title bar and content all follow alpha_
 }
 
 bool View::visible() const {
@@ -43,7 +62,7 @@ void View::handle_map() {
 
     if (unmanaged()) {
         // Menus and tooltips place themselves.
-        wlr_scene_node_set_position(&tree->node, geom.x, geom.y);
+        place_tree();
         if (wants_focus())
             server.focus_view(this);
         return;
@@ -81,9 +100,20 @@ void View::handle_map() {
         server.focus_view(this);
     else
         server.spaces_changed();
+
+    // Fade in, rising into place.
+    server.animator.start(this, 220, Ease::OutQuint, [this](double t) {
+        set_alpha(float(t));
+        set_anim_offset(0, int(std::lround((1 - t) * 14)));
+    });
 }
 
 void View::handle_unmap() {
+    server.animator.cancel_owner(this, false);
+    if (!unmanaged() && visible())
+        animate_close();
+    alpha_ = 1.0f;
+    anim_dx_ = anim_dy_ = 0;
     server.seat->view_unmapped(this);
     const bool was_focused = server.focused_view == this;
     if (was_focused)
@@ -153,13 +183,98 @@ void View::place() {
         move_to(g.x, g.y);
 }
 
+// --- closing ---------------------------------------------------------------------
+
+namespace {
+
+// What stays on screen for a moment after a window is gone: copies of its last
+// buffers, shadow and outline, fading out on their own.
+struct Ghost {
+    wlr_scene_tree* tree = nullptr;
+    int origin_x = 0, origin_y = 0;  // for_each_buffer counts the root's own position
+    std::vector<wlr_scene_buffer*> buffers;
+    std::vector<float> opacity;  // each buffer's own opacity at close
+    wlr_scene_shadow* shadow = nullptr;
+    wlr_scene_rect* outline = nullptr;
+    Color shadow_color{}, outline_color{};
+    int x = 0, y = 0;
+};
+
+void copy_into_ghost(wlr_scene_buffer* src, int sx, int sy, void* data) {
+    auto* g = static_cast<Ghost*>(data);
+    if (!src->buffer)
+        return;
+    wlr_scene_buffer* dst = wlr_scene_buffer_create(g->tree, src->buffer);
+    wlr_scene_node_set_position(&dst->node, sx - g->origin_x, sy - g->origin_y);
+    wlr_scene_buffer_set_source_box(dst, &src->src_box);
+    wlr_scene_buffer_set_dest_size(dst, src->dst_width, src->dst_height);
+    wlr_scene_buffer_set_transform(dst, src->transform);
+    wlr_scene_buffer_set_corner_radii(dst, src->corners);
+    g->buffers.push_back(dst);
+    g->opacity.push_back(src->opacity);
+}
+
+} // namespace
+
+// Called while the window's scene is still intact, just before it goes.
+void View::animate_close() {
+    if (!tree || !server.config.animations)
+        return;
+    auto* g = new Ghost;
+    // Straight under the layer, not the space: the space may be pruned while
+    // the ghost is still fading.
+    g->tree = wlr_scene_tree_create(server.layer(fullscreen ? Layer::Fullscreen : Layer::Views));
+    g->x = tree->node.x;
+    g->y = tree->node.y;
+    wlr_scene_node_set_position(&g->tree->node, g->x, g->y);
+
+    const Config& c = server.config;
+    if (shadow && shadow->node.enabled) {
+        g->shadow_color = activated ? c.shadow_color : c.shadow_color_inactive;
+        g->shadow = wlr_scene_shadow_create(g->tree, shadow->width, shadow->height, shadow->corner_radius,
+                                            shadow->blur_sigma, g->shadow_color.data());
+        wlr_scene_node_set_position(&g->shadow->node, shadow->node.x, shadow->node.y);
+        wlr_scene_shadow_set_clipped_region(g->shadow, shadow->clipped_region);
+    }
+    if (outline && outline->node.enabled) {
+        g->outline_color = activated ? c.outline_color : c.outline_color_inactive;
+        g->outline = wlr_scene_rect_create(g->tree, outline->width, outline->height, g->outline_color.data());
+        g->outline->accepts_input = false;
+        wlr_scene_node_set_position(&g->outline->node, outline->node.x, outline->node.y);
+        wlr_scene_rect_set_corner_radii(g->outline, outline->corners);
+        wlr_scene_rect_set_clipped_region(g->outline, outline->clipped_region);
+    }
+    g->origin_x = tree->node.x;
+    g->origin_y = tree->node.y;
+    wlr_scene_node_for_each_buffer(&tree->node, copy_into_ghost, g);
+
+    server.animator.start(g, 160, Ease::InCubic, [g](double t) {
+        const float a = float(1 - t);
+        for (size_t i = 0; i < g->buffers.size(); ++i)
+            wlr_scene_buffer_set_opacity(g->buffers[i], g->opacity[i] * a);
+        if (g->shadow) {
+            Color sc = g->shadow_color;
+            sc[3] *= a;
+            wlr_scene_shadow_set_color(g->shadow, sc.data());
+        }
+        if (g->outline) {
+            Color oc = g->outline_color;
+            oc[3] *= a;
+            wlr_scene_rect_set_color(g->outline, oc.data());
+        }
+        wlr_scene_node_set_position(&g->tree->node, g->x, g->y + int(std::lround(t * 10)));
+    }, [g] {
+        wlr_scene_node_destroy(&g->tree->node);
+        delete g;
+    });
+}
+
 // --- geometry ------------------------------------------------------------------
 
 void View::move_to(int x, int y) {
     geom.x = x;
     geom.y = y;
-    if (tree)
-        wlr_scene_node_set_position(&tree->node, x, y);
+    place_tree();
     notify_position();
     update_output_from_position();
 }
@@ -177,8 +292,7 @@ void View::request_geometry(wlr_box box) {
     if (!anchored()) {
         geom.x = box.x;
         geom.y = box.y;
-        if (tree)
-            wlr_scene_node_set_position(&tree->node, geom.x, geom.y);
+        place_tree();
         update_output_from_position();
     }
     configure(box);
@@ -194,8 +308,7 @@ void View::handle_size(int width, int height) {
         geom.y = anchor_bottom_ - height;
     geom.width = width;
     geom.height = height;
-    if (tree)
-        wlr_scene_node_set_position(&tree->node, geom.x, geom.y);
+    place_tree();
     update_decorations();
 }
 
@@ -340,7 +453,26 @@ void View::set_minimized(bool m) {
     if (m == minimized || unmanaged() || !tree)
         return;
     minimized = m;
-    wlr_scene_node_set_enabled(&tree->node, !m);
+    // Sink and fade toward the bottom of the screen, or come back from it. The
+    // tree stays enabled while it animates out.
+    server.animator.cancel_owner(this, false);
+    wlr_scene_node_set_enabled(&tree->node, true);
+    if (m) {
+        server.animator.start(this, 200, Ease::InCubic, [this](double t) {
+            set_alpha(float(1 - t));
+            set_anim_offset(0, int(std::lround(t * 40)));
+        }, [this] {
+            if (minimized && tree)
+                wlr_scene_node_set_enabled(&tree->node, false);
+            set_alpha(1.0f);
+            set_anim_offset(0, 0);
+        });
+    } else {
+        server.animator.start(this, 240, Ease::OutQuint, [this](double t) {
+            set_alpha(float(t));
+            set_anim_offset(0, int(std::lround((1 - t) * 40)));
+        });
+    }
     send_suspended(m);
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_minimized(handle_, m);
@@ -365,9 +497,11 @@ void View::set_minimized(bool m) {
 namespace {
 
 struct RoundCtx {
+    int ox, oy;         // the content node's own position, which for_each_buffer adds
     int width, height;  // the content, in content coordinates
     int radius;
     bool round_top;     // false under atrium's title bar, which carries the top corners
+    float alpha;
 };
 
 // Round exactly the buffer corners that sit on a corner of the window. Clients
@@ -376,6 +510,8 @@ struct RoundCtx {
 // buffer is "the window": what matters is which visible pixels form its corners.
 void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) {
     auto* ctx = static_cast<RoundCtx*>(data);
+    sx -= ctx->ox;
+    sy -= ctx->oy;
     if (!wlr_scene_surface_try_from_buffer(buffer))
         return;
     int w = buffer->dst_width, h = buffer->dst_height;
@@ -391,6 +527,7 @@ void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) 
                bottom = y1 == ctx->height;
     wlr_scene_buffer_set_corner_radii(buffer, corner_radii_new(
         top && left ? r : 0, top && right ? r : 0, bottom && right ? r : 0, bottom && left ? r : 0));
+    wlr_scene_buffer_set_opacity(buffer, ctx->alpha);
 }
 
 } // namespace
@@ -408,7 +545,9 @@ void View::update_decorations() {
         const float sigma = activated ? c.shadow_sigma : c.shadow_sigma_inactive;
         const int margin = int(std::ceil(sigma));
         wlr_scene_shadow_set_blur_sigma(shadow, sigma);
-        wlr_scene_shadow_set_color(shadow, (activated ? c.shadow_color : c.shadow_color_inactive).data());
+        Color sc = activated ? c.shadow_color : c.shadow_color_inactive;
+        sc[3] *= alpha_;
+        wlr_scene_shadow_set_color(shadow, sc.data());
         wlr_scene_shadow_set_corner_radius(shadow, radius);
         wlr_scene_shadow_set_size(shadow, geom.width + 2 * margin, geom.height + 2 * margin);
         wlr_scene_node_set_position(&shadow->node, -margin, -margin);
@@ -424,7 +563,9 @@ void View::update_decorations() {
     // where a shadow alone disappears.
     wlr_scene_node_set_enabled(&outline->node, !fullscreen && c.outline_color[3] > 0);
     if (!fullscreen) {
-        wlr_scene_rect_set_color(outline, (activated ? c.outline_color : c.outline_color_inactive).data());
+        Color oc = activated ? c.outline_color : c.outline_color_inactive;
+        oc[3] *= alpha_;
+        wlr_scene_rect_set_color(outline, oc.data());
         wlr_scene_rect_set_size(outline, geom.width + 2, geom.height + 2);
         wlr_scene_node_set_position(&outline->node, -1, -1);
         wlr_scene_rect_set_corner_radius(outline, radius > 0 ? radius + 1 : 0);
@@ -434,16 +575,18 @@ void View::update_decorations() {
         });
     }
 
-    if (titlebar)
+    if (titlebar) {
         titlebar->update();
+        wlr_scene_buffer_set_opacity(titlebar->node(), alpha_);
+    }
     update_corners();
 }
 
 void View::update_corners() {
     if (!content || unmanaged())
         return;
-    RoundCtx ctx{geom.width, geom.height - top(), fullscreen ? 0 : server.config.corner_radius,
-                 top() == 0};
+    RoundCtx ctx{content->node.x, content->node.y, geom.width, geom.height - top(), fullscreen ? 0 : server.config.corner_radius,
+                 top() == 0, alpha_};
     wlr_scene_node_for_each_buffer(&content->node, round_window_corners, &ctx);
 }
 

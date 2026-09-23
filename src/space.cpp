@@ -49,6 +49,7 @@ Space::Space(Server& srv, std::string n)
 }
 
 Space::~Space() {
+    server.animator.cancel_owner(this, false);
     if (handle) {
         handle->data = nullptr;
         wlr_ext_workspace_handle_v1_destroy(handle);
@@ -72,13 +73,33 @@ bool Space::empty() const {
     return std::ranges::none_of(server.views, [this](View* v) { return v->space == this; });
 }
 
-void Space::set_shown(bool shown) {
+void Space::set_shown(bool shown, bool linger) {
     shown_ = shown;
-    wlr_scene_node_set_enabled(&tree->node, shown);
-    if (!secret)
-        wlr_scene_node_set_enabled(&fullscreen_tree->node, shown);
+    if (shown || !linger) {
+        wlr_scene_node_set_enabled(&tree->node, shown);
+        if (!secret)
+            wlr_scene_node_set_enabled(&fullscreen_tree->node, shown);
+    }
     if (handle)
         wlr_ext_workspace_handle_v1_set_active(handle, shown);
+}
+
+void Space::hide_now() {
+    if (shown_)
+        return;
+    set_offset(0, 0);
+    wlr_scene_node_set_enabled(&tree->node, false);
+    if (!secret)
+        wlr_scene_node_set_enabled(&fullscreen_tree->node, false);
+}
+
+void Space::set_offset(int dx, int dy) {
+    wlr_scene_node_set_position(&tree->node, dx, dy);
+    if (!secret)
+        wlr_scene_node_set_position(&fullscreen_tree->node, dx, dy);
+    // The backdrop covers the screen whatever the windows are doing.
+    if (backdrop && output)
+        wlr_scene_node_set_position(&backdrop->node, output->box.x - dx, output->box.y - dy);
 }
 
 void Space::attach(Output* out) {

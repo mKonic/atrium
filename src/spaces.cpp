@@ -76,12 +76,28 @@ void Server::switch_space(Output* output, int number) {
     if (shown_secret && shown_secret->output == output)
         hide_secret();
 
+    // Finish any switch still in flight on this output first.
+    animator.cancel_owner(output, true);
+
     output->active = target;
-    if (old)
-        old->set_shown(false);
     target->set_shown(true);
     focused_output = output;
-    prune_space(old);
+    if (old && !old->empty()) {
+        // Both spaces slide together: toward the left when going to a higher number.
+        old->set_shown(false, true);
+        const int dir = target->number > old->number ? 1 : -1;
+        const int w = output->box.width;
+        animator.start(output, 300, Ease::OutQuint, [old, target, dir, w](double t) {
+            old->set_offset(int(std::lround(-dir * w * t)), 0);
+            target->set_offset(int(std::lround(dir * w * (1 - t))), 0);
+        }, [old, target] {
+            old->hide_now();
+            target->set_offset(0, 0);
+        });
+    } else if (old) {
+        old->set_shown(false);
+        prune_space(old);
+    }
 
     output->refit_views();
     focus_view(top_view(output));
@@ -167,8 +183,10 @@ void Server::toggle_secret(const std::string& name) {
         if (v->space == s)
             carry_to_output(v, o);
     s->attach(o);
+    animator.cancel_owner(s, true);
     s->set_shown(true);
     shown_secret = s;
+    fade_secret(s, true);
 
     View* top = nullptr;
     for (View* v : views)
@@ -194,7 +212,9 @@ void Server::hide_secret() {
     if (!s)
         return;
     shown_secret = nullptr;
-    s->set_shown(false);
+    animator.cancel_owner(s, true);
+    s->set_shown(false, true);
+    fade_secret(s, false);
     if (focused_view && focused_view->space == s) {
         focused_view->set_activated(false);
         focused_view = nullptr;
@@ -204,6 +224,34 @@ void Server::hide_secret() {
         seat->clear_keyboard_focus();
     seat->refresh_pointer();
     spaces_changed();
+}
+
+// The backdrop dims in and the space's windows fade with it; going away is
+// the same, backwards, after which the space stops being drawn.
+void Server::fade_secret(Space* s, bool in) {
+    const Color dim = config.secret_backdrop;
+    std::vector<View*> members;
+    for (View* v : views)
+        if (v->space == s)
+            members.push_back(v);
+    auto step = [s, dim, members, in](double t) {
+        const double a = in ? t : 1 - t;
+        Color c = dim;
+        c[3] = float(dim[3] * a);
+        wlr_scene_rect_set_color(s->backdrop, c.data());
+        s->set_offset(0, int(std::lround((1 - a) * 16)));
+        for (View* v : members)
+            v->set_alpha(float(a));
+    };
+    auto done = [s, members, in] {
+        for (View* v : members)
+            v->set_alpha(1.0f);
+        if (!in)
+            s->hide_now();
+        else
+            s->set_offset(0, 0);
+    };
+    animator.start(s, in ? 220 : 160, in ? Ease::OutQuint : Ease::InCubic, step, done);
 }
 
 void Server::reveal(Space* space) {

@@ -21,7 +21,11 @@ public:
     Space& operator=(const Space&) = delete;
 
     bool shown() const { return shown_; }
-    void set_shown(bool shown);
+    // `linger` keeps a hidden space drawn so it can animate away; hide_now()
+    // finishes the job.
+    void set_shown(bool shown, bool linger = false);
+    void hide_now();
+    void set_offset(int dx, int dy);  // slide, for switching animations
 
     // Windows living here, in focus order.
     bool empty() const;
