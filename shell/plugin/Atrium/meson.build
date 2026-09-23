@@ -9,8 +9,8 @@ plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 
 atrium_qml_dir = get_option('libdir') / 'atrium' / 'qml' / 'Atrium'
 
 shared_module('atriumplugin',
-  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', 'session.cpp', 'sysinfo.cpp', 'sysinfo_core.cpp', 'netspeed.cpp', 'netspeed_core.cpp', 'admin_cache.cpp', 'settings_pages.cpp', 'accounts.cpp', plugin_moc, version_h,
-  dependencies: qt,
+  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', 'session.cpp', 'sysinfo.cpp', 'sysinfo_core.cpp', 'netspeed.cpp', 'netspeed_core.cpp', 'admin_cache.cpp', 'settings_pages.cpp', 'accounts.cpp', 'passwd_core.cpp', plugin_moc, version_h,
+  dependencies: [qt, dependency('libxcrypt')],
   # GCC 16 trips over Qt's own headers; nothing of ours.
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),
   # Loaded into an ordinary qs, which has no sanitizer runtime to host it.

@@ -27,9 +27,19 @@ public:
     Q_INVOKABLE void setPicture(const QString& file);
     Q_INVOKABLE void refresh();
 
+    // Your own password, checked against the current one (through passwd).
+    // Answers with passwordChanged.
+    Q_INVOKABLE void changePassword(const QString& current, const QString& next);
+    // Another person's account; AccountsService asks for an admin.
+    Q_INVOKABLE void addUser(const QString& realName, const QString& userName, const QString& password, bool admin);
+    Q_INVOKABLE QString suggestUserName(const QString& realName) const;
+    Q_INVOKABLE bool validUserName(const QString& userName) const;
+
 signals:
     void changed();
     void failed(const QString& why);
+    void passwordChanged(bool ok, const QString& message);
+    void userAdded(bool ok, const QString& message);
 
 private slots:
     void userChanged();

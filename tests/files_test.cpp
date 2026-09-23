@@ -190,3 +190,51 @@ TEST(NetSpeed, FormatsRates) {
     EXPECT_EQ(format_rate(12'400'000), "12 MB/s");
     EXPECT_EQ(format_rate(1'100'000'000), "1.1 GB/s");
 }
+
+// --- changing your password through passwd ------------------------------------
+
+#include "passwd_core.hpp"
+#include <crypt.h>
+#include "paths.hpp"
+
+namespace {
+const std::string kFakePasswd = std::string(ATRIUM_SOURCE_DIR) + "/tests/data/fake-passwd";
+}
+
+TEST(Passwd, AnswersThePromptsAndSucceeds) {
+    const auto r = atrium::passwd::change(kFakePasswd, "old", "correct horse");
+    EXPECT_TRUE(r.ok) << r.message;
+}
+
+TEST(Passwd, AWrongCurrentPasswordSaysWhy) {
+    const auto r = atrium::passwd::change(kFakePasswd, "nope", "correct horse");
+    EXPECT_FALSE(r.ok);
+    EXPECT_EQ(r.message, "Your current password is incorrect.");
+}
+
+TEST(Passwd, ARejectedNewPasswordStopsInsteadOfLooping) {
+    const auto r = atrium::passwd::change(kFakePasswd, "old", "ab", 5000);
+    EXPECT_FALSE(r.ok);
+    EXPECT_EQ(r.message, "The password is shorter than 4 characters.");
+}
+
+TEST(Passwd, AccountNames) {
+    EXPECT_TRUE(atrium::passwd::valid_user_name("jane"));
+    EXPECT_TRUE(atrium::passwd::valid_user_name("jane_doe-2"));
+    EXPECT_FALSE(atrium::passwd::valid_user_name("Jane"));
+    EXPECT_FALSE(atrium::passwd::valid_user_name("2jane"));
+    EXPECT_FALSE(atrium::passwd::valid_user_name("jane doe"));
+    EXPECT_FALSE(atrium::passwd::valid_user_name(""));
+    EXPECT_EQ(atrium::passwd::suggest_user_name("Jane Q. Doe"), "janedoe");
+    EXPECT_EQ(atrium::passwd::suggest_user_name("  Plato "), "plato");
+    EXPECT_EQ(atrium::passwd::suggest_user_name("3 Musketeers Club"), "musketeersclub");
+    EXPECT_TRUE(atrium::passwd::valid_user_name(atrium::passwd::suggest_user_name("Mr Konic")));
+}
+
+TEST(Passwd, HashesTheWayShadowExpects) {
+    const std::string h = atrium::passwd::hash("correct horse");
+    ASSERT_FALSE(h.empty());
+    EXPECT_TRUE(h.starts_with("$"));
+    EXPECT_NE(h, atrium::passwd::hash("correct horse"));  // salted
+    EXPECT_EQ(std::string(crypt("correct horse", h.c_str())), h);  // and it checks out
+}

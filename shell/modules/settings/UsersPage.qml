@@ -94,6 +94,14 @@ Column {
             }
         }
 
+        PillButton {
+            anchors.right: parent.right
+            anchors.rightMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Change Password…"
+            onClicked: passwordSheet.open()
+        }
+
         Column {
             anchors.left: mine.right
             anchors.leftMargin: 20
@@ -141,6 +149,14 @@ Column {
     Group {
         visible: Accounts.available
         title: "Other users"
+        headerActions: [
+            PillButton {
+                visible: Accounts.me.admin ?? false
+                text: "Add User…"
+                icon: "person_add"
+                onClicked: addSheet.open()
+            }
+        ]
 
         StyledText {
             visible: Accounts.others.length === 0
@@ -184,6 +200,125 @@ Column {
         }
     }
 
+    Sheet {
+        id: passwordSheet
+
+        title: "Change Password"
+        action: "Change Password"
+        ready: next.text.length > 0 && next.text === verify.text && current.text.length > 0
+        onOpened: {
+            current.text = next.text = verify.text = "";
+            current.focusField();
+        }
+        onSubmitted: {
+            busy = true;
+            error = "";
+            Accounts.changePassword(current.text, next.text);
+        }
+
+        Field {
+            id: current
+
+            width: parent.width
+            password: true
+            placeholder: "Current password"
+            onAccepted: next.focusField()
+        }
+
+        Field {
+            id: next
+
+            width: parent.width
+            password: true
+            placeholder: "New password"
+            onAccepted: verify.focusField()
+        }
+
+        Field {
+            id: verify
+
+            width: parent.width
+            password: true
+            placeholder: "Verify"
+            onAccepted: passwordSheet.submitted()
+        }
+
+        StyledText {
+            visible: verify.text.length > 0 && verify.text !== next.text
+            text: "The new passwords don't match."
+            font.pointSize: Theme.font.size.smaller
+            color: Theme.palette.m3OnSurfaceVariant
+        }
+    }
+
+    Sheet {
+        id: addSheet
+
+        property bool nameEdited: false
+
+        title: "New User"
+        action: "Create User"
+        ready: fullName.text.trim().length > 0 && Accounts.validUserName(account.text) && newPassword.text === newVerify.text
+        onOpened: {
+            fullName.text = account.text = newPassword.text = newVerify.text = "";
+            nameEdited = false;
+            adminSwitch.checked = false;
+            fullName.focusField();
+        }
+        onSubmitted: {
+            busy = true;
+            error = "";
+            Accounts.addUser(fullName.text, account.text, newPassword.text, adminSwitch.checked);
+        }
+
+        Field {
+            id: fullName
+
+            width: parent.width
+            placeholder: "Full name"
+            onTextChanged: if (!addSheet.nameEdited) account.text = Accounts.suggestUserName(text)
+        }
+
+        Field {
+            id: account
+
+            width: parent.width
+            placeholder: "Account name"
+            onTextChanged: if (activeFocus) addSheet.nameEdited = true
+        }
+
+        Field {
+            id: newPassword
+
+            width: parent.width
+            password: true
+            placeholder: "Password"
+        }
+
+        Field {
+            id: newVerify
+
+            width: parent.width
+            password: true
+            placeholder: "Verify"
+        }
+
+        Row {
+            spacing: 10
+
+            Switch {
+                id: adminSwitch
+                onToggled: checked = !checked
+            }
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Allow this user to administer this computer"
+                font.pointSize: Theme.font.size.small
+            }
+        }
+    }
+
     FileDialog {
         id: picker
 
@@ -198,6 +333,22 @@ Column {
 
         function onFailed(why: string): void {
             console.warn("accounts:", why);
+        }
+
+        function onPasswordChanged(ok: bool, message: string): void {
+            passwordSheet.busy = false;
+            if (ok)
+                passwordSheet.close();
+            else
+                passwordSheet.error = message || "The password wasn't changed.";
+        }
+
+        function onUserAdded(ok: bool, message: string): void {
+            addSheet.busy = false;
+            if (ok)
+                addSheet.close();
+            else
+                addSheet.error = message || "The user wasn't created.";
         }
     }
 }

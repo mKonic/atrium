@@ -1,0 +1,23 @@
+#!/bin/sh
+# Stands in for passwd in the unit tests: the current password is "old".
+echo "Changing password for tester."
+printf "Current password: "
+read -r cur
+if [ "$cur" != "old" ]; then
+    echo "passwd: Authentication token manipulation error"
+    echo "passwd: password unchanged"
+    exit 1
+fi
+printf "New password: "
+read -r a
+if [ ${#a} -lt 4 ]; then
+    echo "BAD PASSWORD: The password is shorter than 4 characters"
+    printf "New password: "
+    read -r a
+    [ ${#a} -lt 4 ] && { echo "passwd: Have exhausted maximum number of retries for service"; exit 1; }
+fi
+printf "Retype new password: "
+read -r b
+[ "$a" = "$b" ] || { echo "Sorry, passwords do not match."; echo "passwd: password unchanged"; exit 1; }
+echo "passwd: password updated successfully"
+exit 0

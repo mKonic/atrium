@@ -1,5 +1,11 @@
 #include "accounts.hpp"
 
+#include "passwd_core.hpp"
+
+#include <QPointer>
+#include <QCoreApplication>
+#include <QThread>
+
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusObjectPath>
@@ -107,6 +113,63 @@ void Accounts::setPicture(const QString& file) {
     const QString path = file.startsWith("file:") ? QUrl(file).toLocalFile() : file;
     if (QFileInfo(path).isFile())
         call("SetIconFile", path);
+}
+
+void Accounts::changePassword(const QString& current, const QString& next) {
+    // passwd takes a moment (PAM, hashing) and blocks: keep it off the UI thread.
+    const QString program = qEnvironmentVariable("ATRIUM_PASSWD", "/usr/bin/passwd");  // tests use a stand-in
+    QPointer<Accounts> self(this);
+    QThread* worker = QThread::create([self, program, current, next] {
+        const passwd::Result r = passwd::change(program.toStdString(), current.toStdString(), next.toStdString());
+        QMetaObject::invokeMethod(qApp, [self, r] {
+            if (self)
+                emit self->passwordChanged(r.ok, QString::fromStdString(r.message));
+        });
+    });
+    connect(worker, &QThread::finished, worker, &QObject::deleteLater);
+    worker->start();
+}
+
+void Accounts::addUser(const QString& realName, const QString& userName, const QString& password, bool admin) {
+    if (!passwd::valid_user_name(userName.toStdString())) {
+        emit userAdded(false, "Account names are lowercase letters, digits, - and _, starting with a letter.");
+        return;
+    }
+    QDBusMessage msg = QDBusMessage::createMethodCall(kService, "/org/freedesktop/Accounts", kService, "CreateUser");
+    msg.setArguments({userName, realName.trimmed(), admin ? 1 : 0});
+    msg.setInteractiveAuthorizationAllowed(true);
+    auto* watch = new QDBusPendingCallWatcher(QDBusConnection::systemBus().asyncCall(msg, 120000), this);
+    connect(watch, &QDBusPendingCallWatcher::finished, this, [this, watch, password] {
+        watch->deleteLater();
+        QDBusPendingReply<QDBusObjectPath> reply = *watch;
+        if (reply.isError()) {
+            emit userAdded(false, reply.error().message());
+            return;
+        }
+        const std::string hashed = passwd::hash(password.toStdString());
+        if (password.isEmpty() || hashed.empty()) {
+            emit userAdded(true, {});
+            refresh();
+            return;
+        }
+        QDBusMessage set = QDBusMessage::createMethodCall(kService, reply.value().path(), kUser, "SetPassword");
+        set.setArguments({QString::fromStdString(hashed), QString()});
+        set.setInteractiveAuthorizationAllowed(true);
+        auto* w2 = new QDBusPendingCallWatcher(QDBusConnection::systemBus().asyncCall(set, 120000), this);
+        connect(w2, &QDBusPendingCallWatcher::finished, this, [this, w2] {
+            w2->deleteLater();
+            emit userAdded(!w2->isError(), w2->isError() ? w2->error().message() : QString());
+            refresh();
+        });
+    });
+}
+
+QString Accounts::suggestUserName(const QString& realName) const {
+    return QString::fromStdString(passwd::suggest_user_name(realName.toStdString()));
+}
+
+bool Accounts::validUserName(const QString& userName) const {
+    return passwd::valid_user_name(userName.toStdString());
 }
 
 } // namespace atrium
