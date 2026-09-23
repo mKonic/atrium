@@ -21,6 +21,9 @@ class Compositor : public QObject {
     Q_PROPERTY(QVariantList spaces READ spaces NOTIFY spacesChanged)
     Q_PROPERTY(QVariantList outputs READ outputs NOTIFY outputsChanged)
     Q_PROPERTY(QVariantMap settings READ settings NOTIFY settingsChanged)
+    // Every setting as the Settings app draws it: key, type, title,
+    // description, page, default, min/max, choices.
+    Q_PROPERTY(QVariantList schema READ schema NOTIFY schemaChanged)
     Q_PROPERTY(QVariant focusedWindow READ focusedWindow NOTIFY windowsChanged)
     Q_PROPERTY(QVariant focusedOutput READ focusedOutput NOTIFY outputsChanged)
     Q_PROPERTY(QVariant shownSecret READ shownSecret NOTIFY spacesChanged)
@@ -35,6 +38,7 @@ public:
     QVariantList spaces() const { return spaces_; }
     QVariantList outputs() const { return outputs_; }
     QVariantMap settings() const { return settings_; }
+    QVariantList schema() const { return schema_; }
     QVariant focusedWindow() const;
     QVariant focusedOutput() const;
     QVariant shownSecret() const;
@@ -54,12 +58,14 @@ public:
     Q_INVOKABLE void closeWindow(int id);
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
     Q_INVOKABLE void setSetting(const QString& key, const QVariant& value);
+    Q_INVOKABLE void resetSetting(const QString& key);
 
 signals:
     void windowsChanged();
     void spacesChanged();
     void outputsChanged();
     void settingsChanged();
+    void schemaChanged();
     void connectedChanged();
     // A shortcut asked the shell to show something ("launcher").
     void shellAction(const QString& name);
@@ -85,6 +91,7 @@ private:
 
     QVariantList windows_, spaces_, outputs_;
     QVariantMap settings_;
+    QVariantList schema_;
 };
 
 } // namespace atrium

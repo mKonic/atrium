@@ -19,7 +19,7 @@ class Titlebar;
 class Seat;
 class SessionLock;
 class Overview;
-class Placements;
+class Registry;
 struct Placement;
 class SnapPreview;
 class Switcher;
@@ -125,6 +125,8 @@ public:
     // A setting changed through the store: refresh `config`, persist, apply
     // the side effects and tell subscribers.
     void setting_changed(const std::string& key);
+    // The registry's apps, rules or shortcuts changed: rebuild what they drive.
+    void rebuild_from_registry();
 
     // Tell IPC subscribers about a window event ("opened", "closed",
     // "changed", "focused").
@@ -179,7 +181,7 @@ public:
     std::unique_ptr<SnapPreview> snap_preview;
     std::unique_ptr<Overview> overview;
     std::unique_ptr<Switcher> switcher;
-    std::unique_ptr<Placements> placements;
+    std::unique_ptr<Registry> registry;
     std::unique_ptr<ShellProcess> shell;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
@@ -222,6 +224,7 @@ private:
     void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
 
     wlr_scene_tree* layers_[kLayerCount]{};
+    void seed_registry(const std::filesystem::path& dir);
 
     pid_t startup_pid_ = -1;
     std::string startup_cmd_;               // until Xwayland is up

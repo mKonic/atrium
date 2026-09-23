@@ -35,6 +35,15 @@ void usage() {
         "  set KEY VALUE             change a setting (VALUE is JSON, or plain text)\n"
         "  reset KEY                 back to the default\n"
         "  schema                    every setting with its type and range\n"
+        "  apps                      apps the registry knows: where they open, Dock pins\n"
+        "  app ID [FIELD=VALUE...]   show or change an app (secret, space, launch, maximized, fullscreen)\n"
+        "  forget ID                 drop everything remembered about an app\n"
+        "  dock [ID...]              the Dock's pins, or set them in this order\n"
+        "  rules                     pattern rules (by title or app id pattern)\n"
+        "  rule add FIELD=VALUE...   add one (app_pattern, title_pattern, secret, space, ...)\n"
+        "  rule rm ID                remove one\n"
+        "  shortcuts                 key combinations and what they do\n"
+        "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
         "  focus|close|minimize|maximize|fullscreen [ID]   act on a window (default: focused)\n"
         "  move ID X Y | resize ID W H\n"
@@ -168,6 +177,29 @@ void print_human(const std::string& cmd, const json& r) {
             std::printf("%-36s %-8s %s\n", s["key"].get<std::string>().c_str(),
                         s["type"].get<std::string>().c_str(), s["title"].get<std::string>().c_str());
         }
+    } else if (cmd == "apps" || cmd == "dock") {
+        for (const auto& a : r) {
+            if (cmd == "dock" && a["dock"].is_null())
+                continue;
+            std::string where = !a["secret"].get<std::string>().empty() ? "secret:" + a["secret"].get<std::string>()
+                              : a["space"].get<int>() ? "space " + std::to_string(a["space"].get<int>()) : "";
+            if (!a["launch"].get<std::string>().empty())
+                where += " (launch: " + a["launch"].get<std::string>() + ")";
+            std::printf("%-32s %-40s %s\n", a["app_id"].get<std::string>().c_str(), where.c_str(),
+                        a["dock"].is_null() ? "" : ("dock #" + std::to_string(a["dock"].get<int>() + 1)).c_str());
+        }
+    } else if (cmd == "rules") {
+        for (const auto& x : r)
+            std::printf("%-4lld app %-24s title %-24s → %s%s\n", x["id"].get<long long>(),
+                        x["app_pattern"].get<std::string>().c_str(), x["title_pattern"].get<std::string>().c_str(),
+                        !x["secret"].get<std::string>().empty() ? ("secret:" + x["secret"].get<std::string>()).c_str()
+                        : x["space"].get<int>() ? ("space " + std::to_string(x["space"].get<int>())).c_str() : "-",
+                        x["fullscreen"] == true ? " fullscreen" : x["maximized"] == true ? " maximized" : "");
+    } else if (cmd == "shortcuts") {
+        for (const auto& k : r)
+            std::printf("%-4lld %-30s %-18s %s%s\n", k["id"].get<long long>(), k["keys"].get<std::string>().c_str(),
+                        k["action"].get<std::string>().c_str(), k.value("arg", std::string()).c_str(),
+                        k.value("locked", false) ? "  (also locked)" : "");
     } else if (cmd == "get" && r.is_object()) {
         for (const auto& [k, v] : r.items())
             std::printf("%-36s %s\n", k.c_str(), v.is_string() ? v.get<std::string>().c_str() : v.dump().c_str());
@@ -265,6 +297,69 @@ int main(int argc, char** argv) {
         need(3);
         req = {{"cmd", "window.resize"}, {"window", std::stoull(args[0])},
                {"width", std::stoi(args[1])}, {"height", std::stoi(args[2])}};
+    } else if (cmd == "apps" || (cmd == "dock" && args.empty())) {
+        req = {{"cmd", "apps.list"}};
+    } else if (cmd == "dock") {
+        req = {{"cmd", "dock.set"}, {"apps", args}};
+    } else if (cmd == "app") {
+        need(1);
+        req = {{"cmd", "app.set"}, {"app_id", args[0]}};
+        for (size_t k = 1; k < args.size(); ++k) {
+            const size_t eq = args[k].find('=');
+            if (eq == std::string::npos) {
+                usage();
+                return 2;
+            }
+            req[args[k].substr(0, eq)] = parse_value(args[k].substr(eq + 1));
+        }
+    } else if (cmd == "forget") {
+        need(1);
+        req = {{"cmd", "app.remove"}, {"app_id", args[0]}};
+    } else if (cmd == "rules") {
+        req = {{"cmd", "rules.list"}};
+    } else if (cmd == "rule") {
+        need(1);
+        if (args[0] == "rm") {
+            need(2);
+            req = {{"cmd", "rule.remove"}, {"id", std::stoll(args[1])}};
+        } else if (args[0] == "add") {
+            req = {{"cmd", "rule.add"}};
+            for (size_t k = 1; k < args.size(); ++k) {
+                const size_t eq = args[k].find('=');
+                if (eq == std::string::npos) {
+                    usage();
+                    return 2;
+                }
+                const std::string field = args[k].substr(0, eq), value = args[k].substr(eq + 1);
+                // Patterns stay text even when they look like numbers.
+                req[field] = field.ends_with("_pattern") ? json(value) : parse_value(value);
+            }
+        } else {
+            usage();
+            return 2;
+        }
+    } else if (cmd == "shortcuts") {
+        req = {{"cmd", "shortcuts.list"}};
+    } else if (cmd == "shortcut") {
+        need(1);
+        if (args[0] == "reset") {
+            req = {{"cmd", "shortcuts.reset"}};
+        } else if (args[0] == "rm") {
+            need(2);
+            req = {{"cmd", "shortcut.remove"}, {"id", std::stoll(args[1])}};
+        } else if (args[0] == "add") {
+            need(3);
+            req = {{"cmd", "shortcut.add"}, {"keys", args[1]}, {"action", args[2]}};
+            if (args.size() > 3) {
+                std::string arg = args[3];
+                for (size_t k = 4; k < args.size(); ++k)
+                    arg += " " + args[k];
+                req["arg"] = arg;
+            }
+        } else {
+            usage();
+            return 2;
+        }
     } else if (cmd == "watch") {
         json topics = args.empty() ? json::array({"windows", "settings", "outputs"}) : json(args);
         req = {{"cmd", "subscribe"}, {"topics", topics}};

@@ -1,4 +1,6 @@
 #include "ipc.hpp"
+#include "registry.hpp"
+#include "rules.hpp"
 
 #include "output.hpp"
 #include "server.hpp"
@@ -48,6 +50,197 @@ json schema_json(const SettingSchema& s) {
     if (s.type == SettingType::Choice)
         j["choices"] = s.choices;
     return j;
+}
+
+// The registry's apps, rules and shortcuts: listing and changing records.
+// Nothing when `cmd` is none of these.
+std::optional<json> registry_command(Server& server, const std::string& cmd, const json& req) {
+    auto ok = [](json result = nullptr) { return json{{"ok", true}, {"result", std::move(result)}}; };
+    auto fail = [](const std::string& why) { return json{{"ok", false}, {"error", why}}; };
+    Registry& reg = *server.registry;
+    auto changed = [&](const char* table) {
+        server.rebuild_from_registry();
+        if (server.ipc)
+            server.ipc->broadcast("settings", {{"event", "registry.changed"}, {"table", table}});
+    };
+    auto opt_bool = [](const json& j, const char* key, std::optional<bool>& out) -> bool {
+        if (!j.contains(key))
+            return true;
+        if (j[key].is_null())
+            out.reset();
+        else if (j[key].is_boolean())
+            out = j[key].get<bool>();
+        else
+            return false;
+        return true;
+    };
+    // Where windows go, as an app record or a rule says it; checked the same
+    // way the compositor will read it.
+    auto placement_fields = [&](const json& j, std::string& secret, int& space, std::string& launch,
+                                std::optional<bool>& maximized, std::optional<bool>& fullscreen) -> std::optional<std::string> {
+        if (j.contains("secret")) {
+            if (!j["secret"].is_string())
+                return "secret is the name of a secret space";
+            secret = j["secret"];
+        }
+        if (j.contains("space")) {
+            if (!j["space"].is_number_integer() || j["space"].get<int>() < 0 || j["space"].get<int>() > 99)
+                return "space is a number from 1 to 99 (0: none)";
+            space = j["space"];
+        }
+        if (j.contains("launch")) {
+            if (!j["launch"].is_string())
+                return "launch is the command that starts the app";
+            launch = j["launch"];
+        }
+        if (!secret.empty() && space)
+            return "an app opens in a numbered space or a secret one, not both";
+        if (!launch.empty() && secret.empty())
+            return "launch goes with a secret space: it starts the app when that space is shown";
+        if (!opt_bool(j, "maximized", maximized) || !opt_bool(j, "fullscreen", fullscreen))
+            return "maximized and fullscreen are true, false or null";
+        return std::nullopt;
+    };
+
+    if (cmd == "apps.list") {
+        json list = json::array();
+        for (const AppRecord& a : reg.apps())
+            list.push_back(app_json(a));
+        return ok(list);
+    }
+    if (cmd == "app.set") {
+        if (!req.contains("app_id") || !req["app_id"].is_string() || req["app_id"].get<std::string>().empty())
+            return fail("app.set needs an \"app_id\"");
+        AppRecord a = reg.app(req["app_id"]).value_or(AppRecord{.app_id = req["app_id"]});
+        if (auto err = placement_fields(req, a.secret, a.space, a.launch, a.maximized, a.fullscreen))
+            return fail(*err);
+        reg.put_app(a);
+        changed("apps");
+        auto now = reg.app(a.app_id);
+        return ok(now ? app_json(*now) : json(nullptr));
+    }
+    if (cmd == "app.remove") {
+        if (!req.contains("app_id") || !req["app_id"].is_string())
+            return fail("app.remove needs an \"app_id\"");
+        reg.remove_app(req["app_id"]);
+        changed("apps");
+        return ok();
+    }
+    if (cmd == "dock.set") {
+        if (!req.contains("apps") || !req["apps"].is_array() ||
+            !std::ranges::all_of(req["apps"], [](const json& e) { return e.is_string(); }))
+            return fail("dock.set needs \"apps\": the pinned apps in order");
+        reg.set_dock(req["apps"].get<std::vector<std::string>>());
+        changed("apps");
+        return ok();
+    }
+
+    if (cmd == "rules.list") {
+        json list = json::array();
+        for (const RuleRecord& r : reg.rules())
+            list.push_back(rule_json(r));
+        return ok(list);
+    }
+    if (cmd == "rule.add" || cmd == "rule.set") {
+        RuleRecord r;
+        if (cmd == "rule.set") {
+            if (!req.contains("id") || !req["id"].is_number_integer())
+                return fail("rule.set needs an \"id\"");
+            bool found = false;
+            for (const RuleRecord& e : reg.rules())
+                if (e.id == req["id"].get<int64_t>()) {
+                    r = e;
+                    found = true;
+                }
+            if (!found)
+                return fail("no rule " + req["id"].dump());
+        }
+        for (auto [key, field] : {std::pair{"app_pattern", &r.app_pattern}, std::pair{"title_pattern", &r.title_pattern}})
+            if (req.contains(key)) {
+                if (!req[key].is_string())
+                    return fail(std::string(key) + " is a pattern");
+                *field = req[key];
+            }
+        if (auto err = placement_fields(req, r.secret, r.space, r.launch, r.maximized, r.fullscreen))
+            return fail(*err);
+        json probe = json::object();
+        if (!r.app_pattern.empty())
+            probe["app_id"] = r.app_pattern;
+        if (!r.title_pattern.empty())
+            probe["title"] = r.title_pattern;
+        std::vector<std::string> errors;
+        parse_rules(json::array({probe}), &errors);
+        if (!errors.empty())
+            return fail(errors.front());
+        if (cmd == "rule.add")
+            r.id = reg.add_rule(r);
+        else
+            reg.update_rule(r);
+        changed("rules");
+        return ok(rule_json(r));
+    }
+    if (cmd == "rule.remove") {
+        if (!req.contains("id") || !req["id"].is_number_integer())
+            return fail("rule.remove needs an \"id\"");
+        if (!reg.remove_rule(req["id"]))
+            return fail("no rule " + req["id"].dump());
+        changed("rules");
+        return ok();
+    }
+
+    if (cmd == "shortcuts.list") {
+        json list = json::array();
+        for (const ShortcutRecord& k : reg.shortcuts())
+            list.push_back(shortcut_json(k));
+        return ok(list);
+    }
+    if (cmd == "shortcut.add" || cmd == "shortcut.set") {
+        ShortcutRecord k;
+        if (cmd == "shortcut.set") {
+            if (!req.contains("id") || !req["id"].is_number_integer())
+                return fail("shortcut.set needs an \"id\"");
+            bool found = false;
+            for (const ShortcutRecord& e : reg.shortcuts())
+                if (e.id == req["id"].get<int64_t>()) {
+                    k = e;
+                    found = true;
+                }
+            if (!found)
+                return fail("no shortcut " + req["id"].dump());
+        }
+        for (auto [key, field] : {std::pair{"keys", &k.keys}, std::pair{"action", &k.action}, std::pair{"arg", &k.arg}})
+            if (req.contains(key)) {
+                if (!req[key].is_string())
+                    return fail(std::string(key) + " is text");
+                *field = req[key];
+            }
+        if (req.contains("locked") && req["locked"].is_boolean())
+            k.locked = req["locked"];
+        std::vector<std::string> errors;
+        resolve_keybinds(json::array({shortcut_json(k)}), server.config.mod, &errors);
+        if (!errors.empty())
+            return fail(errors.front());
+        if (cmd == "shortcut.add")
+            k.id = reg.add_shortcut(k);
+        else
+            reg.update_shortcut(k);
+        changed("shortcuts");
+        return ok(shortcut_json(k));
+    }
+    if (cmd == "shortcut.remove") {
+        if (!req.contains("id") || !req["id"].is_number_integer())
+            return fail("shortcut.remove needs an \"id\"");
+        if (!reg.remove_shortcut(req["id"]))
+            return fail("no shortcut " + req["id"].dump());
+        changed("shortcuts");
+        return ok();
+    }
+    if (cmd == "shortcuts.reset") {
+        reg.replace_shortcuts(shortcuts_from_json(default_keybinds()));
+        changed("shortcuts");
+        return ok();
+    }
+    return std::nullopt;
 }
 
 json box_json(const wlr_box& b) {
@@ -333,6 +526,9 @@ json Ipc::handle(Client& c, const json& req) {
                 c.topics.insert(t.get<std::string>());
         return ok();
     }
+
+    if (auto reply = registry_command(server_, cmd, req))
+        return *reply;
 
     if (cmd == "settings.schema") {
         json list = json::array();

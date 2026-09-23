@@ -1,0 +1,131 @@
+#pragma once
+// The registry: everything atrium is told to remember, in one SQLite
+// database only atrium writes ($XDG_CONFIG_HOME/atrium/registry.db). The
+// Settings app and atriumctl change it through the IPC socket.
+//
+//   settings   typed values by key ("appearance.corner_radius" → 12); only
+//              those that differ from the default are stored
+//   apps       one record per app: the space its windows open in, whether
+//              showing that space starts it, its place in the Dock, how its
+//              windows open, where its window last was
+//   rules      pattern rules for what an app record can't say (by title,
+//              or a pattern over app ids)
+//   shortcuts  key combinations and the actions they run
+
+#include "placements.hpp"
+
+#include <nlohmann/json.hpp>
+
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
+
+struct sqlite3;
+
+namespace atrium {
+
+using json = nlohmann::json;
+
+// An app, by the id its windows carry (Wayland app_id / X11 class, matched
+// without regard to case).
+struct AppRecord {
+    std::string app_id;
+    std::string secret;     // opens in this secret space ("" none)
+    int space = 0;          // or this numbered space (0: wherever it would)
+    std::string launch;     // with a secret space: command started when the space is shown
+    std::optional<int> dock;  // position among the Dock's pins; none: not pinned
+    std::optional<bool> maximized, fullscreen;
+    std::optional<Placement> placement;  // remembered, as windows close
+
+    bool operator==(const AppRecord&) const = default;
+    // Nothing left worth keeping.
+    bool empty() const;
+};
+
+// A pattern rule, for what an app record can't say.
+struct RuleRecord {
+    int64_t id = 0;
+    std::string app_pattern, title_pattern;  // case-insensitive regular expressions
+    std::string secret;
+    int space = 0;
+    std::string launch;
+    std::optional<bool> maximized, fullscreen;
+
+    bool operator==(const RuleRecord&) const = default;
+};
+
+struct ShortcutRecord {
+    int64_t id = 0;
+    std::string keys;    // "Mod+Shift+E"
+    std::string action;  // "close"
+    std::string arg;
+    bool locked = false;  // also works on the lock screen
+
+    bool operator==(const ShortcutRecord&) const = default;
+};
+
+class Registry {
+public:
+    // Opens (creating) the database. ":memory:" for a throwaway one.
+    explicit Registry(const std::string& path);
+    ~Registry();
+    Registry(const Registry&) = delete;
+    Registry& operator=(const Registry&) = delete;
+
+    bool ok() const { return db_ != nullptr; }
+    // Created by this open: the caller seeds defaults and imports old files.
+    bool fresh() const { return fresh_; }
+
+    // --- settings ---
+    std::map<std::string, json> settings() const;
+    void set_setting(const std::string& key, const json& value);
+    void erase_setting(const std::string& key);
+
+    // --- apps ---
+    std::vector<AppRecord> apps() const;
+    std::optional<AppRecord> app(const std::string& app_id) const;
+    void put_app(const AppRecord& app);  // removes it when empty()
+    void remove_app(const std::string& app_id);
+    // The Dock's pins in order: renumbers `dock` on every app.
+    void set_dock(const std::vector<std::string>& app_ids);
+
+    // --- rules ---
+    std::vector<RuleRecord> rules() const;
+    int64_t add_rule(const RuleRecord& rule);
+    bool update_rule(const RuleRecord& rule);
+    bool remove_rule(int64_t id);
+
+    // --- shortcuts ---
+    std::vector<ShortcutRecord> shortcuts() const;
+    int64_t add_shortcut(const ShortcutRecord& shortcut);
+    bool update_shortcut(const ShortcutRecord& shortcut);
+    bool remove_shortcut(int64_t id);
+    void replace_shortcuts(const std::vector<ShortcutRecord>& shortcuts);
+
+    // One transaction around many changes (an import).
+    void begin();
+    void commit();
+
+    // Defaults path: $XDG_CONFIG_HOME/atrium/registry.db.
+    static std::filesystem::path default_file();
+
+private:
+    void migrate();
+    bool exec(const char* sql) const;
+
+    sqlite3* db_ = nullptr;
+    bool fresh_ = false;
+};
+
+// Records from the JSON the old stores used (settings.json's windows.rules,
+// dock.pinned and shortcuts.bindings; placements.json).
+std::vector<AppRecord> apps_from_legacy(const json& rules, const json& pinned, const json& placements,
+                                        std::vector<RuleRecord>* leftover_rules);
+std::vector<ShortcutRecord> shortcuts_from_json(const json& binds);
+json shortcut_json(const ShortcutRecord& s);
+json app_json(const AppRecord& a);
+json rule_json(const RuleRecord& r);
+
+} // namespace atrium

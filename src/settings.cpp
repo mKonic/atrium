@@ -350,9 +350,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Windows
     s.push_back(number("windows.snap_distance", T::Int, "Windows", "Edge snapping",
         "Distance from a screen edge at which a dragged window sticks to it.", &Config::snap_distance, d, 0, 200));
-    s.push_back(make("windows.rules", SettingType::Rules, "Windows", "Window rules",
-        "Where windows of an app open and how, matched by app id or title.", default_rules(),
-        [](Config& c, const json& v) { c.rules = parse_rules(v); }));
     s.push_back(color("windows.secret_backdrop", "Windows", "Secret space backdrop",
         "Color that dims the screen behind a secret space.", &Config::secret_backdrop, d));
     s.push_back(number("windows.secret_margin", T::Int, "Windows", "Secret space margin",
@@ -451,11 +448,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         &Config::clipboard_history, d));
 
     // Dock (read by the shell; the compositor itself has no use for them)
-    s.push_back(make("dock.pinned", SettingType::StringList, "Dock", "Apps in the Dock",
-        "Desktop entry ids kept in the Dock whether or not they are running.",
-        json::array({"org.kde.dolphin", "com.mitchellh.ghostty", "google-chrome", "code-oss", "obsidian",
-                     "discord", "spotify", "steam"}),
-        [](Config&, const json&) {}));
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
         "Keep the Dock out of sight until the pointer reaches the bottom of the screen.", false,
         [](Config&, const json&) {}));
@@ -473,9 +465,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         [](Config& c, const json& v) { c.mod = modifier_from_name(v.get<std::string>()); }));
     s.push_back(text("shortcuts.terminal", "Keyboard Shortcuts", "Terminal",
         "Command the terminal shortcut runs.", &Config::terminal, d));
-    s.push_back(make("shortcuts.bindings", SettingType::Keybinds, "Keyboard Shortcuts", "Shortcuts",
-        "Key combinations and what they do.", default_keybinds(),
-        [](Config& c, const json& v) { c.keybinds = resolve_keybinds(v, c.mod); }));
 
     return s;
 }
@@ -484,15 +473,13 @@ std::vector<SettingSchema> build_schema(const Config& d) {
 
 // --- store ---------------------------------------------------------------------------
 
-Settings::Settings(const Config& defaults, fs::path file) : schema_(build_schema(defaults)), file_(std::move(file)) {}
-
-fs::path Settings::default_file() {
-    if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg)
-        return fs::path(xdg) / "atrium" / "settings.json";
-    if (const char* home = std::getenv("HOME"))
-        return fs::path(home) / ".config" / "atrium" / "settings.json";
-    return "settings.json";
+json default_dock() {
+    return json::array({"org.kde.dolphin", "com.mitchellh.ghostty", "google-chrome", "code-oss", "obsidian", "discord",
+                        "spotify", "steam"});
 }
+
+Settings::Settings(const Config& defaults, Registry* registry)
+    : schema_(build_schema(defaults)), registry_(registry) {}
 
 const SettingSchema* Settings::find(const std::string& key) const {
     for (const auto& s : schema_)
@@ -591,10 +578,15 @@ std::optional<std::string> Settings::set(const std::string& key, const json& val
     json v = value;
     if (auto err = validate(*s, v))
         return err;
-    if (v == s->default_value)
+    if (v == s->default_value) {
         values_.erase(key);
-    else
+        if (registry_)
+            registry_->erase_setting(key);
+    } else {
+        if (registry_)
+            registry_->set_setting(key, v);
         values_[key] = std::move(v);
+    }
     return std::nullopt;
 }
 
@@ -602,6 +594,8 @@ std::optional<std::string> Settings::reset(const std::string& key) {
     if (!find(key))
         return "no setting called " + key;
     values_.erase(key);
+    if (registry_)
+        registry_->erase_setting(key);
     return std::nullopt;
 }
 
@@ -610,45 +604,25 @@ void Settings::apply(Config& config) const {
         s.apply(config, get(s.key));
 }
 
-bool Settings::load() {
-    std::ifstream in(file_);
-    if (!in)
-        return !fs::exists(file_);
-    json doc;
-    try {
-        in >> doc;
-    } catch (const json::exception& e) {
-        wlr_log(WLR_ERROR, "settings: %s is unreadable (%s); using defaults", file_.c_str(), e.what());
-        return false;
-    }
-    if (!doc.is_object())
-        return false;
+void Settings::load() {
+    if (!registry_)
+        return;
     // Keys that no longer exist or no longer validate are dropped, not fatal:
-    // an old file must never keep the desktop from starting.
-    for (auto& [key, value] : doc.items())
-        if (auto err = set(key, value))
-            wlr_log(WLR_INFO, "settings: ignoring %s: %s", key.c_str(), err->c_str());
-    return true;
+    // an old value must never keep the desktop from starting.
+    for (const auto& [key, value] : registry_->settings())
+        if (auto err = set(key, value)) {
+            wlr_log(WLR_INFO, "settings: dropping %s: %s", key.c_str(), err->c_str());
+            registry_->erase_setting(key);
+        }
 }
 
-bool Settings::save() const {
-    std::error_code ec;
-    fs::create_directories(file_.parent_path(), ec);
-    json doc = json::object();
-    for (const auto& [k, v] : values_)
-        doc[k] = v;
-    // Write-then-rename: a crash mid-write leaves the old file intact.
-    const fs::path tmp = file_.string() + ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::trunc);
-        if (!out)
-            return false;
-        out << doc.dump(2) << '\n';
-        if (!out)
-            return false;
-    }
-    fs::rename(tmp, file_, ec);
-    return !ec;
+void Settings::import(const json& doc) {
+    if (!doc.is_object())
+        return;
+    for (const auto& [key, value] : doc.items())
+        if (find(key))
+            if (auto err = set(key, value))
+                wlr_log(WLR_INFO, "settings: not importing %s: %s", key.c_str(), err->c_str());
 }
 
 } // namespace atrium

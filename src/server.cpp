@@ -1,4 +1,7 @@
 #include "server.hpp"
+#include <cstring>
+#include <fstream>
+#include "registry.hpp"
 
 #include "ipc.hpp"
 #include "layer_surface.hpp"
@@ -50,15 +53,98 @@ void handle_signal(int signo) {
 
 } // namespace
 
-Server::Server(Config defaults, bool is_nested, std::filesystem::path settings_file)
+Server::Server(Config defaults, bool is_nested, std::filesystem::path registry_file)
     : config(defaults), nested(is_nested) {
     g_server = this;
-    settings = std::make_unique<Settings>(defaults, std::move(settings_file));
-    if (!settings->load())
-        wlr_log(WLR_ERROR, "settings: couldn't read %s, starting from defaults",
-                settings->file().c_str());
+    registry = std::make_unique<Registry>(registry_file.string());
+    if (!registry->ok()) {
+        wlr_log(WLR_ERROR, "registry: couldn't open %s; nothing will be remembered", registry_file.c_str());
+        registry = std::make_unique<Registry>(":memory:");
+    }
+    settings = std::make_unique<Settings>(defaults, registry.get());
+    settings->load();
+    if (registry->fresh())
+        seed_registry(registry_file.parent_path());
     settings->apply(config);
+    rebuild_from_registry();
     setup();
+}
+
+// A new registry: what the old stores held (settings.json and
+// placements.json from before the registry), or the defaults.
+void Server::seed_registry(const std::filesystem::path& dir) {
+    namespace fs = std::filesystem;
+    auto read = [](const fs::path& f) {
+        std::ifstream in(f);
+        json doc = in ? json::parse(in, nullptr, false) : json();
+        return doc.is_discarded() ? json() : doc;
+    };
+    const json old = read(dir / "settings.json");
+    const char* state = std::getenv("XDG_STATE_HOME");
+    const char* home = std::getenv("HOME");
+    const fs::path state_dir = state && *state ? fs::path(state) : fs::path(home ? home : ".") / ".local" / "state";
+    const json placed = read(state_dir / "atrium" / "placements.json");
+    if (old.is_object())
+        wlr_log(WLR_INFO, "registry: importing %s", (dir / "settings.json").c_str());
+
+    registry->begin();
+    settings->import(old);
+    std::vector<RuleRecord> leftover;
+    const auto field = [&](const char* key, json fallback) {
+        return old.is_object() && old.contains(key) ? old[key] : fallback;
+    };
+    for (const AppRecord& a : apps_from_legacy(field("windows.rules", default_rules()),
+                                               field("dock.pinned", default_dock()), placed, &leftover))
+        registry->put_app(a);
+    for (const RuleRecord& r : leftover)
+        registry->add_rule(r);
+    registry->replace_shortcuts(shortcuts_from_json(field("shortcuts.bindings", default_keybinds())));
+    registry->commit();
+}
+
+// Rules and shortcuts as the compositor uses them, from the registry's
+// records: pattern rules first (they say more), then one per app.
+void Server::rebuild_from_registry() {
+    json rules = json::array();
+    auto add = [&](json r, const std::string& secret, int space, const std::string& launch,
+                   const std::optional<bool>& maximized, const std::optional<bool>& fullscreen) {
+        if (!secret.empty())
+            r["secret"] = secret;
+        if (space)
+            r["space"] = space;
+        if (!launch.empty() && !secret.empty())
+            r["launch"] = launch;
+        if (maximized)
+            r["maximized"] = *maximized;
+        if (fullscreen)
+            r["fullscreen"] = *fullscreen;
+        rules.push_back(std::move(r));
+    };
+    for (const RuleRecord& r : registry->rules()) {
+        json m = json::object();
+        if (!r.app_pattern.empty())
+            m["app_id"] = r.app_pattern;
+        if (!r.title_pattern.empty())
+            m["title"] = r.title_pattern;
+        add(m, r.secret, r.space, r.launch, r.maximized, r.fullscreen);
+    }
+    for (const AppRecord& a : registry->apps()) {
+        if (a.secret.empty() && !a.space && !a.maximized && !a.fullscreen)
+            continue;
+        std::string escaped = "^";
+        for (char c : a.app_id) {
+            if (std::strchr(".^$|()[]{}*+?\\", c))
+                escaped += '\\';
+            escaped += c;
+        }
+        add({{"app_id", escaped + "$"}}, a.secret, a.space, a.launch, a.maximized, a.fullscreen);
+    }
+    config.rules = parse_rules(rules);
+
+    json binds = json::array();
+    for (const ShortcutRecord& k : registry->shortcuts())
+        binds.push_back(shortcut_json(k));
+    config.keybinds = resolve_keybinds(binds, config.mod);
 }
 
 Server::~Server() {
@@ -91,7 +177,6 @@ void Server::setup() {
     snap_preview = std::make_unique<SnapPreview>(*this);
     overview = std::make_unique<Overview>(*this);
     switcher = std::make_unique<Switcher>(*this);
-    placements = std::make_unique<Placements>(Placements::default_file());
     background_blur = wlr_scene_optimized_blur_create(&scene->tree, 0, 0);
     wlr_scene_node_place_above(&background_blur->node, &layer(Layer::Bottom)->node);
     apply_blur_settings();
@@ -727,20 +812,24 @@ std::optional<Placement> Server::placement_for(const View* view) const {
     for (const View* v : views)
         if (v != view && v->mapped && v->app_id() && app == v->app_id())
             return std::nullopt;
-    if (const Placement* p = placements->find(std::string(app)))
-        return *p;
+    if (auto a = registry->app(std::string(app)))
+        return a->placement;
     return std::nullopt;
 }
 
 void Server::remember_placement(const View* view) {
-    if (!config.remember_placement || !placeable(view) || !view->output || !view->mapped)
+    // A secret space's size belongs to the space, not the app.
+    if (!config.remember_placement || !placeable(view) || !view->output || !view->mapped ||
+        (view->space && view->space->secret))
         return;
     // The floating box, whatever state the window is in now.
     const bool away = view->maximized || view->snapped || view->fullscreen;
     const wlr_box b = away ? view->restore : view->geom;
     const wlr_box& o = view->output->box;
-    placements->remember(view->app_id(), Placement{view->output->wlr->name, b.x - o.x, b.y - o.y,
-                                                   b.width, b.height, view->maximized, view->snapped});
+    AppRecord a = registry->app(view->app_id()).value_or(AppRecord{.app_id = view->app_id()});
+    a.placement = Placement{view->output->wlr->name, b.x - o.x, b.y - o.y, b.width, b.height, view->maximized,
+                            view->snapped};
+    registry->put_app(a);
 }
 
 View* Server::top_view(Output* output) const {
@@ -990,8 +1079,7 @@ void Server::run_action(const Keybind& b) {
 
 void Server::setting_changed(const std::string& key) {
     settings->apply(config);
-    if (!settings->save())
-        wlr_log(WLR_ERROR, "settings: couldn't write %s", settings->file().c_str());
+    rebuild_from_registry();  // the modifier key changes what shortcuts mean
 
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
     if (is("appearance.blur"))

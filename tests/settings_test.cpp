@@ -2,23 +2,8 @@
 
 #include <gtest/gtest.h>
 
-#include <cstdio>
-#include <filesystem>
-#include <fstream>
 
 using namespace atrium;
-namespace fs = std::filesystem;
-
-namespace {
-
-fs::path temp_file(const char* name) {
-    fs::path p = fs::temp_directory_path() / (std::string("atrium-test-") + name + "-" +
-                                               std::to_string(::getpid()) + ".json");
-    fs::remove(p);
-    return p;
-}
-
-} // namespace
 
 TEST(Chord, ParsesModifiersAndKey) {
     auto c = parse_chord("Mod+Shift+E");
@@ -54,14 +39,14 @@ TEST(Color, RoundTrips) {
 }
 
 TEST(Settings, DefaultsComeFromTheConfig) {
-    Settings s(Config::defaults(false), temp_file("defaults"));
+    Settings s(Config::defaults(false), nullptr);
     EXPECT_EQ(s.get("appearance.corner_radius"), 12);
     EXPECT_EQ(s.get("shortcuts.modifier"), "super");
-    EXPECT_EQ(Settings(Config::defaults(true), temp_file("nested")).get("shortcuts.modifier"), "alt");
+    EXPECT_EQ(Settings(Config::defaults(true), nullptr).get("shortcuts.modifier"), "alt");
 }
 
 TEST(Settings, ValidatesAgainstTheSchema) {
-    Settings s(Config::defaults(false), temp_file("validate"));
+    Settings s(Config::defaults(false), nullptr);
     EXPECT_FALSE(s.set("appearance.corner_radius", 20));
     EXPECT_TRUE(s.set("appearance.corner_radius", 500));     // out of range
     EXPECT_TRUE(s.set("appearance.corner_radius", "big"));   // wrong type
@@ -73,14 +58,14 @@ TEST(Settings, ValidatesAgainstTheSchema) {
 }
 
 TEST(Settings, AcceptsWholeFloatsForIntegers) {
-    Settings s(Config::defaults(false), temp_file("floatint"));
+    Settings s(Config::defaults(false), nullptr);
     EXPECT_FALSE(s.set("appearance.corner_radius", 16.0));
     EXPECT_TRUE(s.get("appearance.corner_radius").is_number_integer());
     EXPECT_TRUE(s.set("appearance.corner_radius", 16.5));
 }
 
 TEST(Settings, AppliesToTheConfig) {
-    Settings s(Config::defaults(false), temp_file("apply"));
+    Settings s(Config::defaults(false), nullptr);
     ASSERT_FALSE(s.set("appearance.corner_radius", 3));
     ASSERT_FALSE(s.set("pointer.acceleration", "flat"));
     ASSERT_FALSE(s.set("appearance.shadow_color", "#ff0000"));
@@ -90,76 +75,76 @@ TEST(Settings, AppliesToTheConfig) {
     EXPECT_EQ(c.corner_radius, 3);
     EXPECT_EQ(c.accel_profile, LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT);
     EXPECT_FLOAT_EQ(c.shadow_color[0], 1.0f);
-    // Bindings written with Mod follow the modifier setting.
-    EXPECT_NE(find_keybind(c.keybinds, WLR_MODIFIER_ALT, XKB_KEY_q), nullptr);
-    EXPECT_EQ(find_keybind(c.keybinds, WLR_MODIFIER_LOGO, XKB_KEY_q), nullptr);
+    EXPECT_EQ(c.mod, uint32_t(WLR_MODIFIER_ALT));
 }
 
-TEST(Settings, CustomBindings) {
-    Settings s(Config::defaults(false), temp_file("binds"));
-    json binds = json::array({{{"keys", "Mod+B"}, {"action", "spawn"}, {"arg", "firefox"}}});
-    ASSERT_FALSE(s.set("shortcuts.bindings", binds));
-    Config c = Config::defaults(false);
-    s.apply(c);
-    ASSERT_EQ(c.keybinds.size(), 1u);
-    EXPECT_EQ(c.keybinds[0].arg, "firefox");
+TEST(Shortcuts, FollowTheModifier) {
+    const auto alt = resolve_keybinds(default_keybinds(), WLR_MODIFIER_ALT);
+    EXPECT_NE(find_keybind(alt, WLR_MODIFIER_ALT, XKB_KEY_q), nullptr);
+    EXPECT_EQ(find_keybind(alt, WLR_MODIFIER_LOGO, XKB_KEY_q), nullptr);
+}
 
-    EXPECT_TRUE(s.set("shortcuts.bindings", json::array({{{"keys", "Mod+B"}, {"action", "fly"}}})));
-    EXPECT_TRUE(s.set("shortcuts.bindings", json::array({{{"keys", "Mod+B"}, {"action", "spawn"}}})));
-    EXPECT_TRUE(s.set("shortcuts.bindings", "Mod+B"));
+TEST(Shortcuts, BadOnesAreSkippedWithAReason) {
+    std::vector<std::string> errors;
+    const auto binds = resolve_keybinds(json::array({{{"keys", "Mod+B"}, {"action", "spawn"}, {"arg", "firefox"}},
+                                                     {{"keys", "Mod+B"}, {"action", "fly"}},
+                                                     {{"keys", "Mod+C"}, {"action", "spawn"}}}),
+                                        WLR_MODIFIER_LOGO, &errors);
+    ASSERT_EQ(binds.size(), 1u);
+    EXPECT_EQ(binds[0].arg, "firefox");
+    EXPECT_EQ(errors.size(), 2u);
 }
 
 TEST(Settings, StoresOnlyChangedValues) {
-    const fs::path file = temp_file("store");
+    Registry r(":memory:");
     {
-        Settings s(Config::defaults(false), file);
+        Settings s(Config::defaults(false), &r);
         ASSERT_FALSE(s.set("appearance.corner_radius", 12));  // the default
         ASSERT_FALSE(s.set("keyboard.repeat_rate", 50));
-        ASSERT_TRUE(s.save());
     }
-    std::ifstream in(file);
-    json doc = json::parse(in);
-    EXPECT_EQ(doc.size(), 1u);
-    EXPECT_EQ(doc["keyboard.repeat_rate"], 50);
+    const auto stored = r.settings();
+    EXPECT_EQ(stored.size(), 1u);
+    EXPECT_EQ(stored.at("keyboard.repeat_rate"), 50);
 
-    Settings reloaded(Config::defaults(false), file);
-    ASSERT_TRUE(reloaded.load());
+    Settings reloaded(Config::defaults(false), &r);
+    reloaded.load();
     EXPECT_EQ(reloaded.get("keyboard.repeat_rate"), 50);
     ASSERT_FALSE(reloaded.reset("keyboard.repeat_rate"));
     EXPECT_EQ(reloaded.get("keyboard.repeat_rate"), 35);
-    fs::remove(file);
+    EXPECT_TRUE(r.settings().empty());
 }
 
 TEST(Settings, BadStoredValuesNeverBlockStartup) {
-    const fs::path file = temp_file("bad");
-    std::ofstream(file) << R"({"appearance.corner_radius": 9999, "gone.key": 1, "keyboard.repeat_rate": 20})";
-    Settings s(Config::defaults(false), file);
-    EXPECT_TRUE(s.load());
+    Registry r(":memory:");
+    r.set_setting("appearance.corner_radius", 9999);
+    r.set_setting("gone.key", 1);
+    r.set_setting("keyboard.repeat_rate", 20);
+    Settings s(Config::defaults(false), &r);
+    s.load();
     EXPECT_EQ(s.get("appearance.corner_radius"), 12);  // rejected, default kept
     EXPECT_EQ(s.get("keyboard.repeat_rate"), 20);      // the rest still loads
-    std::ofstream(file) << "{ not json";
-    Settings broken(Config::defaults(false), file);
-    EXPECT_FALSE(broken.load());
-    EXPECT_EQ(broken.get("keyboard.repeat_rate"), 35);
-    fs::remove(file);
+    EXPECT_FALSE(r.settings().contains("gone.key"));   // and the dead ones are cleared
 }
 
-TEST(Settings, MissingFileIsFine) {
-    Settings s(Config::defaults(false), temp_file("missing"));
-    EXPECT_TRUE(s.load());
+TEST(Settings, ImportsAnOldFile) {
+    Registry r(":memory:");
+    Settings s(Config::defaults(false), &r);
+    s.import(json::parse(R"({"keyboard.repeat_rate": 44, "windows.rules": [], "nonsense": 1})"));
+    EXPECT_EQ(s.get("keyboard.repeat_rate"), 44);
+    EXPECT_EQ(r.settings().size(), 1u);
 }
 
 TEST(Settings, EverySchemaDefaultValidates) {
-    Settings s(Config::defaults(false), temp_file("schema"));
+    Settings s(Config::defaults(false), nullptr);
     for (const auto& entry : s.schema())
         EXPECT_FALSE(s.set(entry.key, entry.default_value)) << entry.key;
 }
 
 TEST(Settings, TextLists) {
-    Settings s(Config::defaults(false), temp_file("lists"));
-    EXPECT_EQ(s.set("dock.pinned", json::array({"foot", "org.kde.dolphin"})), std::nullopt);
-    EXPECT_EQ(s.get("dock.pinned"), json::array({"foot", "org.kde.dolphin"}));
-    EXPECT_EQ(s.set("dock.pinned", json::array()), std::nullopt);  // an empty Dock is fine
-    EXPECT_NE(s.set("dock.pinned", json::array({"foot", 3})), std::nullopt);
-    EXPECT_NE(s.set("dock.pinned", "foot"), std::nullopt);
+    Settings s(Config::defaults(false), nullptr);
+    EXPECT_EQ(s.set("appearance.blurred_panels", json::array({"atrium-*", "waybar"})), std::nullopt);
+    EXPECT_EQ(s.get("appearance.blurred_panels"), json::array({"atrium-*", "waybar"}));
+    EXPECT_EQ(s.set("appearance.blurred_panels", json::array()), std::nullopt);
+    EXPECT_NE(s.set("appearance.blurred_panels", json::array({"foot", 3})), std::nullopt);
+    EXPECT_NE(s.set("appearance.blurred_panels", "foot"), std::nullopt);
 }

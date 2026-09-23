@@ -1,4 +1,5 @@
 #pragma once
+#include "registry.hpp"
 #include "config.hpp"
 
 #include <nlohmann/json.hpp>
@@ -38,8 +39,8 @@ struct SettingSchema {
 class Settings {
 public:
     // `defaults` decides the default of every setting (it differs when
-    // running nested).
-    Settings(const Config& defaults, std::filesystem::path file);
+    // running nested). Values live in `registry` (none: in memory only).
+    Settings(const Config& defaults, Registry* registry);
 
     const std::vector<SettingSchema>& schema() const { return schema_; }
     const SettingSchema* find(const std::string& key) const;
@@ -55,20 +56,16 @@ public:
     // Fill `config` from the current values.
     void apply(Config& config) const;
 
-    bool load();  // false when the file exists but could not be read
-    bool save() const;
-
-    const std::filesystem::path& file() const { return file_; }
-
-    // Default location: $XDG_CONFIG_HOME/atrium/settings.json.
-    static std::filesystem::path default_file();
+    void load();
+    // Values from an old settings.json, once.
+    void import(const json& doc);
 
 private:
     std::optional<std::string> validate(const SettingSchema& s, json& value) const;
 
     std::vector<SettingSchema> schema_;
     std::map<std::string, json> values_;  // only non-default values
-    std::filesystem::path file_;
+    Registry* registry_ = nullptr;
 };
 
 // --- text forms shared by the store, the IPC and the CLI ----------------------------
@@ -91,6 +88,8 @@ const char* action_name(Action action);
 
 // Default keybinds as settings JSON: [{"keys": "Mod+Q", "action": "close"}, ...].
 json default_keybinds();
+// The Dock's pins on a new system, by desktop entry id.
+json default_dock();
 
 // Resolve keybind settings JSON against the configured modifier. Entries that
 // fail to parse are skipped with the reason appended to `errors`.

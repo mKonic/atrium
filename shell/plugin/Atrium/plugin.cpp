@@ -9,6 +9,7 @@
 #include "sysinfo.hpp"
 #include "netspeed.hpp"
 #include "admin_cache.hpp"
+#include "settings_pages.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -91,6 +92,8 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new SystemInfo; });
         qmlRegisterSingletonType<AdminCache>(uri, 1, 0, "AdminCache",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new AdminCache; });
+        qmlRegisterSingletonType<SettingsPages>(uri, 1, 0, "SettingsPages",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new SettingsPages; });
         qmlRegisterType<NetSpeed>(uri, 1, 0, "NetSpeed");
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");

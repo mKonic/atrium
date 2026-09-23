@@ -1,0 +1,432 @@
+#include "registry.hpp"
+
+#include <sqlite3.h>
+
+#include <algorithm>
+#include <cstdlib>
+#include <regex>
+
+namespace fs = std::filesystem;
+
+namespace atrium {
+
+namespace {
+
+// One prepared statement, finalized when it goes out of scope.
+class Stmt {
+public:
+    Stmt(sqlite3* db, const char* sql) {
+        if (db && sqlite3_prepare_v2(db, sql, -1, &stmt_, nullptr) != SQLITE_OK)
+            stmt_ = nullptr;
+    }
+    ~Stmt() { sqlite3_finalize(stmt_); }
+    Stmt(const Stmt&) = delete;
+    Stmt& operator=(const Stmt&) = delete;
+
+    Stmt& bind(int i, const std::string& v) {
+        sqlite3_bind_text(stmt_, i, v.c_str(), int(v.size()), SQLITE_TRANSIENT);
+        return *this;
+    }
+    Stmt& bind(int i, int64_t v) {
+        sqlite3_bind_int64(stmt_, i, v);
+        return *this;
+    }
+    Stmt& bind(int i, int v) { return bind(i, int64_t(v)); }
+    Stmt& bind(int i, bool v) { return bind(i, int64_t(v)); }
+    template <class T> Stmt& bind(int i, const std::optional<T>& v) {
+        if (v)
+            return bind(i, *v);
+        sqlite3_bind_null(stmt_, i);
+        return *this;
+    }
+
+    bool step() { return stmt_ && sqlite3_step(stmt_) == SQLITE_ROW; }
+    bool run() { return stmt_ && sqlite3_step(stmt_) == SQLITE_DONE; }
+
+    std::string text(int col) const {
+        const auto* t = sqlite3_column_text(stmt_, col);
+        return t ? reinterpret_cast<const char*>(t) : "";
+    }
+    int64_t integer(int col) const { return sqlite3_column_int64(stmt_, col); }
+    bool null(int col) const { return sqlite3_column_type(stmt_, col) == SQLITE_NULL; }
+    std::optional<int> opt_int(int col) const { return null(col) ? std::nullopt : std::optional<int>(int(integer(col))); }
+    std::optional<bool> opt_bool(int col) const { return null(col) ? std::nullopt : std::optional<bool>(integer(col) != 0); }
+
+private:
+    sqlite3_stmt* stmt_ = nullptr;
+};
+
+constexpr int kSchemaVersion = 1;
+
+constexpr const char* kApps =
+    "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
+    " place_output, place_x, place_y, place_w, place_h, place_maximized, place_snapped FROM apps";
+
+AppRecord read_app(const Stmt& s) {
+    AppRecord a;
+    a.app_id = s.text(0);
+    a.secret = s.text(1);
+    a.space = int(s.integer(2));
+    a.launch = s.text(3);
+    a.dock = s.opt_int(4);
+    a.maximized = s.opt_bool(5);
+    a.fullscreen = s.opt_bool(6);
+    if (!s.null(10) && s.integer(10) > 0) {
+        a.placement = Placement{s.text(7), int(s.integer(8)), int(s.integer(9)), int(s.integer(10)),
+                                int(s.integer(11)), s.integer(12) != 0, uint32_t(s.integer(13))};
+    }
+    return a;
+}
+
+constexpr const char* kRules =
+    "SELECT id, app_pattern, title_pattern, secret, space, launch, maximized, fullscreen FROM rules ORDER BY position, id";
+
+RuleRecord read_rule(const Stmt& s) {
+    return RuleRecord{s.integer(0), s.text(1), s.text(2), s.text(3), int(s.integer(4)), s.text(5),
+                      s.opt_bool(6), s.opt_bool(7)};
+}
+
+// "discord|^vesktop$|WhatsApp" → the plain names, or nothing when the
+// pattern does more than list names.
+std::optional<std::vector<std::string>> plain_names(const std::string& pattern) {
+    static const std::regex name("\\^?([A-Za-z0-9._-]+)\\$?");
+    std::vector<std::string> out;
+    size_t start = 0;
+    while (start <= pattern.size()) {
+        const size_t bar = pattern.find('|', start);
+        const std::string part = pattern.substr(start, bar == std::string::npos ? std::string::npos : bar - start);
+        std::smatch m;
+        if (!std::regex_match(part, m, name))
+            return std::nullopt;
+        out.push_back(m[1]);
+        if (bar == std::string::npos)
+            break;
+        start = bar + 1;
+    }
+    return out;
+}
+
+} // namespace
+
+bool AppRecord::empty() const {
+    return secret.empty() && space == 0 && launch.empty() && !dock && !maximized && !fullscreen && !placement;
+}
+
+Registry::Registry(const std::string& path) {
+    if (path != ":memory:") {
+        std::error_code ec;
+        fs::create_directories(fs::path(path).parent_path(), ec);
+        fresh_ = !fs::exists(path);
+    } else {
+        fresh_ = true;
+    }
+    if (sqlite3_open(path.c_str(), &db_) != SQLITE_OK) {
+        sqlite3_close(db_);
+        db_ = nullptr;
+        return;
+    }
+    sqlite3_busy_timeout(db_, 2000);
+    exec("PRAGMA journal_mode=WAL");
+    exec("PRAGMA foreign_keys=ON");
+    migrate();
+}
+
+Registry::~Registry() {
+    sqlite3_close(db_);
+}
+
+bool Registry::exec(const char* sql) const {
+    return db_ && sqlite3_exec(db_, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
+}
+
+void Registry::migrate() {
+    Stmt v(db_, "PRAGMA user_version");
+    const int version = v.step() ? int(v.integer(0)) : 0;
+    if (version >= kSchemaVersion)
+        return;
+    exec("BEGIN");
+    exec("CREATE TABLE IF NOT EXISTS settings ("
+         " key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    exec("CREATE TABLE IF NOT EXISTS apps ("
+         " app_id TEXT PRIMARY KEY COLLATE NOCASE,"
+         " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
+         " dock INTEGER, maximized INTEGER, fullscreen INTEGER,"
+         " place_output TEXT, place_x INTEGER, place_y INTEGER, place_w INTEGER, place_h INTEGER,"
+         " place_maximized INTEGER, place_snapped INTEGER)");
+    exec("CREATE TABLE IF NOT EXISTS rules ("
+         " id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
+         " app_pattern TEXT NOT NULL DEFAULT '', title_pattern TEXT NOT NULL DEFAULT '',"
+         " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
+         " maximized INTEGER, fullscreen INTEGER)");
+    exec("CREATE TABLE IF NOT EXISTS shortcuts ("
+         " id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
+         " keys TEXT NOT NULL, action TEXT NOT NULL, arg TEXT NOT NULL DEFAULT '', locked INTEGER NOT NULL DEFAULT 0)");
+    exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
+    exec("COMMIT");
+}
+
+void Registry::begin() {
+    exec("BEGIN");
+}
+
+void Registry::commit() {
+    exec("COMMIT");
+}
+
+fs::path Registry::default_file() {
+    if (const char* config = std::getenv("XDG_CONFIG_HOME"); config && *config)
+        return fs::path(config) / "atrium" / "registry.db";
+    const char* home = std::getenv("HOME");
+    return fs::path(home ? home : ".") / ".config" / "atrium" / "registry.db";
+}
+
+// --- settings ------------------------------------------------------------------------
+
+std::map<std::string, json> Registry::settings() const {
+    std::map<std::string, json> out;
+    Stmt s(db_, "SELECT key, value FROM settings");
+    while (s.step()) {
+        json v = json::parse(s.text(1), nullptr, false);
+        if (!v.is_discarded())
+            out[s.text(0)] = std::move(v);
+    }
+    return out;
+}
+
+void Registry::set_setting(const std::string& key, const json& value) {
+    Stmt(db_, "INSERT INTO settings(key, value) VALUES(?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2")
+        .bind(1, key).bind(2, value.dump()).run();
+}
+
+void Registry::erase_setting(const std::string& key) {
+    Stmt(db_, "DELETE FROM settings WHERE key = ?1").bind(1, key).run();
+}
+
+// --- apps ----------------------------------------------------------------------------
+
+std::vector<AppRecord> Registry::apps() const {
+    std::vector<AppRecord> out;
+    Stmt s(db_, (std::string(kApps) + " ORDER BY app_id").c_str());
+    while (s.step())
+        out.push_back(read_app(s));
+    return out;
+}
+
+std::optional<AppRecord> Registry::app(const std::string& app_id) const {
+    Stmt s(db_, (std::string(kApps) + " WHERE app_id = ?1").c_str());
+    s.bind(1, app_id);
+    if (s.step())
+        return read_app(s);
+    return std::nullopt;
+}
+
+void Registry::put_app(const AppRecord& a) {
+    if (a.empty()) {
+        remove_app(a.app_id);
+        return;
+    }
+    const std::optional<Placement>& p = a.placement;
+    Stmt s(db_,
+           "INSERT INTO apps(app_id, secret, space, launch, dock, maximized, fullscreen, place_output, place_x,"
+           " place_y, place_w, place_h, place_maximized, place_snapped)"
+           " VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+           " ON CONFLICT(app_id) DO UPDATE SET secret = ?2, space = ?3, launch = ?4, dock = ?5, maximized = ?6,"
+           " fullscreen = ?7, place_output = ?8, place_x = ?9, place_y = ?10, place_w = ?11, place_h = ?12,"
+           " place_maximized = ?13, place_snapped = ?14");
+    s.bind(1, a.app_id).bind(2, a.secret).bind(3, a.space).bind(4, a.launch).bind(5, a.dock)
+        .bind(6, a.maximized).bind(7, a.fullscreen);
+    if (p) {
+        s.bind(8, p->output).bind(9, p->x).bind(10, p->y).bind(11, p->width).bind(12, p->height)
+            .bind(13, p->maximized).bind(14, int64_t(p->snapped));
+    } else {
+        for (int i = 8; i <= 14; ++i)
+            s.bind(i, std::optional<int>{});
+    }
+    s.run();
+}
+
+void Registry::remove_app(const std::string& app_id) {
+    Stmt(db_, "DELETE FROM apps WHERE app_id = ?1").bind(1, app_id).run();
+}
+
+void Registry::set_dock(const std::vector<std::string>& ids) {
+    begin();
+    exec("UPDATE apps SET dock = NULL");
+    for (size_t i = 0; i < ids.size(); ++i) {
+        AppRecord a = app(ids[i]).value_or(AppRecord{.app_id = ids[i]});
+        a.dock = int(i);
+        put_app(a);
+    }
+    // Apps that were only pinned are gone now.
+    exec("DELETE FROM apps WHERE dock IS NULL AND secret = '' AND space = 0 AND launch = '' AND maximized IS NULL"
+         " AND fullscreen IS NULL AND (place_w IS NULL OR place_w = 0)");
+    commit();
+}
+
+// --- rules ---------------------------------------------------------------------------
+
+std::vector<RuleRecord> Registry::rules() const {
+    std::vector<RuleRecord> out;
+    Stmt s(db_, kRules);
+    while (s.step())
+        out.push_back(read_rule(s));
+    return out;
+}
+
+int64_t Registry::add_rule(const RuleRecord& r) {
+    Stmt s(db_,
+           "INSERT INTO rules(position, app_pattern, title_pattern, secret, space, launch, maximized, fullscreen)"
+           " VALUES((SELECT COALESCE(MAX(position), 0) + 1 FROM rules), ?1, ?2, ?3, ?4, ?5, ?6, ?7)");
+    s.bind(1, r.app_pattern).bind(2, r.title_pattern).bind(3, r.secret).bind(4, r.space).bind(5, r.launch)
+        .bind(6, r.maximized).bind(7, r.fullscreen);
+    return s.run() ? sqlite3_last_insert_rowid(db_) : 0;
+}
+
+bool Registry::update_rule(const RuleRecord& r) {
+    Stmt s(db_,
+           "UPDATE rules SET app_pattern = ?2, title_pattern = ?3, secret = ?4, space = ?5, launch = ?6,"
+           " maximized = ?7, fullscreen = ?8 WHERE id = ?1");
+    s.bind(1, r.id).bind(2, r.app_pattern).bind(3, r.title_pattern).bind(4, r.secret).bind(5, r.space)
+        .bind(6, r.launch).bind(7, r.maximized).bind(8, r.fullscreen);
+    return s.run() && sqlite3_changes(db_) > 0;
+}
+
+bool Registry::remove_rule(int64_t id) {
+    return Stmt(db_, "DELETE FROM rules WHERE id = ?1").bind(1, id).run() && sqlite3_changes(db_) > 0;
+}
+
+// --- shortcuts -----------------------------------------------------------------------
+
+std::vector<ShortcutRecord> Registry::shortcuts() const {
+    std::vector<ShortcutRecord> out;
+    Stmt s(db_, "SELECT id, keys, action, arg, locked FROM shortcuts ORDER BY position, id");
+    while (s.step())
+        out.push_back({s.integer(0), s.text(1), s.text(2), s.text(3), s.integer(4) != 0});
+    return out;
+}
+
+int64_t Registry::add_shortcut(const ShortcutRecord& k) {
+    Stmt s(db_,
+           "INSERT INTO shortcuts(position, keys, action, arg, locked)"
+           " VALUES((SELECT COALESCE(MAX(position), 0) + 1 FROM shortcuts), ?1, ?2, ?3, ?4)");
+    s.bind(1, k.keys).bind(2, k.action).bind(3, k.arg).bind(4, k.locked);
+    return s.run() ? sqlite3_last_insert_rowid(db_) : 0;
+}
+
+bool Registry::update_shortcut(const ShortcutRecord& k) {
+    Stmt s(db_, "UPDATE shortcuts SET keys = ?2, action = ?3, arg = ?4, locked = ?5 WHERE id = ?1");
+    s.bind(1, k.id).bind(2, k.keys).bind(3, k.action).bind(4, k.arg).bind(5, k.locked);
+    return s.run() && sqlite3_changes(db_) > 0;
+}
+
+bool Registry::remove_shortcut(int64_t id) {
+    return Stmt(db_, "DELETE FROM shortcuts WHERE id = ?1").bind(1, id).run() && sqlite3_changes(db_) > 0;
+}
+
+void Registry::replace_shortcuts(const std::vector<ShortcutRecord>& list) {
+    begin();
+    exec("DELETE FROM shortcuts");
+    for (const ShortcutRecord& k : list)
+        add_shortcut(k);
+    commit();
+}
+
+// --- JSON forms ----------------------------------------------------------------------
+
+std::vector<AppRecord> apps_from_legacy(const json& rules, const json& pinned, const json& placements,
+                                        std::vector<RuleRecord>* leftover) {
+    std::map<std::string, AppRecord> by_id;
+    auto get = [&](const std::string& id) -> AppRecord& {
+        for (auto& [k, a] : by_id)
+            if (std::ranges::equal(k, id, [](char x, char y) { return std::tolower(x) == std::tolower(y); }))
+                return a;
+        AppRecord& a = by_id[id];
+        a.app_id = id;
+        return a;
+    };
+    auto opt_bool = [](const json& r, const char* key) {
+        return r.contains(key) && r[key].is_boolean() ? std::optional<bool>(r[key].get<bool>()) : std::nullopt;
+    };
+    if (rules.is_array())
+        for (const json& r : rules) {
+            if (!r.is_object())
+                continue;
+            const std::string app = r.value("app_id", ""), title = r.value("title", "");
+            const auto names = title.empty() && !app.empty() ? plain_names(app) : std::nullopt;
+            if (!names) {
+                if (leftover && (!app.empty() || !title.empty()))
+                    leftover->push_back({0, app, title, r.value("secret", ""), r.value("space", 0),
+                                         r.value("launch", ""), opt_bool(r, "maximized"), opt_bool(r, "fullscreen")});
+                continue;
+            }
+            for (const std::string& n : *names) {
+                AppRecord& a = get(n);
+                a.secret = r.value("secret", a.secret);
+                a.space = r.value("space", a.space);
+                a.launch = r.value("launch", a.launch);
+                if (auto m = opt_bool(r, "maximized"))
+                    a.maximized = m;
+                if (auto f = opt_bool(r, "fullscreen"))
+                    a.fullscreen = f;
+            }
+        }
+    if (pinned.is_array())
+        for (size_t i = 0; i < pinned.size(); ++i)
+            if (pinned[i].is_string())
+                get(pinned[i].get<std::string>()).dock = int(i);
+    if (placements.is_object())
+        for (const auto& [id, v] : placements.items()) {
+            if (!v.is_object() || v.value("width", 0) <= 0 || v.value("height", 0) <= 0)
+                continue;
+            get(id).placement = Placement{v.value("output", ""), v.value("x", 0), v.value("y", 0),
+                                          v.value("width", 0), v.value("height", 0), v.value("maximized", false),
+                                          v.value("snapped", 0u)};
+        }
+    std::vector<AppRecord> out;
+    for (auto& [_, a] : by_id)
+        out.push_back(std::move(a));
+    return out;
+}
+
+std::vector<ShortcutRecord> shortcuts_from_json(const json& binds) {
+    std::vector<ShortcutRecord> out;
+    if (!binds.is_array())
+        return out;
+    for (const json& b : binds) {
+        if (!b.is_object() || !b.contains("keys") || !b.contains("action"))
+            continue;
+        out.push_back({0, b.value("keys", ""), b.value("action", ""), b.value("arg", ""), b.value("locked", false)});
+    }
+    return out;
+}
+
+json shortcut_json(const ShortcutRecord& s) {
+    json j = {{"id", s.id}, {"keys", s.keys}, {"action", s.action}};
+    if (!s.arg.empty())
+        j["arg"] = s.arg;
+    if (s.locked)
+        j["locked"] = true;
+    return j;
+}
+
+json app_json(const AppRecord& a) {
+    json j = {{"app_id", a.app_id}, {"secret", a.secret}, {"space", a.space}, {"launch", a.launch}};
+    j["dock"] = a.dock ? json(*a.dock) : json(nullptr);
+    j["maximized"] = a.maximized ? json(*a.maximized) : json(nullptr);
+    j["fullscreen"] = a.fullscreen ? json(*a.fullscreen) : json(nullptr);
+    if (a.placement)
+        j["placement"] = {{"output", a.placement->output}, {"x", a.placement->x}, {"y", a.placement->y},
+                          {"width", a.placement->width}, {"height", a.placement->height},
+                          {"maximized", a.placement->maximized}, {"snapped", a.placement->snapped}};
+    return j;
+}
+
+json rule_json(const RuleRecord& r) {
+    json j = {{"id", r.id}, {"app_pattern", r.app_pattern}, {"title_pattern", r.title_pattern},
+              {"secret", r.secret}, {"space", r.space}, {"launch", r.launch}};
+    j["maximized"] = r.maximized ? json(*r.maximized) : json(nullptr);
+    j["fullscreen"] = r.fullscreen ? json(*r.fullscreen) : json(nullptr);
+    return j;
+}
+
+} // namespace atrium

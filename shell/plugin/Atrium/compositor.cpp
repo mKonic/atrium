@@ -99,6 +99,10 @@ void Compositor::refreshAll() {
         settings_ = r.toObject().toVariantMap();
         emit settingsChanged();
     });
+    request({{"cmd", "settings.schema"}}, [this](const QJsonValue& r) {
+        schema_ = r.toArray().toVariantList();
+        emit schemaChanged();
+    });
 }
 
 void Compositor::readReplies() {
@@ -265,6 +269,10 @@ void Compositor::action(const QString& name, const QVariant& arg) {
 
 void Compositor::setSetting(const QString& key, const QVariant& value) {
     request({{"cmd", "settings.set"}, {"key", key}, {"value", QJsonValue::fromVariant(value)}});
+}
+
+void Compositor::resetSetting(const QString& key) {
+    request({{"cmd", "settings.reset"}, {"key", key}});
 }
 
 } // namespace atrium

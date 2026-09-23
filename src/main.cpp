@@ -10,9 +10,9 @@ namespace {
 
 void usage(const char* argv0) {
     std::fprintf(stderr,
-        "usage: %s [-s startup-command] [-c settings-file] [-d] [-v]\n"
+        "usage: %s [-s startup-command] [-c registry] [-d] [-v]\n"
         "  -s, --startup CMD   run CMD through /bin/sh once the session is up\n"
-        "  -c, --settings FILE settings store (default $XDG_CONFIG_HOME/atrium/settings.json)\n"
+        "  -c, --registry FILE the registry database (default $XDG_CONFIG_HOME/atrium/registry.db)\n"
         "  -d, --debug         verbose logging\n"
         "  -v, --version       print the version and exit\n",
         argv0);
@@ -22,12 +22,12 @@ void usage(const char* argv0) {
 
 int main(int argc, char** argv) {
     const char* startup = nullptr;
-    const char* settings_file = std::getenv("ATRIUM_SETTINGS");
+    const char* registry_file = std::getenv("ATRIUM_REGISTRY");
     bool debug = false;
 
     static const option long_opts[] = {
         {"startup", required_argument, nullptr, 's'},
-        {"settings", required_argument, nullptr, 'c'},
+        {"registry", required_argument, nullptr, 'c'},
         {"debug", no_argument, nullptr, 'd'},
         {"version", no_argument, nullptr, 'v'},
         {"help", no_argument, nullptr, 'h'},
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     for (int c; (c = getopt_long(argc, argv, "s:c:dvh", long_opts, nullptr)) != -1;) {
         switch (c) {
         case 's': startup = optarg; break;
-        case 'c': settings_file = optarg; break;
+        case 'c': registry_file = optarg; break;
         case 'd': debug = true; break;
         case 'v': std::printf("atrium %s (build %d)\n", ATRIUM_VERSION, ATRIUM_BUILD); return 0;
         case 'h': usage(argv[0]); return 0;
@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
 
     {
         atrium::Server server(atrium::Config::defaults(nested), nested,
-                              settings_file ? std::filesystem::path(settings_file)
-                                            : atrium::Settings::default_file());
+                              registry_file ? std::filesystem::path(registry_file)
+                                            : atrium::Registry::default_file());
         server.run(startup);
     }
     return 0;
