@@ -106,6 +106,10 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacing.normal
 
+            SessionButton {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Spaces {
                 anchors.verticalCenter: parent.verticalCenter
                 output: bar.screen?.name ?? ""

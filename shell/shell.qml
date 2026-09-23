@@ -10,6 +10,7 @@ import qs.modules.dock
 import qs.modules.launcher
 import qs.modules.notifications
 import qs.modules.osd
+import qs.modules.session
 
 // atrium's desktop shell.
 ShellRoot {
@@ -54,4 +55,8 @@ ShellRoot {
     ControlCenter {}
 
     Osd {}
+
+    SessionMenu {}
+
+    SessionConfirm {}
 }
