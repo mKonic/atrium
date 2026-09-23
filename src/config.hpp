@@ -1,6 +1,8 @@
 #pragma once
 #include "wlr.hpp"
 
+#include "rules.hpp"
+
 #include <array>
 #include <string>
 #include <vector>
@@ -20,6 +22,12 @@ enum class Action {
     FocusPrev,
     SwitchVt,         // iarg: VT number
     Quit,
+    Space,            // iarg: space number on the focused output
+    MoveToSpace,      // iarg: space number
+    SpacePrev,
+    SpaceNext,
+    ToggleSecret,     // arg: secret space name
+    MoveToSecret,     // arg: secret space name
 };
 
 struct Keybind {
@@ -52,6 +60,7 @@ struct Config {
     float shadow_sigma_inactive = 14.0f;
     Color shadow_color{0.0f, 0.0f, 0.0f, 0.55f};
     Color shadow_color_inactive{0.0f, 0.0f, 0.0f, 0.25f};
+    Color secret_backdrop{0.0f, 0.0f, 0.0f, 0.45f};
     Color outline_color{1.0f, 1.0f, 1.0f, 0.11f};
     Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 
@@ -81,6 +90,9 @@ struct Config {
     // Idle inhibitors from hidden windows still count (a video in a
     // background window keeps the screen on).
     bool idle_inhibit_ignore_visibility = false;
+
+    // Window rules, applied when a window opens
+    std::vector<WindowRule> rules;
 
     // Bindings
     uint32_t mod = WLR_MODIFIER_LOGO;

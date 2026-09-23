@@ -2,6 +2,7 @@
 
 #include "output.hpp"
 #include "server.hpp"
+#include "space.hpp"
 #include "version.hpp"
 #include "view.hpp"
 
@@ -29,6 +30,7 @@ const char* type_name(SettingType t) {
     case SettingType::Color: return "color";
     case SettingType::Choice: return "choice";
     case SettingType::Keybinds: return "keybinds";
+    case SettingType::Rules: return "rules";
     }
     return "unknown";
 }
@@ -66,6 +68,8 @@ json Ipc::window_json(const View& v) {
         {"fullscreen", v.fullscreen},
         {"urgent", v.urgent},
         {"xwayland", v.kind == View::Kind::X11},
+        {"space", v.space ? v.space->label() : ""},
+        {"secret", v.space && v.space->secret},
     };
 }
 
@@ -287,6 +291,36 @@ json Ipc::handle(Client& c, const json& req) {
         return ok(list);
     }
 
+    if (cmd == "spaces") {
+        json list = json::array();
+        for (const auto& s : server_.spaces) {
+            int count = 0;
+            for (View* v : server_.views)
+                count += v->space == s.get();
+            list.push_back({{"id", s->id()}, {"label", s->label()}, {"secret", s->secret},
+                            {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()},
+                            {"windows", count}});
+        }
+        return ok(list);
+    }
+
+    if (cmd == "space.switch") {
+        if (!req.contains("number") || !req["number"].is_number_integer())
+            return fail("space.switch needs a \"number\"");
+        const int n = req["number"];
+        if (n < 1 || n > 99)
+            return fail("space numbers go from 1 to 99");
+        server_.switch_space(server_.focused_output, n);
+        return ok();
+    }
+
+    if (cmd == "secret.toggle") {
+        if (!req.contains("name") || !req["name"].is_string() || req["name"].get<std::string>().empty())
+            return fail("secret.toggle needs a \"name\"");
+        server_.toggle_secret(req["name"]);
+        return ok();
+    }
+
     if (cmd == "subscribe") {
         if (!req.contains("topics") || !req["topics"].is_array())
             return fail("subscribe needs \"topics\": [\"windows\", \"settings\", \"outputs\"]");
@@ -366,6 +400,14 @@ json Ipc::handle(Client& c, const json& req) {
             if (!req.contains("x") || !req.contains("y"))
                 return fail("window.move needs x and y");
             v->move_to(req["x"].get<int>(), req["y"].get<int>());
+        } else if (cmd == "window.to_space") {
+            if (req.contains("secret") && req["secret"].is_string() && !req["secret"].get<std::string>().empty())
+                server_.move_to_space(v, server_.ensure_secret(req["secret"]));
+            else if (req.contains("number") && req["number"].is_number_integer() && req["number"] >= 1 &&
+                     req["number"] <= 99 && server_.focused_output)
+                server_.move_to_space(v, server_.ensure_space(server_.focused_output, req["number"]));
+            else
+                return fail("window.to_space needs a \"number\" (1-99) or a \"secret\" name");
         } else if (cmd == "window.resize") {
             if (!req.contains("width") || !req.contains("height"))
                 return fail("window.resize needs width and height");

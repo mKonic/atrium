@@ -4,6 +4,7 @@
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "server.hpp"
+#include "space.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
 
@@ -480,6 +481,12 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(zone.edges)));
             return;
         }
+        if (hit.backdrop) {
+            set_titlebar_hover(nullptr, 0);
+            wlr_seat_pointer_notify_clear_focus(wlr);
+            set_default_cursor();
+            return;
+        }
         if (hit.titlebar) {
             set_titlebar_hover(hit.titlebar, int(hit.titlebar->part_at(hit.sx, hit.sy)));
             wlr_seat_pointer_notify_clear_focus(wlr);
@@ -548,6 +555,11 @@ void Seat::button(wlr_pointer_button_event* e) {
         }
         if (hit.titlebar && titlebar_button(e, hit))
             return;
+        // Clicking the dimmed screen puts a secret space away.
+        if (hit.backdrop) {
+            server.hide_secret();
+            return;
+        }
 
         // Click to focus, and a click raises: the desktop model, not the tiling one.
         if (hit.view && (!hit.view->unmanaged() || hit.view->wants_focus()))
@@ -599,8 +611,10 @@ Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
 
     // `views` is in stacking order: the first window under the point hides
     // every band below it.
+    // Under a secret space's backdrop only the secret windows are reachable.
+    const Space* only = hit.backdrop ? hit.backdrop : nullptr;
     for (View* v : server.views) {
-        if (!v->visible())
+        if (!v->visible() || (only && v->space != only))
             continue;
         const wlr_box& g = v->geom;
         if (lx >= g.x && lx < g.x + g.width && ly >= g.y && ly < g.y + g.height)

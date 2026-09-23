@@ -5,6 +5,7 @@
 #include "output.hpp"
 #include "seat.hpp"
 #include "session_lock.hpp"
+#include "space.hpp"
 #include "settings.hpp"
 #include "theme.hpp"
 #include "titlebar.hpp"
@@ -127,6 +128,10 @@ void Server::setup() {
     layout_change_.connect(&output_layout->events.change, [this](void*) { update_outputs(); });
     wlr_xdg_output_manager_v1_create(display, output_layout);
 
+    workspace_manager = wlr_ext_workspace_manager_v1_create(display, 1);
+    workspace_commit_.connect(&workspace_manager->events.commit,
+        [this](wlr_ext_workspace_v1_commit_event* e) { workspace_requests(e); });
+
     new_output_.connect(&backend->events.new_output, [this](wlr_output* o) { new_output(o); });
 
     xdg_shell = wlr_xdg_shell_create(display, 6);
@@ -243,6 +248,7 @@ void Server::disconnect_listeners() {
     new_lock_.disconnect();
     new_capture_request_.disconnect();
     gpu_reset_.disconnect();
+    workspace_commit_.disconnect();
 #ifdef ATRIUM_XWAYLAND
     xwayland_ready_.disconnect();
     new_xwayland_surface_.disconnect();
@@ -265,6 +271,8 @@ void Server::teardown() {
     }
 
     shutting_down = true;
+    shown_secret = nullptr;
+    spaces.clear();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
@@ -318,6 +326,7 @@ void Server::new_output(wlr_output* wlr) {
         return;
     auto* output = new Output(*this, wlr);
     outputs.push_back(output);
+    output_added(output);
 }
 
 Output* Server::output_at(double lx, double ly) const {
@@ -536,8 +545,16 @@ Hit Server::hit_test(double lx, double ly) const {
         if (l == int(Layer::InputPopup))
             continue;
         wlr_scene_node* node = wlr_scene_node_at(&layers_[l]->node, lx, ly, &hit.sx, &hit.sy);
-        if (!node || node->type != WLR_SCENE_NODE_BUFFER)
+        if (!node || (node->type != WLR_SCENE_NODE_BUFFER && node->type != WLR_SCENE_NODE_RECT))
             continue;
+        if (node->type == WLR_SCENE_NODE_RECT) {
+            // Only a secret space's backdrop is a rect that carries data.
+            if (node->data) {
+                hit.backdrop = static_cast<Space*>(node->data);
+                return hit;
+            }
+            continue;
+        }
         if (auto* ss = wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node))) {
             hit.surface = ss->surface;
         } else if (node->data) {
@@ -554,8 +571,10 @@ Hit Server::hit_test(double lx, double ly) const {
 }
 
 View* Server::top_view(Output* output) const {
+    // A secret space showing on the output sits above everything there.
+    const Space* only = (shown_secret && (!output || shown_secret->output == output)) ? shown_secret : nullptr;
     for (View* v : views)
-        if (v->visible() && (!output || v->output == output))
+        if (v->visible() && (!output || v->output == output) && (!only || v->space == only))
             return v;
     return nullptr;
 }
@@ -567,6 +586,9 @@ void Server::focus_top() {
 void Server::focus_view(View* view, bool raise) {
     if (locked)
         return;
+    // Focusing a window on another space goes there, like macOS.
+    if (view && view->space && !view->space->shown())
+        reveal(view->space);
 
     if (view && raise)
         view->raise();
@@ -625,9 +647,11 @@ void Server::focus_layer(LayerSurface* layer) {
 void Server::cycle_focus(int direction) {
     // `views` is in focus order, so "next" is the least recently used window
     // on this output and "previous" undoes it.
+    // With a secret space up, only its windows are reachable.
+    const Space* only = (shown_secret && shown_secret->output == focused_output) ? shown_secret : nullptr;
     std::vector<View*> candidates;
     for (View* v : views)
-        if (v->visible() && v->output == focused_output && !v->fullscreen)
+        if (v->visible() && v->output == focused_output && !v->fullscreen && (!only || v->space == only))
             candidates.push_back(v);
     if (candidates.size() < 2)
         return;
@@ -738,6 +762,26 @@ void Server::run_action(const Keybind& b) {
     case Action::FocusPrev: cycle_focus(-1); break;
     case Action::SwitchVt: change_vt(unsigned(b.iarg)); break;
     case Action::Quit: quit(); break;
+    case Action::Space: switch_space(focused_output, b.iarg); break;
+    case Action::MoveToSpace:
+        if (v && focused_output)
+            move_to_space(v, ensure_space(focused_output, b.iarg));
+        break;
+    case Action::SpacePrev: step_space(-1); break;
+    case Action::SpaceNext: step_space(+1); break;
+    case Action::ToggleSecret: toggle_secret(b.arg); break;
+    case Action::MoveToSecret:
+        if (v) {
+            Space* s = ensure_secret(b.arg);
+            if (v->space == s) {
+                // Already there: send it back to the space underneath.
+                if (focused_output && focused_output->active)
+                    move_to_space(v, focused_output->active);
+            } else {
+                move_to_space(v, s);
+            }
+        }
+        break;
     }
 }
 

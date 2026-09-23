@@ -9,6 +9,7 @@ namespace atrium {
 
 class Output;
 class Server;
+class Space;
 
 // A top-level application window: an xdg_toplevel or an X11 window.
 //
@@ -59,7 +60,7 @@ public:
     void set_fullscreen(bool fullscreen);
     void set_minimized(bool minimized);
     void raise();
-    bool visible() const { return mapped && !minimized; }
+    bool visible() const;
 
     // During an interactive resize from the left or top edge the opposite edge
     // stays put: when a new size arrives, x/y are derived from this anchor.
@@ -75,6 +76,7 @@ public:
     const Kind kind;
     const uint64_t id;  // stable for the view's lifetime; IPC addresses windows by it
     Output* output = nullptr;
+    Space* space = nullptr;  // managed windows only
     wlr_scene_tree* tree = nullptr;      // root of the view, at geom.x/geom.y
     wlr_scene_tree* content = nullptr;   // the client's surfaces, at (0, top())
     wlr_scene_tree* popups = nullptr;    // xdg popups, at the content origin

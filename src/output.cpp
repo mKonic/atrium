@@ -40,6 +40,8 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
 }
 
 Output::~Output() {
+    if (!server.shutting_down)
+        server.output_removing(this);
     // Layer surfaces cannot outlive their output.
     for (auto& list : layers) {
         auto copy = list;

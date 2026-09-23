@@ -7,6 +7,7 @@ namespace atrium {
 
 class LayerSurface;
 class Server;
+class Space;
 
 class Output {
 public:
@@ -39,6 +40,9 @@ public:
     Listener<> lock_surface_destroy;
 
     bool asleep = false;  // turned off through wlr-output-power-management
+
+    Space* active = nullptr;  // the numbered space shown here
+    wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;
 
 private:
     void frame();

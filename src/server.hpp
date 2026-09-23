@@ -16,6 +16,7 @@ class Output;
 class Titlebar;
 class Seat;
 class SessionLock;
+class Space;
 class Settings;
 class View;
 
@@ -26,6 +27,7 @@ enum class Layer : int {
     Views,
     Top,
     Fullscreen,
+    Secret,      // a secret space over everything, on its dimmed backdrop
     Unmanaged,   // X11 override-redirect: menus, tooltips
     Overlay,
     InputPopup,
@@ -40,6 +42,7 @@ struct Hit {
     View* view = nullptr;
     LayerSurface* layer = nullptr;
     Titlebar* titlebar = nullptr;  // atrium's own title bar (then surface is null)
+    Space* backdrop = nullptr;     // the dimmed screen behind a shown secret space
     double sx = 0, sy = 0;         // surface- or title-bar-local
 };
 
@@ -73,6 +76,26 @@ public:
     void focus_top();
     View* top_view(Output* output) const;
     void cycle_focus(int direction);
+
+    // --- spaces --------------------------------------------------------------
+    Space* find_space(Output* output, int number) const;
+    Space* ensure_space(Output* output, int number);
+    Space* find_secret(const std::string& name) const;
+    Space* ensure_secret(const std::string& name);
+    void switch_space(Output* output, int number);
+    void step_space(int direction);
+    void move_to_space(View* view, Space* space);
+    void toggle_secret(const std::string& name);
+    void hide_secret();
+    // Make `space` visible: switch to it, or show it if it is secret.
+    void reveal(Space* space);
+    // Delete a numbered space nobody is looking at and nothing lives in.
+    void prune_space(Space* space);
+    void spaces_changed();
+    // Decide a new window's space from the rules; returns what else they ask for.
+    RuleResult assign_space(View* view);
+    void output_added(Output* output);
+    void output_removing(Output* output);
 
     void update_outputs();
     void check_idle_inhibitors(wlr_surface* exclude = nullptr);
@@ -142,6 +165,10 @@ public:
     SessionLock* lock = nullptr;
     bool locked = false;
 
+    std::vector<std::unique_ptr<Space>> spaces;
+    Space* shown_secret = nullptr;
+    wlr_ext_workspace_manager_v1* workspace_manager = nullptr;
+
     // Set during teardown: objects dying with the backend skip relayout.
     bool shutting_down = false;
 
@@ -156,6 +183,7 @@ private:
     void new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
     void gpu_reset();
     void disconnect_listeners();
+    void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
 
     wlr_scene_tree* layers_[kLayerCount]{};
     pid_t startup_pid_ = -1;
@@ -174,6 +202,7 @@ private:
     Listener<wlr_session_lock_v1> new_lock_;
     Listener<wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request> new_capture_request_;
     Listener<> gpu_reset_;
+    Listener<wlr_ext_workspace_v1_commit_event> workspace_commit_;
 #ifdef ATRIUM_XWAYLAND
     Listener<> xwayland_ready_;
     Listener<wlr_xwayland_surface> new_xwayland_surface_;

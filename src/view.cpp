@@ -4,6 +4,7 @@
 #include "output.hpp"
 #include "seat.hpp"
 #include "server.hpp"
+#include "space.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -16,6 +17,10 @@ View::View(Server& srv, Kind k) : server(srv), kind(k), id(srv.next_view_id++) {
 
 View::~View() {
     destroy_toplevel_handles();
+}
+
+bool View::visible() const {
+    return mapped && !minimized && (!space || space->shown());
 }
 
 wlr_box View::usable_area() const {
@@ -58,12 +63,24 @@ void View::handle_map() {
     }
     layout_frame();
 
+    const RuleResult wish = server.assign_space(this);
+    if (space)
+        wlr_scene_node_reparent(&tree->node, space->tree);
+
     server.views.insert(server.views.begin(), this);
     create_toplevel_handles();
     place();
     update_decorations();
     server.notify_window(*this, "opened");
-    server.focus_view(this);
+    if (wish.fullscreen.value_or(false))
+        set_fullscreen(true);
+    else if (wish.maximized.value_or(false))
+        set_maximized(true);
+    // A window a rule sent to a space you aren't looking at opens quietly.
+    if (!space || space->shown())
+        server.focus_view(this);
+    else
+        server.spaces_changed();
 }
 
 void View::handle_unmap() {
@@ -82,6 +99,8 @@ void View::handle_unmap() {
     const bool was_fullscreen = fullscreen;
 
     titlebar.reset();
+    Space* old_space = space;
+    space = nullptr;
     wlr_scene_node_destroy(&tree->node);
     tree = content = popups = nullptr;
     shadow = nullptr;
@@ -95,6 +114,7 @@ void View::handle_unmap() {
 
     if (was_fullscreen && old_output)
         old_output->refit_views();
+    server.prune_space(old_space);
     if (was_focused || (unmanaged() && wants_focus()))
         server.focus_top();
     server.seat->refresh_pointer();
@@ -104,7 +124,15 @@ void View::handle_unmap() {
 // stepped down-right when that exact spot is already taken, like macOS.
 void View::place() {
     View* p = parent();
-    Output* target = (p && p->output) ? p->output : server.focused_output;
+    Output* target = nullptr;
+    if (space && !space->secret)
+        target = space->output;
+    else if (space && space->secret)
+        target = space->output ? space->output : server.focused_output;
+    if (p && p->output && p->space == space)
+        target = p->output;
+    if (!target)
+        target = server.focused_output;
     if (!target) {
         double cx = server.seat->cursor->x, cy = server.seat->cursor->y;
         target = server.output_at(cx, cy);
@@ -113,7 +141,7 @@ void View::place() {
 
     std::vector<wlr_box> others;
     for (View* v : server.views)
-        if (v != this && v->visible())
+        if (v != this && v->mapped && !v->minimized && v->space == space)
             others.push_back(v->geom);
     const wlr_box* parent_box = (p && p->mapped) ? &p->geom : nullptr;
     const wlr_box g = geometry::place(geom.width, geom.height, usable_area(), parent_box, others,
@@ -295,11 +323,11 @@ void View::set_fullscreen(bool f) {
         wlr_foreign_toplevel_handle_v1_set_fullscreen(handle_, f);
 
     if (f) {
-        wlr_scene_node_reparent(&tree->node, server.layer(Layer::Fullscreen));
+        wlr_scene_node_reparent(&tree->node, space ? space->fullscreen_tree : server.layer(Layer::Fullscreen));
         if (output)
             request_geometry(output->box);
     } else {
-        wlr_scene_node_reparent(&tree->node, server.layer(Layer::Views));
+        wlr_scene_node_reparent(&tree->node, space ? space->tree : server.layer(Layer::Views));
         request_geometry(maximized ? usable_area() : restore);
     }
     update_decorations();

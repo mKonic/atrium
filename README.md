@@ -15,10 +15,16 @@ It provides the latest Wayland features, has all the eyecandy and more...
 # Features
 
 - All of the eyecandy: rounded corners, shadows
+- A lot of customization
 - Easily expandable and readable codebase
 - Fast and active development
 - Not afraid to provide bleeding-edge features
+- Settings applied instantly upon saving
 - Floating/fullscreen windows
+- Secret spaces (scratchpads)
+- Powerful window rules
+- Socket-based IPC
+- Fully dynamic spaces
 
 <br>
 <br>

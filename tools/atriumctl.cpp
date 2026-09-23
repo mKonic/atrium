@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cctype>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -26,6 +27,10 @@ void usage() {
         "  version                   compositor version\n"
         "  windows                   open windows\n"
         "  outputs                   monitors\n"
+        "  spaces                    spaces and secret spaces\n"
+        "  space N                   go to space N\n"
+        "  secret NAME               show or hide a secret space\n"
+        "  send ID N|NAME            move a window to space N or secret space NAME\n"
         "  get [KEY]                 a setting, or all of them\n"
         "  set KEY VALUE             change a setting (VALUE is JSON, or plain text)\n"
         "  reset KEY                 back to the default\n"
@@ -137,8 +142,11 @@ void print_human(const std::string& cmd, const json& r) {
     if (cmd == "windows") {
         for (const auto& w : r) {
             const auto& g = w["geometry"];
-            std::printf("%-4llu %-24s %dx%d+%d+%d  %s  %s\n", w["id"].get<unsigned long long>(),
-                        w["app_id"].get<std::string>().c_str(), g["width"].get<int>(), g["height"].get<int>(),
+            std::printf("%-4llu %-24s %-14s %dx%d+%d+%d  %s  %s\n", w["id"].get<unsigned long long>(),
+                        w["app_id"].get<std::string>().c_str(),
+                        (w.value("secret", false) ? "secret:" + w.value("space", std::string())
+                                                  : "space " + w.value("space", std::string())).c_str(),
+                        g["width"].get<int>(), g["height"].get<int>(),
                         g["x"].get<int>(), g["y"].get<int>(), w["title"].get<std::string>().c_str(),
                         flags(w).c_str());
         }
@@ -150,6 +158,11 @@ void print_human(const std::string& cmd, const json& r) {
                         o["refresh"].get<double>(), o["scale"].get<double>(),
                         o["enabled"].get<bool>() ? "" : " (off)", o["focused"].get<bool>() ? " (focused)" : "");
         }
+    } else if (cmd == "spaces") {
+        for (const auto& s : r)
+            std::printf("%-26s %-8s %2d window%s%s\n", s["id"].get<std::string>().c_str(),
+                        s["output"].get<std::string>().c_str(), s["windows"].get<int>(),
+                        s["windows"].get<int>() == 1 ? " " : "s", s["shown"].get<bool>() ? "  (shown)" : "");
     } else if (cmd == "schema") {
         for (const auto& s : r) {
             std::printf("%-36s %-8s %s\n", s["key"].get<std::string>().c_str(),
@@ -204,6 +217,21 @@ int main(int argc, char** argv) {
         req = {{"cmd", cmd}};
     } else if (cmd == "schema") {
         req = {{"cmd", "settings.schema"}};
+    } else if (cmd == "spaces") {
+        req = {{"cmd", "spaces"}};
+    } else if (cmd == "space") {
+        need(1);
+        req = {{"cmd", "space.switch"}, {"number", std::stoi(args[0])}};
+    } else if (cmd == "secret") {
+        need(1);
+        req = {{"cmd", "secret.toggle"}, {"name", args[0]}};
+    } else if (cmd == "send") {
+        need(2);
+        req = {{"cmd", "window.to_space"}, {"window", std::stoull(args[0])}};
+        if (!args[1].empty() && std::isdigit(static_cast<unsigned char>(args[1][0])))
+            req["number"] = std::stoi(args[1]);
+        else
+            req["secret"] = args[1];
     } else if (cmd == "get") {
         req = {{"cmd", "settings.get"}};
         if (!args.empty())

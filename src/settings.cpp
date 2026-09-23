@@ -62,6 +62,12 @@ constexpr ActionName kActions[] = {
     {Action::FocusPrev, "focus-prev"},
     {Action::SwitchVt, "switch-vt"},
     {Action::Quit, "quit"},
+    {Action::Space, "space"},
+    {Action::MoveToSpace, "move-to-space"},
+    {Action::SpacePrev, "space-prev"},
+    {Action::SpaceNext, "space-next"},
+    {Action::ToggleSecret, "toggle-secret"},
+    {Action::MoveToSecret, "move-to-secret"},
 };
 
 } // namespace
@@ -144,7 +150,16 @@ json default_keybinds() {
         {{"keys", "Mod+Tab"}, {"action", "focus-next"}},
         {{"keys", "Mod+Shift+Tab"}, {"action", "focus-prev"}},
         {{"keys", "Mod+Shift+E"}, {"action", "quit"}},
+        {{"keys", "Mod+Ctrl+Left"}, {"action", "space-prev"}},
+        {{"keys", "Mod+Ctrl+Right"}, {"action", "space-next"}},
+        {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
+        {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
     });
+    for (int n = 1; n <= 9; ++n) {
+        binds.push_back({{"keys", "Mod+" + std::to_string(n)}, {"action", "space"}, {"arg", std::to_string(n)}});
+        binds.push_back({{"keys", "Mod+Shift+" + std::to_string(n)}, {"action", "move-to-space"},
+                         {"arg", std::to_string(n)}});
+    }
     for (int vt = 1; vt <= 12; ++vt)
         binds.push_back({{"keys", "Ctrl+Alt+F" + std::to_string(vt)},
                          {"action", "switch-vt"},
@@ -182,10 +197,15 @@ std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod, std::vect
         Keybind k{chord->mods | (chord->uses_mod ? mod : 0), chord->sym, *action};
         if (b.contains("arg") && b["arg"].is_string())
             k.arg = b["arg"];
-        if (*action == Action::SwitchVt)
+        if (*action == Action::SwitchVt || *action == Action::Space || *action == Action::MoveToSpace)
             k.iarg = std::atoi(k.arg.c_str());
-        if (*action == Action::Spawn && k.arg.empty()) {
-            fail("'" + keys + "': spawn needs a command in \"arg\"");
+        if ((*action == Action::Spawn || *action == Action::ToggleSecret || *action == Action::MoveToSecret) &&
+            k.arg.empty()) {
+            fail("'" + keys + "': " + b["action"].get<std::string>() + " needs \"arg\"");
+            continue;
+        }
+        if ((*action == Action::Space || *action == Action::MoveToSpace) && (k.iarg < 1 || k.iarg > 99)) {
+            fail("'" + keys + "': space numbers go from 1 to 99");
             continue;
         }
         out.push_back(std::move(k));
@@ -277,6 +297,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Windows
     s.push_back(number("windows.snap_distance", T::Int, "Windows", "Edge snapping",
         "Distance from a screen edge at which a dragged window sticks to it.", &Config::snap_distance, d, 0, 200));
+    s.push_back(make("windows.rules", SettingType::Rules, "Windows", "Window rules",
+        "Where windows of an app open and how, matched by app id or title.", default_rules(),
+        [](Config& c, const json& v) { c.rules = parse_rules(v); }));
+    s.push_back(color("windows.secret_backdrop", "Windows", "Secret space backdrop",
+        "Color that dims the screen behind a secret space.", &Config::secret_backdrop, d));
     s.push_back(number("windows.cascade_step", T::Int, "Windows", "Cascade offset",
         "How far a new window steps down and right when it would cover another.", &Config::cascade_step, d, 0, 200));
 
@@ -429,6 +454,13 @@ std::optional<std::string> Settings::validate(const SettingSchema& s, json& v) c
     case SettingType::Keybinds: {
         std::vector<std::string> errors;
         resolve_keybinds(v, WLR_MODIFIER_LOGO, &errors);
+        if (!errors.empty())
+            return errors.front();
+        break;
+    }
+    case SettingType::Rules: {
+        std::vector<std::string> errors;
+        parse_rules(v, &errors);
         if (!errors.empty())
             return errors.front();
         break;
