@@ -8,6 +8,7 @@
 #include "session.hpp"
 #include "sysinfo.hpp"
 #include "netspeed.hpp"
+#include "admin_cache.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -88,6 +89,8 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Session; });
         qmlRegisterSingletonType<SystemInfo>(uri, 1, 0, "SystemInfo",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new SystemInfo; });
+        qmlRegisterSingletonType<AdminCache>(uri, 1, 0, "AdminCache",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new AdminCache; });
         qmlRegisterType<NetSpeed>(uri, 1, 0, "NetSpeed");
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");

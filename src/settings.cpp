@@ -456,6 +456,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
         "Keep the Dock out of sight until the pointer reaches the bottom of the screen.", false,
         [](Config&, const json&) {}));
+    s.push_back(make("security.remember_admin", SettingType::Bool, "Privacy & Security", "Remember admin password",
+        "After you enter your password for an administrator action, don't ask again for five minutes, as sudo does.",
+        true, [](Config&, const json&) {}));
     s.push_back(make("bar.net_speed", SettingType::Bool, "Menu Bar", "Network speed",
         "Show download and upload speed next to the network icon.", true, [](Config&, const json&) {}));
     s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
