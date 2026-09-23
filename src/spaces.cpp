@@ -230,22 +230,26 @@ void Server::hide_secret() {
 // the same, backwards, after which the space stops being drawn.
 void Server::fade_secret(Space* s, bool in) {
     const Color dim = config.secret_backdrop;
-    std::vector<View*> members;
+    // By id: a window may close while the space fades.
+    std::vector<uint64_t> members;
     for (View* v : views)
         if (v->space == s)
-            members.push_back(v);
-    auto step = [s, dim, members, in](double t) {
+            members.push_back(v->id);
+    auto each = [this, members](auto&& fn) {
+        for (View* v : views)
+            if (std::ranges::find(members, v->id) != members.end())
+                fn(v);
+    };
+    auto step = [s, dim, each, in](double t) {
         const double a = in ? t : 1 - t;
         Color c = dim;
         c[3] = float(dim[3] * a);
         wlr_scene_rect_set_color(s->backdrop, c.data());
         s->set_offset(0, int(std::lround((1 - a) * 16)));
-        for (View* v : members)
-            v->set_alpha(float(a));
+        each([a](View* v) { v->set_alpha(float(a)); });
     };
-    auto done = [s, members, in] {
-        for (View* v : members)
-            v->set_alpha(1.0f);
+    auto done = [s, each, in] {
+        each([](View* v) { v->set_alpha(1.0f); });
         if (!in)
             s->hide_now();
         else

@@ -50,6 +50,10 @@ Space::Space(Server& srv, std::string n)
 
 Space::~Space() {
     server.animator.cancel_owner(this, false);
+    // A switch sliding this space in or out belongs to its output; finish it
+    // while both spaces still exist.
+    if (output && !secret)
+        server.animator.cancel_owner(output, true);
     if (handle) {
         handle->data = nullptr;
         wlr_ext_workspace_handle_v1_destroy(handle);
