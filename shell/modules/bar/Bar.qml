@@ -135,11 +135,11 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
-            ControlButton {
+            Bell {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
-            Bell {
+            ControlButton {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
