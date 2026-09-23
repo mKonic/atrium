@@ -461,6 +461,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "How the system balances speed against power use. Applied at login and when changed.",
         {"performance", "balanced", "power-saver"}, d.power_profile,
         [](Config& c, const json& v) { c.power_profile = v.get<std::string>(); }));
+    s.push_back(boolean("displays.allow_tearing", "Displays", "Allow tearing in games",
+        "Fullscreen games that ask for it show each frame the moment it is ready instead of waiting for the "
+        "screen's refresh: less input lag, at the cost of a visible tear line.", &Config::allow_tearing, d));
     s.push_back(number("displays.brightness", T::Int, "Displays", "Brightness",
         "Brightness of external monitors (DDC/CI). They forget it on boot, so atrium sets it again at login.",
         &Config::brightness, d, 0, 100));

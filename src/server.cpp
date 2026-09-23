@@ -308,6 +308,7 @@ void Server::setup() {
     cursor_shape_manager = wlr_cursor_shape_manager_v1_create(display, 1);
     virtual_keyboard_manager = wlr_virtual_keyboard_manager_v1_create(display);
     virtual_pointer_manager = wlr_virtual_pointer_manager_v1_create(display);
+    setup_window_hints();
 
     seat = std::make_unique<Seat>(*this);
 
@@ -364,6 +365,9 @@ void Server::disconnect_listeners() {
     new_capture_request_.disconnect();
     gpu_reset_.disconnect();
     workspace_commit_.disconnect();
+    new_shortcuts_inhibitor_.disconnect();
+    set_icon_.disconnect();
+    set_tag_.disconnect();
 #ifdef ATRIUM_XWAYLAND
     xwayland_ready_.disconnect();
     new_xwayland_surface_.disconnect();
@@ -817,6 +821,20 @@ void Server::focus_top() {
 void Server::focus_view(View* view, bool raise) {
     if (locked)
         return;
+    // A window waiting on a modal dialog hands focus to the dialog (the
+    // newest one, and on down a chain of them), raised along with it.
+    for (bool found = true; view && found;) {
+        found = false;
+        for (View* v : views)
+            if (v != view && v->mapped && v->parent() == view && v->modal()) {
+                if (raise)
+                    view->raise();
+                view = v;
+                found = true;
+                break;
+            }
+    }
+
     // Focusing a window on another space goes there, like macOS.
     if (view && view->space && !view->space->shown())
         reveal(view->space);

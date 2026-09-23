@@ -291,7 +291,7 @@ PanelWindow {
         x: dock.dragAt.x - width / 2
         y: dock.dragAt.y - height / 2
         implicitSize: dock.iconSize
-        source: dock.dragItem ? Quickshell.iconPath(dock.dragItem.icon, "application-x-executable") : ""
+        source: dock.dragItem ? (dock.dragItem.icon.startsWith("file:") ? dock.dragItem.icon : Quickshell.iconPath(dock.dragItem.icon, "application-x-executable")) : ""
         opacity: dock.dragRemoves ? 0.6 : 1
 
         Rectangle {

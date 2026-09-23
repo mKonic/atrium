@@ -89,7 +89,21 @@ void Output::frame() {
     server.animator.tick();
     if (!wlr_scene_output_needs_frame(scene_output))
         return;
-    wlr_scene_output_commit(scene_output, nullptr);
+    if (tearing_view(server, *this)) {
+        // Show the frame the moment it is ready, torn if need be; fall back
+        // to waiting for vblank when the hardware won't.
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        if (wlr_scene_output_build_state(scene_output, &state, nullptr)) {
+            state.tearing_page_flip = true;
+            if (!wlr_output_test_state(wlr, &state))
+                state.tearing_page_flip = false;
+            wlr_output_commit_state(wlr, &state);
+        }
+        wlr_output_state_finish(&state);
+    } else {
+        wlr_scene_output_commit(scene_output, nullptr);
+    }
     timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     wlr_scene_output_send_frame_done(scene_output, &now);

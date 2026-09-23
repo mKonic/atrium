@@ -21,6 +21,13 @@ namespace atrium {
 
 namespace {
 
+// The icon a window gave through xdg-toplevel-icon: a theme name, or a
+// picture atrium saved (as a file URL, which QML images take as is).
+QString window_icon(const QVariantMap& w) {
+    const QString icon = w.value("icon").toString();
+    return icon.startsWith('/') ? "file://" + icon : icon;
+}
+
 constexpr int kMaxResults = 8;
 constexpr int kIdleApps = 6;     // with nothing typed: the most used
 constexpr int kMaxWindows = 3;
@@ -243,7 +250,8 @@ void LauncherResults::rebuild() {
                 const QObject* e = index_.forApp(h.w.value("app_id").toString());
                 rows.push_back({.kind = "window", .title = title.isEmpty() ? h.app : title,
                                 .subtitle = QString("Switch to %1 · Space %2").arg(h.app, h.w.value("space").toString()),
-                                .icon = e ? e->property("icon").toString() : h.w.value("app_id").toString(),
+                                .icon = e ? e->property("icon").toString()
+                                          : !window_icon(h.w).isEmpty() ? window_icon(h.w) : h.w.value("app_id").toString(),
                                 .window = h.w.value("id").toInt()});
             }
         }
@@ -372,6 +380,9 @@ void DockApps::rebuild() {
         const QString id = index_.idForApp(w.value("app_id").toString());
         auto it = std::ranges::find_if(next, [&](const App& a) { return a.id == id; });
         App& a = it != next.end() ? *it : add(id, false);
+        if (!index_.byId(id))
+            if (const QString icon = window_icon(w); !icon.isEmpty())
+                a.icon = icon;  // no desktop entry: what the window says
         a.windows.push_back(w.value("id").toInt());
         a.focused = a.focused || w.value("focused").toBool();
     }

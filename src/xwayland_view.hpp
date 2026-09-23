@@ -18,6 +18,7 @@ public:
     View* parent() const override;
     void size_hints(wlr_box& min, wlr_box& max) const override;
     bool is_dialog() const override;
+    bool modal() const override { return xsurface->modal && xsurface->parent; }
     bool unmanaged() const override { return xsurface->override_redirect; }
     bool wants_focus() const override;
     bool wants_ssd() const override;

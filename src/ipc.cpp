@@ -278,6 +278,10 @@ json Ipc::window_json(const View& v) {
         {"xwayland", v.kind == View::Kind::X11},
         {"space", v.space ? v.space->label() : ""},
         {"secret", v.space && v.space->secret},
+        {"icon", v.icon},
+        {"tag", v.tag},
+        {"content_type", content_type_name(v.server, v)},
+        {"modal", v.modal()},
     };
 }
 

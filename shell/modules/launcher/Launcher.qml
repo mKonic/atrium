@@ -215,7 +215,7 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             implicitSize: 32
                             visible: row.icon.length > 0
-                            source: row.icon ? Quickshell.iconPath(row.icon, "application-x-executable") : ""
+                            source: row.icon ? (row.icon.startsWith("file:") ? row.icon : Quickshell.iconPath(row.icon, "application-x-executable")) : ""
                             asynchronous: true
                         }
 

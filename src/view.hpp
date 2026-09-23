@@ -36,6 +36,7 @@ public:
     virtual View* parent() const = 0;
     virtual void size_hints(wlr_box& min, wlr_box& max) const = 0;
     virtual bool is_dialog() const = 0;   // should be placed over its parent
+    virtual bool modal() const { return false; }  // blocks its parent until closed
     virtual bool unmanaged() const { return false; }  // X11 override-redirect
     virtual bool wants_focus() const { return false; }
     virtual void close() = 0;
@@ -113,6 +114,8 @@ public:
     bool fullscreen = false;
     uint32_t snapped = 0;  // snap zone the window fills, 0 when free
     bool urgent = false;
+    std::string icon;  // an icon name, or the path of the picture the app sent
+    std::string tag;   // the app's own name for this kind of window ("main", "prefs")
 
 protected:
     // Backend hooks for the state changes above. `frame` includes the title
@@ -199,6 +202,7 @@ public:
     View* parent() const override;
     void size_hints(wlr_box& min, wlr_box& max) const override;
     bool is_dialog() const override;
+    bool modal() const override;
     void close() override;
     void surface_origin(double& x, double& y) const override;
 
@@ -237,6 +241,13 @@ private:
     Listener<> decoration_request_, decoration_destroy_;
     Listener<> kde_mode_, kde_destroy_;
 };
+
+// window_hints.cpp
+void forget_icon(const View& view);  // delete the picture saved for it
+const char* content_type_name(Server& server, const View& view);  // "none", "photo", "video", "game"
+// The fullscreen window at the front of `output` when it asked to tear and
+// display.allow_tearing lets it; otherwise null.
+View* tearing_view(Server& server, const Output& output);
 
 // Attach the popup machinery for a new xdg_popup (of a view or a layer surface).
 void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup);

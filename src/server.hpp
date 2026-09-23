@@ -185,6 +185,9 @@ public:
     wlr_cursor_shape_manager_v1* cursor_shape_manager = nullptr;
     wlr_virtual_keyboard_manager_v1* virtual_keyboard_manager = nullptr;
     wlr_virtual_pointer_manager_v1* virtual_pointer_manager = nullptr;
+    wlr_security_context_manager_v1* security_context_manager = nullptr;
+    wlr_content_type_manager_v1* content_type_manager = nullptr;
+    wlr_tearing_control_manager_v1* tearing_manager = nullptr;
 #ifdef ATRIUM_XWAYLAND
     wlr_xwayland* xwayland = nullptr;
 #endif
@@ -235,6 +238,9 @@ private:
     void gpu_reset();
     void disconnect_listeners();
     void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
+    // Hints windows give about themselves: icon, tag, modal dialogs,
+    // content type and tearing (window_hints.cpp).
+    void setup_window_hints();
 
     wlr_scene_tree* layers_[kLayerCount]{};
     void seed_registry(const std::filesystem::path& dir);
@@ -260,6 +266,8 @@ private:
     Listener<wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request> new_capture_request_;
     Listener<> gpu_reset_;
     Listener<wlr_ext_workspace_v1_commit_event> workspace_commit_;
+    Listener<wlr_xdg_toplevel_icon_manager_v1_set_icon_event> set_icon_;
+    Listener<wlr_xdg_toplevel_tag_manager_v1_set_tag_event> set_tag_;
 #ifdef ATRIUM_XWAYLAND
     Listener<> xwayland_ready_;
     Listener<wlr_xwayland_surface> new_xwayland_surface_;

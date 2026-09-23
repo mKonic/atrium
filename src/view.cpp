@@ -25,6 +25,7 @@ constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};
 View::View(Server& srv, Kind k) : server(srv), kind(k), id(srv.next_view_id++) {}
 
 View::~View() {
+    forget_icon(*this);
     server.animator.cancel_owner(this, false);
     destroy_toplevel_handles();
 }

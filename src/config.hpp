@@ -133,6 +133,7 @@ struct Config {
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
+    bool allow_tearing = false;  // fullscreen games that ask may skip vblank
     int brightness = 100;           // external monitors (DDC/CI), restored at login
     std::vector<Keybind> keybinds;
 

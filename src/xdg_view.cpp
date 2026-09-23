@@ -167,6 +167,11 @@ bool XdgView::is_dialog() const {
            (min.width > 0 && min.height > 0 && (min.width == max.width || min.height == max.height));
 }
 
+bool XdgView::modal() const {
+    const wlr_xdg_dialog_v1* d = wlr_xdg_dialog_v1_try_from_wlr_xdg_toplevel(toplevel);
+    return d && d->modal && toplevel->parent;
+}
+
 void XdgView::close() {
     wlr_xdg_toplevel_send_close(toplevel);
 }

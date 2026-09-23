@@ -73,7 +73,8 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: bounce.offset + (mouse.pressed ? -2 : 0)
         implicitSize: size
-        source: Quickshell.iconPath(root.icon, "application-x-executable")
+        // A file URL is a picture the window sent itself.
+        source: root.icon.startsWith("file:") ? root.icon : Quickshell.iconPath(root.icon, "application-x-executable")
         asynchronous: true
         smooth: true
         mipmap: true
