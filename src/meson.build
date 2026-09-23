@@ -8,6 +8,7 @@ atrium_sources = files(
   'main.cpp',
   'overview.cpp',
   'registry.cpp',
+  'displays.cpp',
   'output.cpp',
   'seat.cpp',
   'server.cpp',

@@ -32,6 +32,10 @@ public:
         return *this;
     }
     Stmt& bind(int i, int v) { return bind(i, int64_t(v)); }
+    Stmt& bind(int i, double v) {
+        sqlite3_bind_double(stmt_, i, v);
+        return *this;
+    }
     Stmt& bind(int i, bool v) { return bind(i, int64_t(v)); }
     template <class T> Stmt& bind(int i, const std::optional<T>& v) {
         if (v)
@@ -48,6 +52,7 @@ public:
         return t ? reinterpret_cast<const char*>(t) : "";
     }
     int64_t integer(int col) const { return sqlite3_column_int64(stmt_, col); }
+    double real(int col) const { return sqlite3_column_double(stmt_, col); }
     bool null(int col) const { return sqlite3_column_type(stmt_, col) == SQLITE_NULL; }
     std::optional<int> opt_int(int col) const { return null(col) ? std::nullopt : std::optional<int>(int(integer(col))); }
     std::optional<bool> opt_bool(int col) const { return null(col) ? std::nullopt : std::optional<bool>(integer(col) != 0); }
@@ -56,7 +61,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 1;
+constexpr int kSchemaVersion = 2;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -161,6 +166,10 @@ void Registry::migrate() {
     exec("CREATE TABLE IF NOT EXISTS shortcuts ("
          " id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
          " keys TEXT NOT NULL, action TEXT NOT NULL, arg TEXT NOT NULL DEFAULT '', locked INTEGER NOT NULL DEFAULT 0)");
+    exec("CREATE TABLE IF NOT EXISTS displays ("
+         " id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1,"
+         " width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, refresh INTEGER NOT NULL DEFAULT 0,"
+         " scale REAL NOT NULL DEFAULT 1, transform INTEGER NOT NULL DEFAULT 0, x INTEGER, y INTEGER)");
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }
@@ -332,6 +341,28 @@ void Registry::replace_shortcuts(const std::vector<ShortcutRecord>& list) {
     for (const ShortcutRecord& k : list)
         add_shortcut(k);
     commit();
+}
+
+// --- displays ------------------------------------------------------------------------
+
+std::optional<DisplayRecord> Registry::display(const std::string& id) const {
+    Stmt s(db_, "SELECT id, enabled, width, height, refresh, scale, transform, x, y FROM displays WHERE id = ?1");
+    s.bind(1, id);
+    if (!s.step())
+        return std::nullopt;
+    DisplayRecord d{s.text(0), s.integer(1) != 0, int(s.integer(2)), int(s.integer(3)), int(s.integer(4)),
+                    s.real(5), int(s.integer(6)), s.opt_int(7), s.opt_int(8)};
+    return d;
+}
+
+void Registry::put_display(const DisplayRecord& d) {
+    Stmt s(db_,
+           "INSERT INTO displays(id, enabled, width, height, refresh, scale, transform, x, y)"
+           " VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) ON CONFLICT(id) DO UPDATE SET enabled = ?2, width = ?3,"
+           " height = ?4, refresh = ?5, scale = ?6, transform = ?7, x = ?8, y = ?9");
+    s.bind(1, d.id).bind(2, d.enabled).bind(3, d.width).bind(4, d.height).bind(5, d.refresh).bind(6, d.scale)
+        .bind(7, d.transform).bind(8, d.x).bind(9, d.y);
+    s.run();
 }
 
 // --- JSON forms ----------------------------------------------------------------------

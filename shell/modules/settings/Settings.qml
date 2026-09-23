@@ -257,6 +257,26 @@ FloatingWindow {
                 width: parent.width
             }
 
+            NetworkPage {
+                visible: root.query === "" && root.page === "Wi-Fi & Network"
+                width: parent.width
+            }
+
+            BluetoothPage {
+                visible: root.query === "" && root.page === "Bluetooth"
+                width: parent.width
+            }
+
+            SoundPage {
+                visible: root.query === "" && root.page === "Sound"
+                width: parent.width
+            }
+
+            DisplaysEditor {
+                visible: root.query === "" && root.page === "Displays"
+                width: parent.width
+            }
+
             // A generated page: plain rows in one card, editors in their own.
             Card {
                 visible: root.query === "" && root.page !== "About" && rows.length > 0

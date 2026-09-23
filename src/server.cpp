@@ -565,6 +565,7 @@ void Server::new_output(wlr_output* wlr) {
     auto* output = new Output(*this, wlr);
     outputs.push_back(output);
     output_added(output);
+    restore_display(output);
 }
 
 Output* Server::output_at(double lx, double ly) const {
@@ -651,57 +652,8 @@ void Server::update_outputs() {
     wlr_cursor_move(seat->cursor, nullptr, 0, 0);
 
     wlr_output_manager_v1_set_configuration(output_manager, config_out);
-}
-
-void Server::apply_output_config(wlr_output_configuration_v1* config_in, bool test) {
-    size_t n = 0;
-    wlr_backend_output_state* states = wlr_output_configuration_v1_build_state(config_in, &n);
-    bool ok = false;
-    wlr_output_swapchain_manager swapchains;
-
-    if (!states) {
-        wlr_output_configuration_v1_send_failed(config_in);
-        wlr_output_configuration_v1_destroy(config_in);
-        return;
-    }
-
-    wlr_output_swapchain_manager_init(&swapchains, backend);
-    ok = wlr_output_swapchain_manager_prepare(&swapchains, states, n);
-    if (ok && !test) {
-        for (size_t i = 0; i < n; ++i) {
-            wlr_swapchain* sc = wlr_output_swapchain_manager_get_swapchain(&swapchains, states[i].output);
-            if (sc && !states[i].output->enabled)
-                wlr_output_state_set_buffer(&states[i].base, wlr_swapchain_acquire(sc));
-        }
-        ok = wlr_backend_commit(backend, states, n);
-        if (ok) {
-            wlr_output_swapchain_manager_apply(&swapchains);
-            wlr_output_configuration_head_v1* head;
-            wl_list_for_each(head, &config_in->heads, link) {
-                auto* o = static_cast<Output*>(head->state.output->data);
-                o->asleep = false;
-                // Re-adding at the same position would mark the output as
-                // manually placed, so only move it when it actually moved.
-                if (head->state.enabled &&
-                    (o->box.x != head->state.x || o->box.y != head->state.y ||
-                     !wlr_output_layout_get(output_layout, o->wlr)))
-                    wlr_output_layout_add(output_layout, o->wlr, head->state.x, head->state.y);
-            }
-        }
-    }
-
-    wlr_output_swapchain_manager_finish(&swapchains);
-    for (size_t i = 0; i < n; ++i)
-        wlr_output_state_finish(&states[i].base);
-    free(states);
-
-    if (ok)
-        wlr_output_configuration_v1_send_succeeded(config_in);
-    else
-        wlr_output_configuration_v1_send_failed(config_in);
-    wlr_output_configuration_v1_destroy(config_in);
-
-    update_outputs();
+    if (ipc)
+        ipc->broadcast("outputs", {{"event", "outputs.changed"}});
 }
 
 void Server::set_output_power(wlr_output_power_v1_set_mode_event* event) {

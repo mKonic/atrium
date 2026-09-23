@@ -88,3 +88,19 @@ TEST(Registry, ImportsTheOldStores) {
     ASSERT_EQ(leftover.size(), 2u);  // a title and a real pattern stay rules
     EXPECT_EQ(leftover[0].title_pattern, "Picture-in-Picture");
 }
+
+TEST(Registry, RemembersDisplays) {
+    Registry r(":memory:");
+    EXPECT_FALSE(r.display("Dell U2720Q 123"));
+    r.put_display({.id = "Dell U2720Q 123", .width = 3840, .height = 2160, .refresh = 60000, .scale = 1.5, .x = 1920, .y = 0});
+    auto d = r.display("Dell U2720Q 123");
+    ASSERT_TRUE(d);
+    EXPECT_EQ(d->width, 3840);
+    EXPECT_DOUBLE_EQ(d->scale, 1.5);
+    EXPECT_EQ(d->x, 1920);
+    d->enabled = false;
+    d->x.reset();
+    r.put_display(*d);
+    EXPECT_FALSE(r.display("Dell U2720Q 123")->enabled);
+    EXPECT_FALSE(r.display("Dell U2720Q 123")->x);
+}

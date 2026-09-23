@@ -20,6 +20,9 @@ struct PageInfo {
 // System Settings' order: how things look, then what you touch, then the
 // machine. Pages the schema has that aren't listed go after these.
 constexpr PageInfo kPages[] = {
+    {"Wi-Fi & Network", "wifi", "#0a84ff"},
+    {"Bluetooth", "bluetooth", "#0a84ff"},
+    {"Sound", "volume_up", "#ff375f"},
     {"Appearance", "palette", "#5e5ce6"},
     {"Menu Bar", "toolbar", "#8e8e93"},
     {"Dock", "dock_to_bottom", "#8e8e93"},
@@ -36,6 +39,9 @@ constexpr PageInfo kPages[] = {
     {"Privacy & Security", "back_hand", "#0a84ff"},
     {"Session", "power_settings_new", "#636366"},
 };
+
+// Pages with their own view and no schema settings.
+const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound"};
 
 } // namespace
 
@@ -59,7 +65,7 @@ void SettingsPages::rebuild() {
     QVariantList pages;
     pages.push_back(QVariantMap{{"name", "About"}, {"icon", "info"}, {"color", "#8e8e93"}, {"special", true}});
     for (const PageInfo& p : kPages)
-        if (byPage.contains(p.name) || QString(p.name) == "Apps")
+        if (byPage.contains(p.name) || kSpecial.contains(p.name))
             pages.push_back(QVariantMap{{"name", p.name}, {"icon", p.icon}, {"color", p.color},
                                         {"special", !byPage.contains(p.name)}});
     for (const QString& name : order)

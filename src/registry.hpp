@@ -11,6 +11,7 @@
 //   rules      pattern rules for what an app record can't say (by title,
 //              or a pattern over app ids)
 //   shortcuts  key combinations and the actions they run
+//   displays   how each monitor was last set up, by make, model and serial
 
 #include "placements.hpp"
 
@@ -66,6 +67,18 @@ struct ShortcutRecord {
     bool operator==(const ShortcutRecord&) const = default;
 };
 
+// A monitor's setup, restored whenever it is plugged in.
+struct DisplayRecord {
+    std::string id;  // "make model serial" (or the connector name without them)
+    bool enabled = true;
+    int width = 0, height = 0, refresh = 0;  // refresh in mHz; 0 × 0: the preferred mode
+    double scale = 1.0;
+    int transform = 0;  // wl_output_transform
+    std::optional<int> x, y;  // none: placed automatically
+
+    bool operator==(const DisplayRecord&) const = default;
+};
+
 class Registry {
 public:
     // Opens (creating) the database. ":memory:" for a throwaway one.
@@ -103,6 +116,10 @@ public:
     bool update_shortcut(const ShortcutRecord& shortcut);
     bool remove_shortcut(int64_t id);
     void replace_shortcuts(const std::vector<ShortcutRecord>& shortcuts);
+
+    // --- displays ---
+    std::optional<DisplayRecord> display(const std::string& id) const;
+    void put_display(const DisplayRecord& display);
 
     // One transaction around many changes (an import).
     void begin();

@@ -563,9 +563,36 @@ PanelWindow {
                     }
                 }
 
+                Separator {}
+
+                // Everything else about it, in System Settings.
+                Rectangle {
+                    width: list.width
+                    height: 38
+                    radius: 12
+                    color: settingsArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+
+                    StyledText {
+                        x: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: cc.page === "wifi" ? "Wi-Fi Settings…" : "Bluetooth Settings…"
+                    }
+
+                    MouseArea {
+                        id: settingsArea
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            Atrium.action("shell", cc.page === "wifi" ? "settings:Wi-Fi & Network" : "settings:Bluetooth");
+                            Panels.open = "";
+                        }
+                    }
+                }
+
                 Item {
                     width: 1
-                    height: 8
+                    height: 6
                 }
             }
         }

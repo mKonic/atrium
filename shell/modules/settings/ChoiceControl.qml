@@ -12,7 +12,10 @@ Rectangle {
     property var choices: []
     signal picked(string value)
 
+    // Words title-cased; scale factors as percentages.
     function label(c: string): string {
+        if (/^[0-9.]+$/.test(c))
+            return `${Math.round(Number(c) * 100)}%`;
         return c.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     }
 

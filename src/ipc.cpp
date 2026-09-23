@@ -492,18 +492,35 @@ json Ipc::handle(Client& c, const json& req) {
 
     if (cmd == "outputs") {
         json list = json::array();
-        for (Output* o : server_.outputs)
+        for (Output* o : server_.outputs) {
+            json modes = json::array();
+            wlr_output_mode* mode;
+            wl_list_for_each(mode, &o->wlr->modes, link)
+                modes.push_back({{"width", mode->width}, {"height", mode->height}, {"refresh", mode->refresh},
+                                 {"preferred", mode->preferred}});
             list.push_back({
                 {"name", o->wlr->name},
                 {"description", o->wlr->description ? o->wlr->description : ""},
+                {"make", o->wlr->make ? o->wlr->make : ""},
+                {"model", o->wlr->model ? o->wlr->model : ""},
                 {"enabled", o->enabled()},
                 {"geometry", box_json(o->box)},
                 {"usable", box_json(o->usable)},
+                {"mode", {{"width", o->wlr->width}, {"height", o->wlr->height}, {"refresh", o->wlr->refresh}}},
+                {"modes", modes},
                 {"scale", o->wlr->scale},
+                {"transform", int(o->wlr->transform)},
                 {"refresh", o->wlr->refresh / 1000.0},
                 {"focused", o == server_.focused_output},
             });
+        }
         return ok(list);
+    }
+
+    if (cmd == "output.set") {
+        if (auto err = server_.configure_output(req))
+            return fail(*err);
+        return ok();
     }
 
     if (cmd == "spaces")

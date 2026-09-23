@@ -77,6 +77,9 @@ public:
     Q_INVOKABLE void forgetApp(const QString& appId);
     Q_INVOKABLE void setDock(const QStringList& appIds);
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
+    // A display's mode, scale, rotation, place or power: { width, height,
+    // refresh, scale, transform, x, y, enabled }.
+    Q_INVOKABLE void configureOutput(const QString& name, const QVariantMap& fields);
     Q_INVOKABLE void addRule(const QVariantMap& fields);
     Q_INVOKABLE void setRule(qint64 id, const QVariantMap& fields);
     Q_INVOKABLE void removeRule(qint64 id);

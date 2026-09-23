@@ -370,6 +370,13 @@ void Compositor::setPinned(const QString& appId, bool pinned) {
     setDock(pins);
 }
 
+void Compositor::configureOutput(const QString& name, const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "output.set";
+    req["output"] = name;
+    change(req);
+}
+
 void Compositor::addRule(const QVariantMap& fields) {
     QJsonObject req = QJsonObject::fromVariantMap(fields);
     req["cmd"] = "rule.add";

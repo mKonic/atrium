@@ -3,6 +3,8 @@
 #include "config.hpp"
 #include "listener.hpp"
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <filesystem>
 
 #include <memory>
@@ -117,6 +119,15 @@ public:
     void output_removing(Output* output);
 
     void update_outputs();
+
+    // Monitors are remembered by make, model and serial; plugged in again,
+    // one comes back as it was set up.
+    std::string display_id(const wlr_output* output) const;
+    void remember_displays();
+    void restore_display(Output* output);
+    // An output change from IPC: { output, width, height, refresh, scale,
+    // transform, x, y, enabled }. The error when it didn't take.
+    std::optional<std::string> configure_output(const nlohmann::json& request);
     void check_idle_inhibitors(wlr_surface* exclude = nullptr);
     void spawn(const std::string& command);
     void change_vt(unsigned vt);
@@ -216,6 +227,7 @@ private:
 #endif
     void new_output(wlr_output* wlr);
     void apply_output_config(wlr_output_configuration_v1* config, bool test);
+    bool commit_output_config(wlr_output_configuration_v1* config, bool test);
     void set_output_power(wlr_output_power_v1_set_mode_event* event);
     void activation_request(wlr_xdg_activation_v1_request_activate_event* event);
     void new_toplevel_capture(wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request* request);
