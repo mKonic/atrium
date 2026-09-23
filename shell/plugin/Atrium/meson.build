@@ -4,12 +4,12 @@
 qt6 = import('qt6')
 qt = dependency('qt6', modules: ['Core', 'DBus', 'Network', 'Qml'])
 
-plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 'views.hpp', 'notifications.hpp', 'clipboard.hpp', 'brightness.hpp', 'recorder.hpp', 'apps.hpp', 'desktop_files.hpp', 'session.hpp', 'sysinfo.hpp', 'netspeed.hpp', 'admin_cache.hpp', 'settings_pages.hpp'], dependencies: qt)
+plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 'views.hpp', 'notifications.hpp', 'clipboard.hpp', 'brightness.hpp', 'recorder.hpp', 'apps.hpp', 'desktop_files.hpp', 'session.hpp', 'sysinfo.hpp', 'netspeed.hpp', 'admin_cache.hpp', 'settings_pages.hpp', 'accounts.hpp'], dependencies: qt)
 
 atrium_qml_dir = get_option('libdir') / 'atrium' / 'qml' / 'Atrium'
 
 shared_module('atriumplugin',
-  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', 'session.cpp', 'sysinfo.cpp', 'sysinfo_core.cpp', 'netspeed.cpp', 'netspeed_core.cpp', 'admin_cache.cpp', 'settings_pages.cpp', plugin_moc, version_h,
+  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', 'session.cpp', 'sysinfo.cpp', 'sysinfo_core.cpp', 'netspeed.cpp', 'netspeed_core.cpp', 'admin_cache.cpp', 'settings_pages.cpp', 'accounts.cpp', plugin_moc, version_h,
   dependencies: qt,
   # GCC 16 trips over Qt's own headers; nothing of ours.
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),

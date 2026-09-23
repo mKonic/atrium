@@ -38,10 +38,11 @@ constexpr PageInfo kPages[] = {
     {"Screen Recording", "screen_record", "#ff453a"},
     {"Privacy & Security", "back_hand", "#0a84ff"},
     {"Session", "power_settings_new", "#636366"},
+    {"Users & Groups", "group", "#8e8e93"},
 };
 
 // Pages with their own view and no schema settings.
-const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound"};
+const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound", "Users & Groups"};
 
 } // namespace
 

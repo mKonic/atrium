@@ -277,6 +277,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            UsersPage {
+                visible: root.query === "" && root.page === "Users & Groups"
+                width: parent.width
+            }
+
             // A generated page: plain rows in one card, editors in their own.
             Card {
                 visible: root.query === "" && root.page !== "About" && rows.length > 0
