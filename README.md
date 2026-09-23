@@ -2,10 +2,9 @@
 
 <br>
 
-atrium is a floating Wayland desktop that feels like a finished OS, not a pile of configs.
+atrium is a floating Wayland compositor that keeps windows where apps expect them.
 
-It keeps windows where apps expect them, gives every window rounded corners and soft shadows,
-and puts panels, docks and settings in one place, with your own keybinds on top.
+It gives every window rounded corners and soft shadows, and keeps your own keybinds on top.
 
 <br>
 
