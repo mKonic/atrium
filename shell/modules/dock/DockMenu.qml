@@ -17,23 +17,23 @@ Rectangle {
             return [];
         const list = [];
         if (item.running)
-            list.push({ icon: "add", text: "New Window", run: () => item.entry?.execute() });
-        list.push(item.pinned ? { icon: "keep_off", text: "Remove from Dock", run: () => root.setPinned(false) }
-                              : { icon: "keep", text: "Keep in Dock", run: () => root.setPinned(true) });
+            list.push({ icon: "add", text: "New Window", action: "launch" });
+        list.push(item.pinned ? { icon: "keep_off", text: "Remove from Dock", action: "unpin" }
+                              : { icon: "keep", text: "Keep in Dock", action: "pin" });
         if (item.running)
-            list.push({ icon: "close", text: item.windows.length > 1 ? `Close ${item.windows.length} Windows` : "Quit",
-                        run: () => item.windows.forEach(w => Atrium.closeWindow(w.id)) });
+            list.push({ icon: "close", text: item.windowCount > 1 ? `Close ${item.windowCount} Windows` : "Quit",
+                        action: "close" });
         return list;
     }
 
-    function setPinned(pin: bool): void {
-        const list = (Atrium.setting("dock.pinned", []) ?? []).slice();
-        const i = list.indexOf(item.appId);
-        if (pin && i < 0)
-            list.push(item.appId);
-        else if (!pin && i >= 0)
-            list.splice(i, 1);
-        Atrium.setSetting("dock.pinned", list);
+    function perform(action: string): void {
+        const apps = item.apps;
+        if (action === "launch")
+            apps.launch(item.appId);
+        else if (action === "pin" || action === "unpin")
+            apps.setPinned(item.appId, action === "pin");
+        else if (action === "close")
+            apps.closeAll(item.appId);
     }
 
     visible: item !== null
@@ -98,7 +98,7 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     onClicked: {
-                        row.modelData.run();
+                        root.perform(row.modelData.action);
                         root.closed();
                     }
                 }

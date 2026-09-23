@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
 import Quickshell
-import Quickshell.Io
 import Quickshell.Widgets
 import qs.components
 import qs.services
@@ -14,9 +13,11 @@ Item {
     id: root
 
     required property string path
-    required property string name
-    required property string suffix
+    required property string name      // what it shows: a launcher's own name
+    required property string fileName  // what it is called on disk
+    required property string iconName
     required property bool isDir
+    required property bool isImage
     required property bool selected
     property bool renaming: false
 
@@ -24,45 +25,8 @@ Item {
     signal doubleClicked
     signal renamed(string name)
 
-    readonly property bool isImage: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"].includes(suffix.toLowerCase())
-    readonly property bool isLauncher: suffix === "desktop"
-
-    // Launchers name and draw themselves.
-    property string launcherName: ""
-    property string launcherIcon: ""
-
     width: 120
     height: 104
-
-    FileView {
-        path: root.isLauncher ? root.path : ""
-        onLoaded: {
-            const t = text();
-            root.launcherName = (t.match(/^Name=(.*)$/m) ?? [])[1] ?? "";
-            root.launcherIcon = (t.match(/^Icon=(.*)$/m) ?? [])[1] ?? "";
-        }
-    }
-
-    function iconName(): string {
-        if (isDir)
-            return "folder";
-        if (isLauncher)
-            return launcherIcon || "application-x-executable";
-        const s = suffix.toLowerCase();
-        const byType = {
-            pdf: "application-pdf",
-            zip: "package-x-generic", tar: "package-x-generic", gz: "package-x-generic", xz: "package-x-generic",
-            zst: "package-x-generic", "7z": "package-x-generic", rar: "package-x-generic",
-            mp3: "audio-x-generic", flac: "audio-x-generic", ogg: "audio-x-generic", wav: "audio-x-generic",
-            mp4: "video-x-generic", mkv: "video-x-generic", webm: "video-x-generic", mov: "video-x-generic",
-            sh: "text-x-script", py: "text-x-script", fish: "text-x-script",
-            txt: "text-x-generic", md: "text-x-generic", json: "text-x-generic",
-            html: "text-html", doc: "x-office-document", docx: "x-office-document", odt: "x-office-document",
-            xls: "x-office-spreadsheet", xlsx: "x-office-spreadsheet", ods: "x-office-spreadsheet",
-            iso: "media-optical", img: "media-optical"
-        };
-        return byType[s] ?? "text-x-generic";
-    }
 
     Rectangle {
         id: tile
@@ -79,7 +43,7 @@ Item {
         anchors.centerIn: tile
         implicitSize: 54
         visible: !root.isImage
-        source: root.isImage ? "" : Quickshell.iconPath(root.iconName(), "text-x-generic")
+        source: root.isImage ? "" : Quickshell.iconPath(root.iconName, "text-x-generic")
         asynchronous: true
     }
 
@@ -134,7 +98,7 @@ Item {
 
             anchors.centerIn: parent
             width: Math.min(implicitWidth, maxWidth)
-            text: root.isLauncher && root.launcherName ? root.launcherName : root.name
+            text: root.name
             horizontalAlignment: Text.AlignHCenter
             // Whole words to the next line; only a word too long for a line breaks.
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
@@ -180,7 +144,7 @@ Item {
             cursorVisible: true
             clip: true
             onAccepted: root.renamed(text)
-            Keys.onEscapePressed: root.renamed(root.name)
+            Keys.onEscapePressed: root.renamed(root.fileName)
 
             layer.enabled: true
             layer.effect: MultiEffect {
@@ -195,10 +159,10 @@ Item {
     onRenamingChanged: {
         if (!renaming)
             return;
-        input.text = name;
+        input.text = fileName;
         input.forceActiveFocus();
-        const dot = name.lastIndexOf(".");
-        input.select(0, dot > 0 && !isDir ? dot : name.length);
+        const dot = fileName.lastIndexOf(".");
+        input.select(0, dot > 0 && !isDir ? dot : fileName.length);
     }
 
     MouseArea {
@@ -225,6 +189,6 @@ Item {
         Drag.dragType: Drag.Automatic
         Drag.supportedActions: Qt.CopyAction | Qt.MoveAction | Qt.LinkAction
         Drag.mimeData: ({ "text/uri-list": `file://${root.path}\r\n` })
-        Drag.imageSource: root.isImage ? `file://${root.path}` : Quickshell.iconPath(root.iconName(), "text-x-generic")
+        Drag.imageSource: root.isImage ? `file://${root.path}` : Quickshell.iconPath(root.iconName, "text-x-generic")
     }
 }

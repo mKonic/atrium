@@ -19,33 +19,10 @@ PanelWindow {
     readonly property real gap: 8  // under the shelf
     readonly property bool magnify: Atrium.settings["dock.magnify"] ?? false
 
-    readonly property var pinned: (Atrium.settings["dock.pinned"] ?? []).filter(id => DesktopEntries.byId(id) !== null)
+    DockApps {
+        id: dockApps
 
-    // Desktop entry id for a window, so windows and pins meet.
-    function entryId(appId: string): string {
-        return DesktopEntries.heuristicLookup(appId)?.id ?? appId;
-    }
-
-    readonly property var windowsByApp: {
-        const map = {};
-        for (const w of Atrium.windows) {
-            const id = entryId(w.app_id);
-            (map[id] = map[id] ?? []).push(w);
-        }
-        return map;
-    }
-
-    readonly property var apps: {
-        const list = pinned.map(id => ({ id: id, pinned: true }));
-        const seen = new Set(pinned);
-        for (const w of Atrium.windows) {
-            const id = entryId(w.app_id);
-            if (!seen.has(id)) {
-                seen.add(id);
-                list.push({ id: id, pinned: false });
-            }
-        }
-        return list;
+        entries: DesktopEntries
     }
 
     property real pointerX: -1  // over the shelf, for magnification
@@ -174,20 +151,15 @@ PanelWindow {
             spacing: 8
 
             Repeater {
-                model: ScriptModel {
-                    values: dock.apps
-                    objectProp: "id"
-                }
+                model: dockApps
 
                 DockItem {
                     id: item
 
-                    required property var modelData
                     required property int index
+                    required property bool divider
 
-                    appId: modelData.id
-                    pinned: dock.pinned.includes(modelData.id)
-                    windows: dock.windowsByApp[modelData.id] ?? []
+                    apps: dockApps
                     iconSize: dock.iconSize
                     menuOpen: dock.menuItem === item
                     magnification: {
@@ -201,7 +173,7 @@ PanelWindow {
 
                     // A divider before the first app that is only here while it runs.
                     Rectangle {
-                        visible: !item.pinned && item.index > 0 && dock.apps[item.index - 1]?.pinned === true
+                        visible: item.divider
                         anchors.right: parent.left
                         anchors.rightMargin: 4 - 0.5
                         anchors.verticalCenter: parent.verticalCenter

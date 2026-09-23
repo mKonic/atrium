@@ -14,15 +14,16 @@ Item {
     id: root
 
     required property string appId      // desktop entry id
-    required property var windows       // its open windows, most recent first
+    required property string name
+    required property string icon
     required property bool pinned
+    required property bool running
+    required property bool focused
+    required property int windowCount
+    required property DockApps apps
     required property real magnification  // 1 at rest; the dock grows neighbours
     required property real iconSize
 
-    readonly property DesktopEntry entry: DesktopEntries.heuristicLookup(appId)
-    readonly property bool running: windows.length > 0
-    readonly property bool focused: windows.some(w => w.focused)
-    readonly property string name: entry?.name ?? appId
     property bool launching: false
     property bool menuOpen: false
 
@@ -38,17 +39,10 @@ Item {
     }
 
     function activate(): void {
-        if (!running) {
-            if (!entry)
-                return;
-            entry.execute();
+        if (apps.activate(appId)) {
             launching = true;
             launchTimeout.restart();
-            return;
         }
-        // Already in front: step to its next window, as Cmd+` does.
-        const target = focused && windows.length > 1 ? windows[windows.length - 1] : windows[0];
-        Atrium.focusWindow(target.id);
     }
 
     onRunningChanged: {
@@ -72,7 +66,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: bounce.offset + (mouse.pressed ? -2 : 0)
         implicitSize: size
-        source: Icons.appIcon(root.appId)
+        source: Quickshell.iconPath(root.icon, "application-x-executable")
         asynchronous: true
         smooth: true
         mipmap: true

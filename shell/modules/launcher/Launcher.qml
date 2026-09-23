@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.components
@@ -15,12 +14,11 @@ import Atrium
 PanelWindow {
     id: launcher
 
-    property string query: ""
-    property int current: 0
-    property var counts: ({})  // app id → launches, for ranking
+    LauncherResults {
+        id: results
 
-    readonly property string stateDir: `${Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state"}/atrium`
-    readonly property int maxResults: 8
+        entries: DesktopEntries
+    }
 
     visible: false
     screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
@@ -41,9 +39,7 @@ PanelWindow {
     }
 
     function open(): void {
-        query = "";
         input.text = "";
-        current = 0;
         visible = true;
         input.forceActiveFocus();
         shown.restart();
@@ -53,11 +49,9 @@ PanelWindow {
         visible = false;
     }
 
-    function launch(item: var): void {
-        if (!item)
-            return;
-        close();
-        item.run();
+    function activate(row: int): void {
+        if (results.activate(row))
+            close();
     }
 
     Connections {
@@ -68,67 +62,6 @@ PanelWindow {
                 launcher.toggle();
         }
     }
-
-    // Launch counts, so what you use most comes first.
-    FileView {
-        id: store
-
-        path: `${launcher.stateDir}/launcher.json`
-        onLoaded: {
-            try {
-                launcher.counts = JSON.parse(text());
-            } catch (e) {}
-        }
-    }
-
-    function remember(id: string): void {
-        const c = Object.assign({}, counts);
-        c[id] = (c[id] ?? 0) + 1;
-        counts = c;
-        Quickshell.execDetached(["mkdir", "-p", stateDir]);
-        store.setText(JSON.stringify(c));
-    }
-
-    readonly property var results: {
-        const q = query.trim();
-        const out = [];
-
-        if (q.startsWith(">")) {
-            const cmd = q.slice(1).trim();
-            if (cmd)
-                out.push({ kind: "run", title: cmd, subtitle: "Run command", glyph: "terminal",
-                           run: () => Quickshell.execDetached(["sh", "-c", cmd]) });
-            return out;
-        }
-
-        const sum = Search.calculate(q);
-        if (sum)
-            out.push({ kind: "calc", title: sum, subtitle: `${q} · Enter copies`, glyph: "calculate",
-                       run: () => Quickshell.clipboardText = sum });
-
-        // Apps, best match first; with nothing typed, the ones used most.
-        for (const e of Search.rankApps(q, DesktopEntries.applications.values, counts, q ? maxResults : 6))
-            out.push({ kind: "app", title: e.name, subtitle: e.genericName || e.comment || "Application",
-                       icon: Quickshell.iconPath(e.icon, "application-x-executable"),
-                       run: () => {
-                           launcher.remember(e.id);
-                           e.execute();
-                       } });
-
-        // Open windows, to jump to.
-        if (q) {
-            const wins = Atrium.windows.map(w => ({ w: w, s: Search.bestScore(q, [w.title, Icons.appName(w.app_id)], [100, 100]) }))
-                .filter(x => x.s >= 400)
-                .sort((a, b) => b.s - a.s)
-                .slice(0, 3);
-            for (const { w } of wins)
-                out.push({ kind: "window", title: w.title || Icons.appName(w.app_id), subtitle: `Switch to ${Icons.appName(w.app_id)} · Space ${w.space}`,
-                           icon: Icons.appIcon(w.app_id), run: () => Atrium.focusWindow(w.id) });
-        }
-        return out.slice(0, maxResults);
-    }
-
-    onResultsChanged: current = 0
 
     // A click beside the panel puts it away.
     MouseArea {
@@ -217,23 +150,15 @@ PanelWindow {
                     selectionColor: Theme.palette.m3Primary
                     selectedTextColor: Theme.palette.m3OnPrimary
                     clip: true
-                    onTextChanged: launcher.query = text
+                    onTextChanged: results.query = text
 
-                    Keys.onPressed: event => {
-                        const n = launcher.results.length;
-                        if (event.key === Qt.Key_Escape) {
-                            launcher.close();
-                        } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_Tab && n > 0)) {
-                            launcher.current = (launcher.current + 1) % Math.max(n, 1);
-                        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab) {
-                            launcher.current = (launcher.current - 1 + n) % Math.max(n, 1);
-                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                            launcher.launch(launcher.results[launcher.current]);
-                        } else {
-                            return;
-                        }
-                        event.accepted = true;
-                    }
+                    Keys.onEscapePressed: launcher.close()
+                    Keys.onDownPressed: results.move(1)
+                    Keys.onUpPressed: results.move(-1)
+                    Keys.onTabPressed: results.move(1)
+                    Keys.onBacktabPressed: results.move(-1)
+                    Keys.onReturnPressed: launcher.activate(-1)
+                    Keys.onEnterPressed: launcher.activate(-1)
 
                     StyledText {
                         anchors.fill: parent
@@ -246,7 +171,7 @@ PanelWindow {
             }
 
             Rectangle {
-                visible: launcher.results.length > 0
+                visible: results.count > 0
                 width: parent.width
                 height: 1
                 color: Theme.alpha(Theme.palette.m3Outline, 0.2)
@@ -254,18 +179,22 @@ PanelWindow {
 
             Column {
                 width: parent.width
-                topPadding: launcher.results.length > 0 ? 6 : 0
-                bottomPadding: launcher.results.length > 0 ? 6 : 0
+                topPadding: results.count > 0 ? 6 : 0
+                bottomPadding: results.count > 0 ? 6 : 0
 
                 Repeater {
-                    model: launcher.results
+                    model: results
 
                     Item {
                         id: row
 
-                        required property var modelData
                         required property int index
-                        readonly property bool selected: index === launcher.current
+                        required property string kind
+                        required property string title
+                        required property string subtitle
+                        required property string icon
+                        required property string glyph
+                        readonly property bool selected: index === results.current
 
                         width: column.width
                         height: 50
@@ -285,15 +214,15 @@ PanelWindow {
                             anchors.leftMargin: 18
                             anchors.verticalCenter: parent.verticalCenter
                             implicitSize: 32
-                            visible: !!row.modelData.icon
-                            source: row.modelData.icon ?? ""
+                            visible: row.icon.length > 0
+                            source: row.icon ? Quickshell.iconPath(row.icon, "application-x-executable") : ""
                             asynchronous: true
                         }
 
                         MaterialIcon {
                             anchors.centerIn: appIcon
-                            visible: !row.modelData.icon
-                            text: row.modelData.glyph ?? ""
+                            visible: row.icon.length === 0
+                            text: row.glyph
                             font.pointSize: 18
                             color: Theme.palette.m3Primary
                         }
@@ -307,15 +236,15 @@ PanelWindow {
 
                             StyledText {
                                 width: parent.width
-                                text: row.modelData.title
+                                text: row.title
                                 elide: Text.ElideRight
-                                font.pointSize: row.modelData.kind === "calc" ? 16 : Theme.font.size.normal
+                                font.pointSize: row.kind === "calc" ? 16 : Theme.font.size.normal
                                 font.weight: Font.Medium
                             }
 
                             StyledText {
                                 width: parent.width
-                                text: row.modelData.subtitle
+                                text: row.subtitle
                                 elide: Text.ElideRight
                                 font.pointSize: Theme.font.size.small
                                 color: Theme.palette.m3OnSurfaceVariant
@@ -325,8 +254,8 @@ PanelWindow {
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
-                            onEntered: launcher.current = row.index
-                            onClicked: launcher.launch(row.modelData)
+                            onEntered: results.current = row.index
+                            onClicked: launcher.activate(row.index)
                         }
                     }
                 }
