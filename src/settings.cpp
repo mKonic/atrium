@@ -456,6 +456,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
         "Keep the Dock out of sight until the pointer reaches the bottom of the screen.", false,
         [](Config&, const json&) {}));
+    s.push_back(make("bar.net_speed", SettingType::Bool, "Menu Bar", "Network speed",
+        "Show download and upload speed next to the network icon.", true, [](Config&, const json&) {}));
     s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
         "Icons grow as the pointer passes over them.", false, [](Config&, const json&) {}));
 

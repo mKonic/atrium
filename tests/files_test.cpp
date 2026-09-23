@@ -163,3 +163,30 @@ TEST(SysInfo, LargestPciWindow) {
               0x400000000ull);
     EXPECT_EQ(largest_bar(""), 0ull);
 }
+
+#include "netspeed_core.hpp"
+
+TEST(NetSpeed, SumsRealInterfaces) {
+    using namespace atrium::netspeed;
+    const char* dev =
+        "Inter-|   Receive                                                |  Transmit\n"
+        " face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n"
+        "    lo: 5000 10 0 0 0 0 0 0 5000 10 0 0 0 0 0 0\n"
+        "enp6s0: 1000 5 0 0 0 0 0 0 200 3 0 0 0 0 0 0\n"
+        " wlan0: 300 1 0 0 0 0 0 0 50 1 0 0 0 0 0 0\n"
+        "docker0: 9999 1 0 0 0 0 0 0 9999 1 0 0 0 0 0 0\n";
+    const Totals t = read_totals(dev);
+    EXPECT_EQ(t.rx, 1300u);
+    EXPECT_EQ(t.tx, 250u);
+    EXPECT_FALSE(counts("veth12ab"));
+    EXPECT_TRUE(counts("enp6s0"));
+}
+
+TEST(NetSpeed, FormatsRates) {
+    using atrium::netspeed::format_rate;
+    EXPECT_EQ(format_rate(0), "0 KB/s");
+    EXPECT_EQ(format_rate(340'000), "340 KB/s");
+    EXPECT_EQ(format_rate(1'234'000), "1.2 MB/s");
+    EXPECT_EQ(format_rate(12'400'000), "12 MB/s");
+    EXPECT_EQ(format_rate(1'100'000'000), "1.1 GB/s");
+}

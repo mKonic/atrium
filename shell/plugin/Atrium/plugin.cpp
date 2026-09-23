@@ -7,6 +7,7 @@
 #include "levels.hpp"
 #include "session.hpp"
 #include "sysinfo.hpp"
+#include "netspeed.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -87,6 +88,7 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Session; });
         qmlRegisterSingletonType<SystemInfo>(uri, 1, 0, "SystemInfo",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new SystemInfo; });
+        qmlRegisterType<NetSpeed>(uri, 1, 0, "NetSpeed");
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
