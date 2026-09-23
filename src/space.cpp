@@ -106,11 +106,29 @@ void Space::set_offset(int dx, int dy) {
     wlr_scene_node_set_position(&tree->node, dx, dy);
     if (!secret)
         wlr_scene_node_set_position(&fullscreen_tree->node, dx, dy);
-    // The backdrop covers the screen whatever the windows are doing.
+    // A secret backdrop covers the screen whatever the windows are doing.
     if (backdrop && output) {
         wlr_scene_node_set_position(&backdrop->node, output->box.x - dx, output->box.y - dy);
         wlr_scene_node_set_position(&backdrop_blur->node, output->box.x - dx, output->box.y - dy);
     }
+}
+
+void Space::ensure_tile_backdrop() {
+    if (!output)
+        return;
+    if (!tile_dim) {
+        tile_blur = wlr_scene_blur_create(tree, 0, 0);
+        wlr_scene_blur_set_should_only_blur_bottom_layer(tile_blur, false);
+        tile_dim = wlr_scene_rect_create(tree, 0, 0, premultiplied(server.config.secret_backdrop).data());
+        tile_dim->accepts_input = false;
+        wlr_scene_node_lower_to_bottom(&tile_dim->node);
+        wlr_scene_node_lower_to_bottom(&tile_blur->node);
+    }
+    // Relative to the space's tree, which sits at 0,0 in layout coordinates.
+    wlr_scene_node_set_position(&tile_dim->node, output->box.x, output->box.y);
+    wlr_scene_rect_set_size(tile_dim, output->box.width, output->box.height);
+    wlr_scene_node_set_position(&tile_blur->node, output->box.x, output->box.y);
+    wlr_scene_blur_set_size(tile_blur, output->box.width, output->box.height);
 }
 
 void Space::attach(Output* out) {

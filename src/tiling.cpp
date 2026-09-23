@@ -18,9 +18,33 @@ bool Server::tileable(const View* v) const {
 }
 
 void Server::toggle_tiling(Space* space) {
-    if (!space || space->secret)
+    if (!space || space->secret || !space->output)
         return;
     space->tiled = !space->tiled;
+
+    // The desktop behind dims and frosts over, as behind a secret space.
+    space->ensure_tile_backdrop();
+    const bool in = space->tiled;
+    const Color dim = config.secret_backdrop;
+    const bool blur = config.blur;
+    animator.cancel_owner(space, true);
+    wlr_scene_node_set_enabled(&space->tile_dim->node, true);
+    wlr_scene_node_set_enabled(&space->tile_blur->node, blur);
+    animator.start(space, in ? 220 : 160, in ? Ease::OutQuint : Ease::InCubic,
+        [space, dim, in](double t) {
+            const double a = in ? t : 1 - t;
+            Color c = dim;
+            c[3] = float(dim[3] * a);
+            wlr_scene_rect_set_color(space->tile_dim, premultiplied(c).data());
+            wlr_scene_blur_set_alpha(space->tile_blur, float(a));
+        },
+        [space, in] {
+            if (!in) {
+                wlr_scene_node_set_enabled(&space->tile_dim->node, false);
+                wlr_scene_node_set_enabled(&space->tile_blur->node, false);
+            }
+        });
+
     if (space->tiled) {
         retile(space);
     } else {
@@ -47,6 +71,7 @@ void Server::retile(Space* space) {
         if (std::ranges::find(order, v->id) == order.end())
             order.push_back(v->id);
 
+    space->ensure_tile_backdrop();  // the screen may have changed size
     const wlr_box frame = geometry::secret_frame(space->output->box, config.secret_margin);
     const std::vector<wlr_box> boxes = geometry::dwindle(order.size(), frame, config.snap_gap);
     for (size_t i = 0; i < order.size(); ++i)

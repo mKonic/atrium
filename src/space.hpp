@@ -54,6 +54,11 @@ public:
     // order (window ids, oldest first); see Server::retile().
     bool tiled = false;
     std::vector<uint64_t> tile_order;
+    // The dimmed, frosted desktop behind a tiled space's windows, made on
+    // first use. Unlike a secret space's backdrop it takes no clicks.
+    wlr_scene_rect* tile_dim = nullptr;
+    wlr_scene_blur* tile_blur = nullptr;
+    void ensure_tile_backdrop();
 
 private:
     bool shown_ = false;
