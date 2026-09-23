@@ -252,9 +252,12 @@ void Registry::remove_app(const std::string& app_id) {
 void Registry::set_dock(const std::vector<std::string>& ids) {
     begin();
     exec("UPDATE apps SET dock = NULL");
-    for (size_t i = 0; i < ids.size(); ++i) {
-        AppRecord a = app(ids[i]).value_or(AppRecord{.app_id = ids[i]});
-        a.dock = int(i);
+    int position = 0;
+    for (const std::string& id : ids) {
+        if (id.empty())
+            continue;
+        AppRecord a = app(id).value_or(AppRecord{.app_id = id});
+        a.dock = position++;
         put_app(a);
     }
     // Apps that were only pinned are gone now.

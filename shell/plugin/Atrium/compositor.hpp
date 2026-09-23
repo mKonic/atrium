@@ -24,6 +24,11 @@ class Compositor : public QObject {
     // Every setting as the Settings app draws it: key, type, title,
     // description, page, default, min/max, choices.
     Q_PROPERTY(QVariantList schema READ schema NOTIFY schemaChanged)
+    // The registry's records: apps (where they open, Dock pins), pattern
+    // rules, shortcuts.
+    Q_PROPERTY(QVariantList apps READ apps NOTIFY appsChanged)
+    Q_PROPERTY(QVariantList rules READ rules NOTIFY rulesChanged)
+    Q_PROPERTY(QVariantList shortcuts READ shortcuts NOTIFY shortcutsChanged)
     Q_PROPERTY(QVariant focusedWindow READ focusedWindow NOTIFY windowsChanged)
     Q_PROPERTY(QVariant focusedOutput READ focusedOutput NOTIFY outputsChanged)
     Q_PROPERTY(QVariant shownSecret READ shownSecret NOTIFY spacesChanged)
@@ -39,6 +44,11 @@ public:
     QVariantList outputs() const { return outputs_; }
     QVariantMap settings() const { return settings_; }
     QVariantList schema() const { return schema_; }
+    QVariantList apps() const { return apps_; }
+    QVariantList rules() const { return rules_; }
+    QVariantList shortcuts() const { return shortcuts_; }
+    // Desktop entry ids pinned in the Dock, in order.
+    QStringList dockPins() const;
     QVariant focusedWindow() const;
     QVariant focusedOutput() const;
     QVariant shownSecret() const;
@@ -60,18 +70,38 @@ public:
     Q_INVOKABLE void setSetting(const QString& key, const QVariant& value);
     Q_INVOKABLE void resetSetting(const QString& key);
 
+    // Registry records. `fields` holds only what changes.
+    Q_INVOKABLE void setApp(const QString& appId, const QVariantMap& fields);
+    Q_INVOKABLE void forgetApp(const QString& appId);
+    Q_INVOKABLE void setDock(const QStringList& appIds);
+    Q_INVOKABLE void addRule(const QVariantMap& fields);
+    Q_INVOKABLE void setRule(qint64 id, const QVariantMap& fields);
+    Q_INVOKABLE void removeRule(qint64 id);
+    Q_INVOKABLE void addShortcut(const QVariantMap& fields);
+    Q_INVOKABLE void setShortcut(qint64 id, const QVariantMap& fields);
+    Q_INVOKABLE void removeShortcut(qint64 id);
+    Q_INVOKABLE void resetShortcuts();
+
 signals:
     void windowsChanged();
     void spacesChanged();
     void outputsChanged();
     void settingsChanged();
     void schemaChanged();
+    void appsChanged();
+    void rulesChanged();
+    void shortcutsChanged();
+    // A registry change was refused: why, for the Settings app to say.
+    void refused(const QString& why);
     void connectedChanged();
     // A shortcut asked the shell to show something ("launcher").
     void shellAction(const QString& name);
 
 private:
     using Reply = std::function<void(const QJsonValue&)>;
+    using FullReply = std::function<void(const QJsonObject&)>;  // failures too
+    void requestFull(QJsonObject req, FullReply reply);
+    std::map<qint64, FullReply> fullPending_;
 
     void connectBoth();
     void request(QJsonObject req, Reply reply = {});
@@ -91,7 +121,9 @@ private:
 
     QVariantList windows_, spaces_, outputs_;
     QVariantMap settings_;
-    QVariantList schema_;
+    QVariantList schema_, apps_, rules_, shortcuts_;
+    void refreshTable(const QString& table);
+    void change(QJsonObject req);
 };
 
 } // namespace atrium

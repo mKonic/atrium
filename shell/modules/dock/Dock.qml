@@ -78,7 +78,9 @@ PanelWindow {
         name: dock.screen?.name ?? ""
     }
     readonly property bool autohide: Atrium.settings["dock.autohide"] ?? false
-    readonly property bool hides: fullscreen || autohide
+    // Nothing pinned and nothing open: no Dock at all, not an empty shelf.
+    readonly property bool empty: dockApps.count === 0
+    readonly property bool hides: fullscreen || autohide || empty
     property bool revealed: !hides
 
     onHidesChanged: revealed = !hides
@@ -90,7 +92,7 @@ PanelWindow {
 
         onHoveredChanged: {
             if (hovered)
-                dock.revealed = true;
+                dock.revealed = !dock.empty;
             else if (dock.hides && !dock.menuItem)
                 hideTimer.restart();
         }
@@ -100,7 +102,7 @@ PanelWindow {
         id: hideTimer
 
         interval: 450
-        onTriggered: dock.revealed = !dock.hides || hover.hovered || dock.menuItem !== null
+        onTriggered: dock.revealed = !dock.empty && (!dock.hides || hover.hovered || dock.menuItem !== null)
     }
 
     onMenuItemChanged: {
@@ -132,7 +134,7 @@ PanelWindow {
     anchors.bottom: true
     implicitWidth: Math.max(shelf.width + 40, menu.width + 40)
     implicitHeight: shelfHeight + gap + 150
-    exclusiveZone: autohide ? 0 : shelfHeight + gap
+    exclusiveZone: autohide || empty ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
 

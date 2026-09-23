@@ -37,6 +37,10 @@ TEST(Registry, AppsAreRecords) {
     EXPECT_FALSE(r.app("org.kde.dolphin"));  // only pinned: gone once unpinned
     EXPECT_TRUE(r.app("vesktop"));           // still has its space
 
+    r.set_dock({"", "vesktop"});  // blanks are no app
+    EXPECT_EQ(r.app("vesktop")->dock, 0);
+    EXPECT_FALSE(r.app(""));
+
     r.put_app({.app_id = "vesktop"});  // nothing left: removed
     EXPECT_FALSE(r.app("vesktop"));
 }

@@ -301,7 +301,7 @@ void LauncherResults::remember(const QString& id) {
 
 DockApps::DockApps(QObject* parent) : QAbstractListModel(parent) {
     connect(Compositor::instance(), &Compositor::windowsChanged, this, &DockApps::rebuild);
-    connect(Compositor::instance(), &Compositor::settingsChanged, this, &DockApps::rebuild);
+    connect(Compositor::instance(), &Compositor::appsChanged, this, &DockApps::rebuild);
 }
 
 void DockApps::setEntries(QObject* entries) {
@@ -362,7 +362,7 @@ void DockApps::rebuild() {
             a.icon = id;
         return next.emplace_back(std::move(a));
     };
-    for (const QString& id : Compositor::instance()->setting("dock.pinned", QStringList{}).toStringList())
+    for (const QString& id : Compositor::instance()->dockPins())
         if (index_.byId(id) && std::ranges::none_of(next, [&](const App& a) { return a.id == id; }))
             add(id, true);
     const size_t pinned = next.size();
@@ -418,23 +418,24 @@ void DockApps::launch(const QString& appId) {
 }
 
 void DockApps::setPinned(const QString& appId, bool pinned) {
-    QStringList list = Compositor::instance()->setting("dock.pinned", QStringList{}).toStringList();
+    QStringList list = Compositor::instance()->dockPins();
     if (pinned == list.contains(appId))
         return;
     if (pinned)
         list.push_back(appId);
     else
         list.removeAll(appId);
-    Compositor::instance()->setSetting("dock.pinned", list);
+    Compositor::instance()->setDock(list);
 }
 
 void DockApps::placePin(const QString& appId, int index) {
-    QStringList list = Compositor::instance()->setting("dock.pinned", QStringList{}).toStringList();
+    QStringList list = Compositor::instance()->dockPins();
     const qsizetype from = list.indexOf(appId);
+    const QStringList before = list;
     if (from >= 0)
         list.removeAt(from);
-    // Indices count the pins the Dock shows; the list may hold ones for
-    // uninstalled apps, which keep their place relative to the rest.
+    // Indices count the pins the Dock shows; pins of uninstalled apps keep
+    // their place relative to the rest.
     qsizetype at = list.size();
     int shown = 0;
     for (qsizetype i = 0; i < list.size(); ++i) {
@@ -446,9 +447,8 @@ void DockApps::placePin(const QString& appId, int index) {
             ++shown;
     }
     list.insert(at, appId);
-    if (from >= 0 && list == Compositor::instance()->setting("dock.pinned", QStringList{}).toStringList())
-        return;
-    Compositor::instance()->setSetting("dock.pinned", list);
+    if (list != before)
+        Compositor::instance()->setDock(list);
 }
 
 int DockApps::pinnedCount() const {

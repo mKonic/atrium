@@ -1,6 +1,8 @@
 #include "compositor.hpp"
 
 #include <QJsonArray>
+
+#include <algorithm>
 #include <QJsonDocument>
 
 namespace atrium {
@@ -82,6 +84,15 @@ void Compositor::request(QJsonObject req, Reply reply) {
     requests_.write(QJsonDocument(req).toJson(QJsonDocument::Compact) + '\n');
 }
 
+void Compositor::requestFull(QJsonObject req, FullReply reply) {
+    if (requests_.state() != QLocalSocket::ConnectedState)
+        return;
+    const qint64 id = nextId_++;
+    req["id"] = id;
+    fullPending_[id] = std::move(reply);
+    requests_.write(QJsonDocument(req).toJson(QJsonDocument::Compact) + '\n');
+}
+
 void Compositor::refreshAll() {
     request({{"cmd", "windows"}}, [this](const QJsonValue& r) {
         windows_ = r.toArray().toVariantList();
@@ -103,11 +114,19 @@ void Compositor::refreshAll() {
         schema_ = r.toArray().toVariantList();
         emit schemaChanged();
     });
+    for (const char* table : {"apps", "rules", "shortcuts"})
+        refreshTable(table);
 }
 
 void Compositor::readReplies() {
     for (const QByteArray& line : takeLines(requests_, requestBuffer_)) {
         const QJsonObject reply = QJsonDocument::fromJson(line).object();
+        if (auto full = fullPending_.find(reply.value("id").toInteger(-1)); full != fullPending_.end()) {
+            FullReply done = std::move(full->second);
+            fullPending_.erase(full);
+            done(reply);
+            continue;
+        }
         auto it = pending_.find(reply.value("id").toInteger(-1));
         if (it == pending_.end())
             continue;
@@ -130,6 +149,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "spaces.changed") {
         spaces_ = e.value("spaces").toArray().toVariantList();
         emit spacesChanged();
+    } else if (kind == "registry.changed") {
+        refreshTable(e.value("table").toString());
     } else if (kind == "setting.changed") {
         settings_[e.value("key").toString()] = e.value("value").toVariant();
         emit settingsChanged();
@@ -273,6 +294,101 @@ void Compositor::setSetting(const QString& key, const QVariant& value) {
 
 void Compositor::resetSetting(const QString& key) {
     request({{"cmd", "settings.reset"}, {"key", key}});
+}
+
+// --- registry ------------------------------------------------------------------------
+
+void Compositor::refreshTable(const QString& table) {
+    const QString cmd = table + ".list";
+    request({{"cmd", cmd}}, [this, table](const QJsonValue& r) {
+        const QVariantList list = r.toArray().toVariantList();
+        if (table == "apps") {
+            apps_ = list;
+            emit appsChanged();
+        } else if (table == "rules") {
+            rules_ = list;
+            emit rulesChanged();
+        } else if (table == "shortcuts") {
+            shortcuts_ = list;
+            emit shortcutsChanged();
+        }
+    });
+}
+
+QStringList Compositor::dockPins() const {
+    std::vector<std::pair<int, QString>> pins;
+    for (const QVariant& v : apps_) {
+        const QVariantMap a = v.toMap();
+        if (a.value("dock").isValid() && !a.value("dock").isNull())
+            pins.emplace_back(a.value("dock").toInt(), a.value("app_id").toString());
+    }
+    std::ranges::sort(pins);
+    QStringList out;
+    for (const auto& [_, id] : pins)
+        out.push_back(id);
+    return out;
+}
+
+// A registry request whose refusal the Settings app shows.
+void Compositor::change(QJsonObject req) {
+    auto* self = this;
+    requestFull(std::move(req), [self](const QJsonObject& reply) {
+        if (!reply.value("ok").toBool())
+            emit self->refused(reply.value("error").toString());
+    });
+}
+
+void Compositor::setApp(const QString& appId, const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "app.set";
+    req["app_id"] = appId;
+    change(req);
+}
+
+void Compositor::forgetApp(const QString& appId) {
+    change({{"cmd", "app.remove"}, {"app_id", appId}});
+}
+
+void Compositor::setDock(const QStringList& appIds) {
+    change({{"cmd", "dock.set"}, {"apps", QJsonArray::fromStringList(appIds)}});
+}
+
+void Compositor::addRule(const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "rule.add";
+    change(req);
+}
+
+void Compositor::setRule(qint64 id, const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "rule.set";
+    req["id"] = id;
+    change(req);
+}
+
+void Compositor::removeRule(qint64 id) {
+    change({{"cmd", "rule.remove"}, {"id", id}});
+}
+
+void Compositor::addShortcut(const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "shortcut.add";
+    change(req);
+}
+
+void Compositor::setShortcut(qint64 id, const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "shortcut.set";
+    req["id"] = id;
+    change(req);
+}
+
+void Compositor::removeShortcut(qint64 id) {
+    change({{"cmd", "shortcut.remove"}, {"id", id}});
+}
+
+void Compositor::resetShortcuts() {
+    change({{"cmd", "shortcuts.reset"}});
 }
 
 } // namespace atrium
