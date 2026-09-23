@@ -98,6 +98,20 @@ void LayerSurface::commit() {
 
     output->arrange_layers();
     update_blur();
+
+    // Top and overlay surfaces asking for exclusive focus get it in
+    // arrange_layers. Below windows that is ours to decide: a desktop asking
+    // for the keyboard (to rename a file) gets it once, as a click would give
+    // it, and gives it back when done.
+    const uint32_t ki = wlr->current.keyboard_interactive;
+    if (ki != keyboard_interactive_ && wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
+        const bool focused = server.seat->wlr->keyboard_state.focused_surface == wlr->surface;
+        if (ki == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE && mapped)
+            server.focus_layer(this);
+        else if (ki == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE && focused)
+            server.focus_top();
+    }
+    keyboard_interactive_ = ki;
 }
 
 namespace {

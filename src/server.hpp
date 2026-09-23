@@ -202,6 +202,7 @@ public:
 private:
     void setup();
     void teardown();
+    void prepare_session_environment();
     void new_output(wlr_output* wlr);
     void apply_output_config(wlr_output_configuration_v1* config, bool test);
     void set_output_power(wlr_output_power_v1_set_mode_event* event);

@@ -304,12 +304,31 @@ void Server::teardown() {
     wlr_scene_node_destroy(&scene->tree.node);
 }
 
+// KDE apps build their app database from ${XDG_MENU_PREFIX}applications.menu.
+// Arch ships only plasma-applications.menu, so without the prefix Dolphin's
+// "Open With" is empty and no default app ever resolves. In a real session,
+// also hand our environment to systemd and D-Bus, so services they start
+// (KIO workers, kded, portals) see the same values.
+void Server::prepare_session_environment() {
+    namespace fs = std::filesystem;
+    const char* prefix = std::getenv("XDG_MENU_PREFIX");
+    if ((!prefix || !*prefix) && !fs::exists("/etc/xdg/menus/applications.menu") &&
+        fs::exists("/etc/xdg/menus/plasma-applications.menu"))
+        setenv("XDG_MENU_PREFIX", "plasma-", 1);
+    if (nested)
+        return;  // the host session's environment is not ours to change
+    spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
+          "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY");
+}
+
 void Server::run(const char* startup_cmd) {
     const char* socket = wl_display_add_socket_auto(display);
     if (!socket)
         die("couldn't add a Wayland socket");
     setenv("WAYLAND_DISPLAY", socket, 1);
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
+    setenv("XDG_SESSION_TYPE", "wayland", 1);
+    prepare_session_environment();
     install_gtk_theme();
     if (!nested)
         apply_gtk_button_layout();

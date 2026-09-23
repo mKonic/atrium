@@ -407,6 +407,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "What draws the bar, Dock and the rest: \"builtin\" for atrium's own, a command for another, or \"none\".",
         &Config::shell, d));
 
+    // Desktop (read by the shell)
+    s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
+        "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));
+
     // Dock (read by the shell; the compositor itself has no use for them)
     s.push_back(make("dock.pinned", SettingType::StringList, "Dock", "Apps in the Dock",
         "Desktop entry ids kept in the Dock whether or not they are running.",

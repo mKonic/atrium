@@ -33,6 +33,7 @@ private:
     void update_blur();
 
     wlr_scene_blur* blur_ = nullptr;  // in `tree`, which frees it
+    uint32_t keyboard_interactive_ = 0;  // as of the last commit
 
     Listener<> destroy_;
     Listener<> unmap_;
