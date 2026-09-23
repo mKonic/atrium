@@ -284,6 +284,7 @@ private:
     Listener<wlr_session_lock_v1> new_lock_;
     Listener<wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request> new_capture_request_;
     Listener<> gpu_reset_;
+    Listener<> backend_destroy_;
     Listener<wlr_ext_workspace_v1_commit_event> workspace_commit_;
     Listener<wlr_xdg_toplevel_icon_manager_v1_set_icon_event> set_icon_;
     Listener<wlr_xdg_toplevel_tag_manager_v1_set_tag_event> set_tag_;

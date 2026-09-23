@@ -169,6 +169,17 @@ void Server::setup() {
     backend = wlr_backend_autocreate(loop, &session);
     if (!backend)
         die("couldn't create backend");
+    // Nested, the backend dies with the session atrium runs inside. wlroots
+    // insists nothing still listens on it by then, so let go and end.
+    backend_destroy_.connect(&backend->events.destroy, [this](void*) {
+        wlr_log(WLR_ERROR, "the backend went away (the host session ended?); quitting");
+        new_output_.disconnect();
+        if (seat)
+            seat->backend_gone();
+        backend_destroy_.disconnect();
+        backend = nullptr;
+        wl_display_terminate(display);
+    });
 
     scene = wlr_scene_create();
     root_bg = wlr_scene_rect_create(&scene->tree, 0, 0, config.background.data());
@@ -482,7 +493,9 @@ void Server::teardown() {
 
     // wlroots needs the backend destroyed by hand before the display, or the
     // seat is used after free.
-    wlr_backend_destroy(backend);
+    backend_destroy_.disconnect();
+    if (backend)  // gone already if the host session ended
+        wlr_backend_destroy(backend);
     wl_display_destroy(display);
     // Only after the display: outputs are gone and no scene output is left.
     wlr_scene_node_destroy(&scene->tree.node);

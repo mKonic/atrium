@@ -39,6 +39,9 @@ public:
     Seat(const Seat&) = delete;
     Seat& operator=(const Seat&) = delete;
 
+    // The backend is being destroyed under us: stop listening to it.
+    void backend_gone() { new_input_.disconnect(); }
+
     // The physical keyboards, as one (what an input method grabs).
     wlr_keyboard* physical_keyboard() const;
 
