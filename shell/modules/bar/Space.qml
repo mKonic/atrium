@@ -32,8 +32,9 @@ Item {
     implicitWidth: Math.max(implicitHeight, content.implicitWidth + Theme.padding.larger * 2)
 
     Behavior on implicitWidth {
-        Anim {
-            easing.bezierCurve: Theme.anim.emphasized
+        SmoothedAnimation {
+            velocity: -1
+            duration: Theme.anim.normal
         }
     }
 
@@ -63,7 +64,7 @@ Item {
                 required property var modelData
                 readonly property var window: root.windows.find(w => w.id === modelData.id) ?? modelData
 
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: parent?.verticalCenter
                 text: Icons.appCategoryIcon(window.app_id)
                 font.pointSize: Theme.font.size.larger
                 fill: window.focused ? 1 : 0

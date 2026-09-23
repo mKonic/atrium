@@ -60,15 +60,20 @@ Pill {
             }
         }
 
+        // Smoothed rather than restarted: apps opening and closing change
+        // the spaces' widths many times in a row, and a fresh eased animation
+        // for each change stutters; this one keeps its speed and retargets.
         Behavior on x {
-            Anim {
-                easing.bezierCurve: Theme.anim.emphasized
+            SmoothedAnimation {
+                velocity: -1
+                duration: Theme.anim.normal
             }
         }
 
         Behavior on width {
-            Anim {
-                easing.bezierCurve: Theme.anim.emphasized
+            SmoothedAnimation {
+                velocity: -1
+                duration: Theme.anim.normal
             }
         }
     }

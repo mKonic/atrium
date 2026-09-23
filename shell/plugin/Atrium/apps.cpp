@@ -1,5 +1,7 @@
 #include "apps.hpp"
 
+#include <QDateTime>
+
 #include "compositor.hpp"
 #include "list_sync.hpp"
 #include "search.hpp"
@@ -313,6 +315,8 @@ void LauncherResults::remember(const QString& id) {
 DockApps::DockApps(QObject* parent) : QAbstractListModel(parent) {
     connect(Compositor::instance(), &Compositor::windowsChanged, this, &DockApps::rebuild);
     connect(Compositor::instance(), &Compositor::appsChanged, this, &DockApps::rebuild);
+    sweep_.setSingleShot(true);
+    connect(&sweep_, &QTimer::timeout, this, &DockApps::rebuild);
 }
 
 void DockApps::setEntries(QObject* entries) {
@@ -344,6 +348,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
     case FocusedRole: return a.focused;
     case WindowCountRole: return int(a.windows.size());
     case DividerRole: return a.divider;
+    case LeavingRole: return a.leaving;
     default: return {};
     }
 }
@@ -351,7 +356,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> DockApps::roleNames() const {
     return {{AppIdRole, "appId"}, {NameRole, "name"}, {IconRole, "icon"}, {PinnedRole, "pinned"},
             {RunningRole, "running"}, {FocusedRole, "focused"}, {WindowCountRole, "windowCount"},
-            {DividerRole, "divider"}};
+            {DividerRole, "divider"}, {LeavingRole, "leaving"}};
 }
 
 void DockApps::rebuildLater() {
@@ -390,7 +395,37 @@ void DockApps::rebuild() {
         a.windows.push_back(w.value("id").toInt());
         a.focused = a.focused || w.value("focused").toBool();
     }
-    if (next.size() > pinned && pinned > 0)
+    // Apps that went away linger as leaving for a moment, where they were.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (const App& a : next)
+        leavingSince_.remove(a.id);  // back again
+    bool lingering = false;
+    for (size_t i = 0; i < apps_.size(); ++i) {
+        const App& old = apps_[i];
+        if (std::ranges::any_of(next, [&](const App& a) { return a.id == old.id; }))
+            continue;
+        const qint64 since = leavingSince_.value(old.id, now);
+        if (now - since >= kLeaveMs) {
+            leavingSince_.remove(old.id);
+            continue;
+        }
+        leavingSince_.insert(old.id, since);
+        App gone = old;
+        gone.leaving = true;
+        gone.focused = gone.divider = false;
+        gone.windows.clear();
+        // After whatever came before it, if that is still here.
+        size_t at = 0;
+        if (i > 0)
+            for (size_t j = 0; j < next.size(); ++j)
+                if (next[j].id == apps_[i - 1].id)
+                    at = j + 1;
+        next.insert(next.begin() + std::min(at, next.size()), std::move(gone));
+        lingering = true;
+    }
+    if (lingering)
+        sweep_.start(kLeaveMs + 20);
+    if (next.size() > pinned && pinned > 0 && !next[pinned].leaving)
         next[pinned].divider = true;
 
     struct Ops {

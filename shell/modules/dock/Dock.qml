@@ -152,7 +152,8 @@ PanelWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: dock.revealed ? dock.gap : -(dock.shelfHeight + 4)
-        width: row.width + dock.shelfPadding * 2
+        // The icons' own gaps reach 4px past each end; the padding covers the rest.
+        width: Math.max(0, row.width - 8) + dock.shelfPadding * 2
         height: dock.shelfHeight
         radius: 22
         color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.62)
@@ -163,11 +164,8 @@ PanelWindow {
         border.width: 1
         border.color: Theme.alpha(Theme.palette.m3Outline, 0.18)
 
-        Behavior on width {
-            Anim {
-                duration: Theme.anim.small
-            }
-        }
+        // No animation of its own: it follows the icons, which grow and
+        // shrink smoothly as apps come and go.
 
         Behavior on anchors.bottomMargin {
             Anim {
@@ -190,15 +188,10 @@ PanelWindow {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: dock.shelfPadding + 6
-            spacing: 8
-
-            move: Transition {
-                Anim {
-                    properties: "x"
-                    duration: Theme.anim.small
-                    easing.bezierCurve: Theme.anim.emphasizedDecel
-                }
-            }
+            spacing: 0  // each icon carries its own gap (DockItem.gap)
+            // No move transition: neighbours glide because the icons beside
+            // them grow and shrink; a transition here would restart on every
+            // frame of that and stutter.
 
             Repeater {
                 id: apps
@@ -237,8 +230,8 @@ PanelWindow {
                     // A divider before the first app that is only here while it runs.
                     Rectangle {
                         visible: item.divider
-                        anchors.right: parent.left
-                        anchors.rightMargin: 4 - 0.5
+                        anchors.left: parent.left
+                        anchors.leftMargin: -0.5
                         anchors.verticalCenter: parent.verticalCenter
                         width: 1
                         height: dock.iconSize * 0.8

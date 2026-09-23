@@ -4,6 +4,7 @@
 // `entries`, and everything else happens here.
 
 #include <QAbstractListModel>
+#include <QTimer>
 #include <QPointer>
 #include <QVariant>
 
@@ -102,7 +103,7 @@ class DockApps : public QAbstractListModel {
 
 public:
     enum Role { AppIdRole = Qt::UserRole + 1, NameRole, IconRole, PinnedRole, RunningRole, FocusedRole,
-                WindowCountRole, DividerRole };
+                WindowCountRole, DividerRole, LeavingRole };
 
     explicit DockApps(QObject* parent = nullptr);
 
@@ -137,6 +138,7 @@ private:
         bool pinned = false;
         bool focused = false;
         bool divider = false;  // first running-only app after the pinned ones
+        bool leaving = false;  // closed: still here a moment, to shrink away
         QList<int> windows;    // most recently used first
         bool operator==(const App&) const = default;
     };
@@ -146,6 +148,11 @@ private:
 
     EntryIndex index_;
     std::vector<App> apps_;
+    // Apps that just closed stay a moment (leaving) so the Dock can shrink
+    // them away instead of snapping shut; `sweep_` drops them after.
+    static constexpr int kLeaveMs = 260;
+    QHash<QString, qint64> leavingSince_;
+    QTimer sweep_;
 };
 
 } // namespace atrium

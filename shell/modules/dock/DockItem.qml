@@ -20,6 +20,7 @@ Item {
     required property bool running
     required property bool focused
     required property int windowCount
+    required property bool leaving  // just closed: shrinking away
     required property DockApps apps
     required property real magnification  // 1 at rest; the dock grows neighbours
     required property real iconSize
@@ -28,6 +29,18 @@ Item {
     property bool menuOpen: false
 
     property bool lifted: false  // being dragged to a new place
+    // 0 → 1 as it arrives, back to 0 as it leaves: the Dock opens and closes
+    // around it instead of snapping.
+    property real presence: 0
+    Component.onCompleted: presence = leaving ? 0 : 1
+    onLeavingChanged: presence = leaving ? 0 : 1
+
+    Behavior on presence {
+        Anim {
+            duration: Theme.anim.small
+            easing.bezierCurve: Theme.anim.emphasizedDecel
+        }
+    }
     signal menuRequested(Item item)
     // A press that moved: the Dock rearranges. Points are in the Dock
     // window's coordinates.
@@ -35,12 +48,19 @@ Item {
     signal dragMoved(point at)
     signal dragEnded(point at)
 
-    implicitWidth: iconSize * magnification
+    // Magnification changes with every pointer move, so follow it smoothly
+    // rather than restarting an animation each time.
+    // The gap to its neighbours is part of it, so it closes with it too.
+    readonly property real gap: 8
+    implicitWidth: (iconSize * magnification + gap) * presence
     implicitHeight: iconSize
-    opacity: lifted ? 0.25 : 1
+    opacity: (lifted ? 0.25 : 1) * presence
+    enabled: !leaving
 
     Behavior on implicitWidth {
-        Anim {
+        enabled: root.presence === 1
+        SmoothedAnimation {
+            velocity: -1
             duration: Theme.anim.small
         }
     }
@@ -73,6 +93,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: bounce.offset + (mouse.pressed ? -2 : 0)
         implicitSize: size
+        scale: 0.6 + 0.4 * root.presence
         // A file URL is a picture the window sent itself.
         source: root.icon.startsWith("file:") ? root.icon : Quickshell.iconPath(root.icon, "application-x-executable")
         asynchronous: true
@@ -80,7 +101,8 @@ Item {
         mipmap: true
 
         Behavior on implicitSize {
-            Anim {
+            SmoothedAnimation {
+                velocity: -1
                 duration: Theme.anim.small
             }
         }
