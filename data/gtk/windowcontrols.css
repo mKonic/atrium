@@ -1,0 +1,94 @@
+/* Header-bar buttons of GTK apps, restyled to match atrium's own title bar:
+ * 12px round buttons at the top right, macOS colors, glyphs only on hover.
+ * libadwaita draws the circle on the button's image, so the color goes there
+ * and the button itself stays bare. Selectors carry classes on purpose: they
+ * must outrank libadwaita's `button.image-button` sizing at the same provider
+ * priority, and a class beats any number of element names. */
+
+window headerbar windowcontrols,
+window .titlebar windowcontrols {
+  border-spacing: 8px;
+  margin: 0 3px;
+}
+
+window.csd headerbar windowcontrols > button.image-button,
+window.csd .titlebar windowcontrols > button.image-button,
+window.csd headerbar windowcontrols > button.titlebutton {
+  min-width: 12px;
+  min-height: 12px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: none;
+  box-shadow: none;
+  outline: none;
+}
+
+window headerbar windowcontrols > button > image,
+window .titlebar windowcontrols > button > image {
+  -gtk-icon-size: 8px;
+  min-width: 12px;
+  min-height: 12px;
+  margin: 0;
+  padding: 0;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 0.75px rgba(0, 0, 0, 0.2);
+  color: transparent;
+}
+
+/* atrium's own glyphs, drawn over the circle only while the controls are
+ * hovered. GTK's own icon stays, but transparent (symbolic icons follow the
+ * text color). */
+window headerbar windowcontrols:hover > button > image,
+window .titlebar windowcontrols:hover > button > image {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 8px 8px;
+}
+window headerbar windowcontrols:hover > button.close > image,
+window .titlebar windowcontrols:hover > button.close > image { background-image: url("assets/close.svg"); }
+window headerbar windowcontrols:hover > button.minimize > image,
+window .titlebar windowcontrols:hover > button.minimize > image { background-image: url("assets/minimize.svg"); }
+window headerbar windowcontrols:hover > button.maximize > image,
+window .titlebar windowcontrols:hover > button.maximize > image { background-image: url("assets/maximize.svg"); }
+
+window headerbar windowcontrols > button.close > image,
+window .titlebar windowcontrols > button.close > image { background-color: #ff5f57; }
+window headerbar windowcontrols > button.minimize > image,
+window .titlebar windowcontrols > button.minimize > image { background-color: #febc2e; }
+window headerbar windowcontrols > button.maximize > image,
+window .titlebar windowcontrols > button.maximize > image { background-color: #28c840; }
+
+window headerbar windowcontrols > button.close:active > image,
+window .titlebar windowcontrols > button.close:active > image { background-color: #c74a44; }
+window headerbar windowcontrols > button.minimize:active > image,
+window .titlebar windowcontrols > button.minimize:active > image { background-color: #c69224; }
+window headerbar windowcontrols > button.maximize:active > image,
+window .titlebar windowcontrols > button.maximize:active > image { background-color: #1f9c32; }
+
+/* Unfocused windows: gray, until hovered. */
+window:backdrop headerbar windowcontrols:not(:hover) > button > image,
+window:backdrop .titlebar windowcontrols:not(:hover) > button > image { background-color: #45464c; }
+
+/* The bar itself: same height, color and title as atrium's own title bar. */
+window.csd headerbar,
+window.csd .titlebar {
+  min-height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background-color: #26272c;
+  background-image: none;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), inset 0 -1px rgba(0, 0, 0, 0.45);
+  color: #e8e8ec;
+}
+window.csd:backdrop headerbar,
+window.csd:backdrop .titlebar {
+  background-color: #1d1e22;
+  color: #77787f;
+}
+window.csd headerbar .title,
+window.csd .titlebar .title {
+  font-weight: 600;
+  font-size: 10pt;
+}

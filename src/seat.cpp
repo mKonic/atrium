@@ -4,6 +4,7 @@
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "server.hpp"
+#include "titlebar.hpp"
 #include "view.hpp"
 
 #include <algorithm>
@@ -442,6 +443,12 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                                 int(std::lround(cursor->y)));
 
     if (mode == Mode::Move && grab_view_) {
+        constexpr double kDragThreshold = 6;
+        if (grab_unmaximize_) {
+            if (std::hypot(cursor->x - grab_x_, cursor->y - grab_y_) < kDragThreshold)
+                return;
+            unmaximize_for_drag();
+        }
         int nx = grab_geom_.x + int(std::lround(cursor->x - grab_x_));
         int ny = grab_geom_.y + int(std::lround(cursor->y - grab_y_));
         if (Output* o = server.output_at(cursor->x, cursor->y))
@@ -457,6 +464,30 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     }
 
     Hit hit = server.hit_test(cursor->x, cursor->y);
+
+    // A title-bar button held down: it shows pressed only while the pointer
+    // stays on it, and nothing else gets the pointer meanwhile.
+    if (press_bar_) {
+        const auto part = hit.titlebar == press_bar_ ? int(press_bar_->part_at(hit.sx, hit.sy)) : 0;
+        press_bar_->set_pressed(part == press_part_ ? Titlebar::Part(press_part_) : Titlebar::Part::None);
+        return;
+    }
+
+    if (mode != Mode::Pressed) {
+        if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
+            set_titlebar_hover(nullptr, 0);
+            wlr_seat_pointer_notify_clear_focus(wlr);
+            wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(zone.edges)));
+            return;
+        }
+        if (hit.titlebar) {
+            set_titlebar_hover(hit.titlebar, int(hit.titlebar->part_at(hit.sx, hit.sy)));
+            wlr_seat_pointer_notify_clear_focus(wlr);
+            set_default_cursor();
+            return;
+        }
+        set_titlebar_hover(nullptr, 0);
+    }
 
     // Implicit grab: while a button is held, events stay with the surface
     // that got the press, even when the cursor leaves it.
@@ -506,8 +537,19 @@ void Seat::button(wlr_pointer_button_event* e) {
             return;
         }
 
-        // Click to focus, and a click raises: the desktop model, not the tiling one.
         Hit hit = server.hit_test(cursor->x, cursor->y);
+
+        // Frame edges and title bars belong to atrium, not the client.
+        if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
+            server.focus_view(zone.view);
+            if (e->button == BTN_LEFT)
+                begin_resize(zone.view, zone.edges);
+            return;
+        }
+        if (hit.titlebar && titlebar_button(e, hit))
+            return;
+
+        // Click to focus, and a click raises: the desktop model, not the tiling one.
         if (hit.view && (!hit.view->unmanaged() || hit.view->wants_focus()))
             server.focus_view(hit.view);
         else if (hit.layer && hit.layer->wlr->current.keyboard_interactive)
@@ -527,6 +569,10 @@ void Seat::button(wlr_pointer_button_event* e) {
             }
         }
     } else {
+        if (press_bar_) {
+            titlebar_button(e, server.hit_test(cursor->x, cursor->y));
+            return;
+        }
         if (!server.locked && (mode == Mode::Move || mode == Mode::Resize)) {
             // The grab ate the press; the release ends it and is ours too.
             cancel_grab();
@@ -540,6 +586,103 @@ void Seat::button(wlr_pointer_button_event* e) {
     wlr_seat_pointer_notify_button(wlr, e->time_msec, e->button, e->state);
 }
 
+// --- title bars and frame edges -----------------------------------------------------
+
+Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
+    constexpr int kBand = 8;    // resize band just outside the frame
+    constexpr int kCorner = 16; // along an edge, this close to a corner resizes both ways
+    if (server.locked)
+        return {};
+    // Panels, docks and menus above windows keep their clicks.
+    if (hit.layer && hit.layer->wlr->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+        return {};
+
+    // `views` is in stacking order: the first window under the point hides
+    // every band below it.
+    for (View* v : server.views) {
+        if (!v->visible())
+            continue;
+        const wlr_box& g = v->geom;
+        if (lx >= g.x && lx < g.x + g.width && ly >= g.y && ly < g.y + g.height)
+            return {};
+        if (!v->titlebar || v->fullscreen || v->maximized)
+            continue;
+        if (lx < g.x - kBand || lx >= g.x + g.width + kBand || ly < g.y - kBand || ly >= g.y + g.height + kBand)
+            continue;
+        uint32_t edges = 0;
+        if (lx < g.x + kCorner) edges |= WLR_EDGE_LEFT;
+        else if (lx >= g.x + g.width - kCorner) edges |= WLR_EDGE_RIGHT;
+        if (ly < g.y + kCorner) edges |= WLR_EDGE_TOP;
+        else if (ly >= g.y + g.height - kCorner) edges |= WLR_EDGE_BOTTOM;
+        // A point beside the frame counts only for the side it is on.
+        if (lx >= g.x && lx < g.x + g.width && !(ly < g.y || ly >= g.y + g.height))
+            edges &= WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+        if (edges)
+            return {v, edges};
+    }
+    return {};
+}
+
+void Seat::set_titlebar_hover(Titlebar* bar, int part) {
+    if (hover_bar_ && hover_bar_ != bar)
+        hover_bar_->set_hover(Titlebar::Part::None);
+    hover_bar_ = bar;
+    if (bar)
+        bar->set_hover(Titlebar::Part(part));
+}
+
+// Returns true when the event was the title bar's.
+bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
+    using Part = Titlebar::Part;
+    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+        if (e->button != BTN_LEFT) {
+            server.focus_view(hit.view);
+            return true;
+        }
+        const Part part = hit.titlebar->part_at(hit.sx, hit.sy);
+        if (part == Part::Bar) {
+            server.focus_view(hit.view);
+            // Double-click zooms, like macOS.
+            const bool twice = last_bar_click_view_ == hit.view && e->time_msec - last_bar_click_ms_ < 400;
+            last_bar_click_view_ = twice ? nullptr : hit.view;
+            last_bar_click_ms_ = e->time_msec;
+            if (twice && !hit.view->fullscreen)
+                hit.view->set_maximized(!hit.view->maximized);
+            else
+                begin_move(hit.view);
+            return true;
+        }
+        if (part == Part::None)
+            return false;
+        // Buttons act on release, and only if still over them.
+        press_bar_ = hit.titlebar;
+        press_part_ = int(part);
+        press_bar_->set_pressed(part);
+        wlr_seat_pointer_clear_focus(wlr);
+        return true;
+    }
+
+    Titlebar* bar = press_bar_;
+    const Part part = Part(press_part_);
+    press_bar_ = nullptr;
+    press_part_ = 0;
+    mode = Mode::Normal;
+    bar->set_pressed(Part::None);
+    if (hit.titlebar != bar || bar->part_at(hit.sx, hit.sy) != part) {
+        refresh_pointer();
+        return true;
+    }
+    View& v = bar->view();
+    switch (part) {
+    case Part::Close: v.close(); break;
+    case Part::Minimize: v.set_minimized(true); break;
+    case Part::Maximize: if (!v.fullscreen) v.set_maximized(!v.maximized); break;
+    default: break;
+    }
+    refresh_pointer();
+    return true;
+}
+
 void Seat::axis(wlr_pointer_axis_event* e) {
     wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
     wlr_seat_pointer_notify_axis(wlr, e->time_msec, e->orientation, e->delta, e->delta_discrete,
@@ -551,26 +694,31 @@ void Seat::axis(wlr_pointer_axis_event* e) {
 void Seat::begin_move(View* view) {
     if (mode == Mode::Move || mode == Mode::Resize || view->fullscreen || view->unmanaged())
         return;
-
-    if (view->maximized) {
-        // Dragging a maximized window restores its size under the cursor,
-        // keeping the same relative grab point horizontally.
-        const wlr_box before = view->geom;
-        const double fx = before.width > 0 ? (cursor->x - before.x) / before.width : 0.5;
-        view->set_maximized(false);
-        const int nx = int(std::lround(cursor->x - fx * view->restore.width));
-        view->move_to(nx, before.y);
-        view->geom.width = view->restore.width;  // grab math uses the size it is heading to
-        view->geom.height = view->restore.height;
-    }
-
     grab_view_ = view;
     grab_x_ = cursor->x;
     grab_y_ = cursor->y;
     grab_geom_ = view->geom;
+    // A maximized window stays put until the pointer really drags it: a
+    // click (or the first half of a double-click) must not restore it.
+    grab_unmaximize_ = view->maximized;
     mode = Mode::Move;
     wlr_seat_pointer_clear_focus(wlr);
     wlr_cursor_set_xcursor(cursor, xcursor, "grabbing");
+}
+
+// Dragging a maximized window restores its size under the cursor, keeping the
+// same relative grab point horizontally.
+void Seat::unmaximize_for_drag() {
+    View* view = grab_view_;
+    grab_unmaximize_ = false;
+    const wlr_box before = view->geom;
+    const double fx = before.width > 0 ? (grab_x_ - before.x) / before.width : 0.5;
+    view->set_maximized(false);
+    const int nx = int(std::lround(grab_x_ - fx * view->restore.width));
+    view->move_to(nx, before.y);
+    view->geom.width = view->restore.width;  // grab math uses the size it is heading to
+    view->geom.height = view->restore.height;
+    grab_geom_ = view->geom;
 }
 
 void Seat::begin_resize(View* view, uint32_t edges) {
@@ -594,13 +742,31 @@ void Seat::cancel_grab() {
     if (grab_view_ && mode == Mode::Resize)
         grab_view_->end_resize();
     grab_view_ = nullptr;
+    grab_unmaximize_ = false;
     grab_edges_ = 0;
     mode = Mode::Normal;
+}
+
+void Seat::titlebar_gone(Titlebar* bar) {
+    if (hover_bar_ == bar)
+        hover_bar_ = nullptr;
+    if (press_bar_ == bar) {
+        press_bar_ = nullptr;
+        mode = Mode::Normal;
+    }
 }
 
 void Seat::view_unmapped(View* view) {
     if (grab_view_ == view)
         cancel_grab();
+    if (hover_bar_ && &hover_bar_->view() == view)
+        hover_bar_ = nullptr;
+    if (press_bar_ && &press_bar_->view() == view) {
+        press_bar_ = nullptr;
+        mode = Mode::Normal;
+    }
+    if (last_bar_click_view_ == view)
+        last_bar_click_view_ = nullptr;
 }
 
 // --- pointer constraints (games, remote desktops) ------------------------------------

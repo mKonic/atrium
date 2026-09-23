@@ -40,22 +40,30 @@ void usage() {
         stderr);
 }
 
+int connect_to(const std::string& path);
+
+// $ATRIUM_SOCKET, else the one live atrium socket in the runtime dir. Files
+// left behind by a session that died are skipped: nothing accepts on them.
 std::string find_socket() {
     if (const char* s = std::getenv("ATRIUM_SOCKET"); s && *s)
         return s;
     const char* runtime = std::getenv("XDG_RUNTIME_DIR");
     if (!runtime)
         return {};
-    std::vector<std::string> found;
+    std::vector<std::string> live;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(runtime, ec)) {
         const std::string name = e.path().filename();
-        if (name.starts_with("atrium.") && name.ends_with(".sock"))
-            found.push_back(e.path());
+        if (!name.starts_with("atrium.") || !name.ends_with(".sock"))
+            continue;
+        if (int fd = connect_to(e.path()); fd >= 0) {
+            close(fd);
+            live.push_back(e.path());
+        }
     }
-    if (found.size() == 1)
-        return found[0];
-    if (found.size() > 1)
+    if (live.size() == 1)
+        return live[0];
+    if (live.size() > 1)
         std::fprintf(stderr, "atriumctl: several atrium sessions are running; pick one with -s\n");
     return {};
 }

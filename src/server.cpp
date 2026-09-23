@@ -6,6 +6,8 @@
 #include "seat.hpp"
 #include "session_lock.hpp"
 #include "settings.hpp"
+#include "theme.hpp"
+#include "titlebar.hpp"
 #include "view.hpp"
 #include "xwayland_view.hpp"
 
@@ -169,10 +171,16 @@ void Server::setup() {
     new_capture_request_.connect(&toplevel_capture_manager->events.new_request,
         [this](auto* r) { new_toplevel_capture(r); });
 
-    // Clients draw their own decorations for now; server-side title bars come
-    // with the decoration work.
-    wlr_server_decoration_manager_set_default_mode(
-        wlr_server_decoration_manager_create(display), WLR_SERVER_DECORATION_MANAGER_MODE_CLIENT);
+    // atrium decorates every window that lets it, over both protocols.
+    kde_decoration_manager = wlr_server_decoration_manager_create(display);
+    wlr_server_decoration_manager_set_default_mode(kde_decoration_manager, WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
+    // Usually arrives before the surface has its toplevel role; XdgView picks
+    // those up itself when it is created.
+    new_kde_decoration_.connect(&kde_decoration_manager->events.new_decoration, [](wlr_server_decoration* d) {
+        wlr_xdg_surface* xdg = wlr_xdg_surface_try_from_wlr_surface(d->surface);
+        if (xdg && xdg->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL && xdg->data)
+            static_cast<XdgView*>(xdg->data)->set_kde_decoration(d);
+    });
     xdg_decoration_manager = wlr_xdg_decoration_manager_v1_create(display);
     new_decoration_.connect(&xdg_decoration_manager->events.new_toplevel_decoration,
         [](wlr_xdg_toplevel_decoration_v1* d) {
@@ -228,6 +236,7 @@ void Server::disconnect_listeners() {
     new_xdg_toplevel_.disconnect();
     new_xdg_popup_.disconnect();
     new_decoration_.disconnect();
+    new_kde_decoration_.disconnect();
     new_layer_surface_.disconnect();
     activation_request_.disconnect();
     new_idle_inhibitor_.disconnect();
@@ -272,6 +281,9 @@ void Server::run(const char* startup_cmd) {
         die("couldn't add a Wayland socket");
     setenv("WAYLAND_DISPLAY", socket, 1);
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
+    install_gtk_theme();
+    if (!nested)
+        apply_gtk_button_layout();
     ipc = std::make_unique<Ipc>(*this, socket);
 
     if (!wlr_backend_start(backend))
@@ -526,8 +538,14 @@ Hit Server::hit_test(double lx, double ly) const {
         wlr_scene_node* node = wlr_scene_node_at(&layers_[l]->node, lx, ly, &hit.sx, &hit.sy);
         if (!node || node->type != WLR_SCENE_NODE_BUFFER)
             continue;
-        if (auto* ss = wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node)))
+        if (auto* ss = wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node))) {
             hit.surface = ss->surface;
+        } else if (node->data) {
+            // The only non-surface buffers carrying data are title bars.
+            hit.titlebar = static_cast<Titlebar*>(node->data);
+            hit.view = &hit.titlebar->view();
+            return hit;
+        }
     }
     Owner owner = owner_of(hit.surface);
     hit.view = owner.view;

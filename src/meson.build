@@ -9,6 +9,8 @@ atrium_sources = files(
   'server.cpp',
   'session_lock.cpp',
   'settings.cpp',
+  'theme.cpp',
+  'titlebar.cpp',
   'view.cpp',
   'xdg_view.cpp',
   'xwayland_view.cpp',

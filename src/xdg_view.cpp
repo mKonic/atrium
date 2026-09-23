@@ -58,6 +58,14 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
     });
     set_title_.connect(&toplevel->events.set_title, [this](void*) { update_title(); });
     set_app_id_.connect(&toplevel->events.set_app_id, [this](void*) { update_title(); });
+
+    // A KDE decoration announced before this toplevel existed.
+    wlr_server_decoration* d;
+    wl_list_for_each(d, &server.kde_decoration_manager->decorations, link)
+        if (d->surface == s) {
+            set_kde_decoration(d);
+            break;
+        }
 }
 
 XdgView::~XdgView() {
@@ -76,7 +84,8 @@ void XdgView::commit() {
             wlr_surface_set_preferred_buffer_scale(base->surface, int32_t(std::ceil(o->wlr->scale)));
             // Tell the client how much room there is before it picks a size.
             if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION)
-                wlr_xdg_toplevel_set_bounds(toplevel, o->usable.width, o->usable.height);
+                wlr_xdg_toplevel_set_bounds(toplevel, o->usable.width,
+                                            o->usable.height - (wants_ssd() ? Titlebar::kHeight : 0));
         }
         apply_decoration_mode();
         wlr_xdg_toplevel_set_size(toplevel, 0, 0);  // client picks its own size
@@ -101,9 +110,10 @@ bool XdgView::awaiting_configure() const {
            int32_t(toplevel->base->current.configure_serial - last_size_serial_) < 0;
 }
 
-void XdgView::configure(const wlr_box& box) {
+void XdgView::configure(const wlr_box& frame) {
     if (!toplevel->base->initialized)
         return;
+    const wlr_box box = content_box(frame);
     if (box.width != toplevel->scheduled.width || box.height != toplevel->scheduled.height)
         last_size_serial_ = wlr_xdg_toplevel_set_size(toplevel, box.width, box.height);
 }
@@ -114,7 +124,7 @@ wlr_scene_tree* XdgView::create_content(wlr_scene_tree* parent) {
 
 void XdgView::surface_origin(double& x, double& y) const {
     x = geom.x - toplevel->base->geometry.x;
-    y = geom.y - toplevel->base->geometry.y;
+    y = geom.y + top() - toplevel->base->geometry.y;
 }
 
 const char* XdgView::app_id() const {
@@ -177,15 +187,35 @@ void XdgView::set_decoration(wlr_xdg_toplevel_decoration_v1* d) {
         decoration_ = nullptr;
         decoration_request_.disconnect();
         decoration_destroy_.disconnect();
+        refresh_decoration_mode();
     });
     apply_decoration_mode();
 }
 
+void XdgView::set_kde_decoration(wlr_server_decoration* d) {
+    kde_decoration_ = d;
+    kde_mode_.connect(&d->events.mode, [this](void*) { refresh_decoration_mode(); });
+    kde_destroy_.connect(&d->events.destroy, [this](void*) {
+        kde_decoration_ = nullptr;
+        kde_mode_.disconnect();
+        kde_destroy_.disconnect();
+        refresh_decoration_mode();
+    });
+    refresh_decoration_mode();
+}
+
+bool XdgView::wants_ssd() const {
+    return decoration_ ||
+           (kde_decoration_ && kde_decoration_->mode == WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
+}
+
 void XdgView::apply_decoration_mode() {
-    // Client-side until atrium draws its own title bars.
+    // Always server-side, whatever the client asked for: every window gets
+    // atrium's title bar. The protocol lets the compositor decide.
     if (decoration_ && toplevel->base->initialized)
         wlr_xdg_toplevel_decoration_v1_set_mode(decoration_,
-            WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+            WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+    refresh_decoration_mode();
 }
 
 // --- popups --------------------------------------------------------------------
@@ -232,7 +262,7 @@ void handle_new_xdg_popup(Server&, wlr_xdg_popup* popup) {
             }
             box = v->output->usable;
             box.x -= v->geom.x;
-            box.y -= v->geom.y;
+            box.y -= v->geom.y + v->top();
         }
         wlr_xdg_popup_unconstrain_from_box(popup, &box);
         delete watch;

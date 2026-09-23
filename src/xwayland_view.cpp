@@ -56,6 +56,7 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     });
     set_title_.connect(&xsurface->events.set_title, [this](void*) { update_title(); });
     set_class_.connect(&xsurface->events.set_class, [this](void*) { update_title(); });
+    set_decorations_.connect(&xsurface->events.set_decorations, [this](void*) { refresh_decoration_mode(); });
 }
 
 XwaylandView::~XwaylandView() {
@@ -97,7 +98,7 @@ void XwaylandView::request_configure(wlr_xwayland_surface_configure_event* e) {
         configure(geom);
         return;
     }
-    request_geometry({e->x, e->y, e->width, e->height});
+    request_geometry({e->x, e->y - top(), e->width, e->height + top()});
 }
 
 void XwaylandView::set_geometry() {
@@ -107,7 +108,8 @@ void XwaylandView::set_geometry() {
     wlr_scene_node_set_position(&tree->node, geom.x, geom.y);
 }
 
-void XwaylandView::configure(const wlr_box& box) {
+void XwaylandView::configure(const wlr_box& frame) {
+    const wlr_box box = content_box(frame);
     wlr_xwayland_surface_configure(xsurface, int16_t(box.x), int16_t(box.y),
                                    uint16_t(box.width), uint16_t(box.height));
 }
@@ -160,6 +162,12 @@ bool XwaylandView::is_dialog() const {
     wlr_box min, max;
     size_hints(min, max);
     return min.width > 0 && min.height > 0 && (min.width == max.width || min.height == max.height);
+}
+
+// X11 windows are decorated unless they draw their own frame (Motif hints
+// saying "no title"), like Steam or Chromium's own chrome.
+bool XwaylandView::wants_ssd() const {
+    return !unmanaged() && !(xsurface->decorations & WLR_XWAYLAND_SURFACE_DECORATIONS_NO_TITLE);
 }
 
 bool XwaylandView::wants_focus() const {

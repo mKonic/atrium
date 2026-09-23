@@ -9,7 +9,9 @@
 namespace atrium {
 
 class Server;
+class Titlebar;
 class View;
+struct Hit;
 
 // All keyboards on the seat share one xkb state through a keyboard group.
 // Virtual keyboards get a group each, so an on-screen or synthetic keyboard
@@ -51,6 +53,7 @@ public:
     void begin_resize(View* view, uint32_t edges);
     void cancel_grab();
     void view_unmapped(View* view);
+    void titlebar_gone(Titlebar* bar);
 
     void apply_keyboard_config();
     void apply_pointer_config();
@@ -95,6 +98,24 @@ private:
     double grab_x_ = 0, grab_y_ = 0;  // cursor at grab start
     wlr_box grab_geom_{};             // view geometry at grab start
     uint32_t grab_edges_ = 0;
+    bool grab_unmaximize_ = false;  // moving a maximized window; restore once it drags
+    void unmaximize_for_drag();
+
+    // Frame edges of decorated windows: a band just outside the frame that
+    // resizes it. Null view when the point is not in any band.
+    struct ResizeZone {
+        View* view = nullptr;
+        uint32_t edges = 0;
+    };
+    ResizeZone resize_zone(double lx, double ly, const Hit& hit) const;
+    void set_titlebar_hover(Titlebar* bar, int part);
+    bool titlebar_button(wlr_pointer_button_event* e, const Hit& hit);
+
+    Titlebar* hover_bar_ = nullptr;   // title bar showing hover state
+    Titlebar* press_bar_ = nullptr;   // title bar whose button is held
+    int press_part_ = 0;              // Titlebar::Part held down
+    View* last_bar_click_view_ = nullptr;
+    uint32_t last_bar_click_ms_ = 0;
 
     struct PointerDevice {
         wlr_pointer* wlr;

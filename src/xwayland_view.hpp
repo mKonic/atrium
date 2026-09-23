@@ -20,12 +20,13 @@ public:
     bool is_dialog() const override;
     bool unmanaged() const override { return xsurface->override_redirect; }
     bool wants_focus() const override;
+    bool wants_ssd() const override;
     void close() override;
 
     wlr_xwayland_surface* const xsurface;
 
 protected:
-    void configure(const wlr_box& box) override;
+    void configure(const wlr_box& frame) override;
     void send_activated(bool activated) override;
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;
@@ -46,7 +47,7 @@ private:
     Listener<wlr_xwayland_surface_configure_event> request_configure_;
     Listener<> request_move_;
     Listener<wlr_xwayland_resize_event> request_resize_;
-    Listener<> set_geometry_, set_hints_, set_title_, set_class_;
+    Listener<> set_geometry_, set_hints_, set_title_, set_class_, set_decorations_;
 };
 
 } // namespace atrium

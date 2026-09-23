@@ -13,6 +13,7 @@ namespace atrium {
 class Ipc;
 class LayerSurface;
 class Output;
+class Titlebar;
 class Seat;
 class SessionLock;
 class Settings;
@@ -38,7 +39,8 @@ struct Hit {
     wlr_surface* surface = nullptr;
     View* view = nullptr;
     LayerSurface* layer = nullptr;
-    double sx = 0, sy = 0;  // surface-local
+    Titlebar* titlebar = nullptr;  // atrium's own title bar (then surface is null)
+    double sx = 0, sy = 0;         // surface- or title-bar-local
 };
 
 // Which atrium object a wlr_surface belongs to. Popups resolve to the
@@ -110,6 +112,7 @@ public:
     wlr_layer_shell_v1* layer_shell = nullptr;
     wlr_xdg_activation_v1* activation = nullptr;
     wlr_xdg_decoration_manager_v1* xdg_decoration_manager = nullptr;
+    wlr_server_decoration_manager* kde_decoration_manager = nullptr;
     wlr_idle_notifier_v1* idle_notifier = nullptr;
     wlr_idle_inhibit_manager_v1* idle_inhibit_manager = nullptr;
     wlr_session_lock_manager_v1* session_lock_manager = nullptr;
@@ -164,6 +167,7 @@ private:
     Listener<wlr_xdg_toplevel> new_xdg_toplevel_;
     Listener<wlr_xdg_popup> new_xdg_popup_;
     Listener<wlr_xdg_toplevel_decoration_v1> new_decoration_;
+    Listener<wlr_server_decoration> new_kde_decoration_;
     Listener<wlr_layer_surface_v1> new_layer_surface_;
     Listener<wlr_xdg_activation_v1_request_activate_event> activation_request_;
     Listener<wlr_idle_inhibitor_v1> new_idle_inhibitor_;

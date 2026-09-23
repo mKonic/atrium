@@ -267,6 +267,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Color of the focused window's shadow.", &Config::shadow_color, d));
     s.push_back(color("appearance.shadow_color_inactive", "Appearance", "Inactive shadow color",
         "Color of other windows' shadows.", &Config::shadow_color_inactive, d));
+    s.push_back(color("appearance.outline_color", "Appearance", "Window outline",
+        "Hairline around the focused window; fully transparent turns it off.", &Config::outline_color, d));
+    s.push_back(color("appearance.outline_color_inactive", "Appearance", "Inactive window outline",
+        "Hairline around other windows.", &Config::outline_color_inactive, d));
     s.push_back(color("appearance.background", "Appearance", "Desktop color",
         "Shown where no wallpaper covers the screen.", &Config::background, d));
 

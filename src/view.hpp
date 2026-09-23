@@ -1,6 +1,8 @@
 #pragma once
 #include "listener.hpp"
+#include "titlebar.hpp"
 
+#include <memory>
 #include <string>
 
 namespace atrium {
@@ -10,10 +12,11 @@ class Server;
 
 // A top-level application window: an xdg_toplevel or an X11 window.
 //
-// Windows float. `geom` is the visible window (xdg geometry, so client-side
-// shadows are excluded) in layout coordinates, and the view's scene tree sits
-// at geom.x/geom.y. The position is ours; the size is whatever the client last
-// committed, requested through configure().
+// Windows float. `geom` is the whole visible frame in layout coordinates: the
+// title bar atrium draws (when the window has one) plus the client's content
+// (xdg geometry, so client-side shadows are excluded). The view's scene tree
+// sits at geom.x/geom.y. The position is ours; the content size is whatever the
+// client last committed, requested through configure().
 class View {
 public:
     enum class Kind { Xdg, X11 };
@@ -35,7 +38,15 @@ public:
     virtual void close() = 0;
     // Layout position of the root surface's origin. For xdg windows that is
     // offset from geom by the client-side shadow margin.
-    virtual void surface_origin(double& x, double& y) const { x = geom.x; y = geom.y; }
+    virtual void surface_origin(double& x, double& y) const { x = geom.x; y = geom.y + top(); }
+
+    // Whether the client leaves decorating to atrium. Every window that allows
+    // it gets atrium's title bar, so all windows look alike.
+    virtual bool wants_ssd() const { return false; }
+    // Add or drop the title bar after the client changed its mind.
+    void refresh_decoration_mode();
+    // Height of atrium's title bar above the content; 0 without one or fullscreen.
+    int top() const;
 
     // --- window management -------------------------------------------------
     void move_to(int x, int y);
@@ -55,16 +66,20 @@ public:
     void begin_resize(uint32_t edges);
     void end_resize();
 
-    // Rounded corners and shadow from the current settings and focus state.
+    // Rounded corners, shadow and title bar from the current settings and focus state.
     void update_decorations();
+
+    std::unique_ptr<Titlebar> titlebar;
 
     Server& server;
     const Kind kind;
     const uint64_t id;  // stable for the view's lifetime; IPC addresses windows by it
     Output* output = nullptr;
     wlr_scene_tree* tree = nullptr;      // root of the view, at geom.x/geom.y
-    wlr_scene_tree* content = nullptr;   // the client's surfaces
+    wlr_scene_tree* content = nullptr;   // the client's surfaces, at (0, top())
+    wlr_scene_tree* popups = nullptr;    // xdg popups, at the content origin
     wlr_scene_shadow* shadow = nullptr;
+    wlr_scene_rect* outline = nullptr;   // 1px hairline around the frame
     wlr_box geom{};
     wlr_box restore{};  // geometry to return to from maximized/fullscreen
 
@@ -76,8 +91,12 @@ public:
     bool urgent = false;
 
 protected:
-    // Backend hooks for the state changes above.
-    virtual void configure(const wlr_box& box) = 0;
+    // Backend hooks for the state changes above. `frame` includes the title
+    // bar; content_box() is the part the client draws.
+    virtual void configure(const wlr_box& frame) = 0;
+    wlr_box content_box(const wlr_box& frame) const {
+        return {frame.x, frame.y + top(), frame.width, frame.height - top()};
+    }
     virtual void send_activated(bool activated) = 0;
     virtual void send_maximized(bool maximized) = 0;
     virtual void send_fullscreen(bool fullscreen) = 0;
@@ -90,7 +109,9 @@ protected:
     // Shared map/unmap/commit logic, called by the backends.
     void handle_map();
     void handle_unmap();
+    // The client committed a new content size.
     void handle_size(int width, int height);
+    void layout_frame();
     void update_title();
     // Cheap enough for every commit: subsurfaces come and go between resizes.
     void update_corners();
@@ -149,8 +170,11 @@ public:
 
     wlr_xdg_toplevel* const toplevel;
 
+    bool wants_ssd() const override;
+    void set_kde_decoration(wlr_server_decoration* decoration);
+
 protected:
-    void configure(const wlr_box& box) override;
+    void configure(const wlr_box& frame) override;
     void send_activated(bool activated) override;
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;
@@ -165,6 +189,7 @@ private:
     void apply_decoration_mode();
 
     wlr_xdg_toplevel_decoration_v1* decoration_ = nullptr;
+    wlr_server_decoration* kde_decoration_ = nullptr;  // older KDE protocol (Qt5, GTK3 apps via it)
     wlr_box bounds_{};
 
     Listener<> commit_, map_, unmap_, destroy_;
@@ -173,6 +198,7 @@ private:
     Listener<wlr_xdg_toplevel_resize_event> request_resize_;
     Listener<> set_title_, set_app_id_;
     Listener<> decoration_request_, decoration_destroy_;
+    Listener<> kde_mode_, kde_destroy_;
 };
 
 // Attach the popup machinery for a new xdg_popup (of a view or a layer surface).

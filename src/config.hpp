@@ -48,10 +48,12 @@ struct Config {
     Color lock_background{0.1f, 0.1f, 0.1f, 1.0f};
     int corner_radius = 12;
     bool shadows = true;
-    float shadow_sigma = 24.0f;
+    float shadow_sigma = 28.0f;
     float shadow_sigma_inactive = 14.0f;
-    Color shadow_color{0.0f, 0.0f, 0.0f, 0.45f};
+    Color shadow_color{0.0f, 0.0f, 0.0f, 0.55f};
     Color shadow_color_inactive{0.0f, 0.0f, 0.0f, 0.25f};
+    Color outline_color{1.0f, 1.0f, 1.0f, 0.11f};
+    Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 
     // Windows
     int snap_distance = 16;   // px from a screen edge where a dragged window sticks
