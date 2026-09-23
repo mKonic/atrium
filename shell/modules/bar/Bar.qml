@@ -115,6 +115,11 @@ PanelWindow {
                 output: bar.screen?.name ?? ""
             }
 
+            SecretSpaces {
+                anchors.verticalCenter: parent.verticalCenter
+                output: bar.screen?.name ?? ""
+            }
+
             ActiveWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }

@@ -17,6 +17,10 @@ class OutputState : public QObject {
     Q_PROPERTY(int activeSpace READ activeSpace NOTIFY changed)
     Q_PROPERTY(bool fullscreen READ fullscreen NOTIFY changed)
     Q_PROPERTY(QVariantList spaces READ spaces NOTIFY changed)
+    // Secret spaces worth showing here: [{ name, shown, apps }], apps being
+    // the app ids of its windows, most recent first. Ones with no windows
+    // appear only while shown.
+    Q_PROPERTY(QVariantList secrets READ secrets NOTIFY changed)
 
 public:
     explicit OutputState(QObject* parent = nullptr);
@@ -26,6 +30,7 @@ public:
     int activeSpace() const { return active_; }
     bool fullscreen() const { return fullscreen_; }
     QVariantList spaces() const { return spaces_; }
+    QVariantList secrets() const { return secrets_; }
 
 signals:
     void nameChanged();
@@ -33,11 +38,12 @@ signals:
 
 private:
     void update();
+    QVariantList collectSecrets() const;
 
     QString name_;
     int active_ = 1;
     bool fullscreen_ = false;
-    QVariantList spaces_;
+    QVariantList spaces_, secrets_;
 };
 
 // The windows on one space of one output, most recently used first:

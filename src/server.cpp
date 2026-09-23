@@ -677,11 +677,33 @@ Owner Server::owner_of(wlr_surface* surface) {
     return owner;
 }
 
+void Server::set_panels_over_secret(bool over) {
+    if (over == panels_over_secret_)
+        return;
+    panels_over_secret_ = over;
+    if (over)
+        wlr_scene_node_place_above(&layer(Layer::Top)->node, &layer(Layer::Secret)->node);
+    else
+        wlr_scene_node_place_below(&layer(Layer::Top)->node, &layer(Layer::Fullscreen)->node);
+    seat->refresh_pointer();
+}
+
 Hit Server::hit_test(double lx, double ly) const {
     Hit hit;
+    // Layers top to bottom, as the scene stacks them.
+    int order[kLayerCount];
+    int n = 0;
+    for (int l = kLayerCount - 1; l >= 0; --l) {
+        if (panels_over_secret_ && l == int(Layer::Top))
+            continue;
+        order[n++] = l;
+        if (panels_over_secret_ && l == int(Layer::Overview))
+            order[n++] = int(Layer::Top);  // right above Secret, under Overview
+    }
     const int lowest = locked ? int(Layer::Lock) : 0;
-    for (int l = kLayerCount - 1; l >= lowest && !hit.surface; --l) {
-        if (l == int(Layer::InputPopup))
+    for (int i = 0; i < n && !hit.surface; ++i) {
+        const int l = order[i];
+        if (l < lowest || l == int(Layer::InputPopup))
             continue;
         wlr_scene_node* node = wlr_scene_node_at(&layers_[l]->node, lx, ly, &hit.sx, &hit.sy);
         if (!node || (node->type != WLR_SCENE_NODE_BUFFER && node->type != WLR_SCENE_NODE_RECT))

@@ -202,6 +202,7 @@ void Server::toggle_secret(const std::string& name) {
     animator.cancel_owner(s, true);
     s->set_shown(true);
     shown_secret = s;
+    set_panels_over_secret(true);
     fade_secret(s, true);
 
     View* top = nullptr;
@@ -263,12 +264,15 @@ void Server::fade_secret(Space* s, bool in) {
         s->set_offset(0, int(std::lround((1 - a) * 16)));
         each([a](View* v) { v->set_alpha(float(a)); });
     };
-    auto done = [s, each, in] {
+    auto done = [this, s, each, in] {
         each([](View* v) { v->set_alpha(1.0f); });
-        if (!in)
+        if (!in) {
             s->hide_now();
-        else
+            if (!shown_secret)
+                set_panels_over_secret(false);
+        } else {
             s->set_offset(0, 0);
+        }
     };
     animator.start(s, in ? 220 : 160, in ? Ease::OutQuint : Ease::InCubic, step, done);
 }
