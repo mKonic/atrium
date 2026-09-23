@@ -34,6 +34,7 @@ wayland_protos = dependency('wayland-protocols')
 xkbcommon = dependency('xkbcommon')
 libinput = dependency('libinput')
 pixman = dependency('pixman-1')
+json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
 
 have_xwayland = wlroots.get_variable(pkgconfig: 'have_xwayland', default_value: 'false') == 'true'
 xwayland_opt = get_option('xwayland')
@@ -42,7 +43,7 @@ if xwayland_opt.enabled() and not have_xwayland
 endif
 use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
-deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman]
+deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')

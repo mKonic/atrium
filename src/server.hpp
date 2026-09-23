@@ -2,16 +2,20 @@
 #include "config.hpp"
 #include "listener.hpp"
 
+#include <filesystem>
+
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace atrium {
 
+class Ipc;
 class LayerSurface;
 class Output;
 class Seat;
 class SessionLock;
+class Settings;
 class View;
 
 // Scene layers, bottom to top.
@@ -47,7 +51,7 @@ struct Owner {
 
 class Server {
 public:
-    explicit Server(Config config, bool nested);
+    Server(Config defaults, bool nested, std::filesystem::path settings_file);
     ~Server();
     Server(const Server&) = delete;
     Server& operator=(const Server&) = delete;
@@ -72,6 +76,15 @@ public:
     void check_idle_inhibitors(wlr_surface* exclude = nullptr);
     void spawn(const std::string& command);
     void change_vt(unsigned vt);
+    void run_action(const Keybind& bind);
+
+    // A setting changed through the store: refresh `config`, persist, apply
+    // the side effects and tell subscribers.
+    void setting_changed(const std::string& key);
+
+    // Tell IPC subscribers about a window event ("opened", "closed",
+    // "changed", "focused").
+    void notify_window(const View& view, const char* what);
 
     Config config;
     const bool nested;
@@ -112,7 +125,10 @@ public:
     wlr_xwayland* xwayland = nullptr;
 #endif
 
+    std::unique_ptr<Settings> settings;
+    std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
+    uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;
 

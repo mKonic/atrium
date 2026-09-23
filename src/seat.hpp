@@ -53,6 +53,7 @@ public:
     void view_unmapped(View* view);
 
     void apply_keyboard_config();
+    void apply_pointer_config();
     void apply_cursor_theme();
     void set_default_cursor();
 
@@ -73,7 +74,6 @@ private:
     void modifiers(KeyboardGroup& group);
     int key_repeat(KeyboardGroup& group);
     const Keybind* find_binding(uint32_t mods, xkb_keysym_t sym) const;
-    void run_binding(const Keybind& bind);
 
     void motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                 double dx_unaccel, double dy_unaccel);
@@ -95,6 +95,12 @@ private:
     double grab_x_ = 0, grab_y_ = 0;  // cursor at grab start
     wlr_box grab_geom_{};             // view geometry at grab start
     uint32_t grab_edges_ = 0;
+
+    struct PointerDevice {
+        wlr_pointer* wlr;
+        Listener<> destroy;
+    };
+    std::vector<std::unique_ptr<PointerDevice>> pointers_;
 
     wlr_pointer_constraint_v1* active_constraint_ = nullptr;
     struct Constraint;

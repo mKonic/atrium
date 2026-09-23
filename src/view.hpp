@@ -55,8 +55,12 @@ public:
     void begin_resize(uint32_t edges);
     void end_resize();
 
+    // Rounded corners and shadow from the current settings and focus state.
+    void update_decorations();
+
     Server& server;
     const Kind kind;
+    const uint64_t id;  // stable for the view's lifetime; IPC addresses windows by it
     Output* output = nullptr;
     wlr_scene_tree* tree = nullptr;      // root of the view, at geom.x/geom.y
     wlr_scene_tree* content = nullptr;   // the client's surfaces
@@ -88,7 +92,6 @@ protected:
     void handle_unmap();
     void handle_size(int width, int height);
     void update_title();
-    void update_decorations();
     // Cheap enough for every commit: subsurfaces come and go between resizes.
     void update_corners();
 

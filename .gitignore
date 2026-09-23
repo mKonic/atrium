@@ -3,3 +3,5 @@
 /CHANGELOG.md
 /design/
 /compile_commands.json
+/subprojects/*/
+/subprojects/packagecache/

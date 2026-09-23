@@ -47,8 +47,32 @@ TEST(Config, EveryVtHasABinding) {
     Config c = Config::defaults(false);
     for (int vt = 1; vt <= 12; ++vt) {
         const Keybind* b = find_keybind(c.keybinds, WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT,
-                                        XKB_KEY_XF86Switch_VT_1 + vt - 1);
+                                        XKB_KEY_F1 + vt - 1);
         ASSERT_NE(b, nullptr) << "vt " << vt;
+        EXPECT_EQ(b->action, Action::SwitchVt);
         EXPECT_EQ(b->iarg, vt);
     }
+}
+
+// The seat matches bindings against a key's level-0 and level-1 symbols. On a
+// real keymap XF86Switch_VT_n lives on a higher level of the F keys, so a VT
+// binding written with it never fires; F1-F12 do.
+TEST(Config, VtBindingsMatchWhatTheKeymapProduces) {
+    xkb_context* ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+    xkb_rule_names names{};
+    names.layout = "us";
+    xkb_keymap* keymap = xkb_keymap_new_from_names(ctx, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
+    ASSERT_NE(keymap, nullptr);
+
+    Config c = Config::defaults(false);
+    const xkb_keycode_t f1 = 59 + 8;  // KEY_F1, evdev → xkb
+    bool matched = false;
+    for (xkb_level_index_t level = 0; level < 2 && !matched; ++level) {
+        const xkb_keysym_t* syms;
+        if (xkb_keymap_key_get_syms_by_level(keymap, f1, 0, level, &syms) > 0)
+            matched = find_keybind(c.keybinds, WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT, syms[0]) != nullptr;
+    }
+    EXPECT_TRUE(matched);
+    xkb_keymap_unref(keymap);
+    xkb_context_unref(ctx);
 }

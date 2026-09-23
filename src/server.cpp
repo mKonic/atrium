@@ -1,9 +1,11 @@
 #include "server.hpp"
 
+#include "ipc.hpp"
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "seat.hpp"
 #include "session_lock.hpp"
+#include "settings.hpp"
 #include "view.hpp"
 #include "xwayland_view.hpp"
 
@@ -35,8 +37,14 @@ void handle_signal(int signo) {
 
 } // namespace
 
-Server::Server(Config cfg, bool is_nested) : config(std::move(cfg)), nested(is_nested) {
+Server::Server(Config defaults, bool is_nested, std::filesystem::path settings_file)
+    : config(defaults), nested(is_nested) {
     g_server = this;
+    settings = std::make_unique<Settings>(defaults, std::move(settings_file));
+    if (!settings->load())
+        wlr_log(WLR_ERROR, "settings: couldn't read %s, starting from defaults",
+                settings->file().c_str());
+    settings->apply(config);
     setup();
 }
 
@@ -233,6 +241,7 @@ void Server::disconnect_listeners() {
 }
 
 void Server::teardown() {
+    ipc.reset();
     disconnect_listeners();
 #ifdef ATRIUM_XWAYLAND
     wlr_xwayland_destroy(xwayland);
@@ -263,6 +272,7 @@ void Server::run(const char* startup_cmd) {
         die("couldn't add a Wayland socket");
     setenv("WAYLAND_DISPLAY", socket, 1);
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
+    ipc = std::make_unique<Ipc>(*this, socket);
 
     if (!wlr_backend_start(backend))
         die("couldn't start backend");
@@ -578,8 +588,10 @@ void Server::focus_view(View* view, bool raise) {
     seat->refresh_pointer();
     seat->keyboard_enter(view->surface());
     view->set_activated(true);
-    if (!view->unmanaged())
+    if (!view->unmanaged()) {
         focused_view = view;
+        notify_window(*view, "focused");
+    }
 }
 
 void Server::focus_layer(LayerSurface* layer) {
@@ -693,6 +705,54 @@ void Server::spawn(const std::string& command) {
 void Server::change_vt(unsigned vt) {
     if (session)
         wlr_session_change_vt(session, vt);
+}
+
+void Server::run_action(const Keybind& b) {
+    View* v = focused_view;
+    switch (b.action) {
+    case Action::Spawn: spawn(b.arg); break;
+    case Action::SpawnTerminal: spawn(config.terminal); break;
+    case Action::CloseWindow: if (v) v->close(); break;
+    case Action::ToggleFullscreen: if (v) v->set_fullscreen(!v->fullscreen); break;
+    case Action::ToggleMaximize: if (v && !v->fullscreen) v->set_maximized(!v->maximized); break;
+    case Action::Minimize: if (v) v->set_minimized(true); break;
+    case Action::FocusNext: cycle_focus(+1); break;
+    case Action::FocusPrev: cycle_focus(-1); break;
+    case Action::SwitchVt: change_vt(unsigned(b.iarg)); break;
+    case Action::Quit: quit(); break;
+    }
+}
+
+// --- settings and events ----------------------------------------------------------------
+
+void Server::setting_changed(const std::string& key) {
+    settings->apply(config);
+    if (!settings->save())
+        wlr_log(WLR_ERROR, "settings: couldn't write %s", settings->file().c_str());
+
+    auto is = [&](const char* prefix) { return key.starts_with(prefix); };
+    if (is("appearance.")) {
+        wlr_scene_rect_set_color(root_bg, config.background.data());
+        for (View* v : views)
+            v->update_decorations();
+    }
+    if (is("keyboard."))
+        seat->apply_keyboard_config();
+    if (is("pointer.") || is("touchpad."))
+        seat->apply_pointer_config();
+    if (is("cursor.")) {
+        seat->apply_cursor_theme();
+        seat->set_default_cursor();
+    }
+
+    if (ipc)
+        ipc->broadcast("settings", {{"event", "setting.changed"}, {"key", key}, {"value", settings->get(key)}});
+}
+
+void Server::notify_window(const View& view, const char* what) {
+    if (!ipc || view.unmanaged())
+        return;
+    ipc->broadcast("windows", {{"event", std::string("window.") + what}, {"window", Ipc::window_json(view)}});
 }
 
 } // namespace atrium

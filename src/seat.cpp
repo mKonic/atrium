@@ -205,6 +205,7 @@ Seat::~Seat() {
     start_drag_.disconnect();
     new_constraint_.disconnect();
     constraints_.clear();
+    pointers_.clear();
     virtual_keyboards_.clear();
     keyboards_.reset();
     wlr_xcursor_manager_destroy(xcursor);
@@ -265,6 +266,21 @@ void Seat::add_pointer(wlr_pointer* pointer) {
         if (libinput_device* dev = wlr_libinput_get_device_handle(&pointer->base))
             configure_libinput(dev);
     wlr_cursor_attach_input_device(cursor, &pointer->base);
+
+    // Remembered so settings changes can reach devices already plugged in.
+    auto dev = std::make_unique<PointerDevice>(pointer);
+    PointerDevice* raw = dev.get();
+    raw->destroy.connect(&pointer->base.events.destroy, [this, raw](void*) {
+        std::erase_if(pointers_, [raw](auto& p) { return p.get() == raw; });
+    });
+    pointers_.push_back(std::move(dev));
+}
+
+void Seat::apply_pointer_config() {
+    for (auto& p : pointers_)
+        if (wlr_input_device_is_libinput(&p->wlr->base))
+            if (libinput_device* dev = wlr_libinput_get_device_handle(&p->wlr->base))
+                configure_libinput(dev);
 }
 
 void Seat::configure_libinput(libinput_device* dev) {
@@ -355,7 +371,7 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 
     if (bind) {
         consumed_[e->keycode] = true;
-        run_binding(*bind);
+        server.run_action(*bind);
         return;
     }
 
@@ -382,26 +398,10 @@ int Seat::key_repeat(KeyboardGroup& g) {
     wl_event_source_timer_update(g.repeat_source, 1000 / kb->repeat_info.rate);
     for (xkb_keysym_t sym : g.syms)
         if (const Keybind* bind = find_binding(g.mods, sym)) {
-            run_binding(*bind);
+            server.run_action(*bind);
             break;
         }
     return 0;
-}
-
-void Seat::run_binding(const Keybind& b) {
-    View* v = server.focused_view;
-    switch (b.action) {
-    case Action::Spawn: server.spawn(b.arg); break;
-    case Action::SpawnTerminal: server.spawn(server.config.terminal); break;
-    case Action::CloseWindow: if (v) v->close(); break;
-    case Action::ToggleFullscreen: if (v) v->set_fullscreen(!v->fullscreen); break;
-    case Action::ToggleMaximize: if (v && !v->fullscreen) v->set_maximized(!v->maximized); break;
-    case Action::Minimize: if (v) v->set_minimized(true); break;
-    case Action::FocusNext: server.cycle_focus(+1); break;
-    case Action::FocusPrev: server.cycle_focus(-1); break;
-    case Action::SwitchVt: server.change_vt(unsigned(b.iarg)); break;
-    case Action::Quit: server.quit(); break;
-    }
 }
 
 // --- pointer -------------------------------------------------------------------

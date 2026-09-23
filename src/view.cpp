@@ -12,7 +12,7 @@
 
 namespace atrium {
 
-View::View(Server& srv, Kind k) : server(srv), kind(k) {}
+View::View(Server& srv, Kind k) : server(srv), kind(k), id(srv.next_view_id++) {}
 
 View::~View() {
     destroy_toplevel_handles();
@@ -52,6 +52,7 @@ void View::handle_map() {
     create_toplevel_handles();
     place();
     update_decorations();
+    server.notify_window(*this, "opened");
     server.focus_view(this);
 }
 
@@ -62,6 +63,7 @@ void View::handle_unmap() {
         server.focused_view = nullptr;
 
     if (!unmanaged()) {
+        server.notify_window(*this, "closed");
         std::erase(server.views, this);
         destroy_toplevel_handles();
     }
@@ -172,6 +174,7 @@ void View::settle_resize() {
     resize_edges_ = 0;
     resize_settling_ = false;
     update_output_from_position();
+    server.notify_window(*this, "changed");
 }
 
 void View::update_output_from_position() {
@@ -215,6 +218,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
     send_maximized(m);
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_maximized(handle_, m);
+    server.notify_window(*this, "changed");
     if (fullscreen)
         return;  // takes effect when fullscreen ends
     if (m) {
@@ -246,6 +250,7 @@ void View::set_fullscreen(bool f) {
     update_decorations();
     if (output)
         output->refit_views();
+    server.notify_window(*this, "changed");
 }
 
 void View::set_minimized(bool m) {
@@ -256,6 +261,7 @@ void View::set_minimized(bool m) {
     send_suspended(m);
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_minimized(handle_, m);
+    server.notify_window(*this, "changed");
     if (fullscreen && output)
         output->refit_views();
 
@@ -407,6 +413,8 @@ void View::update_title() {
         wlr_foreign_toplevel_handle_v1_set_title(handle_, title());
         wlr_foreign_toplevel_handle_v1_set_app_id(handle_, app_id());
     }
+    if (mapped)
+        server.notify_window(*this, "changed");
 }
 
 } // namespace atrium
