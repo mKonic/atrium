@@ -34,6 +34,8 @@ check() {
         sleep 0.2
     done
     fail "$name"
+    ctl windows 2>/dev/null | sed 's/^/         /'
+    [[ -s $work/x11.log ]] && sed 's/^/         x11_probe: /' "$work/x11.log"
     return 1
 }
 ctl() { "$ctl" -s "$sock" "$@"; }
@@ -69,7 +71,7 @@ check "a Wayland window opens (foot)" json windows "any(w['app_id'] == 'foot' fo
 ctl action spawn "xmessage -name smoke -geometry +200+150 'atrium smoke test'" >/dev/null
 check "an X11 window opens (xmessage)" json windows "any(w['xwayland'] for w in d)"
 check "where it asked to be (-geometry)" json windows "any(w['xwayland'] and w['geometry']['x'] == 200 for w in d)"
-ctl action spawn "$build/tests/x11_probe splash" >/dev/null
+ctl action spawn "sh -c '$build/tests/x11_probe splash > $work/x11.log 2>&1; echo exit \$? >> $work/x11.log'" >/dev/null
 check "a splash screen opens without taking focus" json windows \
     "any(w['app_id'] == 'x11probe' and not w['focused'] for w in d) and any(w['focused'] for w in d)"
 
