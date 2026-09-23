@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
 import qs.services
+import Atrium
 
 // Files on the desktop, as macOS and Windows show them: the desktop folder's
 // contents in a grid from the top left, above the wallpaper and below
@@ -34,7 +35,7 @@ PanelWindow {
     }
     color: "transparent"
     exclusiveZone: 0
-    visible: Atrium.setting("desktop.icons", true)
+    visible: Atrium.settings["desktop.icons"] ?? true
     WlrLayershell.layer: WlrLayer.Bottom
     WlrLayershell.namespace: "atrium-desktop"
     // Typing a new name needs the keyboard now, not after another click.

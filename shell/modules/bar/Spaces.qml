@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.components
 import qs.services
+import Atrium
 
 // Spaces as caelestia does workspaces: a group of five at a time (paging on
 // as you go past them), each with its apps' icons, and a pill that slides to
@@ -12,7 +13,13 @@ Pill {
 
     required property string output
     readonly property int shown: 5
-    readonly property int active: Atrium.activeSpace(output)
+    readonly property int active: screenState.activeSpace
+
+    OutputState {
+        id: screenState
+
+        name: root.output
+    }
     readonly property int groupOffset: Math.floor((active - 1) / shown) * shown
 
     implicitWidth: row.implicitWidth + 6

@@ -696,8 +696,7 @@ void Server::focus_view(View* view, bool raise) {
         return;
 
     if (focused_view && focused_view != view && !(view && view->unmanaged())) {
-        focused_view->set_activated(false);
-        focused_view = nullptr;
+        drop_focus();
     }
 
     if (!view) {
@@ -714,12 +713,20 @@ void Server::focus_view(View* view, bool raise) {
     }
 }
 
+void Server::drop_focus() {
+    View* old = focused_view;
+    if (!old)
+        return;
+    old->set_activated(false);
+    focused_view = nullptr;
+    notify_window(*old, "changed");
+}
+
 void Server::focus_layer(LayerSurface* layer) {
     if (locked)
         return;
     if (focused_view) {
-        focused_view->set_activated(false);
-        focused_view = nullptr;
+        drop_focus();
     }
     seat->keyboard_enter(layer->wlr->surface);
 }

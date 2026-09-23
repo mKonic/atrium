@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Atrium
 
 // Design tokens: caelestia's sizes, rounding and motion, with a Material 3
 // dark palette (the user's current caelestia scheme until atrium derives
@@ -75,7 +76,7 @@ Singleton {
 
     // Panels turn to frosted glass only with appearance.transparency on
     // (atrium blurs behind them then); otherwise they are solid.
-    readonly property bool glass: Atrium.setting("appearance.transparency", false)
+    readonly property bool glass: Atrium.settings["appearance.transparency"] ?? false
 
     function panel(c: color, glassAlpha: real): color {
         return glass ? alpha(c, glassAlpha) : c;

@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.components
 import qs.services
+import Atrium
 
 // The Dock: pinned apps, then running ones that aren't pinned, on a frosted
 // shelf along the bottom. The window is taller than the shelf so names and
@@ -16,9 +17,9 @@ PanelWindow {
     readonly property real shelfPadding: 8
     readonly property real shelfHeight: iconSize + shelfPadding * 2 + 6
     readonly property real gap: 8  // under the shelf
-    readonly property bool magnify: Atrium.setting("dock.magnify", false)
+    readonly property bool magnify: Atrium.settings["dock.magnify"] ?? false
 
-    readonly property var pinned: (Atrium.setting("dock.pinned", []) ?? []).filter(id => DesktopEntries.byId(id) !== null)
+    readonly property var pinned: (Atrium.settings["dock.pinned"] ?? []).filter(id => DesktopEntries.byId(id) !== null)
 
     // Desktop entry id for a window, so windows and pins meet.
     function entryId(appId: string): string {
@@ -52,8 +53,14 @@ PanelWindow {
 
     // Out of sight over a fullscreen app (or always, with dock.autohide)
     // until the pointer reaches the bottom edge.
-    readonly property bool fullscreen: Atrium.fullscreenOn(screen?.name ?? "")
-    readonly property bool autohide: Atrium.setting("dock.autohide", false)
+    readonly property bool fullscreen: output.fullscreen
+
+    OutputState {
+        id: output
+
+        name: dock.screen?.name ?? ""
+    }
+    readonly property bool autohide: Atrium.settings["dock.autohide"] ?? false
     readonly property bool hides: fullscreen || autohide
     property bool revealed: !hides
 

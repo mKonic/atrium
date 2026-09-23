@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.components
 import qs.services
+import Atrium
 
 // The top bar: spaces and the focused app on the left, status on the right.
 PanelWindow {
@@ -23,7 +24,13 @@ PanelWindow {
 
     // Over a fullscreen app the bar hides above the screen and slides in
     // when the pointer reaches the top edge, as macOS's menu bar does.
-    readonly property bool fullscreen: Atrium.fullscreenOn(screen?.name ?? "")
+    readonly property bool fullscreen: output.fullscreen
+
+    OutputState {
+        id: output
+
+        name: bar.screen?.name ?? ""
+    }
     property bool revealed: !fullscreen
 
     onFullscreenChanged: revealed = !fullscreen

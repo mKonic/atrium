@@ -74,6 +74,19 @@ json Ipc::window_json(const View& v) {
     };
 }
 
+json Ipc::spaces_json(const Server& server) {
+    json list = json::array();
+    for (const auto& s : server.spaces) {
+        int count = 0;
+        for (View* v : server.views)
+            count += v->space == s.get();
+        list.push_back({{"id", s->id()}, {"label", s->label()}, {"number", s->number}, {"secret", s->secret},
+                        {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()},
+                        {"windows", count}});
+    }
+    return list;
+}
+
 Ipc::Ipc(Server& server, const std::string& wayland_display) : server_(server) {
     const char* runtime = std::getenv("XDG_RUNTIME_DIR");
     if (!runtime)
@@ -292,18 +305,8 @@ json Ipc::handle(Client& c, const json& req) {
         return ok(list);
     }
 
-    if (cmd == "spaces") {
-        json list = json::array();
-        for (const auto& s : server_.spaces) {
-            int count = 0;
-            for (View* v : server_.views)
-                count += v->space == s.get();
-            list.push_back({{"id", s->id()}, {"label", s->label()}, {"number", s->number}, {"secret", s->secret},
-                            {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()},
-                            {"windows", count}});
-        }
-        return ok(list);
-    }
+    if (cmd == "spaces")
+        return ok(spaces_json(server_));
 
     if (cmd == "space.switch") {
         if (!req.contains("number") || !req["number"].is_number_integer())

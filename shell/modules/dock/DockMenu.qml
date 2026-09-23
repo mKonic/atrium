@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.components
 import qs.services
+import Atrium
 
 // An app's menu, opening above its icon.
 Rectangle {

@@ -41,6 +41,7 @@ public:
     void broadcast(const std::string& topic, const json& event);
 
     static json window_json(const View& view);
+    static json spaces_json(const Server& server);
 
 private:
     struct Client {

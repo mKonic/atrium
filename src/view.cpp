@@ -586,8 +586,7 @@ void View::set_minimized(bool m) {
 
     if (m) {
         if (server.focused_view == this) {
-            set_activated(false);
-            server.focused_view = nullptr;
+            server.drop_focus();
             server.focus_top();
         }
     } else {

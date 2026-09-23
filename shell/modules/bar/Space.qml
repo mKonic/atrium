@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import qs.components
 import qs.services
+import Atrium
 
 // One space in the bar: its number, then an icon for each app on it.
 Item {
@@ -13,7 +14,14 @@ Item {
     required property string output
     required property bool active
 
-    readonly property var windows: Atrium.windowsOn(output, number)
+    readonly property var windows: onSpace.windows
+
+    SpaceWindows {
+        id: onSpace
+
+        output: root.output
+        number: root.number
+    }
     readonly property bool occupied: windows.length > 0
     readonly property int maxIcons: 4
 

@@ -1,6 +1,8 @@
 // The Atrium QML module: C++ helpers for atrium's shell, so its QML stays
 // layout and bindings. `import Atrium` in the shell.
 
+#include "compositor.hpp"
+#include "views.hpp"
 #include "search.hpp"
 
 #include <QObject>
@@ -98,6 +100,14 @@ public:
         qmlRegisterSingletonType<SearchApi>(uri, 1, 0, "Search", [](QQmlEngine*, QJSEngine*) -> QObject* {
             return new SearchApi;
         });
+        // The compositor, as live state: `Atrium.windows`, `Atrium.switchSpace(2)`.
+        qmlRegisterSingletonType<Compositor>(uri, 1, 0, "Atrium", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* c = Compositor::instance();
+            QQmlEngine::setObjectOwnership(c, QQmlEngine::CppOwnership);
+            return c;
+        });
+        qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
+        qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
     }
 };
 

@@ -54,11 +54,7 @@ void Server::spaces_changed() {
         overview->spaces_changed();
     if (!ipc)
         return;
-    json list = json::array();
-    for (const auto& s : spaces)
-        list.push_back({{"id", s->id()}, {"label", s->label()}, {"secret", s->secret},
-                        {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()}});
-    ipc->broadcast("spaces", {{"event", "spaces.changed"}, {"spaces", list}});
+    ipc->broadcast("spaces", {{"event", "spaces.changed"}, {"spaces", Ipc::spaces_json(*this)}});
 }
 
 // Keep a window's position relative to its output when it changes outputs.
@@ -166,8 +162,7 @@ void Server::move_to_space(View* view, Space* space) {
     wlr_scene_node_reparent(&view->tree->node, view->fullscreen ? space->fullscreen_tree : space->tree);
 
     if (was_focused && !space->shown()) {
-        view->set_activated(false);
-        focused_view = nullptr;
+        drop_focus();
         focus_top();
     }
     if (old && old->output)
@@ -220,8 +215,7 @@ void Server::toggle_secret(const std::string& name) {
     else if (focused_view) {
         // Nothing to focus in the secret space: keep the keyboard off the
         // windows under the backdrop.
-        focused_view->set_activated(false);
-        focused_view = nullptr;
+        drop_focus();
         seat->clear_keyboard_focus();
     }
     seat->refresh_pointer();
@@ -237,8 +231,7 @@ void Server::hide_secret() {
     s->set_shown(false, true);
     fade_secret(s, false);
     if (focused_view && focused_view->space == s) {
-        focused_view->set_activated(false);
-        focused_view = nullptr;
+        drop_focus();
     }
     focus_top();
     if (!focused_view)

@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Widgets
 import qs.components
 import qs.services
+import Atrium
 
 // One app in the Dock: its icon, a dot while it runs, its name on hover.
 // Click focuses it (cycling its windows) or launches it; right-click opens

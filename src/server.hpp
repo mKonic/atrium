@@ -83,6 +83,8 @@ public:
     void focus_view(View* view, bool raise = true);
     void focus_layer(LayerSurface* layer);
     void focus_top();
+    // The focused window stops being focused (and IPC subscribers hear so).
+    void drop_focus();
     View* top_view(Output* output) const;
     void cycle_focus(int direction);
 
