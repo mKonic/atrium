@@ -27,10 +27,17 @@ Item {
     property bool launching: false
     property bool menuOpen: false
 
+    property bool lifted: false  // being dragged to a new place
     signal menuRequested(Item item)
+    // A press that moved: the Dock rearranges. Points are in the Dock
+    // window's coordinates.
+    signal dragStarted(Item item, point at)
+    signal dragMoved(point at)
+    signal dragEnded(point at)
 
     implicitWidth: iconSize * magnification
     implicitHeight: iconSize
+    opacity: lifted ? 0.25 : 1
 
     Behavior on implicitWidth {
         Anim {
@@ -163,10 +170,35 @@ Item {
     MouseArea {
         id: mouse
 
+        property point pressAt
+        property bool dragging: false
+
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
+        preventStealing: true
+        onPressed: event => {
+            pressAt = Qt.point(event.x, event.y);
+            dragging = false;
+        }
+        onPositionChanged: event => {
+            if (!(event.buttons & Qt.LeftButton))
+                return;
+            const at = mapToItem(null, event.x, event.y);
+            if (!dragging && Math.abs(event.x - pressAt.x) + Math.abs(event.y - pressAt.y) > 8) {
+                dragging = true;
+                root.dragStarted(root, at);
+            }
+            if (dragging)
+                root.dragMoved(at);
+        }
+        onReleased: event => {
+            if (dragging)
+                root.dragEnded(mapToItem(null, event.x, event.y));
+        }
         onClicked: event => {
+            if (dragging)
+                return;
             if (event.button === Qt.RightButton)
                 root.menuRequested(root);
             else

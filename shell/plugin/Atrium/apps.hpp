@@ -116,6 +116,9 @@ public:
     Q_INVOKABLE bool activate(const QString& appId);
     Q_INVOKABLE void launch(const QString& appId);
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
+    // Pin it (if it isn't) at `index` among the pinned apps.
+    Q_INVOKABLE void placePin(const QString& appId, int index);
+    Q_INVOKABLE int pinnedCount() const;
     Q_INVOKABLE void closeAll(const QString& appId);
 
 signals:

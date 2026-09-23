@@ -428,6 +428,33 @@ void DockApps::setPinned(const QString& appId, bool pinned) {
     Compositor::instance()->setSetting("dock.pinned", list);
 }
 
+void DockApps::placePin(const QString& appId, int index) {
+    QStringList list = Compositor::instance()->setting("dock.pinned", QStringList{}).toStringList();
+    const qsizetype from = list.indexOf(appId);
+    if (from >= 0)
+        list.removeAt(from);
+    // Indices count the pins the Dock shows; the list may hold ones for
+    // uninstalled apps, which keep their place relative to the rest.
+    qsizetype at = list.size();
+    int shown = 0;
+    for (qsizetype i = 0; i < list.size(); ++i) {
+        if (shown == index) {
+            at = i;
+            break;
+        }
+        if (index_.byId(list[i]))
+            ++shown;
+    }
+    list.insert(at, appId);
+    if (from >= 0 && list == Compositor::instance()->setting("dock.pinned", QStringList{}).toStringList())
+        return;
+    Compositor::instance()->setSetting("dock.pinned", list);
+}
+
+int DockApps::pinnedCount() const {
+    return int(std::ranges::count_if(apps_, [](const App& a) { return a.pinned; }));
+}
+
 void DockApps::closeAll(const QString& appId) {
     if (const App* a = find(appId))
         for (int id : a->windows)

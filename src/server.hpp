@@ -74,9 +74,6 @@ public:
     void quit();
 
     wlr_scene_tree* layer(Layer l) const { return layers_[int(l)]; }
-    // While a secret space is shown, panels (the Top layer: bar, Control
-    // Center, notifications) stay above it; otherwise under fullscreen.
-    void set_panels_over_secret(bool over);
 
     Output* output_at(double lx, double ly) const;
     Hit hit_test(double lx, double ly) const;
@@ -225,7 +222,6 @@ private:
     void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
 
     wlr_scene_tree* layers_[kLayerCount]{};
-    bool panels_over_secret_ = false;
     pid_t startup_pid_ = -1;
     std::string startup_cmd_;               // until Xwayland is up
     wl_event_source* startup_timer_ = nullptr;
