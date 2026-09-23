@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=atrium (uwsm-managed)
+Comment=A floating-first Wayland desktop
+Exec=uwsm start -e -D atrium atrium.desktop
+TryExec=uwsm
+DesktopNames=atrium
+Type=Application

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=atrium
+Comment=A floating-first Wayland desktop
+Exec=atrium
+TryExec=atrium
+Type=Application
+DesktopNames=atrium
+Keywords=wayland;compositor;desktop;

@@ -76,6 +76,8 @@ install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_d
 install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
 install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
 install_data('data/share/xdg-desktop-portal/atrium-portals.conf', install_dir: get_option('datadir') / 'xdg-desktop-portal')
+# Sessions for the display manager (plain, and under uwsm).
+install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 subdir('shell/plugin/Atrium')
 
 subdir('src')
