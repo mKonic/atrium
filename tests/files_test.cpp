@@ -238,3 +238,10 @@ TEST(Passwd, HashesTheWayShadowExpects) {
     EXPECT_NE(h, atrium::passwd::hash("correct horse"));  // salted
     EXPECT_EQ(std::string(crypt("correct horse", h.c_str())), h);  // and it checks out
 }
+
+TEST(SysInfo, ClockTime) {
+    EXPECT_EQ(atrium::sysinfo::clock_time(0), "0:00");
+    EXPECT_EQ(atrium::sysinfo::clock_time(187.9), "3:07");
+    EXPECT_EQ(atrium::sysinfo::clock_time(3723), "1:02:03");
+    EXPECT_EQ(atrium::sysinfo::clock_time(-5), "0:00");
+}

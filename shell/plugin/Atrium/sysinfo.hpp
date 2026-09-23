@@ -34,6 +34,7 @@ public:
 
     // "3 days, 4 hours"
     Q_INVOKABLE QString uptime() const;
+    Q_INVOKABLE QString clockTime(double seconds) const;  // "3:07": a track position
 
 private:
     QString osName_, logo_, hostname_, kernel_, cpu_, memory_, user_;

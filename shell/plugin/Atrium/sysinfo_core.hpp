@@ -28,4 +28,7 @@ std::string installed_memory(std::string_view udev_dmi);
 // `resource` file: a discrete GPU maps its VRAM, integrated graphics little.
 unsigned long long largest_bar(std::string_view resource);
 
+// A track position as a player shows it: "3:07", "1:02:03"; negative → "0:00".
+std::string clock_time(double seconds);
+
 } // namespace atrium::sysinfo

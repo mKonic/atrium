@@ -17,7 +17,7 @@ import Atrium
 PanelWindow {
     id: cc
 
-    property string page: ""  // "", "wifi", "bluetooth"
+    property string page: ""  // "", "wifi", "bluetooth", "media"
     property Item pageTile: null  // the tile the page grew out of
     property real open: 0         // 0: the tiles, 1: the page, between: growing
     property var joining: null    // a Wi-Fi network asking for its password
@@ -29,7 +29,9 @@ PanelWindow {
     readonly property var adapter: Bluetooth.defaultAdapter
     readonly property var btConnected: adapter?.devices.values.filter(d => d.connected) ?? []
     readonly property PwNode sink: Pipewire.defaultAudioSink
-    readonly property var player: Mpris.players.values.find(p => p.isPlaying) ?? Mpris.players.values[0] ?? null
+    property var chosenPlayer: null  // picked on the Now Playing page
+    readonly property var player: (Mpris.players.values.includes(chosenPlayer) ? chosenPlayer : null)
+                                  ?? Mpris.players.values.find(p => p.isPlaying) ?? Mpris.players.values[0] ?? null
     readonly property bool dnd: Atrium.settings["notifications.dnd"] ?? false
     readonly property string profile: Atrium.settings["power.profile"] ?? "performance"
 
@@ -297,13 +299,21 @@ PanelWindow {
                 }
             }
 
-            // Now playing.
+            // Now playing: grows into the Now Playing page when clicked.
             Rectangle {
+                id: mediaTile
+
                 visible: !!cc.player
                 width: parent.width
                 height: 72
                 radius: 18
                 color: Theme.palette.m3SurfaceContainerHigh
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: cc.expand("media", mediaTile)
+                }
 
                 Rectangle {
                     id: art
@@ -452,12 +462,13 @@ PanelWindow {
 
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: cc.page === "wifi" ? "Wi-Fi" : "Bluetooth"
+                        text: cc.page === "wifi" ? "Wi-Fi" : cc.page === "media" ? "Now Playing" : "Bluetooth"
                         font.pointSize: Theme.font.size.larger
                         font.weight: Font.DemiBold
                     }
 
                     Switch {
+                        visible: cc.page !== "media"
                         anchors.right: parent.right
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
@@ -472,6 +483,15 @@ PanelWindow {
                 }
 
                 Separator {}
+
+                // --- Now Playing ---
+                NowPlaying {
+                    visible: cc.page === "media"
+                    width: list.width
+                    player: cc.player
+                    players: Mpris.players.values
+                    onChoose: p => cc.chosenPlayer = p
+                }
 
                 // --- Wi-Fi ---
                 SectionLabel {
@@ -575,7 +595,7 @@ PanelWindow {
                     StyledText {
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: cc.page === "wifi" ? "Wi-Fi Settings…" : "Bluetooth Settings…"
+                        text: cc.page === "wifi" ? "Wi-Fi Settings…" : cc.page === "media" ? "Sound Settings…" : "Bluetooth Settings…"
                     }
 
                     MouseArea {
@@ -584,7 +604,8 @@ PanelWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: {
-                            Atrium.action("shell", cc.page === "wifi" ? "settings:Wi-Fi & Network" : "settings:Bluetooth");
+                            Atrium.action("shell", cc.page === "wifi" ? "settings:Wi-Fi & Network"
+                                                 : cc.page === "media" ? "settings:Sound" : "settings:Bluetooth");
                             Panels.open = "";
                         }
                     }

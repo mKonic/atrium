@@ -146,4 +146,15 @@ unsigned long long largest_bar(std::string_view resource) {
     return best;
 }
 
+std::string clock_time(double seconds) {
+    const long total = seconds > 0 ? long(seconds) : 0;
+    const long h = total / 3600, m = total / 60 % 60, s = total % 60;
+    char buf[32];
+    if (h)
+        std::snprintf(buf, sizeof buf, "%ld:%02ld:%02ld", h, m, s);
+    else
+        std::snprintf(buf, sizeof buf, "%ld:%02ld", m, s);
+    return buf;
+}
+
 } // namespace atrium::sysinfo

@@ -106,4 +106,8 @@ QString SystemInfo::uptime() const {
     return part(minutes, "minute");
 }
 
+QString SystemInfo::clockTime(double seconds) const {
+    return QString::fromStdString(sysinfo::clock_time(seconds));
+}
+
 } // namespace atrium
