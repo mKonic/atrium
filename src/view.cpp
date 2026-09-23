@@ -1,4 +1,5 @@
 #include "view.hpp"
+#include "background_effect.hpp"
 
 #include "geometry.hpp"
 #include "output.hpp"
@@ -779,9 +780,23 @@ void View::update_decorations() {
         wlr_scene_rect_set_corner_radii(backing, corner_radii_new(tr, tr, radius, radius));
     }
 
-    const bool show_blur = c.blur && c.transparency && !fullscreen;
+    // Blur behind translucent windows, or behind just the part an app asked
+    // for (ext-background-effect), or none if it asked for none.
+    const std::optional<wlr_box> asked =
+        server.background_effects ? server.background_effects->blur_for(surface()) : std::nullopt;
+    const bool show_blur = c.blur && c.transparency && !fullscreen && (!asked || (asked->width > 0 && asked->height > 0));
     wlr_scene_node_set_enabled(&blur->node, show_blur);
-    if (show_blur) {
+    if (show_blur && asked) {
+        // In surface coordinates, from the content's corner under the title bar.
+        const wlr_box content_area{0, 0, geom.width, geom.height - top()};
+        wlr_box b{};
+        wlr_box_intersection(&b, &*asked, &content_area);
+        wlr_scene_node_set_position(&blur->node, b.x, top() + b.y);
+        wlr_scene_blur_set_size(blur, b.width, b.height);
+        wlr_scene_blur_set_corner_radius(blur, b.width == geom.width ? radius : 0);
+        wlr_scene_blur_set_alpha(blur, alpha_);
+    } else if (show_blur) {
+        wlr_scene_node_set_position(&blur->node, 0, 0);
         wlr_scene_blur_set_size(blur, geom.width, geom.height);
         wlr_scene_blur_set_corner_radius(blur, radius);
         wlr_scene_blur_set_alpha(blur, alpha_);

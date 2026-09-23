@@ -1,5 +1,6 @@
 #include "server.hpp"
 #include "input_method.hpp"
+#include "background_effect.hpp"
 #include "paths.hpp"
 #include <cstring>
 #include <fstream>
@@ -324,6 +325,7 @@ void Server::setup() {
 
     seat = std::make_unique<Seat>(*this);
     input_method = std::make_unique<InputMethodRelay>(*this);
+    background_effects = std::make_unique<BackgroundEffects>(*this);
 
     output_manager = wlr_output_manager_v1_create(display);
     output_apply_.connect(&output_manager->events.apply,
@@ -489,6 +491,7 @@ void Server::teardown() {
     snap_preview.reset();
     spaces.clear();
     input_method.reset();  // hooked to the seat
+    background_effects.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
@@ -1123,6 +1126,8 @@ void Server::setting_changed(const std::string& key) {
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
     if (is("appearance.blur"))
         apply_blur_settings();
+    if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
+        background_effects->announce();
     if (key == "appearance.style") {
         install_gtk_theme(config.light);  // apps opened from now on
         if (!nested)

@@ -23,3 +23,24 @@ foreach xml : protocol_xmls
     command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
   )
 endforeach
+
+# Protocols atrium implements itself (wlroots has no helper for them): their
+# interface tables too.
+own_protocol_xmls = [
+  wl_protocol_dir / 'staging/ext-background-effect/ext-background-effect-v1.xml',
+]
+protocol_code = []
+foreach xml : own_protocol_xmls
+  protocol_headers += custom_target(
+    xml.underscorify() + '_server_h',
+    input: xml,
+    output: '@BASENAME@-protocol.h',
+    command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
+  )
+  protocol_code += custom_target(
+    xml.underscorify() + '_code',
+    input: xml,
+    output: '@BASENAME@-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+  )
+endforeach

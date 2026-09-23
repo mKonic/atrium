@@ -20,6 +20,7 @@ class Output;
 class Titlebar;
 class Seat;
 class InputMethodRelay;
+class BackgroundEffects;
 class SessionLock;
 class Overview;
 class Registry;
@@ -218,6 +219,7 @@ public:
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     std::unique_ptr<InputMethodRelay> input_method;
+    std::unique_ptr<BackgroundEffects> background_effects;
     uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;

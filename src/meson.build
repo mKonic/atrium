@@ -5,6 +5,7 @@ atrium_sources = files(
   'geometry.cpp',
   'input_method.cpp',
   'ipc.cpp',
+  'background_effect.cpp',
   'layer_surface.cpp',
   'main.cpp',
   'overview.cpp',
@@ -33,7 +34,7 @@ atrium_sources = files(
 )
 
 executable('atrium',
-  atrium_sources, protocol_headers, version_h, paths_h,
+  atrium_sources, protocol_headers, protocol_code, version_h, paths_h,
   dependencies: deps,
   install: true,
 )
