@@ -6,6 +6,7 @@ import qs.modules.bar
 import qs.modules.desktop
 import qs.modules.dock
 import qs.modules.launcher
+import qs.modules.notifications
 
 // atrium's desktop shell.
 ShellRoot {
@@ -40,4 +41,8 @@ ShellRoot {
     }
 
     Launcher {}
+
+    Notifications {}
+
+    NotificationCenter {}
 }

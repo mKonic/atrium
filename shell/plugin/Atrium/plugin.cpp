@@ -2,6 +2,7 @@
 // layout and bindings. `import Atrium` in the shell.
 
 #include "compositor.hpp"
+#include "notifications.hpp"
 #include "views.hpp"
 #include "search.hpp"
 
@@ -106,6 +107,8 @@ public:
             QQmlEngine::setObjectOwnership(c, QQmlEngine::CppOwnership);
             return c;
         });
+        qmlRegisterSingletonType<NotificationHistory>(uri, 1, 0, "NotificationHistory",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new NotificationHistory; });
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
     }

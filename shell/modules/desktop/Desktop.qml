@@ -120,6 +120,7 @@ PanelWindow {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: event => {
+            Panels.open = "";
             desktop.selection = [];
             desktop.renaming = "";
             desktop.menu = event.button === Qt.RightButton ? { x: event.x, y: event.y, path: "" } : null;

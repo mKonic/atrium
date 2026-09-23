@@ -409,6 +409,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "What draws the bar, Dock and the rest: \"builtin\" for atrium's own, a command for another, or \"none\".",
         &Config::shell, d));
 
+    // Notifications (read by the shell)
+    s.push_back(make("notifications.dnd", SettingType::Bool, "Notifications", "Do Not Disturb",
+        "Keep notifications quiet: they go straight to the notification center without popping up.", false,
+        [](Config&, const json&) {}));
+
     // Desktop (read by the shell)
     s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
         "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));
