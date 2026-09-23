@@ -443,8 +443,14 @@ void View::settle_resize() {
 }
 
 void View::update_output_from_position() {
-    if (Output* o = server.output_at(geom.x + geom.width / 2.0, geom.y + geom.height / 2.0))
-        set_output(o);
+    Output* o = server.output_at(geom.x + geom.width / 2.0, geom.y + geom.height / 2.0);
+    if (!o || o == output)
+        return;
+    set_output(o);
+    // Moved onto another screen: it joins the space showing there, or
+    // switching spaces back on the old screen would hide it from this one.
+    if (space && !space->secret && o->active && space != o->active)
+        server.move_to_space(this, o->active);
 }
 
 void View::set_output(Output* o) {

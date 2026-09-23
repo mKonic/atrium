@@ -110,6 +110,18 @@ check "a window closes" json windows "not any(w['id'] == $xm for w in d)"
 # A last look for a human, once the animations have finished. The box sits
 # on a hidden workspace, where the host hands out frames only when asked:
 # the first capture wakes it and may still show the frame before.
+# A second screen comes and goes; its windows come back.
+ctl output create >/dev/null
+check "a second screen is plugged in" json outputs "len(d) == 2"
+check "and gets a bar" json layers "sum(l['namespace'] == 'atrium-bar' for l in d) == 2"
+x2=$(ctl -j outputs | python3 -c "import json,sys; print(max(o['geometry']['x'] for o in json.load(sys.stdin)))")
+out2=$(ctl -j outputs | python3 -c "import json,sys; print(max(json.load(sys.stdin), key=lambda o: o['geometry']['x'])['name'])")
+ctl move "$foot" $((x2 + 40)) 200 >/dev/null
+check "a window moved onto it joins its space" json windows "any(w['id'] == $foot and w['output'] == '$out2' for w in d)"
+ctl output remove "$out2" >/dev/null
+check "unplugged, the window comes back" json windows "any(w['id'] == $foot and w['output'] != '$out2' for w in d)"
+check "the last screen can't be removed" sh -c "! $ctl -s $sock output remove \$($ctl -s $sock -j outputs | python3 -c 'import json,sys; print(json.load(sys.stdin)[0][\"name\"])')"
+
 vc wait "$box" settle 5 >/dev/null 2>&1
 vc in "$box" shot '' "$work/wake.png" >/dev/null 2>&1
 sleep 0.5

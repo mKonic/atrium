@@ -189,4 +189,41 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
     return std::nullopt;
 }
 
+// --- virtual screens ---------------------------------------------------------------
+
+std::optional<std::string> Server::create_output() {
+    wlr_backend* nested = nullptr;
+    wlr_multi_for_each_backend(backend, [](wlr_backend* b, void* data) {
+        if (wlr_backend_is_wl(b))
+            *static_cast<wlr_backend**>(data) = b;
+    }, &nested);
+    wlr_output* o = nullptr;
+    if (nested) {
+        o = wlr_wl_output_create(nested);
+    } else {
+        if (!headless_) {
+            headless_ = wlr_headless_backend_create(loop);
+            if (!headless_ || !wlr_multi_backend_add(backend, headless_) || !wlr_backend_start(headless_))
+                return std::nullopt;
+        }
+        o = wlr_headless_add_output(headless_, 1920, 1080);
+    }
+    if (!o)
+        return std::nullopt;
+    return std::string(o->name);
+}
+
+std::optional<std::string> Server::remove_output(const std::string& name) {
+    for (Output* o : outputs)
+        if (name == o->wlr->name) {
+            if (!wlr_output_is_wl(o->wlr) && !wlr_output_is_headless(o->wlr))
+                return "only virtual screens can be removed; " + name + " is a real one";
+            if (outputs.size() == 1)
+                return "that is the only screen left";
+            wlr_output_destroy(o->wlr);
+            return std::nullopt;
+        }
+    return "no output " + name;
+}
+
 } // namespace atrium

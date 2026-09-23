@@ -546,6 +546,19 @@ json Ipc::handle(Client& c, const json& req) {
         return ok(list);
     }
 
+    if (cmd == "output.create") {
+        if (auto name = server_.create_output())
+            return ok(json{{"output", *name}});
+        return fail("couldn't create an output");
+    }
+    if (cmd == "output.remove") {
+        if (!req.contains("output") || !req["output"].is_string())
+            return fail("output.remove needs an \"output\" (its name)");
+        if (auto err = server_.remove_output(req["output"]))
+            return fail(*err);
+        return ok();
+    }
+
     if (cmd == "output.set") {
         if (auto err = server_.configure_output(req))
             return fail(*err);

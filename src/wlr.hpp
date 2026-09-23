@@ -31,8 +31,11 @@ extern "C" {
 #undef static
 
 #include <wlr/backend.h>
+#include <wlr/backend/headless.h>
 #include <wlr/backend/libinput.h>
+#include <wlr/backend/multi.h>
 #include <wlr/backend/session.h>
+#include <wlr/backend/wayland.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/swapchain.h>
 #include <wlr/render/wlr_renderer.h>

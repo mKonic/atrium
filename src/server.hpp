@@ -129,6 +129,11 @@ public:
     // An output change from IPC: { output, width, height, refresh, scale,
     // transform, x, y, enabled }. The error when it didn't take.
     std::optional<std::string> configure_output(const nlohmann::json& request);
+    // A virtual screen: another window when running nested, else a headless
+    // output (for streaming or a remote desktop). Returns its name.
+    std::optional<std::string> create_output();
+    // Only virtual screens can be taken away; an error otherwise.
+    std::optional<std::string> remove_output(const std::string& name);
     void check_idle_inhibitors(wlr_surface* exclude = nullptr);
     void spawn(const std::string& command);
     void change_vt(unsigned vt);
@@ -245,6 +250,7 @@ private:
     void setup_window_hints();
 
     wlr_scene_tree* layers_[kLayerCount]{};
+    wlr_backend* headless_ = nullptr;  // made on the first create_output() without a nested backend
     void seed_registry(const std::filesystem::path& dir);
 
     pid_t startup_pid_ = -1;
