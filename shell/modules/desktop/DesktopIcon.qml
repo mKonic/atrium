@@ -156,36 +156,39 @@ Item {
         }
     }
 
-    // Inline rename.
-    Rectangle {
+    // Rename in place: the label itself turns editable, same text, same spot.
+    Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: tile.bottom
-        anchors.topMargin: 4
-        width: root.width + 20
-        height: 24
-        radius: 6
+        anchors.topMargin: 6
+        width: label.maxWidth
+        height: input.implicitHeight
         visible: root.renaming
-        color: Theme.palette.m3SurfaceContainerHigh
-        border.width: 1
-        border.color: Theme.palette.m3Primary
 
         TextInput {
             id: input
 
             anchors.fill: parent
-            anchors.leftMargin: 6
-            anchors.rightMargin: 6
-            verticalAlignment: TextInput.AlignVCenter
             horizontalAlignment: TextInput.AlignHCenter
-            color: Theme.palette.m3OnSurface
+            color: "white"
             font.family: Theme.font.sans
-            font.pointSize: Theme.font.size.smaller
+            font.pointSize: Theme.font.size.small
+            font.weight: Font.Medium
             selectByMouse: true
             selectionColor: Theme.palette.m3Primary
             selectedTextColor: Theme.palette.m3OnPrimary
+            cursorVisible: true
             clip: true
             onAccepted: root.renamed(text)
             Keys.onEscapePressed: root.renamed(root.name)
+
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Qt.rgba(0, 0, 0, 0.85)
+                shadowBlur: 0.45
+                shadowVerticalOffset: 1
+            }
         }
     }
 
