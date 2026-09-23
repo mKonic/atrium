@@ -10,7 +10,10 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     xsurface->data = this;
 
     // The wlr_surface only exists between associate and dissociate.
+    wlr_log(WLR_DEBUG, "x11: window 0x%x created", xsurface->window_id);
     associate_.connect(&xsurface->events.associate, [this](void*) {
+        wlr_log(WLR_DEBUG, "x11: window 0x%x has its surface (mapped: %d)", xsurface->window_id,
+                surface()->mapped);
         map_.connect(&surface()->events.map, [this](void*) { map(); });
         unmap_.connect(&surface()->events.unmap, [this](void*) { unmap(); });
         commit_.connect(&surface()->events.commit, [this](void*) { commit(); });
@@ -73,6 +76,7 @@ XwaylandView::~XwaylandView() {
 }
 
 void XwaylandView::map() {
+    wlr_log(WLR_DEBUG, "x11: window 0x%x maps", xsurface->window_id);
     geom = {xsurface->x, xsurface->y, xsurface->width, xsurface->height};
     handle_map();
     if (unmanaged())
