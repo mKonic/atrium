@@ -1,6 +1,7 @@
 #include "output.hpp"
 
 #include "layer_surface.hpp"
+#include "overview.hpp"
 #include "seat.hpp"
 #include "server.hpp"
 #include "view.hpp"
@@ -42,6 +43,8 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
 
 Output::~Output() {
     server.animator.cancel_owner(this, true);
+    if (server.overview)
+        server.overview->output_removed(this);
     if (!server.shutting_down)
         server.output_removing(this);
     // Layer surfaces cannot outlive their output.

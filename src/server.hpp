@@ -17,6 +17,7 @@ class Output;
 class Titlebar;
 class Seat;
 class SessionLock;
+class Overview;
 class SnapPreview;
 class Space;
 class Settings;
@@ -30,6 +31,7 @@ enum class Layer : int {
     Top,
     Fullscreen,
     Secret,      // a secret space over everything, on its dimmed backdrop
+    Overview,    // Mission Control
     Unmanaged,   // X11 override-redirect: menus, tooltips
     Overlay,
     InputPopup,
@@ -161,6 +163,7 @@ public:
 
     std::unique_ptr<Settings> settings;
     std::unique_ptr<SnapPreview> snap_preview;
+    std::unique_ptr<Overview> overview;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     uint64_t next_view_id = 1;

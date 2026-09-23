@@ -171,3 +171,56 @@ TEST(SnapBox, HalvesMeetWithOneGapBetween) {
     const wlr_box noGap = snap_box(kScreen, L, 0);
     EXPECT_EQ(noGap.width * 2, kScreen.width);
 }
+
+namespace {
+
+bool overlaps(const wlr_box& a, const wlr_box& b) {
+    return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+bool inside(const wlr_box& a, const wlr_box& area) {
+    return a.x >= area.x && a.y >= area.y && a.x + a.width <= area.x + area.width &&
+           a.y + a.height <= area.y + area.height;
+}
+
+} // namespace
+
+TEST(OverviewLayout, FitsWithoutOverlapAndKeepsAspect) {
+    const wlr_box area{40, 80, 1360, 760};
+    std::vector<wlr_box> wins;
+    for (int i = 0; i < 7; ++i)
+        wins.push_back({100 + i * 90, 60 + i * 50, 800 + i * 40, 500 + (i % 3) * 120});
+    const auto out = overview_layout(wins, area, 24, 20);
+    ASSERT_EQ(out.size(), wins.size());
+    for (size_t i = 0; i < out.size(); ++i) {
+        EXPECT_TRUE(inside(out[i], area)) << i;
+        EXPECT_NEAR(double(out[i].width) / out[i].height, double(wins[i].width) / wins[i].height, 0.02) << i;
+        EXPECT_LE(out[i].width, wins[i].width);
+        for (size_t j = i + 1; j < out.size(); ++j)
+            EXPECT_FALSE(overlaps(out[i], out[j])) << i << " " << j;
+    }
+}
+
+TEST(OverviewLayout, NeverEnlarges) {
+    const std::vector<wlr_box> wins{{0, 0, 300, 200}, {400, 0, 200, 300}};
+    const auto out = overview_layout(wins, {0, 0, 1440, 900}, 24, 20);
+    EXPECT_EQ(out[0].width, 300);
+    EXPECT_EQ(out[1].height, 300);
+    EXPECT_EQ(out[0].y + out[0].height / 2, out[1].y + out[1].height / 2);  // one row, centered
+}
+
+TEST(OverviewLayout, KeepsArrangement) {
+    // Two on top, two below, big enough to need two rows.
+    const std::vector<wlr_box> wins{{800, 0, 700, 450}, {0, 0, 700, 450}, {0, 500, 700, 450}, {800, 500, 700, 450}};
+    const auto out = overview_layout(wins, {0, 0, 1440, 900}, 24, 20);
+    EXPECT_LT(out[1].x, out[0].x);
+    EXPECT_EQ(out[0].y, out[1].y);
+    EXPECT_LT(out[0].y, out[2].y);
+    EXPECT_LT(out[2].x, out[3].x);
+}
+
+TEST(OverviewLayout, EmptyAndTiny) {
+    EXPECT_TRUE(overview_layout({}, {0, 0, 100, 100}, 8, 8).empty());
+    const std::vector<wlr_box> one{{0, 0, 500, 500}};
+    EXPECT_EQ(overview_layout(one, {0, 0, 4, 4}, 8, 8).size(), 1u);
+}

@@ -8,6 +8,7 @@ extern "C" {
 }
 
 #include <span>
+#include <vector>
 
 namespace atrium::geometry {
 
@@ -47,5 +48,12 @@ uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corn
 // The box a snap zone stands for, with `gap` between snapped windows and
 // around them. TOP alone (maximize) fills the area without a gap.
 wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap);
+
+// Overview: every window scaled into `area` as rows of equal height, keeping
+// their rough arrangement (top rows stay on top, left stays left) and never
+// enlarged. `gap` separates windows and rows; `label` is extra room kept
+// under each row for titles. Returns one box per window, in input order.
+std::vector<wlr_box> overview_layout(std::span<const wlr_box> windows, const wlr_box& area,
+                                     int gap, int label);
 
 } // namespace atrium::geometry

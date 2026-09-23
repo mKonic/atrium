@@ -100,6 +100,7 @@ private:
     uint32_t grab_edges_ = 0;
     bool grab_unmaximize_ = false;  // moving a maximized/snapped window; restore once it drags
     uint32_t snap_zone_ = 0;        // snap zone under the cursor while moving
+    bool overview_press_ = false;   // a button went down on the overview
     void unmaximize_for_drag();
 
     // Frame edges of decorated windows: a band just outside the frame that

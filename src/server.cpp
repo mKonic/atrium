@@ -7,6 +7,7 @@
 #include "session_lock.hpp"
 #include "space.hpp"
 #include "settings.hpp"
+#include "overview.hpp"
 #include "snap_preview.hpp"
 #include "theme.hpp"
 #include "titlebar.hpp"
@@ -80,6 +81,7 @@ void Server::setup() {
     drag_icons = wlr_scene_tree_create(&scene->tree);
     wlr_scene_node_place_below(&drag_icons->node, &layer(Layer::Lock)->node);
     snap_preview = std::make_unique<SnapPreview>(*this);
+    overview = std::make_unique<Overview>(*this);
     background_blur = wlr_scene_optimized_blur_create(&scene->tree, 0, 0);
     wlr_scene_node_place_above(&background_blur->node, &layer(Layer::Bottom)->node);
     apply_blur_settings();
@@ -277,6 +279,7 @@ void Server::teardown() {
 
     shutting_down = true;
     shown_secret = nullptr;
+    overview.reset();
     snap_preview.reset();
     spaces.clear();
     seat.reset();
@@ -788,6 +791,7 @@ void Server::run_action(const Keybind& b) {
         break;
     case Action::SpacePrev: step_space(-1); break;
     case Action::SpaceNext: step_space(+1); break;
+    case Action::Overview: overview->toggle(); break;
     case Action::ToggleSecret: toggle_secret(b.arg); break;
     case Action::MoveToSecret:
         if (v) {

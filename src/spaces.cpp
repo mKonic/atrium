@@ -3,6 +3,7 @@
 
 #include "ipc.hpp"
 #include "output.hpp"
+#include "overview.hpp"
 #include "seat.hpp"
 #include "server.hpp"
 #include "space.hpp"
@@ -69,6 +70,7 @@ static void carry_to_output(View* view, Output* to) {
 void Server::switch_space(Output* output, int number) {
     if (!output || locked)
         return;
+    overview->close_now();
     Space* target = ensure_space(output, number);
     Space* old = output->active;
     if (target == old)
@@ -169,6 +171,7 @@ void Server::move_to_space(View* view, Space* space) {
 void Server::toggle_secret(const std::string& name) {
     if (locked || !focused_output)
         return;
+    overview->close_now();
     if (shown_secret && shown_secret->name == name && shown_secret->output == focused_output) {
         hide_secret();
         return;

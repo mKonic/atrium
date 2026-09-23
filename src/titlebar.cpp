@@ -1,11 +1,11 @@
 #include "titlebar.hpp"
 
+#include "cairo_buffer.hpp"
 #include "output.hpp"
 #include "server.hpp"
 #include "view.hpp"
 
 #include <cairo.h>
-#include <drm_fourcc.h>
 #include <pango/pangocairo.h>
 
 #include <cmath>
@@ -14,39 +14,6 @@
 namespace atrium {
 
 namespace {
-
-// --- a wlr_buffer over a cairo image surface ----------------------------------------------
-
-struct CairoBuffer {
-    wlr_buffer base;
-    cairo_surface_t* surface;
-};
-
-void cairo_buffer_destroy(wlr_buffer* b) {
-    auto* cb = reinterpret_cast<CairoBuffer*>(b);
-    cairo_surface_destroy(cb->surface);
-    delete cb;
-}
-
-bool cairo_buffer_begin(wlr_buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
-    if (flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE)
-        return false;
-    auto* cb = reinterpret_cast<CairoBuffer*>(b);
-    *data = cairo_image_surface_get_data(cb->surface);
-    *format = DRM_FORMAT_ARGB8888;
-    *stride = size_t(cairo_image_surface_get_stride(cb->surface));
-    return true;
-}
-
-void cairo_buffer_end(wlr_buffer*) {}
-
-const wlr_buffer_impl kCairoBufferImpl = {
-    .destroy = cairo_buffer_destroy,
-    .get_dmabuf = nullptr,
-    .get_shm = nullptr,
-    .begin_data_ptr_access = cairo_buffer_begin,
-    .end_data_ptr_access = cairo_buffer_end,
-};
 
 // --- look ------------------------------------------------------------------------------------
 
@@ -107,6 +74,8 @@ Titlebar::Titlebar(View& view, wlr_scene_tree* parent) : view_(view) {
 
 Titlebar::~Titlebar() {
     wlr_scene_node_destroy(&buffer_->node);
+    if (held_)
+        wlr_buffer_unlock(held_);
 }
 
 Titlebar::Part Titlebar::part_at(double x, double y) const {
@@ -253,12 +222,10 @@ void Titlebar::render(int width, int height, float scale) {
     cairo_destroy(cr);
     cairo_surface_flush(surface);
 
-    auto* cb = new CairoBuffer{};
-    cb->surface = surface;
-    wlr_buffer_init(&cb->base, &kCairoBufferImpl, pw, ph);
-    wlr_scene_buffer_set_buffer(buffer_, &cb->base);
-    wlr_buffer_drop(&cb->base);
-    wlr_scene_buffer_set_dest_size(buffer_, width, height);
+    wlr_buffer* old = held_;
+    held_ = set_cairo_buffer(buffer_, surface, width, height);
+    if (old)
+        wlr_buffer_unlock(old);
 
     const int radius = view_.fullscreen ? 0 : view_.server.config.corner_radius;
     wlr_scene_buffer_set_corner_radii(buffer_, corner_radii_top(radius));

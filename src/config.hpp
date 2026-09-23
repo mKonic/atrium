@@ -37,6 +37,7 @@ enum class Action {
     SnapLeft,
     SnapRight,
     Restore,          // out of fullscreen, maximized or snapped
+    Overview,         // every window of the space, side by side
 };
 
 struct Keybind {

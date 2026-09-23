@@ -71,6 +71,7 @@ constexpr ActionName kActions[] = {
     {Action::SnapLeft, "snap-left"},
     {Action::SnapRight, "snap-right"},
     {Action::Restore, "restore"},
+    {Action::Overview, "overview"},
 };
 
 } // namespace
@@ -158,6 +159,7 @@ json default_keybinds() {
         {{"keys", "Mod+Down"}, {"action", "restore"}},
         {{"keys", "Mod+Ctrl+Left"}, {"action", "space-prev"}},
         {{"keys", "Mod+Ctrl+Right"}, {"action", "space-next"}},
+        {{"keys", "Mod+Ctrl+Up"}, {"action", "overview"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
     });

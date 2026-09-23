@@ -1,6 +1,7 @@
 #include "session_lock.hpp"
 
 #include "output.hpp"
+#include "overview.hpp"
 #include "seat.hpp"
 #include "server.hpp"
 
@@ -10,6 +11,7 @@ SessionLock::SessionLock(Server& srv, wlr_session_lock_v1* lock) : server(srv), 
     server.focus_view(nullptr);
     tree = wlr_scene_tree_create(server.layer(Layer::Lock));
     server.lock = this;
+    server.overview->close_now();
     server.locked = true;
 
     // Nothing below the lock keeps a grab or pointer focus.

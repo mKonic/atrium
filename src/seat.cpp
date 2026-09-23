@@ -3,6 +3,7 @@
 #include "geometry.hpp"
 #include "layer_surface.hpp"
 #include "output.hpp"
+#include "overview.hpp"
 #include "server.hpp"
 #include "space.hpp"
 #include "snap_preview.hpp"
@@ -385,6 +386,14 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
+    // The overview takes key presses; releases still reach the client, which
+    // may have seen the press before the overview opened.
+    if (server.overview->active() && e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+        consumed_[e->keycode] = true;
+        server.overview->key(g.syms[0]);
+        return;
+    }
+
     wlr_seat_set_keyboard(wlr, kb);
     wlr_seat_keyboard_notify_key(wlr, e->time_msec, e->keycode, e->state);
 }
@@ -443,6 +452,11 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
     wlr_scene_node_set_position(&server.drag_icons->node, int(std::lround(cursor->x)),
                                 int(std::lround(cursor->y)));
+
+    if (server.overview->active()) {
+        server.overview->motion(cursor->x, cursor->y);
+        return;
+    }
 
     if (mode == Mode::Move && grab_view_) {
         constexpr double kDragThreshold = 6;
@@ -548,6 +562,15 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 
 void Seat::button(wlr_pointer_button_event* e) {
     wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+
+    // A press on the overview is the overview's, and so is its release, even
+    // when the overview has gone by then.
+    const bool pressed = e->state == WL_POINTER_BUTTON_STATE_PRESSED;
+    if (server.overview->active() || (!pressed && overview_press_)) {
+        overview_press_ = pressed;
+        server.overview->button(cursor->x, cursor->y, e->button, pressed);
+        return;
+    }
 
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
         mode = Mode::Pressed;
