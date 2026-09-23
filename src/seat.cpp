@@ -4,6 +4,7 @@
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "overview.hpp"
+#include "switcher.hpp"
 #include "server.hpp"
 #include "space.hpp"
 #include "snap_preview.hpp"
@@ -386,6 +387,12 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
+    if (server.switcher->active() && e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+        consumed_[e->keycode] = true;
+        server.switcher->key(g.syms[0]);
+        return;
+    }
+
     // The overview takes key presses; releases still reach the client, which
     // may have seen the press before the overview opened.
     if (server.overview->active() && e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
@@ -401,6 +408,8 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 void Seat::modifiers(KeyboardGroup& g) {
     wlr_seat_set_keyboard(wlr, &g.group->keyboard);
     wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
+    // Letting go of Alt picks the window the switcher is on.
+    server.switcher->modifiers(wlr_keyboard_get_modifiers(&g.group->keyboard));
 }
 
 int Seat::key_repeat(KeyboardGroup& g) {
@@ -455,6 +464,10 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
     if (server.overview->active()) {
         server.overview->motion(cursor->x, cursor->y);
+        return;
+    }
+    if (server.switcher->active()) {
+        server.switcher->motion(cursor->x, cursor->y);
         return;
     }
 
@@ -569,6 +582,11 @@ void Seat::button(wlr_pointer_button_event* e) {
     if (server.overview->active() || (!pressed && overview_press_)) {
         overview_press_ = pressed;
         server.overview->button(cursor->x, cursor->y, e->button, pressed);
+        return;
+    }
+    if (server.switcher->active() || (!pressed && switcher_press_)) {
+        switcher_press_ = pressed;
+        server.switcher->button(cursor->x, cursor->y, pressed);
         return;
     }
 

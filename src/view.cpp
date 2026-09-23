@@ -3,6 +3,7 @@
 #include "geometry.hpp"
 #include "output.hpp"
 #include "overview.hpp"
+#include "switcher.hpp"
 #include "seat.hpp"
 #include "server.hpp"
 #include "space.hpp"
@@ -126,6 +127,8 @@ void View::handle_map() {
 void View::handle_unmap() {
     if (server.overview)
         server.overview->view_unmapped(this);
+    if (server.switcher)
+        server.switcher->view_unmapped(this);
     server.animator.cancel_owner(this, false);
     if (!unmanaged() && visible())
         animate_close();
@@ -691,6 +694,8 @@ void View::update_corners() {
     wlr_scene_node_for_each_buffer(&content->node, round_window_corners, &ctx);
     if (server.overview)
         server.overview->view_changed(this);
+    if (server.switcher)
+        server.switcher->view_changed(this);
 }
 
 // --- foreign toplevel handles (docks, task switchers, screen sharing) ---------

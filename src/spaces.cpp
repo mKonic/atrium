@@ -114,6 +114,22 @@ void Server::switch_space(Output* output, int number) {
 // Previous/next space on the focused output. "Next" past the last one that
 // has windows opens a fresh, empty space, as long as the current one isn't
 // already empty.
+void Server::cycle_space(int direction) {
+    Output* o = focused_output;
+    if (!o || !o->active)
+        return;
+    std::vector<int> numbers;
+    for (const auto& s : spaces)
+        if (!s->secret && s->output == o)
+            numbers.push_back(s->number);
+    std::ranges::sort(numbers);
+    if (numbers.size() < 2)
+        return;
+    const auto it = std::ranges::find(numbers, o->active->number);
+    const int i = int(it - numbers.begin()), n = int(numbers.size());
+    switch_space(o, numbers[((i + direction) % n + n) % n]);
+}
+
 void Server::step_space(int direction) {
     Output* o = focused_output;
     if (!o || !o->active)

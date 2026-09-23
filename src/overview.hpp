@@ -9,12 +9,13 @@ namespace atrium {
 class Output;
 class Server;
 class View;
+class WindowCopy;
 
 // Mission Control: every window of the shown spaces scaled out side by side
 // over a frosted desktop, live. Click one (or pick it with the arrow keys and
 // Return) to go to it; Escape or a click on the desktop goes back. A strip of
 // the output's spaces runs along the top: click one to look at it, drop a
-// window on one to send it there, or on "+" for a new space.
+// window on one to send it there.
 //
 // Thumbnails are copies of the windows' buffers, refreshed on every commit;
 // the real windows stay where they are, invisible, so they keep drawing.
@@ -50,11 +51,6 @@ public:
 private:
     enum class State { Closed, Open, Closing };
 
-    struct Piece {
-        wlr_scene_buffer* node;
-        int x, y, w, h;  // in the window's frame, unscaled
-        fx_corner_radii corners;
-    };
     struct Screen {
         Output* output;
         wlr_scene_tree* tree;
@@ -62,7 +58,7 @@ private:
         wlr_scene_rect* dim;
         wlr_scene_tree* strip = nullptr;  // space tiles, under the thumbnails
     };
-    // One space in the strip; number 0 is the "+" tile for a new space.
+    // One space in the strip.
     struct Tile {
         Screen* screen;
         int number;
@@ -79,8 +75,7 @@ private:
         wlr_scene_shadow* shadow;
         wlr_scene_blur* blur;        // frosted glass behind translucent windows
         wlr_scene_rect* backing;     // or a solid fill, with transparency off
-        wlr_scene_tree* pieces_tree;
-        std::vector<Piece> pieces;
+        std::unique_ptr<WindowCopy> copy;
         wlr_scene_buffer* label;     // title pill, under the hovered one
         wlr_box from{}, to{}, cur{};
         int laid_w = 0, laid_h = 0;  // window size the layout was made for

@@ -14,11 +14,13 @@ atrium_sources = files(
   'session_lock.cpp',
   'snap_preview.cpp',
   'space.cpp',
+  'switcher.cpp',
   'spaces.cpp',
   'settings.cpp',
   'theme.cpp',
   'titlebar.cpp',
   'view.cpp',
+  'window_copy.cpp',
   'xdg_view.cpp',
   'xwayland_view.cpp',
 )

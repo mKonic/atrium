@@ -38,6 +38,10 @@ enum class Action {
     SnapRight,
     Restore,          // out of fullscreen, maximized or snapped
     Overview,         // every window of the space, side by side
+    SwitchNext,       // Alt+Tab: hold the modifier, tap to walk the windows
+    SwitchPrev,
+    CycleSpaceNext,   // existing spaces on the output, wrapping around
+    CycleSpacePrev,
 };
 
 struct Keybind {

@@ -31,8 +31,14 @@ TEST(Keybinds, ShiftSelectsTheShiftedBinding) {
     const Keybind* prev = find_keybind(c.keybinds, WLR_MODIFIER_LOGO | WLR_MODIFIER_SHIFT, XKB_KEY_Tab);
     ASSERT_NE(next, nullptr);
     ASSERT_NE(prev, nullptr);
-    EXPECT_EQ(next->action, Action::FocusNext);
-    EXPECT_EQ(prev->action, Action::FocusPrev);
+    EXPECT_EQ(next->action, Action::CycleSpaceNext);
+    EXPECT_EQ(prev->action, Action::CycleSpacePrev);
+    const Keybind* sw = find_keybind(c.keybinds, WLR_MODIFIER_ALT, XKB_KEY_Tab);
+    const Keybind* sw_back = find_keybind(c.keybinds, WLR_MODIFIER_ALT | WLR_MODIFIER_SHIFT, XKB_KEY_Tab);
+    ASSERT_NE(sw, nullptr);
+    ASSERT_NE(sw_back, nullptr);
+    EXPECT_EQ(sw->action, Action::SwitchNext);
+    EXPECT_EQ(sw_back->action, Action::SwitchPrev);
 }
 
 TEST(Config, NestedUsesAltAsTheModifier) {

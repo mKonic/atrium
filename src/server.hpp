@@ -19,6 +19,7 @@ class Seat;
 class SessionLock;
 class Overview;
 class SnapPreview;
+class Switcher;
 class Space;
 class Settings;
 class View;
@@ -88,6 +89,8 @@ public:
     Space* ensure_secret(const std::string& name);
     void switch_space(Output* output, int number);
     void step_space(int direction);
+    // Next or previous existing space on the focused output, wrapping around.
+    void cycle_space(int direction);
     void move_to_space(View* view, Space* space);
     void toggle_secret(const std::string& name);
     void hide_secret();
@@ -164,6 +167,7 @@ public:
     std::unique_ptr<Settings> settings;
     std::unique_ptr<SnapPreview> snap_preview;
     std::unique_ptr<Overview> overview;
+    std::unique_ptr<Switcher> switcher;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     uint64_t next_view_id = 1;

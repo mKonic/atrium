@@ -8,6 +8,7 @@
 #include "server.hpp"
 #include "space.hpp"
 #include "view.hpp"
+#include "window_copy.hpp"
 
 #include <pango/pangocairo.h>
 
@@ -41,8 +42,6 @@ constexpr Color kRingColor{0.04f, 0.52f, 1.0f, 0.95f};  // system blue
 constexpr Color kShadow{0.0f, 0.0f, 0.0f, 0.45f};
 constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};  // as behind real windows
 constexpr Color kTileCurrent{1.0f, 1.0f, 1.0f, 0.85f};
-constexpr Color kNewTile{1.0f, 1.0f, 1.0f, 0.10f};
-constexpr Color kPlus{1.0f, 1.0f, 1.0f, 0.75f};
 constexpr double kDragThreshold = 6;
 
 int round_i(double v) {
@@ -204,6 +203,8 @@ void Overview::close_now() {
 }
 
 void Overview::destroy_all() {
+    for (auto& t : thumbs_)
+        t->copy.reset();  // before the trees holding them
     if (root_)
         wlr_scene_node_destroy(&root_->node);
     root_ = nullptr;
@@ -241,7 +242,7 @@ void Overview::add_thumb(View* view, Screen* screen) {
     wlr_scene_node_set_enabled(&t->blur->node, c.blur && c.transparency);
     t->backing = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(kBacking).data());
     wlr_scene_node_set_enabled(&t->backing->node, !c.transparency);
-    t->pieces_tree = wlr_scene_tree_create(t->tree);
+    t->copy = std::make_unique<WindowCopy>(*view, t->tree);
     t->label = wlr_scene_buffer_create(t->tree, nullptr);
     wlr_scene_node_set_enabled(&t->label->node, false);
     t->from = t->to = t->cur = view->geom;
@@ -252,7 +253,6 @@ void Overview::add_thumb(View* view, Screen* screen) {
 
     Thumb& ref = *t;
     thumbs_.push_back(std::move(t));
-    snapshot(ref);
     place(ref, ref.cur);
 }
 
@@ -263,71 +263,23 @@ void Overview::remove_thumb(Thumb* thumb) {
         press_thumb_ = nullptr;
     if (drag_ == thumb)
         drag_ = nullptr;
+    thumb->copy.reset();
     wlr_scene_node_destroy(&thumb->tree->node);
     std::erase_if(thumbs_, [thumb](const auto& t) { return t.get() == thumb; });
 }
 
-namespace {
-
-struct CopyCtx {
-    wlr_scene_tree* into;
-    int ox, oy;
-    std::vector<wlr_scene_buffer*>* nodes;
-    std::vector<std::array<int, 4>>* boxes;
-    std::vector<fx_corner_radii>* corners;
-};
-
-void copy_buffer(wlr_scene_buffer* src, int sx, int sy, void* data) {
-    auto* c = static_cast<CopyCtx*>(data);
-    if (!src->buffer)
-        return;
-    wlr_scene_buffer* dst = wlr_scene_buffer_create(c->into, src->buffer);
-    wlr_scene_buffer_set_source_box(dst, &src->src_box);
-    wlr_scene_buffer_set_transform(dst, src->transform);
-    int w = src->dst_width, h = src->dst_height;
-    if (w <= 0 || h <= 0) {
-        w = src->buffer->width;
-        h = src->buffer->height;
-    }
-    c->nodes->push_back(dst);
-    c->boxes->push_back({sx - c->ox, sy - c->oy, w, h});
-    c->corners->push_back(src->corners);
-}
-
-} // namespace
-
-// Copy what the window shows right now. The copies hold references to the
-// client's buffers, so they stay valid after the client moves on.
+// What the window shows right now.
 void Overview::snapshot(Thumb& t) {
-    wlr_scene_node_destroy(&t.pieces_tree->node);
-    t.pieces_tree = wlr_scene_tree_create(t.tree);
-    wlr_scene_node_place_below(&t.pieces_tree->node, &t.label->node);
-    t.pieces.clear();
-
-    std::vector<wlr_scene_buffer*> nodes;
-    std::vector<std::array<int, 4>> boxes;
-    std::vector<fx_corner_radii> corners;
-    CopyCtx ctx{t.pieces_tree, t.view->tree->node.x, t.view->tree->node.y, &nodes, &boxes, &corners};
-    wlr_scene_node_for_each_buffer(&t.view->tree->node, copy_buffer, &ctx);
-    for (size_t i = 0; i < nodes.size(); ++i)
-    for (size_t i = 0; i < nodes.size(); ++i)
-        t.pieces.push_back({nodes[i], boxes[i][0], boxes[i][1], boxes[i][2], boxes[i][3], corners[i]});
+    t.copy->refresh();
 }
 
 void Overview::place(Thumb& t, const wlr_box& box) {
     t.cur = box;
     const View& v = *t.view;
     const double sx = box.width / double(std::max(1, v.geom.width));
-    const double sy = box.height / double(std::max(1, v.geom.height));
     wlr_scene_node_set_position(&t.tree->node, box.x, box.y);
 
-    for (Piece& p : t.pieces) {
-        wlr_scene_node_set_position(&p.node->node, round_i(p.x * sx), round_i(p.y * sy));
-        wlr_scene_buffer_set_dest_size(p.node, std::max(1, round_i(p.w * sx)), std::max(1, round_i(p.h * sy)));
-        wlr_scene_buffer_set_corner_radii(p.node, corner_radii_new(
-            scaled(p.corners.top_left, sx), scaled(p.corners.top_right, sx),
-            scaled(p.corners.bottom_right, sx), scaled(p.corners.bottom_left, sx)));
-    }
+    t.copy->place(box.width, box.height);
 
     const int radius = v.fullscreen ? 0 : std::max(1, round_i(server_.config.corner_radius * sx));
     const int m = int(std::ceil(kShadowSigma));
@@ -649,11 +601,10 @@ void Overview::build_strip(Screen& sc) {
         if (!sp->secret && sp->output == o)
             spaces.push_back(sp.get());
     std::ranges::sort(spaces, [](Space* a, Space* b) { return a->number < b->number; });
-    const int next = spaces.empty() ? 1 : spaces.back()->number + 1;
 
     const double s = double(kTileHeight) / std::max(1, o->box.height);
     const int tw = std::max(1, round_i(o->box.width * s));
-    const int count = int(spaces.size()) + 1;
+    const int count = int(spaces.size());
     const int strip_w = count * tw + (count - 1) * kTileGap;
     int x = o->box.x + (o->box.width - strip_w) / 2;
     const int y = o->usable.y + kStripTop;
@@ -714,17 +665,6 @@ void Overview::build_strip(Screen& sc) {
         tiles_.push_back(std::move(t));
     }
 
-    // "+": a new space.
-    auto t = make_tile(0, false);
-    auto* bg = wlr_scene_rect_create(t->tree, tw, kTileHeight, premultiplied(kNewTile).data());
-    wlr_scene_rect_set_corner_radius(bg, kTileRadius);
-    constexpr int kArm = 18, kThick = 2;
-    auto* h = wlr_scene_rect_create(t->tree, kArm, kThick, premultiplied(kPlus).data());
-    wlr_scene_node_set_position(&h->node, (tw - kArm) / 2, (kTileHeight - kThick) / 2);
-    auto* vbar = wlr_scene_rect_create(t->tree, kThick, kArm, premultiplied(kPlus).data());
-    wlr_scene_node_set_position(&vbar->node, (tw - kThick) / 2, (kTileHeight - kArm) / 2);
-    t->number = -next;  // negative: "+" standing for this number
-    tiles_.push_back(std::move(t));
 }
 
 Overview::Tile* Overview::tile_at(double lx, double ly) {
@@ -752,9 +692,8 @@ void Overview::set_tile_hover(Tile* tile) {
 
 // Look at another space without leaving the overview.
 void Overview::go_to_space(Output* output, int number) {
-    const int n = number < 0 ? -number : number;
     close_now();
-    server_.switch_space(output, n);
+    server_.switch_space(output, number);
     server_.animator.cancel_owner(output, true);  // no slide under the overview
     open(false);
 }
@@ -767,7 +706,7 @@ void Overview::drop(Thumb* thumb, double lx, double ly) {
         wlr_scene_node_place_above(&s->strip->node, &s->dim->node);
     Tile* tile = tile_at(lx, ly);
     View* view = thumb->view;
-    const int n = tile ? (tile->number < 0 ? -tile->number : tile->number) : 0;
+    const int n = tile ? tile->number : 0;
     Output* o = tile ? tile->screen->output : nullptr;
     if (!tile || (view->space && view->space->output == o && view->space->number == n)) {
         relayout();

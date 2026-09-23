@@ -72,6 +72,10 @@ constexpr ActionName kActions[] = {
     {Action::SnapRight, "snap-right"},
     {Action::Restore, "restore"},
     {Action::Overview, "overview"},
+    {Action::SwitchNext, "switch-next"},
+    {Action::SwitchPrev, "switch-prev"},
+    {Action::CycleSpaceNext, "cycle-space-next"},
+    {Action::CycleSpacePrev, "cycle-space-prev"},
 };
 
 } // namespace
@@ -151,8 +155,10 @@ json default_keybinds() {
         {{"keys", "Mod+F"}, {"action", "fullscreen"}},
         {{"keys", "Mod+Up"}, {"action", "maximize"}},
         {{"keys", "Mod+H"}, {"action", "minimize"}},
-        {{"keys", "Mod+Tab"}, {"action", "focus-next"}},
-        {{"keys", "Mod+Shift+Tab"}, {"action", "focus-prev"}},
+        {{"keys", "Alt+Tab"}, {"action", "switch-next"}},
+        {{"keys", "Alt+Shift+Tab"}, {"action", "switch-prev"}},
+        {{"keys", "Mod+Tab"}, {"action", "cycle-space-next"}},
+        {{"keys", "Mod+Shift+Tab"}, {"action", "cycle-space-prev"}},
         {{"keys", "Mod+Shift+E"}, {"action", "quit"}},
         {{"keys", "Mod+Left"}, {"action", "snap-left"}},
         {{"keys", "Mod+Right"}, {"action", "snap-right"}},
