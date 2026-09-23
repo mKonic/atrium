@@ -302,6 +302,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(color("appearance.background", "Appearance", "Desktop color",
         "Shown where no wallpaper covers the screen.", &Config::background, d));
 
+    s.push_back(boolean("appearance.transparency", "Appearance", "Transparent windows",
+        "Let windows with translucent backgrounds show what is behind them. Off gives every window a solid background.",
+        &Config::transparency, d));
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));
@@ -329,6 +332,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         &Config::snapping, d));
     s.push_back(number("windows.snap_gap", T::Int, "Windows", "Gap between snapped windows",
         "Space around and between windows snapped side by side.", &Config::snap_gap, d, 0, 64));
+    s.push_back(boolean("windows.tiled_titlebars", "Windows", "Title bars on tiled windows",
+        "Keep title bars on windows snapped to halves and quarters. Off gives the room to the window.",
+        &Config::tiled_titlebars, d));
     s.push_back(number("windows.cascade_step", T::Int, "Windows", "Cascade offset",
         "How far a new window steps down and right when it would cover another.", &Config::cascade_step, d, 0, 200));
 

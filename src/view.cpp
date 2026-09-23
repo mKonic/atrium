@@ -14,6 +14,13 @@
 
 namespace atrium {
 
+namespace {
+
+// Behind window content when transparency is off.
+constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};
+
+} // namespace
+
 View::View(Server& srv, Kind k) : server(srv), kind(k), id(srv.next_view_id++) {}
 
 View::~View() {
@@ -79,6 +86,9 @@ void View::handle_map() {
     blur = wlr_scene_blur_create(tree, 0, 0);
     wlr_scene_blur_set_should_only_blur_bottom_layer(blur, true);  // the cheap, shared background blur
     wlr_scene_node_place_above(&blur->node, &outline->node);
+    backing = wlr_scene_rect_create(tree, 0, 0, kBacking.data());
+    backing->accepts_input = false;
+    wlr_scene_node_place_above(&backing->node, &blur->node);
 
     if (wants_ssd()) {
         titlebar = std::make_unique<Titlebar>(*this, tree);
@@ -143,11 +153,13 @@ void View::handle_unmap() {
     shadow = nullptr;
     outline = nullptr;
     blur = nullptr;
+    backing = nullptr;
     surface()->data = nullptr;
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
     minimized = maximized = fullscreen = activated = false;
     snapped = 0;
+    tile_bar_hidden_ = false;
     resize_edges_ = 0;
     resize_settling_ = false;
 
@@ -205,6 +217,7 @@ struct Ghost {
     std::vector<float> opacity;  // each buffer's own opacity at close
     wlr_scene_shadow* shadow = nullptr;
     wlr_scene_rect* outline = nullptr;
+    wlr_scene_rect* backing = nullptr;
     Color shadow_color{}, outline_color{};
     int x = 0, y = 0;
 };
@@ -253,6 +266,11 @@ void View::animate_close() {
         wlr_scene_rect_set_corner_radii(g->outline, outline->corners);
         wlr_scene_rect_set_clipped_region(g->outline, outline->clipped_region);
     }
+    if (backing && backing->node.enabled) {
+        g->backing = wlr_scene_rect_create(g->tree, backing->width, backing->height, premultiplied(kBacking).data());
+        wlr_scene_node_set_position(&g->backing->node, backing->node.x, backing->node.y);
+        wlr_scene_rect_set_corner_radii(g->backing, backing->corners);
+    }
     g->origin_x = tree->node.x;
     g->origin_y = tree->node.y;
     wlr_scene_node_for_each_buffer(&tree->node, copy_into_ghost, g);
@@ -270,6 +288,11 @@ void View::animate_close() {
             Color oc = g->outline_color;
             oc[3] *= a;
             wlr_scene_rect_set_color(g->outline, premultiplied(oc).data());
+        }
+        if (g->backing) {
+            Color bc = kBacking;
+            bc[3] *= a;
+            wlr_scene_rect_set_color(g->backing, premultiplied(bc).data());
         }
         wlr_scene_node_set_position(&g->tree->node, g->x, g->y + int(std::lround(t * 10)));
     }, [g] {
@@ -363,7 +386,7 @@ void View::set_output(Output* o) {
 }
 
 int View::top() const {
-    return (titlebar && !fullscreen) ? titlebar->height() : 0;
+    return (titlebar && !fullscreen && !tile_bar_hidden_) ? titlebar->height() : 0;
 }
 
 // Content and popups sit below the title bar.
@@ -427,6 +450,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
         if (!snapped)
             restore = geom;  // a snapped window already remembers where it was
         snapped = 0;
+        set_tile_bar_hidden(false);
         request_geometry(usable_area());
     } else if (restore_geometry) {
         request_geometry(restore);
@@ -445,6 +469,7 @@ void View::snap(uint32_t zone) {
     else if (!snapped)
         restore = geom;
     snapped = zone;
+    set_tile_bar_hidden(!server.config.tiled_titlebars);
     request_geometry(geometry::snap_box(usable_area(), zone, server.config.snap_gap));
     server.notify_window(*this, "changed");
 }
@@ -453,9 +478,28 @@ void View::unsnap(bool restore_geometry) {
     if (!snapped)
         return;
     snapped = 0;
+    set_tile_bar_hidden(false);
     if (restore_geometry)
         request_geometry(restore);
     server.notify_window(*this, "changed");
+}
+
+void View::refresh_tiled_titlebar() {
+    if (!snapped || !mapped)
+        return;
+    set_tile_bar_hidden(!server.config.tiled_titlebars);
+    request_geometry(geometry::snap_box(usable_area(), snapped, server.config.snap_gap));
+}
+
+void View::set_tile_bar_hidden(bool hidden) {
+    if (hidden == tile_bar_hidden_)
+        return;
+    const int old_top = top();
+    tile_bar_hidden_ = hidden;
+    geom.height += top() - old_top;
+    layout_frame();
+    update_decorations();
+    server.seat->refresh_pointer();
 }
 
 void View::set_fullscreen(bool f) {
@@ -571,7 +615,7 @@ void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) 
 // Rounded corners and a soft shadow on every managed window, stronger on the
 // focused one. Nothing while fullscreen.
 void View::update_decorations() {
-    if (!tree || !shadow || !outline || !blur || unmanaged())
+    if (!tree || !shadow || !outline || !blur || !backing || unmanaged())
         return;
     const Config& c = server.config;
     const int radius = fullscreen ? 0 : c.corner_radius;
@@ -611,7 +655,20 @@ void View::update_decorations() {
         });
     }
 
-    const bool show_blur = c.blur && !fullscreen;
+    // Translucent content either shows the desktop, frosted, or sits on a
+    // solid fill that makes it look opaque.
+    wlr_scene_node_set_enabled(&backing->node, !c.transparency);
+    if (!c.transparency) {
+        Color bc = kBacking;
+        bc[3] *= alpha_;
+        wlr_scene_rect_set_color(backing, premultiplied(bc).data());
+        wlr_scene_rect_set_size(backing, geom.width, geom.height - top());
+        wlr_scene_node_set_position(&backing->node, 0, top());
+        const int tr = top() ? 0 : radius;
+        wlr_scene_rect_set_corner_radii(backing, corner_radii_new(tr, tr, radius, radius));
+    }
+
+    const bool show_blur = c.blur && c.transparency && !fullscreen;
     wlr_scene_node_set_enabled(&blur->node, show_blur);
     if (show_blur) {
         wlr_scene_blur_set_size(blur, geom.width, geom.height);

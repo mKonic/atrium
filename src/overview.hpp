@@ -63,6 +63,7 @@ private:
         wlr_scene_rect* ring;        // highlight around the hovered one
         wlr_scene_shadow* shadow;
         wlr_scene_blur* blur;        // frosted glass behind translucent windows
+        wlr_scene_rect* backing;     // or a solid fill, with transparency off
         wlr_scene_tree* pieces_tree;
         std::vector<Piece> pieces;
         wlr_scene_buffer* label;     // title pill, under the hovered one

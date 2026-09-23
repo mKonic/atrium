@@ -75,6 +75,7 @@ struct Config {
     Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 
     // Blur
+    bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;
     int blur_radius = 6;
     int blur_passes = 3;
@@ -88,6 +89,7 @@ struct Config {
     int cascade_step = 28;    // offset for a new window that would cover another exactly
     bool snapping = true;     // drag to screen edges and corners to tile
     int snap_gap = 8;         // between and around snapped windows
+    bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar
 
     // Keyboard
     std::string xkb_rules, xkb_model, xkb_layout = "us", xkb_variant, xkb_options;

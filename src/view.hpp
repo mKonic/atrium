@@ -62,6 +62,8 @@ public:
     // alone maximizes.
     void snap(uint32_t zone);
     void unsnap(bool restore_geometry);
+    // Apply windows.tiled_titlebars to a snapped window.
+    void refresh_tiled_titlebar();
     void set_minimized(bool minimized);
     void raise();
     bool visible() const;
@@ -93,6 +95,7 @@ public:
     wlr_scene_shadow* shadow = nullptr;
     wlr_scene_rect* outline = nullptr;   // 1px hairline around the frame
     wlr_scene_blur* blur = nullptr;      // frosted glass behind translucent content
+    wlr_scene_rect* backing = nullptr;   // solid fill behind the content with transparency off
     wlr_box geom{};
     wlr_box restore{};  // geometry to return to from maximized/fullscreen
 
@@ -140,6 +143,10 @@ protected:
     void settle_resize();
 
     void place_tree();  // tree at geom + animation offset
+
+    // Hide the title bar for tiling; the frame shrinks by it, the content stays.
+    void set_tile_bar_hidden(bool hidden);
+    bool tile_bar_hidden_ = false;
 
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;

@@ -823,6 +823,9 @@ void Server::setting_changed(const std::string& key) {
         for (View* v : views)
             v->update_decorations();
     }
+    if (key == "windows.tiled_titlebars")
+        for (View* v : views)
+            v->refresh_tiled_titlebar();
     if (is("keyboard."))
         seat->apply_keyboard_config();
     if (is("pointer.") || is("touchpad."))

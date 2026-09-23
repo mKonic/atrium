@@ -34,6 +34,7 @@ constexpr float kShadowSigma = 18.0f;
 constexpr Color kDim{0.0f, 0.0f, 0.0f, 0.22f};
 constexpr Color kRingColor{0.04f, 0.52f, 1.0f, 0.95f};  // system blue
 constexpr Color kShadow{0.0f, 0.0f, 0.0f, 0.45f};
+constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};  // as behind real windows
 
 int round_i(double v) {
     return int(std::lround(v));
@@ -218,8 +219,11 @@ void Overview::add_thumb(View* view, Screen* screen) {
     t->shadow = wlr_scene_shadow_create(t->tree, 0, 0, 0, kShadowSigma, kShadow.data());
     t->ring = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(kRingColor).data());
     wlr_scene_node_set_enabled(&t->ring->node, false);
+    const Config& c = server_.config;
     t->blur = wlr_scene_blur_create(t->tree, 0, 0);
-    wlr_scene_node_set_enabled(&t->blur->node, server_.config.blur);
+    wlr_scene_node_set_enabled(&t->blur->node, c.blur && c.transparency);
+    t->backing = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(kBacking).data());
+    wlr_scene_node_set_enabled(&t->backing->node, !c.transparency);
     t->pieces_tree = wlr_scene_tree_create(t->tree);
     t->label = wlr_scene_buffer_create(t->tree, nullptr);
     wlr_scene_node_set_enabled(&t->label->node, false);
@@ -324,6 +328,8 @@ void Overview::place(Thumb& t, const wlr_box& box) {
 
     wlr_scene_blur_set_size(t.blur, box.width, box.height);
     wlr_scene_blur_set_corner_radius(t.blur, radius);
+    wlr_scene_rect_set_size(t.backing, box.width, box.height);
+    wlr_scene_rect_set_corner_radius(t.backing, radius);
 
     wlr_scene_node_set_position(&t.label->node, (box.width - t.label_w) / 2, box.height + kLabelGap);
 }
