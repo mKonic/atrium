@@ -206,6 +206,8 @@ private:
     void teardown();
     void prepare_session_environment();
     void start_clipboard_history();
+    void restore_power_and_brightness();
+    void apply_power_profile();
 #ifdef ATRIUM_XWAYLAND
     void allow_root_x11(const char* display);
 #endif

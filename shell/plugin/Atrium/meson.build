@@ -2,14 +2,14 @@
 # (next to its qmldir), so the parent directory is a QML import path both
 # here in the build tree and where it is installed.
 qt6 = import('qt6')
-qt = dependency('qt6', modules: ['Core', 'Network', 'Qml'])
+qt = dependency('qt6', modules: ['Core', 'DBus', 'Network', 'Qml'])
 
-plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 'views.hpp', 'notifications.hpp', 'clipboard.hpp'], dependencies: qt)
+plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 'views.hpp', 'notifications.hpp', 'clipboard.hpp', 'brightness.hpp', 'recorder.hpp'], dependencies: qt)
 
 atrium_qml_dir = get_option('libdir') / 'atrium' / 'qml' / 'Atrium'
 
 shared_module('atriumplugin',
-  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', plugin_moc,
+  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', plugin_moc,
   dependencies: qt,
   # GCC 16 trips over Qt's own headers; nothing of ours.
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),

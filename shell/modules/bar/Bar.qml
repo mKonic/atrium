@@ -122,12 +122,20 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacing.small
 
+            RecordingIndicator {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Tray {
                 anchors.verticalCenter: parent.verticalCenter
                 bar: bar
             }
 
             Volume {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            ControlButton {
                 anchors.verticalCenter: parent.verticalCenter
             }
 

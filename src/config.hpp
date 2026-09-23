@@ -130,6 +130,8 @@ struct Config {
     std::string terminal = "ghostty";
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
+    std::string power_profile = "performance";  // power-profiles-daemon profile set at login
+    int brightness = 100;           // external monitors (DDC/CI), restored at login
     std::vector<Keybind> keybinds;
 
     // `nested` = running as a window inside another compositor, which owns

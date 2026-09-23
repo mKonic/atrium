@@ -419,6 +419,15 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
         "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));
 
+    s.push_back(choice("power.profile", "Power", "Power mode",
+        "How the system balances speed against power use. Applied at login and when changed.",
+        {"performance", "balanced", "power-saver"}, d.power_profile,
+        [](Config& c, const json& v) { c.power_profile = v.get<std::string>(); }));
+    s.push_back(number("displays.brightness", T::Int, "Displays", "Brightness",
+        "Brightness of external monitors (DDC/CI). They forget it on boot, so atrium sets it again at login.",
+        &Config::brightness, d, 0, 100));
+    s.push_back(make("recording.audio", SettingType::Bool, "Screen Recording", "Record sound",
+        "Include what the speakers play in screen recordings.", false, [](Config&, const json&) {}));
     s.push_back(boolean("session.clipboard_history", "Session", "Clipboard history",
         "Remember what you copy (text and pictures) so Super+V can bring it back.",
         &Config::clipboard_history, d));

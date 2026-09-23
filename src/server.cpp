@@ -321,6 +321,21 @@ void Server::start_clipboard_history() {
     spawn("exec wl-paste --type image --watch cliphist store");
 }
 
+// Things the hardware forgets between boots. The monitor's brightness only
+// takes a moment after login (DDC answers late), hence the pause.
+void Server::restore_power_and_brightness() {
+    if (nested)
+        return;
+    apply_power_profile();
+    spawn("sleep 2; for d in $(ddcutil detect --brief 2>/dev/null | awk '/^Display/{print $2}'); do "
+          "ddcutil setvcp 10 " + std::to_string(config.brightness) + " --display \"$d\" --noverify; done");
+}
+
+void Server::apply_power_profile() {
+    if (!nested)
+        spawn("command -v powerprofilesctl >/dev/null && exec powerprofilesctl set " + config.power_profile);
+}
+
 void Server::run_startup() {
     if (startup_timer_) {
         wl_event_source_remove(startup_timer_);
@@ -409,6 +424,7 @@ void Server::run(const char* startup_cmd) {
     shell = std::make_unique<ShellProcess>(*this);
     shell->start();
     start_clipboard_history();
+    restore_power_and_brightness();
 
     if (startup_cmd) {
         startup_cmd_ = startup_cmd;
@@ -989,6 +1005,8 @@ void Server::setting_changed(const std::string& key) {
                 for (LayerSurface* l : list)
                     l->refresh_blur();
     }
+    if (key == "power.profile")
+        apply_power_profile();
     if (key == "session.shell" && shell)
         shell->restart();
     if (key == "windows.tiled_titlebars")
