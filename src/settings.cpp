@@ -413,6 +413,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         json::array({"org.kde.dolphin", "com.mitchellh.ghostty", "google-chrome", "code-oss", "obsidian",
                      "discord", "spotify", "steam"}),
         [](Config&, const json&) {}));
+    s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
+        "Keep the Dock out of sight until the pointer reaches the bottom of the screen.", false,
+        [](Config&, const json&) {}));
     s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
         "Icons grow as the pointer passes over them.", false, [](Config&, const json&) {}));
 

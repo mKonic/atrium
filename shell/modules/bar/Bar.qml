@@ -21,48 +21,113 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "atrium-bar"
 
-    Rectangle {
+    // Over a fullscreen app the bar hides above the screen and slides in
+    // when the pointer reaches the top edge, as macOS's menu bar does.
+    readonly property bool fullscreen: Atrium.fullscreenOn(screen?.name ?? "")
+    property bool revealed: !fullscreen
+
+    onFullscreenChanged: revealed = !fullscreen
+
+    WlrLayershell.layer: fullscreen ? WlrLayer.Overlay : WlrLayer.Top
+
+    // All of the bar's place once revealed (its content is still sliding in
+    // from above then), just the top edge while hidden.
+    mask: Region {
+        item: bar.revealed ? place : edge
+    }
+
+    Item {
+        id: place
+
         anchors.fill: parent
-        color: Theme.panel(Theme.palette.m3Surface, 0.7)
+    }
 
-        Behavior on color {
-            CAnim {}
+    HoverHandler {
+        id: hover
+
+        onHoveredChanged: {
+            if (hovered)
+                bar.revealed = true;
+            else if (bar.fullscreen)
+                hideTimer.restart();
         }
     }
 
-    Row {
+    Timer {
+        id: hideTimer
+
+        interval: 450
+        onTriggered: bar.revealed = !bar.fullscreen || hover.hovered
+    }
+
+    Item {
+        id: edge
+
+        anchors.top: parent.top
         anchors.left: parent.left
-        anchors.leftMargin: Theme.padding.normal
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: Theme.spacing.normal
-
-        Spaces {
-            anchors.verticalCenter: parent.verticalCenter
-            output: bar.screen?.name ?? ""
-        }
-
-        ActiveWindow {
-            anchors.verticalCenter: parent.verticalCenter
-        }
+        anchors.right: parent.right
+        height: 2
     }
 
-    Row {
+    Item {
+        id: content
+
+        anchors.left: parent.left
         anchors.right: parent.right
-        anchors.rightMargin: Theme.padding.normal
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: Theme.spacing.small
+        height: parent.height
+        y: bar.revealed ? 0 : -height
 
-        Tray {
-            anchors.verticalCenter: parent.verticalCenter
-            bar: bar
+        Behavior on y {
+            Anim {
+                duration: Theme.anim.small
+                easing.bezierCurve: Theme.anim.emphasizedDecel
+            }
         }
 
-        Volume {
-            anchors.verticalCenter: parent.verticalCenter
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.panel(Theme.palette.m3Surface, 0.7)
+
+            Behavior on color {
+                CAnim {}
+            }
         }
 
-        Clock {
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.padding.normal
             anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.spacing.normal
+
+            Spaces {
+                anchors.verticalCenter: parent.verticalCenter
+                output: bar.screen?.name ?? ""
+            }
+
+            ActiveWindow {
+                anchors.verticalCenter: parent.verticalCenter
+            }
         }
+
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.padding.normal
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.spacing.small
+
+            Tray {
+                anchors.verticalCenter: parent.verticalCenter
+                bar: bar
+            }
+
+            Volume {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Clock {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
     }
 }

@@ -31,6 +31,12 @@ Singleton {
         return spaces.filter(s => !s.secret && s.output === output);
     }
 
+    // A fullscreen window is showing on the output: panels get out of the way.
+    function fullscreenOn(output: string): bool {
+        const space = String(activeSpace(output));
+        return windows.some(w => w.fullscreen && !w.minimized && !w.secret && w.output === output && w.space === space);
+    }
+
     function windowsOn(output: string, space: int): var {
         return windows.filter(w => !w.secret && w.output === output && w.space === String(space));
     }

@@ -50,15 +50,70 @@ PanelWindow {
     property real pointerX: -1  // over the shelf, for magnification
     property var menuItem: null
 
+    // Out of sight over a fullscreen app (or always, with dock.autohide)
+    // until the pointer reaches the bottom edge.
+    readonly property bool fullscreen: Atrium.fullscreenOn(screen?.name ?? "")
+    readonly property bool autohide: Atrium.setting("dock.autohide", false)
+    readonly property bool hides: fullscreen || autohide
+    property bool revealed: !hides
+
+    onHidesChanged: revealed = !hides
+
+    WlrLayershell.layer: fullscreen ? WlrLayer.Overlay : WlrLayer.Top
+
+    HoverHandler {
+        id: hover
+
+        onHoveredChanged: {
+            if (hovered)
+                dock.revealed = true;
+            else if (dock.hides && !dock.menuItem)
+                hideTimer.restart();
+        }
+    }
+
+    Timer {
+        id: hideTimer
+
+        interval: 450
+        onTriggered: dock.revealed = !dock.hides || hover.hovered || dock.menuItem !== null
+    }
+
+    onMenuItemChanged: {
+        if (!menuItem && hides && !hover.hovered)
+            hideTimer.restart();
+    }
+
+    Item {
+        id: edge
+
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 2
+    }
+
+    // Where the shelf rests plus the gap under it down to the screen edge,
+    // so the pointer that revealed the Dock is inside it at once (the shelf
+    // itself is still sliding up from below then).
+    Item {
+        id: reach
+
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: shelf.width
+        height: dock.shelfHeight + dock.gap
+    }
+
     anchors.bottom: true
     implicitWidth: Math.max(shelf.width + 40, menu.width + 40)
     implicitHeight: shelfHeight + gap + 150
-    exclusiveZone: shelfHeight + gap
+    exclusiveZone: autohide ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
 
     mask: Region {
-        item: shelf
+        item: dock.revealed ? reach : edge
 
         Region {
             item: dock.menuItem ? menu : null
@@ -70,7 +125,7 @@ PanelWindow {
 
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: dock.gap
+        anchors.bottomMargin: dock.revealed ? dock.gap : -(dock.shelfHeight + 4)
         width: row.width + dock.shelfPadding * 2
         height: dock.shelfHeight
         radius: 22
@@ -85,6 +140,13 @@ PanelWindow {
         Behavior on width {
             Anim {
                 duration: Theme.anim.small
+            }
+        }
+
+        Behavior on anchors.bottomMargin {
+            Anim {
+                duration: Theme.anim.small
+                easing.bezierCurve: Theme.anim.emphasizedDecel
             }
         }
 
