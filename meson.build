@@ -75,6 +75,7 @@ install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_d
 # System Settings' desktop entry and icon.
 install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
 install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
+install_data('data/share/xdg-desktop-portal/atrium-portals.conf', install_dir: get_option('datadir') / 'xdg-desktop-portal')
 subdir('shell/plugin/Atrium')
 
 subdir('src')
