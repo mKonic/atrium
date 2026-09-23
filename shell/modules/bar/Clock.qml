@@ -27,7 +27,7 @@ Pill {
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
-            text: Qt.formatDateTime(clock.date, "ddd d MMM   hh:mm")
+            text: Qt.formatDateTime(clock.date, "ddd d MMM   h:mm AP")
             font.weight: Font.Medium
         }
     }

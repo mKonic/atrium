@@ -205,6 +205,9 @@ private:
     void setup();
     void teardown();
     void prepare_session_environment();
+#ifdef ATRIUM_XWAYLAND
+    void allow_root_x11(const char* display);
+#endif
     void new_output(wlr_output* wlr);
     void apply_output_config(wlr_output_configuration_v1* config, bool test);
     void set_output_power(wlr_output_power_v1_set_mode_event* event);
@@ -217,6 +220,9 @@ private:
 
     wlr_scene_tree* layers_[kLayerCount]{};
     pid_t startup_pid_ = -1;
+    std::string startup_cmd_;               // until Xwayland is up
+    wl_event_source* startup_timer_ = nullptr;
+    void run_startup();
 
     Listener<wlr_output> new_output_;
     Listener<> layout_change_;

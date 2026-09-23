@@ -228,9 +228,14 @@ void Server::setup() {
     unsetenv("DISPLAY");
 #ifdef ATRIUM_XWAYLAND
     // Xwayland starts lazily, on the first X client.
-    xwayland = wlr_xwayland_create(display, compositor, true);
+    // Not lazy: an app elevated with pkexec may be the first X client, and
+    // it must find root already let in (allow_root_x11), which only works
+    // once Xwayland is up. A lazily started one also forgets it on restart.
+    xwayland = wlr_xwayland_create(display, compositor, false);
     if (xwayland) {
         xwayland_ready_.connect(&xwayland->events.ready, [this](void*) {
+            allow_root_x11(xwayland->display_name);
+            run_startup();
             wlr_xwayland_set_seat(xwayland, seat->wlr);
             if (auto* xc = wlr_xcursor_manager_get_xcursor(seat->xcursor, "default", 1)) {
                 auto* img = xc->images[0];
@@ -272,6 +277,48 @@ void Server::disconnect_listeners() {
 #endif
 }
 
+#ifdef ATRIUM_XWAYLAND
+// Apps that elevate with pkexec (GParted and friends) lose the session's
+// environment and come back as root over X, which Xwayland refuses: only
+// our user may connect. Let local root in, and nobody else: the
+// server-interpreted "localuser:root" entry `xhost +si:localuser:root` adds,
+// done here so no xhost or exported variables are needed. Root can reach
+// this session regardless; this only stops it being refused.
+void Server::allow_root_x11(const char* display) {
+    xcb_connection_t* conn = xcb_connect(display, nullptr);
+    if (xcb_connection_has_error(conn)) {
+        wlr_log(WLR_ERROR, "xwayland: couldn't connect to %s to allow root", display);
+        xcb_disconnect(conn);
+        return;
+    }
+    static constexpr char kRoot[] = "localuser\0root";
+    xcb_generic_error_t* err = xcb_request_check(conn,
+        xcb_change_hosts_checked(conn, XCB_HOST_MODE_INSERT, XCB_FAMILY_SERVER_INTERPRETED,
+                                 sizeof kRoot - 1, reinterpret_cast<const uint8_t*>(kRoot)));
+    if (err) {
+        wlr_log(WLR_ERROR, "xwayland: allowing root failed (X error %d)", err->error_code);
+        free(err);
+    }
+    xcb_disconnect(conn);
+}
+#endif
+
+void Server::run_startup() {
+    if (startup_timer_) {
+        wl_event_source_remove(startup_timer_);
+        startup_timer_ = nullptr;
+    }
+    if (startup_cmd_.empty())
+        return;
+    const std::string cmd = std::exchange(startup_cmd_, {});
+    startup_pid_ = fork();
+    if (startup_pid_ == 0) {
+        setsid();
+        execl("/bin/sh", "/bin/sh", "-c", cmd.c_str(), nullptr);
+        _exit(127);
+    }
+}
+
 void Server::teardown() {
     ipc.reset();
     disconnect_listeners();
@@ -280,6 +327,10 @@ void Server::teardown() {
     xwayland = nullptr;
 #endif
     shell.reset();  // stops it
+    if (startup_timer_) {
+        wl_event_source_remove(startup_timer_);
+        startup_timer_ = nullptr;
+    }
     // Clients go first: their windows, layer surfaces and lock unwind through
     // their own destroy handlers while everything they touch still exists.
     wl_display_destroy_clients(display);
@@ -341,12 +392,19 @@ void Server::run(const char* startup_cmd) {
     shell->start();
 
     if (startup_cmd) {
-        startup_pid_ = fork();
-        if (startup_pid_ == 0) {
-            setsid();
-            execl("/bin/sh", "/bin/sh", "-c", startup_cmd, nullptr);
-            _exit(127);
-        }
+        startup_cmd_ = startup_cmd;
+#ifdef ATRIUM_XWAYLAND
+        // X apps in it should find Xwayland set up (allow_root_x11); give
+        // it a moment at most.
+        if (xwayland) {
+            startup_timer_ = wl_event_loop_add_timer(loop, [](void* data) {
+                static_cast<Server*>(data)->run_startup();
+                return 0;
+            }, this);
+            wl_event_source_timer_update(startup_timer_, 3000);
+        } else
+#endif
+            run_startup();
     }
 
     focused_output = output_at(seat->cursor->x, seat->cursor->y);
