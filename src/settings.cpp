@@ -76,6 +76,7 @@ constexpr ActionName kActions[] = {
     {Action::SwitchPrev, "switch-prev"},
     {Action::CycleSpaceNext, "cycle-space-next"},
     {Action::CycleSpacePrev, "cycle-space-prev"},
+    {Action::RestartShell, "restart-shell"},
 };
 
 } // namespace
@@ -400,6 +401,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("power.hidden_windows_keep_awake", "Power", "Hidden windows keep the screen on",
         "A video playing in a window you can't see still stops the screen from sleeping.",
         &Config::idle_inhibit_ignore_visibility, d));
+
+    // Session
+    s.push_back(text("session.shell", "Session", "Desktop shell",
+        "What draws the bar, Dock and the rest: \"builtin\" for atrium's own, a command for another, or \"none\".",
+        &Config::shell, d));
 
     // Dock (read by the shell; the compositor itself has no use for them)
     s.push_back(make("dock.pinned", SettingType::StringList, "Dock", "Apps in the Dock",

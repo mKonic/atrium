@@ -42,6 +42,7 @@ enum class Action {
     SwitchPrev,
     CycleSpaceNext,   // existing spaces on the output, wrapping around
     CycleSpacePrev,
+    RestartShell,     // the bar, dock and the rest of the desktop shell
 };
 
 struct Keybind {
@@ -126,6 +127,7 @@ struct Config {
     // Bindings
     uint32_t mod = WLR_MODIFIER_LOGO;
     std::string terminal = "ghostty";
+    std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     std::vector<Keybind> keybinds;
 
     // `nested` = running as a window inside another compositor, which owns

@@ -61,5 +61,14 @@ version_h = custom_target('version.hpp',
   build_always_stale: true,
 )
 
+# Where the shell lives: installed under datadir, or the source tree when
+# atrium runs straight from the build directory.
+paths = configuration_data()
+paths.set_quoted('ATRIUM_DATADIR', get_option('prefix') / get_option('datadir') / 'atrium')
+paths.set_quoted('ATRIUM_SOURCE_DIR', meson.project_source_root())
+paths_h = configure_file(output: 'paths.hpp', configuration: paths)
+
+install_subdir('shell', install_dir: get_option('datadir') / 'atrium')
+
 subdir('src')
 subdir('tests')

@@ -13,6 +13,7 @@ atrium_sources = files(
   'server.cpp',
   'rules.cpp',
   'session_lock.cpp',
+  'shell_process.cpp',
   'snap_preview.cpp',
   'space.cpp',
   'switcher.cpp',
@@ -27,7 +28,7 @@ atrium_sources = files(
 )
 
 executable('atrium',
-  atrium_sources, protocol_headers, version_h,
+  atrium_sources, protocol_headers, version_h, paths_h,
   dependencies: deps,
   install: true,
 )

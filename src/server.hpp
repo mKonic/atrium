@@ -23,6 +23,7 @@ class Placements;
 struct Placement;
 class SnapPreview;
 class Switcher;
+class ShellProcess;
 class Space;
 class Settings;
 class View;
@@ -177,6 +178,7 @@ public:
     std::unique_ptr<Overview> overview;
     std::unique_ptr<Switcher> switcher;
     std::unique_ptr<Placements> placements;
+    std::unique_ptr<ShellProcess> shell;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     uint64_t next_view_id = 1;

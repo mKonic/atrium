@@ -8,6 +8,7 @@
 #include "space.hpp"
 #include "settings.hpp"
 #include "overview.hpp"
+#include "shell_process.hpp"
 #include "placements.hpp"
 #include "switcher.hpp"
 #include "snap_preview.hpp"
@@ -25,13 +26,18 @@
 
 namespace atrium {
 
+void report_child_exit(pid_t pid, int status);  // shell_process.cpp
+
 namespace {
 
 Server* g_server = nullptr;  // for the signal handler only
 
 void handle_signal(int signo) {
     if (signo == SIGCHLD) {
-        while (waitpid(-1, nullptr, WNOHANG) > 0) {}
+        int status = 0;
+        pid_t pid;
+        while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+            report_child_exit(pid, status);
     } else if ((signo == SIGINT || signo == SIGTERM) && g_server) {
         g_server->quit();
     }
@@ -273,6 +279,7 @@ void Server::teardown() {
     wlr_xwayland_destroy(xwayland);
     xwayland = nullptr;
 #endif
+    shell.reset();  // stops it
     // Clients go first: their windows, layer surfaces and lock unwind through
     // their own destroy handlers while everything they touch still exists.
     wl_display_destroy_clients(display);
@@ -310,6 +317,9 @@ void Server::run(const char* startup_cmd) {
 
     if (!wlr_backend_start(backend))
         die("couldn't start backend");
+
+    shell = std::make_unique<ShellProcess>(*this);
+    shell->start();
 
     if (startup_cmd) {
         startup_pid_ = fork();
@@ -835,6 +845,7 @@ void Server::run_action(const Keybind& b) {
     case Action::SwitchPrev: switcher->step(-1, b.mods & ~uint32_t(WLR_MODIFIER_SHIFT)); break;
     case Action::CycleSpaceNext: cycle_space(+1); break;
     case Action::CycleSpacePrev: cycle_space(-1); break;
+    case Action::RestartShell: if (shell) shell->restart(); break;
     case Action::ToggleSecret: toggle_secret(b.arg); break;
     case Action::MoveToSecret:
         if (v) {
@@ -870,6 +881,8 @@ void Server::setting_changed(const std::string& key) {
                 for (LayerSurface* l : list)
                     l->refresh_blur();
     }
+    if (key == "session.shell" && shell)
+        shell->restart();
     if (key == "windows.tiled_titlebars")
         for (View* v : views)
             v->refresh_tiled_titlebar();
