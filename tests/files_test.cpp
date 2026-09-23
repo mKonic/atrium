@@ -103,3 +103,63 @@ TEST(Levels, StepsOnTheGrid) {
     EXPECT_DOUBLE_EQ(step(1.3, -1, 16), 0.9375);
     EXPECT_DOUBLE_EQ(step(0.5, 1, 64), 0.515625);
 }
+
+#include "sysinfo_core.hpp"
+
+#include <sstream>
+
+TEST(SysInfo, ReadsOsRelease) {
+    using atrium::sysinfo::os_release_value;
+    const char* text = "NAME=\"CachyOS Linux\"\nPRETTY_NAME=\"CachyOS\"\nID=cachyos\nLOGO=cachyos\n";
+    EXPECT_EQ(os_release_value(text, "NAME"), "CachyOS Linux");
+    EXPECT_EQ(os_release_value(text, "ID"), "cachyos");
+    EXPECT_EQ(os_release_value(text, "LOGO"), "cachyos");
+    EXPECT_EQ(os_release_value(text, "VERSION"), "");
+}
+
+TEST(SysInfo, NamesPciDevices) {
+    using atrium::sysinfo::pci_device_name;
+    const std::string ids =
+        "# comment\n"
+        "10de  NVIDIA Corporation\n"
+        "\t2d04  GB206 [GeForce RTX 5060 Ti]\n"
+        "\t\t1043 8a2b  some subsystem\n"
+        "\t2d05  Plain Name\n"
+        "1002  Advanced Micro Devices, Inc. [AMD/ATI]\n"
+        "\t164e  Raphael\n"
+        "C 00  Unclassified device\n";
+    std::istringstream a(ids), b(ids), c(ids), d(ids);
+    EXPECT_EQ(pci_device_name(a, 0x10de, 0x2d04), "NVIDIA GeForce RTX 5060 Ti");
+    EXPECT_EQ(pci_device_name(b, 0x10de, 0x2d05), "NVIDIA Plain Name");
+    EXPECT_EQ(pci_device_name(c, 0x1002, 0x164e), "AMD/ATI Raphael");
+    EXPECT_EQ(pci_device_name(d, 0x10de, 0x9999), "");
+}
+
+TEST(SysInfo, TidiesCpuNames) {
+    using atrium::sysinfo::tidy_cpu_name;
+    EXPECT_EQ(tidy_cpu_name("AMD Ryzen 7 7800X3D 8-Core Processor"), "AMD Ryzen 7 7800X3D");
+    EXPECT_EQ(tidy_cpu_name("Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz"), "Intel Core i7-8700K");
+}
+
+TEST(SysInfo, InstalledMemoryFromUdev) {
+    using atrium::sysinfo::installed_memory;
+    const char* dmi =
+        "E:MEMORY_ARRAY_NUM_DEVICES=4\n"
+        "E:MEMORY_DEVICE_1_SIZE=34359738368\n"
+        "E:MEMORY_DEVICE_1_VOLATILE_SIZE=34359738368\n"
+        "E:MEMORY_DEVICE_1_TYPE=DDR5\n"
+        "E:MEMORY_DEVICE_1_CONFIGURED_SPEED_MTS=6000\n"
+        "E:MEMORY_DEVICE_3_SIZE=34359738368\n"
+        "E:MEMORY_DEVICE_3_TYPE=DDR5\n";
+    EXPECT_EQ(installed_memory(dmi), "64 GB DDR5-6000");
+    EXPECT_EQ(installed_memory("E:OTHER=1\n"), "");
+}
+
+TEST(SysInfo, LargestPciWindow) {
+    using atrium::sysinfo::largest_bar;
+    EXPECT_EQ(largest_bar("0x00000000fb000000 0x00000000fbffffff 0x0000000000040200\n"
+                          "0x0000007800000000 0x0000007bffffffff 0x000000000014220c\n"
+                          "0x0000000000000000 0x0000000000000000 0x0000000000000000\n"),
+              0x400000000ull);
+    EXPECT_EQ(largest_bar(""), 0ull);
+}

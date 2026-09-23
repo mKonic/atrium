@@ -5,12 +5,11 @@ import qs.components
 import qs.services
 import Atrium
 
-// Sleep, restart, shut down, log out: under the bar's power button, as the
-// Apple menu has them.
+// The menu under the bar's logo, as the Apple menu is laid out.
 PanelWindow {
     id: root
 
-    visible: Panels.open === "session"
+    visible: Panels.open === "system"
     screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
     anchors {
         top: true
@@ -25,7 +24,7 @@ PanelWindow {
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "atrium-session-menu"
+    WlrLayershell.namespace: "atrium-system-menu"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     Connections {
@@ -35,7 +34,7 @@ PanelWindow {
             // A window taking focus means a click elsewhere.
             if (!Atrium.focusedWindow)
                 return;
-            if (Panels.open === "session")
+            if (Panels.open === "system")
                 Panels.open = "";
         }
     }
@@ -46,12 +45,14 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: Panels.open = ""
         actions: [
+            { icon: "info", text: "About This Computer", run: () => Panels.open = "about" },
+            "-",
             { icon: "bedtime", text: "Sleep", run: () => Session.request("sleep") },
             { icon: "restart_alt", text: "Restart…", run: () => Session.request("restart") },
             { icon: "power_settings_new", text: "Shut Down…", run: () => Session.request("shutdown") },
             "-",
-            { icon: "logout", text: "Log Out…", run: () => Session.request("logout") }
+            { icon: "logout", text: `Log Out ${SystemInfo.user}…`, run: () => Session.request("logout") }
         ]
-        onPicked: Panels.open = ""
+        onPicked: if (Panels.open === "system") Panels.open = ""
     }
 }

@@ -9,7 +9,7 @@ if gtest.found()
     'rules_test.cpp',
     'search_test.cpp',
     'files_test.cpp',
-    files('../src/geometry.cpp', '../src/config.cpp', '../src/settings.cpp', '../src/rules.cpp', '../src/placements.cpp', '../shell/plugin/Atrium/search.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/levels.cpp'),
+    files('../src/geometry.cpp', '../src/config.cpp', '../src/settings.cpp', '../src/rules.cpp', '../src/placements.cpp', '../shell/plugin/Atrium/search.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/levels.cpp', '../shell/plugin/Atrium/sysinfo_core.cpp'),
     protocol_headers,
     include_directories: include_directories('../src', '../shell/plugin/Atrium'),
     dependencies: deps + [gtest],

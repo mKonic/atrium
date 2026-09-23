@@ -106,7 +106,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacing.normal
 
-            SessionButton {
+            SystemButton {
                 anchors.verticalCenter: parent.verticalCenter
             }
 

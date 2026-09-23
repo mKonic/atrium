@@ -56,7 +56,9 @@ ShellRoot {
 
     Osd {}
 
-    SessionMenu {}
+    SystemMenu {}
+
+    About {}
 
     SessionConfirm {}
 }

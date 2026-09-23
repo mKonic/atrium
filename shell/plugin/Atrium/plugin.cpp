@@ -6,6 +6,7 @@
 #include "desktop_files.hpp"
 #include "levels.hpp"
 #include "session.hpp"
+#include "sysinfo.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -84,6 +85,8 @@ public:
         });
         qmlRegisterSingletonType<Session>(uri, 1, 0, "Session",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Session; });
+        qmlRegisterSingletonType<SystemInfo>(uri, 1, 0, "SystemInfo",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new SystemInfo; });
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
