@@ -36,6 +36,8 @@ Space::Space(Server& srv, std::string n)
     tree = wlr_scene_tree_create(server.layer(Layer::Secret));
     // The dimmed screen behind a secret space; clicking it puts the space away.
     const Color& dim = server.config.secret_backdrop;
+    backdrop_blur = wlr_scene_blur_create(tree, 0, 0);
+    wlr_scene_blur_set_should_only_blur_bottom_layer(backdrop_blur, false);  // blur the windows too
     backdrop = wlr_scene_rect_create(tree, 0, 0, dim.data());
     backdrop->node.data = this;
     fullscreen_tree = wlr_scene_tree_create(tree);
@@ -102,8 +104,10 @@ void Space::set_offset(int dx, int dy) {
     if (!secret)
         wlr_scene_node_set_position(&fullscreen_tree->node, dx, dy);
     // The backdrop covers the screen whatever the windows are doing.
-    if (backdrop && output)
+    if (backdrop && output) {
         wlr_scene_node_set_position(&backdrop->node, output->box.x - dx, output->box.y - dy);
+        wlr_scene_node_set_position(&backdrop_blur->node, output->box.x - dx, output->box.y - dy);
+    }
 }
 
 void Space::attach(Output* out) {
@@ -112,6 +116,9 @@ void Space::attach(Output* out) {
         return;
     wlr_scene_node_set_position(&backdrop->node, out->box.x, out->box.y);
     wlr_scene_rect_set_size(backdrop, out->box.width, out->box.height);
+    wlr_scene_node_set_position(&backdrop_blur->node, out->box.x, out->box.y);
+    wlr_scene_blur_set_size(backdrop_blur, out->box.width, out->box.height);
+    wlr_scene_node_set_enabled(&backdrop_blur->node, server.config.blur);
     wlr_scene_rect_set_color(backdrop, server.config.secret_backdrop.data());
 }
 

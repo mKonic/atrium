@@ -294,6 +294,14 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(color("appearance.background", "Appearance", "Desktop color",
         "Shown where no wallpaper covers the screen.", &Config::background, d));
 
+    // Blur
+    s.push_back(boolean("appearance.blur", "Appearance", "Blur",
+        "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));
+    s.push_back(number("appearance.blur_radius", T::Int, "Appearance", "Blur radius",
+        "How far each blur pass reaches.", &Config::blur_radius, d, 1, 20));
+    s.push_back(number("appearance.blur_passes", T::Int, "Appearance", "Blur strength",
+        "More passes give a softer blur.", &Config::blur_passes, d, 1, 8));
+
     // Motion
     s.push_back(boolean("appearance.animations", "Appearance", "Animations",
         "Windows and spaces move instead of jumping.", &Config::animations, d));

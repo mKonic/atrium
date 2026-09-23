@@ -75,6 +75,9 @@ void View::handle_map() {
     outline = wlr_scene_rect_create(tree, 0, 0, c.outline_color.data());
     outline->accepts_input = false;
     wlr_scene_node_place_above(&outline->node, &shadow->node);
+    blur = wlr_scene_blur_create(tree, 0, 0);
+    wlr_scene_blur_set_should_only_blur_bottom_layer(blur, true);  // the cheap, shared background blur
+    wlr_scene_node_place_above(&blur->node, &outline->node);
 
     if (wants_ssd()) {
         titlebar = std::make_unique<Titlebar>(*this, tree);
@@ -135,6 +138,7 @@ void View::handle_unmap() {
     tree = content = popups = nullptr;
     shadow = nullptr;
     outline = nullptr;
+    blur = nullptr;
     surface()->data = nullptr;
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
@@ -535,7 +539,7 @@ void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) 
 // Rounded corners and a soft shadow on every managed window, stronger on the
 // focused one. Nothing while fullscreen.
 void View::update_decorations() {
-    if (!tree || !shadow || !outline || unmanaged())
+    if (!tree || !shadow || !outline || !blur || unmanaged())
         return;
     const Config& c = server.config;
     const int radius = fullscreen ? 0 : c.corner_radius;
@@ -573,6 +577,14 @@ void View::update_decorations() {
             .area = {1, 1, geom.width, geom.height},
             .corners = corner_radii_all(radius),
         });
+    }
+
+    const bool show_blur = c.blur && !fullscreen;
+    wlr_scene_node_set_enabled(&blur->node, show_blur);
+    if (show_blur) {
+        wlr_scene_blur_set_size(blur, geom.width, geom.height);
+        wlr_scene_blur_set_corner_radius(blur, radius);
+        wlr_scene_blur_set_alpha(blur, alpha_);
     }
 
     if (titlebar) {

@@ -64,6 +64,11 @@ struct Config {
     Color outline_color{1.0f, 1.0f, 1.0f, 0.11f};
     Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 
+    // Blur
+    bool blur = true;
+    int blur_radius = 6;
+    int blur_passes = 3;
+
     // Motion
     bool animations = true;
     double animation_speed = 1.0;  // multiplier: 2 = twice as fast

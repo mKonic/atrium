@@ -245,6 +245,7 @@ void Server::fade_secret(Space* s, bool in) {
         Color c = dim;
         c[3] = float(dim[3] * a);
         wlr_scene_rect_set_color(s->backdrop, c.data());
+        wlr_scene_blur_set_alpha(s->backdrop_blur, float(a));
         s->set_offset(0, int(std::lround((1 - a) * 16)));
         each([a](View* v) { v->set_alpha(float(a)); });
     };

@@ -128,6 +128,10 @@ public:
     wlr_scene_tree* drag_icons = nullptr;
     wlr_scene_rect* root_bg = nullptr;
     wlr_scene_rect* locked_bg = nullptr;
+    // A blurred copy of everything below the windows (wallpaper, bottom
+    // panels), rendered once per frame and sampled by every window's blur.
+    wlr_scene_optimized_blur* background_blur = nullptr;
+    void apply_blur_settings();
 
     wlr_output_layout* output_layout = nullptr;
     wlr_box layout_box{};

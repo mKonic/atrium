@@ -88,6 +88,7 @@ public:
     wlr_scene_tree* popups = nullptr;    // xdg popups, at the content origin
     wlr_scene_shadow* shadow = nullptr;
     wlr_scene_rect* outline = nullptr;   // 1px hairline around the frame
+    wlr_scene_blur* blur = nullptr;      // frosted glass behind translucent content
     wlr_box geom{};
     wlr_box restore{};  // geometry to return to from maximized/fullscreen
 

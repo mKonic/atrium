@@ -63,6 +63,10 @@ bool LayerSurface::wants_exclusive_keyboard() const {
 void LayerSurface::commit() {
     if (!output)
         return;
+    // The shared background blur is cached; wallpaper and bottom panels
+    // changing invalidate it.
+    if (wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM && !wlr->initial_commit)
+        wlr_scene_optimized_blur_mark_dirty(server.background_blur);
 
     if (wlr->initial_commit) {
         float scale = output->wlr->scale;
@@ -97,6 +101,8 @@ void LayerSurface::commit() {
 
 void LayerSurface::unmap() {
     mapped = false;
+    if (wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM)
+        wlr_scene_optimized_blur_mark_dirty(server.background_blur);
     wlr_scene_node_set_enabled(&tree->node, false);
     if (wlr->output && (output = static_cast<Output*>(wlr->output->data)))
         output->arrange_layers();

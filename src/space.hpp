@@ -45,6 +45,7 @@ public:
     wlr_scene_tree* tree = nullptr;             // windows
     wlr_scene_tree* fullscreen_tree = nullptr;  // fullscreen windows, above panels
     wlr_scene_rect* backdrop = nullptr;         // secret spaces: the dimmed screen behind them
+    wlr_scene_blur* backdrop_blur = nullptr;    // ... and everything under it, frosted
 
     wlr_ext_workspace_handle_v1* handle = nullptr;
 

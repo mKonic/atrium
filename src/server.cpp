@@ -78,6 +78,9 @@ void Server::setup() {
         tree = wlr_scene_tree_create(&scene->tree);
     drag_icons = wlr_scene_tree_create(&scene->tree);
     wlr_scene_node_place_below(&drag_icons->node, &layer(Layer::Lock)->node);
+    background_blur = wlr_scene_optimized_blur_create(&scene->tree, 0, 0);
+    wlr_scene_node_place_above(&background_blur->node, &layer(Layer::Bottom)->node);
+    apply_blur_settings();
 
     // scenefx's renderer: GLES2 with rounded corners, shadows and blur.
     renderer = fx_renderer_create(backend);
@@ -357,6 +360,9 @@ void Server::update_outputs() {
     }
 
     wlr_output_layout_get_box(output_layout, nullptr, &layout_box);
+    wlr_scene_node_set_position(&background_blur->node, layout_box.x, layout_box.y);
+    wlr_scene_optimized_blur_set_size(background_blur, layout_box.width, layout_box.height);
+    wlr_scene_optimized_blur_mark_dirty(background_blur);
     wlr_scene_node_set_position(&root_bg->node, layout_box.x, layout_box.y);
     wlr_scene_rect_set_size(root_bg, layout_box.width, layout_box.height);
     wlr_scene_node_set_position(&locked_bg->node, layout_box.x, layout_box.y);
@@ -793,6 +799,8 @@ void Server::setting_changed(const std::string& key) {
         wlr_log(WLR_ERROR, "settings: couldn't write %s", settings->file().c_str());
 
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
+    if (is("appearance.blur"))
+        apply_blur_settings();
     if (is("appearance.")) {
         wlr_scene_rect_set_color(root_bg, config.background.data());
         for (View* v : views)
@@ -809,6 +817,14 @@ void Server::setting_changed(const std::string& key) {
 
     if (ipc)
         ipc->broadcast("settings", {{"event", "setting.changed"}, {"key", key}, {"value", settings->get(key)}});
+}
+
+void Server::apply_blur_settings() {
+    wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.02f, 0.9f, 0.9f, 1.1f);
+    wlr_scene_node_set_enabled(&background_blur->node, config.blur);
+    for (View* v : views)
+        v->update_decorations();
+    wlr_scene_optimized_blur_mark_dirty(background_blur);
 }
 
 void Server::notify_window(const View& view, const char* what) {
