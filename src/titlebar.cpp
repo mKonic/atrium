@@ -40,17 +40,17 @@ constexpr double kGap = 8.0;       // between buttons
 constexpr double kRight = 13.0;    // last button's right edge, from the bar's right
 constexpr double kHitPad = 4.0;    // clickable slack around each button
 
-// macOS dark-mode window chrome.
-constexpr Rgba kBarActive = hex(0x26272c);
-constexpr Rgba kBarInactive = hex(0x1d1e22);
-constexpr Rgba kSeparator = hex(0x000000, 0.45);
-constexpr Rgba kHighlight = hex(0xffffff, 0.06);  // 1px sheen along the top edge
-constexpr Rgba kTitleActive = hex(0xe8e8ec);
-constexpr Rgba kTitleInactive = hex(0x77787f);
+// macOS window chrome, dark and light.
+struct Chrome {
+    Rgba bar_active, bar_inactive, separator, highlight, title_active, title_inactive, button_inactive;
+};
+constexpr Chrome kDark{hex(0x26272c), hex(0x1d1e22), hex(0x000000, 0.45), hex(0xffffff, 0.06),
+                       hex(0xe8e8ec), hex(0x77787f), hex(0x45464c)};
+constexpr Chrome kLight{hex(0xececee), hex(0xf6f6f7), hex(0x000000, 0.14), hex(0xffffff, 0.7),
+                        hex(0x2a2a2e), hex(0xa4a4aa), hex(0xd0d0d4)};
 constexpr Rgba kClose = hex(0xff5f57);
 constexpr Rgba kMinimize = hex(0xfebc2e);
 constexpr Rgba kMaximize = hex(0x28c840);
-constexpr Rgba kButtonInactive = hex(0x45464c);
 constexpr Rgba kGlyph = hex(0x000000, 0.55);
 
 // Buttons sit at the top right: minimize, maximize, close, with close outermost.
@@ -115,7 +115,8 @@ void Titlebar::update() {
     want.active = view_.activated;
     want.hover = hover_;
     want.pressed = pressed_;
-    want.style = uint64_t(view_.server.config.corner_radius) << 1 | (view_.fullscreen ? 1 : 0);
+    want.style = uint64_t(view_.server.config.corner_radius) << 2 | (view_.server.config.light ? 2 : 0) |
+                 (view_.fullscreen ? 1 : 0);
     if (want == drawn_ || want.width <= 0)
         return;
     drawn_ = want;
@@ -130,14 +131,15 @@ void Titlebar::render(int width, int height, float scale) {
     cairo_scale(cr, scale, scale);
 
     const bool active = drawn_.active;
+    const Chrome& c = view_.server.config.light ? kLight : kDark;
 
     // Bar. The window's top corners are rounded by the renderer, not here.
-    set(cr, active ? kBarActive : kBarInactive);
+    set(cr, active ? c.bar_active : c.bar_inactive);
     cairo_paint(cr);
-    set(cr, kHighlight);
+    set(cr, c.highlight);
     cairo_rectangle(cr, 0, 0, width, 1);
     cairo_fill(cr);
-    set(cr, kSeparator);
+    set(cr, c.separator);
     cairo_rectangle(cr, 0, height - 1, width, 1);
     cairo_fill(cr);
 
@@ -149,7 +151,7 @@ void Titlebar::render(int width, int height, float scale) {
     for (int i = 0; i < 3; ++i) {
         const double cx = button_x(i, width) + kButton / 2;
         const double r = kButton / 2;
-        Rgba fill = (active || show_glyphs) ? colors[i] : kButtonInactive;
+        Rgba fill = (active || show_glyphs) ? colors[i] : c.button_inactive;
         if (pressed_ == parts[i])
             fill = darker(fill, 0.78);
 
@@ -213,7 +215,7 @@ void Titlebar::render(int width, int height, float scale) {
         pango_layout_set_single_paragraph_mode(layout, true);
         int tw, th;
         pango_layout_get_pixel_size(layout, &tw, &th);
-        set(cr, active ? kTitleActive : kTitleInactive);
+        set(cr, active ? c.title_active : c.title_inactive);
         cairo_move_to(cr, std::round((width - tw) / 2.0), std::round((height - th) / 2.0));
         pango_cairo_show_layout(cr, layout);
         g_object_unref(layout);

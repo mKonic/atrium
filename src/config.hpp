@@ -90,6 +90,7 @@ struct Config {
     Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 
     // Blur
+    bool light = false;  // appearance.style: light chrome, shell and apps
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;
     std::vector<std::string> blurred_panels{"atrium-*"};  // layer namespaces frosted behind (with transparency)

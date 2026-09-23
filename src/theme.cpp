@@ -61,7 +61,7 @@ bool write_if_changed(const fs::path& path, std::string_view content) {
 
 } // namespace
 
-void install_gtk_theme() {
+void install_gtk_theme(bool light) {
     fs::path base;
     if (const char* d = std::getenv("XDG_DATA_HOME"); d && *d)
         base = d;
@@ -77,13 +77,34 @@ void install_gtk_theme() {
         ok &= write_if_changed(dir / v / "assets/close.svg", kCloseSvg);
         ok &= write_if_changed(dir / v / "assets/minimize.svg", kMinimizeSvg);
         ok &= write_if_changed(dir / v / "assets/maximize.svg", kMaximizeSvg);
-        ok &= write_if_changed(dir / v / "gtk.css", std::string_view(v) == "gtk-4.0" ? kGtk4 : kGtk3);
+        // The shipped CSS builds on adw-gtk3-dark; light mode on adw-gtk3.
+        std::string css = std::string_view(v) == "gtk-4.0" ? kGtk4 : kGtk3;
+        if (light)
+            if (size_t at = css.find("adw-gtk3-dark"); at != std::string::npos)
+                css.replace(at, 13, "adw-gtk3");
+        ok &= write_if_changed(dir / v / "gtk.css", css);
     }
     if (!ok) {
         wlr_log(WLR_ERROR, "theme: couldn't write %s; GTK apps keep their own buttons", dir.c_str());
         return;
     }
     setenv("GTK_THEME", "atrium", 1);
+}
+
+void apply_color_scheme(bool light) {
+    constexpr const char* kSchema = "org.gnome.desktop.interface";
+    GSettingsSchemaSource* source = g_settings_schema_source_get_default();
+    GSettingsSchema* schema = source ? g_settings_schema_source_lookup(source, kSchema, true) : nullptr;
+    if (!schema)
+        return;
+    const bool has = g_settings_schema_has_key(schema, "color-scheme");
+    g_settings_schema_unref(schema);
+    if (!has)
+        return;
+    GSettings* s = g_settings_new(kSchema);
+    g_settings_set_string(s, "color-scheme", light ? "prefer-light" : "prefer-dark");
+    g_settings_sync();
+    g_object_unref(s);
 }
 
 void apply_gtk_button_layout() {

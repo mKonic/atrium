@@ -351,6 +351,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     std::vector<SettingSchema> s;
 
     // Appearance
+    s.push_back(choice("appearance.style", "Appearance", "Appearance",
+        "Dark or light: the bar, panels, title bars and apps that follow the system.",
+        {"dark", "light"}, d.light ? "light" : "dark",
+        [](Config& c, const json& v) { c.light = v.get<std::string>() == "light"; }));
     s.push_back(number("appearance.corner_radius", T::Int, "Appearance", "Corner radius",
         "Roundness of window corners, in pixels.", &Config::corner_radius, d, 0, 64));
     s.push_back(boolean("appearance.shadows", "Appearance", "Window shadows",

@@ -535,9 +535,11 @@ void Server::run(const char* startup_cmd) {
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
     setenv("XDG_SESSION_TYPE", "wayland", 1);
     prepare_session_environment();
-    install_gtk_theme();
-    if (!nested)
+    install_gtk_theme(config.light);
+    if (!nested) {
         apply_gtk_button_layout();
+        apply_color_scheme(config.light);
+    }
     ipc = std::make_unique<Ipc>(*this, socket);
 
     if (!wlr_backend_start(backend))
@@ -1121,10 +1123,18 @@ void Server::setting_changed(const std::string& key) {
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
     if (is("appearance.blur"))
         apply_blur_settings();
+    if (key == "appearance.style") {
+        install_gtk_theme(config.light);  // apps opened from now on
+        if (!nested)
+            apply_color_scheme(config.light);  // the rest, live, through the portal
+    }
     if (is("appearance.")) {
         wlr_scene_rect_set_color(root_bg, config.background.data());
-        for (View* v : views)
+        for (View* v : views) {
             v->update_decorations();
+            if (v->titlebar)
+                v->titlebar->update();
+        }
         for (Output* o : outputs)
             for (auto& list : o->layers)
                 for (LayerSurface* l : list)

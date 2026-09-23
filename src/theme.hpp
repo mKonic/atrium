@@ -5,7 +5,10 @@ namespace atrium {
 // Install atrium's GTK theme into $XDG_DATA_HOME/themes/atrium and point apps
 // started in the session at it (GTK_THEME), so the header-bar buttons of GTK
 // apps match atrium's own title bars. Files are rewritten only when they differ.
-void install_gtk_theme();
+void install_gtk_theme(bool light);
+// Tell apps through GSettings (read by the settings portal): libadwaita,
+// Firefox, Chromium and Qt follow color-scheme live.
+void apply_color_scheme(bool light);
 
 // Put GTK's header-bar buttons where atrium's are (minimize, maximize, close at
 // the right). This is GNOME's global setting, so only a real atrium session
