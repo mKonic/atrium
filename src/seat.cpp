@@ -1,5 +1,6 @@
 #include "seat.hpp"
 
+#include "geometry.hpp"
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "server.hpp"
@@ -13,11 +14,6 @@
 namespace atrium {
 
 namespace {
-
-// Caps Lock and Num Lock never change which binding a key means.
-constexpr uint32_t clean_mods(uint32_t mods) {
-    return mods & ~(WLR_MODIFIER_CAPS | WLR_MODIFIER_MOD2);
-}
 
 xkb_keysym_t sym_at_level(xkb_keymap* keymap, xkb_keycode_t key, xkb_layout_index_t layout,
                           xkb_level_index_t level) {
@@ -330,10 +326,7 @@ void Seat::clear_keyboard_focus() {
 }
 
 const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
-    for (const Keybind& b : server.config.keybinds)
-        if (clean_mods(mods) == clean_mods(b.mods) && sym == b.sym)
-            return &b;
-    return nullptr;
+    return find_keybind(server.config.keybinds, mods, sym);
 }
 
 void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
@@ -451,30 +444,15 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     if (mode == Mode::Move && grab_view_) {
         int nx = grab_geom_.x + int(std::lround(cursor->x - grab_x_));
         int ny = grab_geom_.y + int(std::lround(cursor->y - grab_y_));
-        // Stick to screen edges within snap distance.
-        if (Output* o = server.output_at(cursor->x, cursor->y)) {
-            const wlr_box& u = o->usable;
-            const int snap = server.config.snap_distance;
-            const int w = grab_view_->geom.width, h = grab_view_->geom.height;
-            if (std::abs(nx - u.x) < snap) nx = u.x;
-            else if (std::abs(nx + w - (u.x + u.width)) < snap) nx = u.x + u.width - w;
-            if (std::abs(ny - u.y) < snap) ny = u.y;
-            else if (std::abs(ny + h - (u.y + u.height)) < snap) ny = u.y + u.height - h;
-        }
+        if (Output* o = server.output_at(cursor->x, cursor->y))
+            geometry::snap(nx, ny, grab_view_->geom.width, grab_view_->geom.height, o->usable,
+                           server.config.snap_distance);
         grab_view_->move_to(nx, ny);
         return;
     }
     if (mode == Mode::Resize && grab_view_) {
-        const int dxg = int(std::lround(cursor->x - grab_x_));
-        const int dyg = int(std::lround(cursor->y - grab_y_));
-        wlr_box box = grab_geom_;
-        if (grab_edges_ & WLR_EDGE_LEFT) { box.x += dxg; box.width -= dxg; }
-        if (grab_edges_ & WLR_EDGE_RIGHT) box.width += dxg;
-        if (grab_edges_ & WLR_EDGE_TOP) { box.y += dyg; box.height -= dyg; }
-        if (grab_edges_ & WLR_EDGE_BOTTOM) box.height += dyg;
-        box.width = std::max(box.width, 1);
-        box.height = std::max(box.height, 1);
-        grab_view_->request_geometry(box);
+        grab_view_->request_geometry(geometry::resize(grab_geom_, grab_edges_,
+            int(std::lround(cursor->x - grab_x_)), int(std::lround(cursor->y - grab_y_))));
         return;
     }
 
@@ -544,10 +522,7 @@ void Seat::button(wlr_pointer_button_event* e) {
                 return;
             }
             if (e->button == BTN_RIGHT) {
-                const wlr_box& g = hit.view->geom;
-                uint32_t edges = (cursor->x < g.x + g.width / 2.0 ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT) |
-                                 (cursor->y < g.y + g.height / 2.0 ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM);
-                begin_resize(hit.view, edges);
+                begin_resize(hit.view, geometry::nearest_corner(hit.view->geom, cursor->x, cursor->y));
                 return;
             }
         }

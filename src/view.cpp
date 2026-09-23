@@ -1,5 +1,6 @@
 #include "view.hpp"
 
+#include "geometry.hpp"
 #include "output.hpp"
 #include "seat.hpp"
 #include "server.hpp"
@@ -7,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <vector>
 
 namespace atrium {
 
@@ -94,39 +96,14 @@ void View::place() {
         target = server.output_at(cx, cy);
     }
     set_output(target);
-    const wlr_box area = usable_area();
 
-    wlr_box g = geom;
-    g.width = std::min(g.width, area.width);
-    g.height = std::min(g.height, area.height);
-
-    if (p && p->mapped) {
-        g.x = p->geom.x + (p->geom.width - g.width) / 2;
-        g.y = p->geom.y + (p->geom.height - g.height) / 2;
-    } else {
-        g.x = area.x + (area.width - g.width) / 2;
-        g.y = area.y + (area.height - g.height) / 2;
-        const int step = server.config.cascade_step;
-        for (int tries = 0; tries < 32; ++tries) {
-            // "Taken" means close enough that the new window would hide the
-            // other one's title bar, not just the exact same spot.
-            bool taken = std::ranges::any_of(server.views, [&](View* v) {
-                return v != this && v->visible() && std::abs(v->geom.x - g.x) < step &&
-                       std::abs(v->geom.y - g.y) < step;
-            });
-            if (!taken)
-                break;
-            g.x += step;
-            g.y += step;
-            if (g.x + g.width > area.x + area.width || g.y + g.height > area.y + area.height) {
-                g.x = area.x;
-                g.y = area.y;
-            }
-        }
-    }
-
-    g.x = std::clamp(g.x, area.x, std::max(area.x, area.x + area.width - g.width));
-    g.y = std::clamp(g.y, area.y, std::max(area.y, area.y + area.height - g.height));
+    std::vector<wlr_box> others;
+    for (View* v : server.views)
+        if (v != this && v->visible())
+            others.push_back(v->geom);
+    const wlr_box* parent_box = (p && p->mapped) ? &p->geom : nullptr;
+    const wlr_box g = geometry::place(geom.width, geom.height, usable_area(), parent_box, others,
+                                      server.config.cascade_step);
 
     if (g.width != geom.width || g.height != geom.height)
         request_geometry(g);
@@ -148,13 +125,7 @@ void View::move_to(int x, int y) {
 void View::request_geometry(wlr_box box) {
     wlr_box min{}, max{};
     size_hints(min, max);
-    box.width = std::max({box.width, min.width, 1});
-    box.height = std::max({box.height, min.height, 1});
-    // Some clients advertise INT_MAX as their maximum; anything positive is a limit.
-    if (max.width > 0)
-        box.width = std::min(box.width, max.width);
-    if (max.height > 0)
-        box.height = std::min(box.height, max.height);
+    box = geometry::clamp_to_hints(box, min, max);
 
     // During an interactive resize the position follows the committed size
     // (see handle_size); moving now would make the window jump ahead of it.

@@ -1,49 +1,48 @@
 <div align = center>
 
+![Badge Hi Mom]<br>
+
 <br>
 
-atrium is a floating Wayland compositor that keeps windows where apps expect them.
+atrium is a floating Wayland compositor that doesn't sacrifice on its looks.
 
-It gives every window rounded corners and soft shadows, and keeps your own keybinds on top.
-
+It provides the latest Wayland features, has all the eyecandy and more...
+<br>
 <br>
 
 </div>
 
 # Features
 
-- Floating windows that open centered and cascade
-- Rounded corners and soft shadows
-- Click to focus, drag to move, Mod + drag to move or resize
-- Edge snapping
-- Maximize, fullscreen and minimize
-- Panels, docks and wallpapers
-- Screen locking
-- Window lists for docks and task switchers
-- Screen and per-window capture
-- X11 apps through Xwayland
+- All of the eyecandy: rounded corners, shadows
+- Easily expandable and readable codebase
+- Fast and active development
+- Not afraid to provide bleeding-edge features
+- Floating/fullscreen windows
 
-# Building
-
-```sh
-meson setup build
-ninja -C build
-./build/src/atrium
-```
+<br>
+<br>
 
 # Special Thanks
 
-**[dwl]** - *For the base atrium grew from*
+<br>
 
 **[wlroots]** - *For powering atrium*
 
-**[scenefx]** - *For the eyecandy*
+**[tinywl]** - *For showing how 2 do stuff*
 
-**[labwc]** - *For showing how floating windows should behave*
+**[Sway]** - *For showing how 2 do stuff the overkill way*
 
-<!----------------------------------------------------------------------------->
+**[dwl]** - *For showing how 2 do stuff the hacky way*
 
-[dwl]: https://codeberg.org/dwl/dwl
-[wlroots]: https://gitlab.freedesktop.org/wlroots/wlroots
-[scenefx]: https://github.com/wlrfx/scenefx
-[labwc]: https://github.com/labwc/labwc
+
+<!----------------------------------{ Thanks }--------------------------------->
+
+[WlRoots]: https://gitlab.freedesktop.org/wlroots/wlroots
+[TinyWl]: https://gitlab.freedesktop.org/wlroots/wlroots/-/blob/master/tinywl/tinywl.c
+[Sway]: https://github.com/swaywm/sway
+[DWL]: https://codeberg.org/dwl/dwl
+
+<!----------------------------------{ Badges }--------------------------------->
+
+[Badge Hi Mom]: https://img.shields.io/badge/Hi-mom!-ff69b4

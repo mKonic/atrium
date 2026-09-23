@@ -30,6 +30,14 @@ struct Keybind {
     int iarg = 0;
 };
 
+// Caps Lock and Num Lock never change which binding a key means.
+constexpr uint32_t clean_mods(uint32_t mods) {
+    return mods & ~uint32_t(WLR_MODIFIER_CAPS | WLR_MODIFIER_MOD2);
+}
+
+// The binding for `sym` pressed with `mods`, or null.
+const Keybind* find_keybind(const std::vector<Keybind>& binds, uint32_t mods, xkb_keysym_t sym);
+
 // Everything the compositor reads from settings, in one place. This is the
 // in-memory form of the settings store: today it only holds defaults, later
 // the store fills it and pushes live changes into it.

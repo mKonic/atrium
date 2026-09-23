@@ -57,3 +57,4 @@ version_h = custom_target('version.hpp',
 )
 
 subdir('src')
+subdir('tests')
