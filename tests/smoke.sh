@@ -5,7 +5,7 @@
 #
 #   tests/smoke.sh [BUILD_DIR]      (default: build-asan, else build)
 #
-# Needs vc (~/dev/c/vctools), foot and xmessage. Runs under its own D-Bus
+# Needs vc (~/dev/c/vctools), foot and xmessage, and the build's ime_probe. Runs under its own D-Bus
 # session so the shell can't take the live session's notification server.
 set -uo pipefail
 
@@ -90,6 +90,14 @@ ctl set appearance.blur false >/dev/null
 check "a setting changes" json get "d.get('appearance.blur') is False"
 ctl reset appearance.blur >/dev/null
 check "and resets" json get "d.get('appearance.blur') is True"
+
+# An input method: keys go to it, what it composes lands in the app.
+ctl action spawn "foot -a ime-target sh -c 'head -1 > $work/typed'" >/dev/null
+check "a text field takes focus" json windows "any(w['app_id'] == 'ime-target' and w['focused'] for w in d)"
+ctl action spawn "sh -c '$build/tests/ime_probe > $work/ime.log 2>&1'" >/dev/null
+check "an input method starts" grep -q activate "$work/ime.log"
+vc in "$box" key a key b >/dev/null 2>&1
+check "it types into the app" grep -qx "αIME>" "$work/typed"
 
 xm=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['xwayland']][0])")
 ctl close "$xm" >/dev/null

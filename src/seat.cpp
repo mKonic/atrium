@@ -1,4 +1,5 @@
 #include "seat.hpp"
+#include "input_method.hpp"
 
 #include "geometry.hpp"
 #include "layer_surface.hpp"
@@ -57,7 +58,7 @@ uint32_t now_ms() {
 
 // --- keyboard groups -------------------------------------------------------------
 
-KeyboardGroup::KeyboardGroup(Seat& s, bool is_virtual) : seat(s) {
+KeyboardGroup::KeyboardGroup(Seat& s, bool virt) : seat(s), is_virtual(virt) {
     group = wlr_keyboard_group_create();
     group->data = this;
 
@@ -75,7 +76,7 @@ KeyboardGroup::KeyboardGroup(Seat& s, bool is_virtual) : seat(s) {
     }, this);
 
     // The seat has one keyboard; the physical group is it.
-    if (!is_virtual)
+    if (!virt)
         wlr_seat_set_keyboard(seat.wlr, &group->keyboard);
 }
 
@@ -419,13 +420,23 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
+    // An input method composing text takes the keys first.
+    if (server.input_method && server.input_method->forward_key(kb, g.is_virtual, e))
+        return;
+
     wlr_seat_set_keyboard(wlr, kb);
     wlr_seat_keyboard_notify_key(wlr, e->time_msec, e->keycode, e->state);
 }
 
+wlr_keyboard* Seat::physical_keyboard() const {
+    return &keyboards_->group->keyboard;
+}
+
 void Seat::modifiers(KeyboardGroup& g) {
-    wlr_seat_set_keyboard(wlr, &g.group->keyboard);
-    wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
+    if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.is_virtual)) {
+        wlr_seat_set_keyboard(wlr, &g.group->keyboard);
+        wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
+    }
     // Letting go of Alt picks the window the switcher is on.
     server.switcher->modifiers(wlr_keyboard_get_modifiers(&g.group->keyboard));
 }

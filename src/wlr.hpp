@@ -1,10 +1,11 @@
 #pragma once
 // Every C header atrium uses, made safe for C++.
 //
-// wlroots and scenefx headers are written for C11 and trip g++ in three ways:
+// wlroots and scenefx headers are written for C11 and trip g++ in four ways:
 //   - `float color[static 4]` array parameters (not valid C++),
-//   - a struct field literally named `class` in wlr_xwayland_surface, and
-//   - a parameter and a field named `namespace` in wlr-layer-shell.
+//   - a struct field literally named `class` in wlr_xwayland_surface,
+//   - a parameter and a field named `namespace` in wlr-layer-shell, and
+//   - a state field named `delete` in wlr_input_method_v2.
 // All are fixed with a scoped #define around the offending headers. Every
 // header those pull in transitively is included first, normally, so the macro
 // only ever touches the declarations it is meant for (a stray `static inline`
@@ -57,6 +58,10 @@ extern "C" {
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
 #include <wlr/types/wlr_input_device.h>
+// A state field named `delete`.
+#define delete delete_
+#include <wlr/types/wlr_input_method_v2.h>
+#undef delete
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_keyboard_group.h>
 #include <wlr/util/edges.h>
@@ -85,6 +90,7 @@ extern "C" {
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_tearing_control_v1.h>
+#include <wlr/types/wlr_text_input_v3.h>
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_virtual_pointer_v1.h>

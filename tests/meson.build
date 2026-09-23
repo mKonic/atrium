@@ -18,3 +18,17 @@ if gtest.found()
   test('unit', unit)
 endif
 
+
+# A throwaway input method the smoke test types with (tests/smoke.sh).
+if add_languages('c', required: false, native: false)
+  ime_xml = meson.project_source_root() / 'protocols/input-method-unstable-v2.xml'
+  ime_client_h = custom_target('ime_client_h',
+    input: ime_xml, output: 'input-method-unstable-v2-client-protocol.h',
+    command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
+  ime_code = custom_target('ime_code',
+    input: ime_xml, output: 'input-method-unstable-v2-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
+  executable('ime_probe', 'ime_probe.c', ime_client_h, ime_code,
+    dependencies: dependency('wayland-client'),
+    c_args: ['-Wno-unused-parameter'])
+endif

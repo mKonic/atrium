@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "input_method.hpp"
 #include "paths.hpp"
 #include <cstring>
 #include <fstream>
@@ -311,6 +312,7 @@ void Server::setup() {
     setup_window_hints();
 
     seat = std::make_unique<Seat>(*this);
+    input_method = std::make_unique<InputMethodRelay>(*this);
 
     output_manager = wlr_output_manager_v1_create(display);
     output_apply_.connect(&output_manager->events.apply,
@@ -475,6 +477,7 @@ void Server::teardown() {
     overview.reset();
     snap_preview.reset();
     spaces.clear();
+    input_method.reset();  // hooked to the seat
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the

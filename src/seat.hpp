@@ -21,6 +21,7 @@ struct KeyboardGroup {
     ~KeyboardGroup();
 
     class Seat& seat;
+    const bool is_virtual;
     wlr_keyboard_group* group = nullptr;
     wl_event_source* repeat_source = nullptr;
     xkb_keysym_t syms[2]{};  // level 0 and level 1 of the last key pressed
@@ -37,6 +38,9 @@ public:
     ~Seat();
     Seat(const Seat&) = delete;
     Seat& operator=(const Seat&) = delete;
+
+    // The physical keyboards, as one (what an input method grabs).
+    wlr_keyboard* physical_keyboard() const;
 
     enum class Mode { Normal, Pressed, Move, Resize };
 

@@ -3,6 +3,7 @@ atrium_sources = files(
   'cairo_buffer.cpp',
   'config.cpp',
   'geometry.cpp',
+  'input_method.cpp',
   'ipc.cpp',
   'layer_surface.cpp',
   'main.cpp',

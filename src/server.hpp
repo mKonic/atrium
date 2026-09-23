@@ -19,6 +19,7 @@ class LayerSurface;
 class Output;
 class Titlebar;
 class Seat;
+class InputMethodRelay;
 class SessionLock;
 class Overview;
 class Registry;
@@ -200,6 +201,7 @@ public:
     std::unique_ptr<ShellProcess> shell;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
+    std::unique_ptr<InputMethodRelay> input_method;
     uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;
