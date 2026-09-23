@@ -178,6 +178,9 @@ void View::handle_unmap() {
 
     if (was_fullscreen && old_output)
         old_output->refit_views();
+    tiled_ = false;
+    before_tile_.reset();
+    server.retile(old_space);  // the others close the gap
     server.prune_space(old_space);
     if (was_focused || (unmanaged() && wants_focus()))
         server.focus_top();
@@ -202,6 +205,14 @@ void View::place() {
         target = server.output_at(cx, cy);
     }
     set_output(target);
+
+    // A tiled space finds it a slot. Born tiled, it has no floating place
+    // to go back to yet (untile() finds it one).
+    if (space && space->tiled && server.tileable(this)) {
+        tiled_ = true;
+        server.retile(space);
+        return;
+    }
 
     // A secret space takes the screen, less a margin of blurred desktop.
     if (space && space->secret && !p && !is_dialog()) {
@@ -550,6 +561,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
     } else if (restore_geometry) {
         request_geometry(restore);
     }
+    server.retile(space);
 }
 
 void View::snap(uint32_t zone) {
@@ -621,6 +633,8 @@ void View::set_fullscreen(bool f) {
     update_decorations();
     if (output)
         output->refit_views();
+    if (!f)
+        server.retile(space);
     server.notify_window(*this, "changed");
 }
 
@@ -664,6 +678,7 @@ void View::set_minimized(bool m) {
         server.focus_view(this);
     }
     server.seat->refresh_pointer();
+    server.retile(space);
 }
 
 // --- decorations -------------------------------------------------------------

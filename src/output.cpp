@@ -34,6 +34,7 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
     // through it, even where the surface is translucent.
     fullscreen_bg = wlr_scene_rect_create(server.layer(Layer::Fullscreen), 0, 0,
                                           server.config.fullscreen_background.data());
+    server.retile(active);
     wlr_scene_node_set_enabled(&fullscreen_bg->node, false);
 
     scene_output = wlr_scene_output_create(server.scene, wlr);

@@ -1044,6 +1044,10 @@ void Server::run_action(const Keybind& b) {
     case Action::CycleSpaceNext: cycle_space(+1); break;
     case Action::CycleSpacePrev: cycle_space(-1); break;
     case Action::RestartShell: if (shell) shell->restart(); break;
+    case Action::ToggleTiling:
+        if (focused_output && focused_output->active && !(shown_secret && shown_secret->output == focused_output))
+            toggle_tiling(focused_output->active);
+        break;
     case Action::Shell:
         // The shell listens on the IPC socket; it decides what "launcher" means.
         if (ipc)

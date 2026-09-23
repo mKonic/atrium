@@ -246,3 +246,34 @@ TEST(Geometry, SecretFrameLeavesAMargin) {
     EXPECT_EQ(full.width, 1920);
     EXPECT_EQ(atrium::geometry::secret_frame(o, 90).width, 1920 - 2 * 768);  // clamped to 40%
 }
+
+TEST(Dwindle, OneWindowTakesTheWholeArea) {
+    const auto boxes = atrium::geometry::dwindle(1, {100, 50, 1000, 600}, 10);
+    ASSERT_EQ(boxes.size(), 1u);
+    EXPECT_EQ(boxes[0].x, 100);
+    EXPECT_EQ(boxes[0].width, 1000);
+    EXPECT_EQ(boxes[0].height, 600);
+}
+
+TEST(Dwindle, EachNewWindowHalvesTheLastAlongItsLongerSide) {
+    const wlr_box area{0, 0, 1010, 600};
+    const auto b = atrium::geometry::dwindle(3, area, 10);
+    ASSERT_EQ(b.size(), 3u);
+    // Side by side first (the area is wide)...
+    EXPECT_EQ(b[0].x, 0);
+    EXPECT_EQ(b[0].width, 500);
+    EXPECT_EQ(b[0].height, 600);
+    // ...then the right half (tall) splits top and bottom.
+    EXPECT_EQ(b[1].x, 510);
+    EXPECT_EQ(b[1].width, 500);
+    EXPECT_EQ(b[1].height, 295);
+    EXPECT_EQ(b[2].y, 305);
+    EXPECT_EQ(b[2].height, 295);
+    // Nothing overlaps, and the gaps are exact.
+    EXPECT_EQ(b[1].x - (b[0].x + b[0].width), 10);
+    EXPECT_EQ(b[2].y - (b[1].y + b[1].height), 10);
+}
+
+TEST(Dwindle, NoWindowsNoBoxes) {
+    EXPECT_TRUE(atrium::geometry::dwindle(0, {0, 0, 100, 100}, 5).empty());
+}

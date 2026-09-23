@@ -241,4 +241,28 @@ wlr_box secret_frame(const wlr_box& output, int percent) {
     return {output.x + dx, output.y + dy, std::max(1, output.width - 2 * dx), std::max(1, output.height - 2 * dy)};
 }
 
+std::vector<wlr_box> dwindle(size_t count, const wlr_box& area, int gap) {
+    std::vector<wlr_box> out;
+    wlr_box rest = area;
+    for (size_t i = 0; i < count; ++i) {
+        if (i + 1 == count) {
+            out.push_back(rest);
+            break;
+        }
+        wlr_box a = rest, b = rest;
+        if (rest.width >= rest.height) {
+            a.width = std::max(1, (rest.width - gap) / 2);
+            b.x = rest.x + a.width + gap;
+            b.width = std::max(1, rest.width - a.width - gap);
+        } else {
+            a.height = std::max(1, (rest.height - gap) / 2);
+            b.y = rest.y + a.height + gap;
+            b.height = std::max(1, rest.height - a.height - gap);
+        }
+        out.push_back(a);
+        rest = b;
+    }
+    return out;
+}
+
 } // namespace atrium::geometry

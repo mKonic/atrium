@@ -26,7 +26,7 @@ Rectangle {
             "snap-left": "Snap left", "snap-right": "Snap right", "restore": "Restore window",
             "overview": "Mission Control", "switch-next": "Switch windows", "switch-prev": "Switch windows backwards",
             "cycle-space-next": "Cycle spaces", "cycle-space-prev": "Cycle spaces backwards",
-            "restart-shell": "Restart the shell", "shell": "Shell"
+            "restart-shell": "Restart the shell", "shell": "Shell", "toggle-tiling": "Tile windows"
         })
     readonly property var argHints: ({
             "spawn": "Command", "space": "Number", "move-to-space": "Number", "switch-vt": "Number",

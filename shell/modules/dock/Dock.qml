@@ -68,8 +68,8 @@ PanelWindow {
     }
     property var menuItem: null
 
-    // Out of sight over a fullscreen app (or always, with dock.autohide)
-    // until the pointer reaches the bottom edge.
+    // Out of sight over a fullscreen app or a tiled space (or always, with
+    // dock.autohide) until the pointer reaches the bottom edge.
     readonly property bool fullscreen: output.fullscreen
 
     OutputState {
@@ -80,7 +80,7 @@ PanelWindow {
     readonly property bool autohide: Atrium.settings["dock.autohide"] ?? false
     // Nothing pinned and nothing open: no Dock at all, not an empty shelf.
     readonly property bool empty: dockApps.count === 0
-    readonly property bool hides: fullscreen || autohide || empty
+    readonly property bool hides: fullscreen || output.tiled || autohide || empty
     property bool revealed: !hides
 
     onHidesChanged: revealed = !hides
@@ -134,7 +134,7 @@ PanelWindow {
     anchors.bottom: true
     implicitWidth: Math.max(shelf.width + 40, menu.width + 40)
     implicitHeight: shelfHeight + gap + 150
-    exclusiveZone: autohide || empty ? 0 : shelfHeight + gap
+    exclusiveZone: autohide || empty || output.tiled ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
 

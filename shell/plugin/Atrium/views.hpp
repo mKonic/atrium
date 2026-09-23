@@ -16,6 +16,8 @@ class OutputState : public QObject {
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(int activeSpace READ activeSpace NOTIFY changed)
     Q_PROPERTY(bool fullscreen READ fullscreen NOTIFY changed)
+    // The space shown here tiles its windows: the bar and the Dock step aside.
+    Q_PROPERTY(bool tiled READ tiled NOTIFY changed)
     Q_PROPERTY(QVariantList spaces READ spaces NOTIFY changed)
     // Secret spaces worth showing here: [{ name, shown, apps }], apps being
     // the app ids of its windows, most recent first. Ones with no windows
@@ -29,6 +31,7 @@ public:
     void setName(const QString& name);
     int activeSpace() const { return active_; }
     bool fullscreen() const { return fullscreen_; }
+    bool tiled() const { return tiled_; }
     QVariantList spaces() const { return spaces_; }
     QVariantList secrets() const { return secrets_; }
 
@@ -43,6 +46,7 @@ private:
     QString name_;
     int active_ = 1;
     bool fullscreen_ = false;
+    bool tiled_ = false;
     QVariantList spaces_, secrets_;
 };
 

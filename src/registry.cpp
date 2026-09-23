@@ -61,7 +61,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 2;
+constexpr int kSchemaVersion = 3;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -170,6 +170,12 @@ void Registry::migrate() {
          " id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1,"
          " width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, refresh INTEGER NOT NULL DEFAULT 0,"
          " scale REAL NOT NULL DEFAULT 1, transform INTEGER NOT NULL DEFAULT 0, x INTEGER, y INTEGER)");
+    // 3: tiling arrived with a shortcut of its own; registries from before
+    // it get that one default (new ones are seeded with all of them).
+    if (version == 2)
+        exec("INSERT INTO shortcuts (position, keys, action) "
+             "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+backslash', 'toggle-tiling' FROM shortcuts "
+             "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE action = 'toggle-tiling')");
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

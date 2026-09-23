@@ -69,6 +69,10 @@ public:
     // the size it had before.
     void fit_secret(bool keep_box = true);
     void leave_secret();
+    // Tiling: take `box` (remembering the floating one), or float again.
+    void tile_to(const wlr_box& box);
+    void untile();
+    bool tiled() const { return tiled_; }
     void set_activated(bool activated);
     // `restore_geometry` false drops the maximized state where the window is
     // (resizing a maximized window) instead of returning to `restore`.
@@ -175,6 +179,8 @@ protected:
     // Where the app's last window was, claimed for this one (see Server::placement_for).
     std::optional<Placement> remembered_;
     std::optional<wlr_box> before_secret_;  // its floating box before a secret space took it
+    std::optional<wlr_box> before_tile_;    // ... before tiling took it
+    bool tiled_ = false;
 
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;

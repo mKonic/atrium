@@ -57,6 +57,11 @@ wlr_box secret_frame(const wlr_box& output, int percent);
 // slide it in until it is fully inside.
 wlr_box fit_into(wlr_box box, const wlr_box& area);
 
+// Tiling, dwindle-style: the first window takes the whole `area`; each
+// next one halves the space the one before it had, along its longer side
+// (the newer window right or below). `gap` goes between windows.
+std::vector<wlr_box> dwindle(size_t count, const wlr_box& area, int gap);
+
 // Overview: every window scaled into `area` as rows of equal height, keeping
 // their rough arrangement (top rows stay on top, left stays left) and never
 // enlarged. `gap` separates windows and rows; `label` is extra room kept

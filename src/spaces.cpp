@@ -188,10 +188,14 @@ void Server::move_to_space(View* view, Space* space) {
         drop_focus();
         focus_top();
     }
+    if (view->tiled() && !space->tiled)
+        view->untile();
     if (old && old->output)
         old->output->refit_views();
     if (view->output)
         view->output->refit_views();
+    retile(old);
+    retile(space);
     // The last window leaving a showing secret space takes the overlay with it.
     if (old && old == shown_secret && old->empty()) {
         hide_secret();

@@ -78,6 +78,7 @@ constexpr ActionName kActions[] = {
     {Action::CycleSpacePrev, "cycle-space-prev"},
     {Action::RestartShell, "restart-shell"},
     {Action::Shell, "shell"},
+    {Action::ToggleTiling, "toggle-tiling"},
 };
 
 } // namespace
@@ -195,6 +196,7 @@ json default_keybinds() {
         {{"keys", "Mod+comma"}, {"action", "shell"}, {"arg", "settings"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
+        {{"keys", "Mod+backslash"}, {"action", "toggle-tiling"}},
     });
     // Media keys go to the shell, which holds the audio and display
     // connections and shows what changed. Shift makes the steps finer.

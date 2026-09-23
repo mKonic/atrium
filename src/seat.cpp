@@ -516,7 +516,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
         // Screen edges and corners offer to tile the window.
         Output* o = server.output_at(cursor->x, cursor->y);
-        const uint32_t zone = (o && server.config.snapping)
+        const bool tiling = grab_view_->space && grab_view_->space->tiled;
+        const uint32_t zone = (o && server.config.snapping && !tiling)
             ? geometry::snap_zone(o->box, cursor->x, cursor->y, 4, 80) : 0;
         if (zone != snap_zone_) {
             snap_zone_ = zone;
@@ -675,7 +676,9 @@ void Seat::button(wlr_pointer_button_event* e) {
             View* dropped = mode == Mode::Move ? grab_view_ : nullptr;
             const uint32_t zone = snap_zone_;
             cancel_grab();
-            if (dropped && zone)
+            if (dropped && dropped->tiled())
+                server.tile_drop(dropped, cursor->x, cursor->y);  // trade places, or back to its slot
+            else if (dropped && zone)
                 dropped->snap(zone);
             wlr_seat_pointer_clear_focus(wlr);
             set_default_cursor();
@@ -803,7 +806,7 @@ void Seat::begin_move(View* view) {
     grab_geom_ = view->geom;
     // A maximized window stays put until the pointer really drags it: a
     // click (or the first half of a double-click) must not restore it.
-    grab_unmaximize_ = view->maximized || view->snapped;
+    grab_unmaximize_ = (view->maximized || view->snapped) && !view->tiled();
     snap_zone_ = 0;
     mode = Mode::Move;
     wlr_seat_pointer_clear_focus(wlr);
@@ -829,7 +832,9 @@ void Seat::unmaximize_for_drag() {
 }
 
 void Seat::begin_resize(View* view, uint32_t edges) {
-    if (mode == Mode::Move || mode == Mode::Resize || view->fullscreen || view->unmanaged() || !edges)
+    // Tiles take the size the layout gives them.
+    if (mode == Mode::Move || mode == Mode::Resize || view->fullscreen || view->unmanaged() || !edges ||
+        view->tiled())
         return;
     if (view->maximized)
         view->set_maximized(false, false);

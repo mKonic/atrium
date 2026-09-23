@@ -8,6 +8,8 @@ import qs.services
 import Atrium
 
 // The top bar: spaces and the focused app on the left, status on the right.
+// On a tiled space it steps aside: everything fades but the space pill,
+// which glides to the top center; the pointer at the top brings it back.
 PanelWindow {
     id: bar
 
@@ -18,7 +20,7 @@ PanelWindow {
     }
 
     implicitHeight: Theme.bar.height
-    exclusiveZone: implicitHeight
+    exclusiveZone: tiled ? 0 : implicitHeight
     color: "transparent"
     WlrLayershell.namespace: "atrium-bar"
 
@@ -32,6 +34,9 @@ PanelWindow {
         name: bar.screen?.name ?? ""
     }
     property bool revealed: !fullscreen
+    readonly property bool tiled: output.tiled && !fullscreen
+    // The whole bar, or just the space pill.
+    readonly property bool chrome: !tiled || hover.hovered
 
     onFullscreenChanged: revealed = !fullscreen
 
@@ -94,6 +99,11 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent
             color: Theme.panel(Theme.palette.m3Surface, 0.7)
+            opacity: bar.chrome ? 1 : 0
+
+            Behavior on opacity {
+                Anim {}
+            }
 
             Behavior on color {
                 CAnim {}
@@ -101,6 +111,8 @@ PanelWindow {
         }
 
         Row {
+            id: leftRow
+
             anchors.left: parent.left
             anchors.leftMargin: Theme.padding.normal
             anchors.verticalCenter: parent.verticalCenter
@@ -108,25 +120,65 @@ PanelWindow {
 
             SystemButton {
                 anchors.verticalCenter: parent.verticalCenter
+                opacity: bar.chrome ? 1 : 0
+
+                Behavior on opacity {
+                    Anim {}
+                }
             }
 
-            Spaces {
+            // Holds the space pill's place; the pill itself floats over it.
+            Item {
+                id: spacesSlot
+
                 anchors.verticalCenter: parent.verticalCenter
-                output: bar.screen?.name ?? ""
+                width: spaces.width
+                height: spaces.height
             }
 
             SecretSpaces {
                 anchors.verticalCenter: parent.verticalCenter
                 output: bar.screen?.name ?? ""
+                opacity: bar.chrome ? 1 : 0
+
+                Behavior on opacity {
+                    Anim {}
+                }
             }
 
             ActiveWindow {
                 anchors.verticalCenter: parent.verticalCenter
+                opacity: bar.chrome ? 1 : 0
+
+                Behavior on opacity {
+                    Anim {}
+                }
+            }
+        }
+
+        Spaces {
+            id: spaces
+
+            // In its slot, or alone at the top center of a tiled space.
+            x: bar.chrome ? leftRow.x + spacesSlot.x : (content.width - width) / 2
+            anchors.verticalCenter: parent.verticalCenter
+            output: bar.screen?.name ?? ""
+
+            Behavior on x {
+                Anim {
+                    easing.bezierCurve: Theme.anim.emphasized
+                }
             }
         }
 
         Row {
             anchors.right: parent.right
+            opacity: bar.chrome ? 1 : 0
+
+            Behavior on opacity {
+                Anim {}
+            }
+
             anchors.rightMargin: Theme.padding.normal
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacing.small

@@ -2,6 +2,7 @@
 #include "wlr.hpp"
 
 #include <string>
+#include <vector>
 
 namespace atrium {
 
@@ -48,6 +49,11 @@ public:
     wlr_scene_blur* backdrop_blur = nullptr;    // ... and everything under it, frosted
 
     wlr_ext_workspace_handle_v1* handle = nullptr;
+
+    // Tiling (Mod+\): windows share the screen instead of floating, in this
+    // order (window ids, oldest first); see Server::retile().
+    bool tiled = false;
+    std::vector<uint64_t> tile_order;
 
 private:
     bool shown_ = false;

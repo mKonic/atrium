@@ -80,6 +80,17 @@ ctl space 2 >/dev/null
 check "space 2 is shown" json spaces "any(s['number'] == 2 and s['shown'] and not s['secret'] for s in d)"
 ctl space 1 >/dev/null
 
+# Tiling: the windows of the space share the screen, and float again after.
+ctl space 2 >/dev/null
+ctl action spawn foot >/dev/null
+check "a second window on space 2" json windows "sum(w['space'] == '2' for w in d) == 2"
+ctl action toggle-tiling >/dev/null
+check "the space tiles" json windows "all(w['tiled'] for w in d if w['space'] == '2')"
+check "side by side, not overlapping" json windows "(lambda a, b: a['x'] + a['width'] <= b['x'] or b['x'] + b['width'] <= a['x'])(*[w['geometry'] for w in d if w['space'] == '2'])"
+ctl action toggle-tiling >/dev/null
+check "and floats again" json windows "not any(w['tiled'] for w in d)"
+ctl space 1 >/dev/null
+
 ctl action overview >/dev/null
 sleep 0.5
 ctl action overview >/dev/null

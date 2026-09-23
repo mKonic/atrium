@@ -20,6 +20,7 @@ atrium_sources = files(
   'snap_preview.cpp',
   'space.cpp',
   'switcher.cpp',
+  'tiling.cpp',
   'window_hints.cpp',
   'spaces.cpp',
   'settings.cpp',

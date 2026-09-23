@@ -101,6 +101,12 @@ public:
     // Next or previous existing space on the focused output, wrapping around.
     void cycle_space(int direction);
     void move_to_space(View* view, Space* space);
+    // Tiling (tiling.cpp).
+    void toggle_tiling(Space* space);
+    void retile(Space* space);         // lay a tiled space out again; nothing if it floats
+    bool tileable(const View* view) const;
+    // A tiled window dropped at a point: it trades places with the one there.
+    void tile_drop(View* view, double lx, double ly);
     void toggle_secret(const std::string& name);
     void hide_secret();
     // Make `space` visible: switch to it, or show it if it is secret.

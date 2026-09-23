@@ -44,6 +44,7 @@ enum class Action {
     CycleSpacePrev,
     RestartShell,     // the bar, dock and the rest of the desktop shell
     Shell,            // arg: something the shell shows ("launcher")
+    ToggleTiling,     // the current space tiles its windows, or floats them again
 };
 
 struct Keybind {

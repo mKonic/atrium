@@ -286,6 +286,7 @@ json Ipc::window_json(const View& v) {
         {"skip_taskbar", v.hidden_from_lists()},
         {"keep_above", v.keep_above},
         {"sticky", v.sticky},
+        {"tiled", v.tiled()},
     };
 }
 
@@ -297,6 +298,7 @@ json Ipc::spaces_json(const Server& server) {
             count += v->space == s.get();
         list.push_back({{"id", s->id()}, {"label", s->label()}, {"number", s->number}, {"secret", s->secret},
                         {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()},
+                        {"tiled", s->tiled},
                         {"windows", count}});
     }
     return list;

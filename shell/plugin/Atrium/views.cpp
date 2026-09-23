@@ -24,10 +24,15 @@ void OutputState::update() {
     const bool fullscreen = c->fullscreenOn(name_);
     const QVariantList spaces = c->spacesOn(name_);
     const QVariantList secrets = collectSecrets();
-    if (active == active_ && fullscreen == fullscreen_ && spaces == spaces_ && secrets == secrets_)
+    bool tiled = false;
+    for (const QVariant& v : spaces)
+        if (v.toMap().value("number").toInt() == active)
+            tiled = v.toMap().value("tiled").toBool();
+    if (active == active_ && fullscreen == fullscreen_ && tiled == tiled_ && spaces == spaces_ && secrets == secrets_)
         return;
     active_ = active;
     fullscreen_ = fullscreen;
+    tiled_ = tiled;
     spaces_ = spaces;
     secrets_ = secrets;
     emit changed();
