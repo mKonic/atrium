@@ -234,3 +234,15 @@ TEST(FitInto, PullsBackAndShrinks) {
     EXPECT_BOX(fit_into({-50, 0, 400, 300}, kScreen), 0, 30, 400, 300);         // above the bar
     EXPECT_BOX(fit_into({0, 0, 3000, 2000}, kScreen), 0, 30, 1440, 870);       // bigger than the screen
 }
+
+TEST(Geometry, SecretFrameLeavesAMargin) {
+    const wlr_box o{1920, 0, 1920, 1080};
+    const wlr_box f = atrium::geometry::secret_frame(o, 5);
+    EXPECT_EQ(f.x, 1920 + 96);
+    EXPECT_EQ(f.y, 54);
+    EXPECT_EQ(f.width, 1920 - 192);
+    EXPECT_EQ(f.height, 1080 - 108);
+    const wlr_box full = atrium::geometry::secret_frame(o, 0);
+    EXPECT_EQ(full.width, 1920);
+    EXPECT_EQ(atrium::geometry::secret_frame(o, 90).width, 1920 - 2 * 768);  // clamped to 40%
+}

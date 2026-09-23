@@ -234,4 +234,11 @@ std::vector<wlr_box> overview_layout(std::span<const wlr_box> windows, const wlr
     return best.boxes;
 }
 
+wlr_box secret_frame(const wlr_box& output, int percent) {
+    percent = std::clamp(percent, 0, 40);
+    const int dx = int(std::lround(output.width * percent / 100.0));
+    const int dy = int(std::lround(output.height * percent / 100.0));
+    return {output.x + dx, output.y + dy, std::max(1, output.width - 2 * dx), std::max(1, output.height - 2 * dy)};
+}
+
 } // namespace atrium::geometry

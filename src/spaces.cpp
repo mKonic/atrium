@@ -160,6 +160,11 @@ void Server::move_to_space(View* view, Space* space) {
     carry_to_output(view, to);
     view->space = space;
     wlr_scene_node_reparent(&view->tree->node, view->fullscreen ? space->fullscreen_tree : space->tree);
+    if (space->secret)
+        view->fit_secret();
+    else if (old && old->secret)
+        view->leave_secret();
+    view->update_decorations();
 
     if (was_focused && !space->shown()) {
         drop_focus();
@@ -194,6 +199,24 @@ void Server::toggle_secret(const std::string& name) {
 
     Space* s = ensure_secret(name);
     Output* o = focused_output;
+    // What the space's rules send here comes along, as caelestia's toggle
+    // does: windows of those apps open elsewhere move in, and apps that
+    // aren't running at all are started (their windows arrive by the rule).
+    for (const WindowRule& rule : config.rules) {
+        if (rule.secret != name)
+            continue;
+        bool running = false;
+        for (View* v : std::vector<View*>(views.begin(), views.end())) {
+            if (v->unmanaged() || v->parent() || !v->mapped ||
+                !rule.matches(v->app_id() ? v->app_id() : "", v->title() ? v->title() : ""))
+                continue;
+            running = true;
+            if (v->space != s)
+                move_to_space(v, s);
+        }
+        if (!running && !rule.launch.empty())
+            spawn(rule.launch);
+    }
     // Windows come along to the output the space is shown on.
     for (View* v : views)
         if (v->space == s)

@@ -222,6 +222,7 @@ private:
     void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
 
     wlr_scene_tree* layers_[kLayerCount]{};
+
     pid_t startup_pid_ = -1;
     std::string startup_cmd_;               // until Xwayland is up
     wl_event_source* startup_timer_ = nullptr;

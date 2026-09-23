@@ -67,6 +67,17 @@ std::vector<WindowRule> parse_rules(const json& rules, std::vector<std::string>*
                 rule.secret = r["secret"];
             }
         }
+        if (r.contains("launch")) {
+            if (!r["launch"].is_string()) {
+                fail("launch is the command that starts the app");
+                ok = false;
+            } else if (rule.secret.empty()) {
+                fail("launch goes with a secret space: it starts the app when that space is shown");
+                ok = false;
+            } else {
+                rule.launch = r["launch"];
+            }
+        }
         for (auto [key, field] : {std::pair{"maximized", &rule.maximized}, std::pair{"fullscreen", &rule.fullscreen}}) {
             if (!r.contains(key))
                 continue;

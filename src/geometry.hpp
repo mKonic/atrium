@@ -49,6 +49,10 @@ uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corn
 // around them. TOP alone (maximize) fills the area without a gap.
 wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap);
 
+// Where a window in a secret space goes: the screen less `percent` of it
+// on every side, so the blurred desktop shows around the window.
+wlr_box secret_frame(const wlr_box& output, int percent);
+
 // Bring a remembered window box back onto `area`: shrink it to fit, then
 // slide it in until it is fully inside.
 wlr_box fit_into(wlr_box box, const wlr_box& area);

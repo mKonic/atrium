@@ -200,6 +200,12 @@ void View::place() {
     }
     set_output(target);
 
+    // A secret space takes the screen, less a margin of blurred desktop.
+    if (space && space->secret && !p && !is_dialog()) {
+        fit_secret(false);
+        return;
+    }
+
     // Back where the app's window last was.
     if (!remembered_)
         remembered_ = server.placement_for(this);
@@ -333,6 +339,32 @@ void View::move_to(int x, int y) {
     place_tree();
     notify_position();
     update_output_from_position();
+}
+
+void View::fit_secret(bool keep_box) {
+    if (!space || !space->secret || !output || unmanaged() || parent() || is_dialog() || fullscreen || maximized ||
+        snapped)
+        return;
+    if (keep_box && !before_secret_)
+        before_secret_ = geom;
+    const wlr_box frame = geometry::secret_frame(output->box, server.config.secret_margin);
+    // As large as its hints allow, centered in the frame.
+    wlr_box min{}, max{};
+    size_hints(min, max);
+    const wlr_box inner = geometry::clamp_to_hints(content_box(frame), min, max);
+    const int w = inner.width, h = inner.height + top();
+    request_geometry({frame.x + (frame.width - w) / 2, frame.y + (frame.height - h) / 2, w, h});
+}
+
+void View::leave_secret() {
+    if (unmanaged() || parent() || is_dialog() || fullscreen || maximized || snapped)
+        return;
+    const wlr_box area = usable_area();
+    // Born in the secret space: two thirds of the screen, centered.
+    wlr_box box = before_secret_.value_or(wlr_box{area.x + area.width / 6, area.y + area.height / 6,
+                                                  area.width * 2 / 3, area.height * 2 / 3});
+    before_secret_.reset();
+    request_geometry(geometry::fit_into(box, area));
 }
 
 void View::request_geometry(wlr_box box) {
@@ -642,7 +674,9 @@ void View::update_decorations() {
         return;
     const Config& c = server.config;
     const int radius = fullscreen ? 0 : c.corner_radius;
-    const bool show_shadow = c.shadows && !fullscreen;
+    // A secret space's backdrop already sets its windows apart; a shadow
+    // there only muddies the thin margin of blurred desktop around them.
+    const bool show_shadow = c.shadows && !fullscreen && !(space && space->secret);
     wlr_scene_node_set_enabled(&shadow->node, show_shadow);
     if (show_shadow) {
         const float sigma = activated ? c.shadow_sigma : c.shadow_sigma_inactive;

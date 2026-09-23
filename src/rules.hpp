@@ -11,6 +11,7 @@ namespace atrium {
 // "Windows of this app go there, like this." Matched once, when a window opens.
 //
 //   {"app_id": "discord|vesktop", "secret": "communication"}
+//   {"app_id": "^vesktop$", "secret": "communication", "launch": "vesktop"}
 //   {"app_id": "^firefox$", "title": "Picture-in-Picture", "space": 2}
 //   {"app_id": "mpv", "fullscreen": true}
 //
@@ -21,6 +22,7 @@ struct WindowRule {
     std::optional<std::regex> app_id, title;
     int space = 0;           // 0: wherever the window would open anyway
     std::string secret;      // non-empty: into this secret space
+    std::string launch;      // with secret: started when the space is shown and the app isn't running
     std::optional<bool> maximized, fullscreen;
 
     bool matches(const std::string& app_id, const std::string& title) const;

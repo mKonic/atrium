@@ -78,6 +78,7 @@ struct Config {
     Color shadow_color{0.0f, 0.0f, 0.0f, 0.55f};
     Color shadow_color_inactive{0.0f, 0.0f, 0.0f, 0.25f};
     Color secret_backdrop{0.0f, 0.0f, 0.0f, 0.45f};
+    int secret_margin = 5;  // percent of the screen left around secret-space windows
     Color outline_color{1.0f, 1.0f, 1.0f, 0.11f};
     Color outline_color_inactive{1.0f, 1.0f, 1.0f, 0.06f};
 

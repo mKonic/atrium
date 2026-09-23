@@ -55,6 +55,11 @@ public:
     void move_to(int x, int y);
     // Ask for a new size and position. The size lands when the client commits.
     void request_geometry(wlr_box box);
+    // In a secret space: large and centered, the blurred desktop showing
+    // around it (fixed-size windows only center). leave_secret() gives back
+    // the size it had before.
+    void fit_secret(bool keep_box = true);
+    void leave_secret();
     void set_activated(bool activated);
     // `restore_geometry` false drops the maximized state where the window is
     // (resizing a maximized window) instead of returning to `restore`.
@@ -152,6 +157,7 @@ protected:
 
     // Where the app's last window was, claimed for this one (see Server::placement_for).
     std::optional<Placement> remembered_;
+    std::optional<wlr_box> before_secret_;  // its floating box before a secret space took it
 
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;

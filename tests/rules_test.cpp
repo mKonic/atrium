@@ -50,3 +50,14 @@ TEST(Rules, RejectsBadRules) {
     parse_rules("nope", &errors);
     EXPECT_EQ(errors.size(), 1u);
 }
+
+TEST(Rules, LaunchGoesWithASecretSpace) {
+    std::vector<std::string> errors;
+    const auto rules = atrium::parse_rules(nlohmann::json::parse(R"([
+        {"app_id": "^vesktop$", "secret": "communication", "launch": "vesktop"},
+        {"app_id": "foot", "launch": "foot"}
+    ])"), &errors);
+    ASSERT_EQ(rules.size(), 1u);
+    EXPECT_EQ(rules[0].launch, "vesktop");
+    ASSERT_EQ(errors.size(), 1u);  // launch without a secret space means nothing
+}
