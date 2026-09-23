@@ -31,4 +31,10 @@ if add_languages('c', required: false, native: false)
   executable('ime_probe', 'ime_probe.c', ime_client_h, ime_code,
     dependencies: dependency('wayland-client'),
     c_args: ['-Wno-unused-parameter'])
+
+  # An X11 window of any _NET_WM_WINDOW_TYPE.
+  xcb_dep = dependency('xcb', required: false)
+  if xcb_dep.found()
+    executable('x11_probe', 'x11_probe.c', dependencies: xcb_dep)
+  endif
 endif

@@ -247,7 +247,8 @@ QVariantList Compositor::windowsOn(const QString& output, int space) const {
     QVariantList out;
     for (const QVariant& v : windows_) {
         const QVariantMap w = v.toMap();
-        if (!w.value("secret").toBool() && w.value("output").toString() == output && w.value("space").toString() == label)
+        if (!w.value("secret").toBool() && !w.value("skip_taskbar").toBool() &&
+            w.value("output").toString() == output && w.value("space").toString() == label)
             out.push_back(v);
     }
     return out;

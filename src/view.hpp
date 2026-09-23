@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace atrium {
 
@@ -37,6 +38,13 @@ public:
     virtual void size_hints(wlr_box& min, wlr_box& max) const = 0;
     virtual bool is_dialog() const = 0;   // should be placed over its parent
     virtual bool modal() const { return false; }  // blocks its parent until closed
+    // Where the window asked to be put (its content's top-left, in layout
+    // coordinates); `user` when the user asked (X11 USPosition), not the app.
+    virtual std::optional<std::pair<int, int>> requested_position(bool& user) const { (void)user; return std::nullopt; }
+    virtual bool splash() const { return false; }   // a splash screen: centered, undecorated, no focus
+    // Notifications, menus and tooltips that are ordinary windows: no
+    // decoration, no focus, and not in the Dock, the switcher or the bar.
+    virtual bool passive() const { return false; }
     virtual bool unmanaged() const { return false; }  // X11 override-redirect
     virtual bool wants_focus() const { return false; }
     virtual void close() = 0;
@@ -114,6 +122,12 @@ public:
     bool fullscreen = false;
     uint32_t snapped = 0;  // snap zone the window fills, 0 when free
     bool urgent = false;
+    bool keep_above = false;    // stays over other windows (X11 _NET_WM_STATE_ABOVE)
+    bool keep_below = false;    // stays under them
+    bool skip_taskbar = false;  // not in the Dock or the switcher
+    bool sticky = false;        // follows you from space to space
+    // Out of the Dock, the switcher and the bar's space icons.
+    bool hidden_from_lists() const { return skip_taskbar || passive(); }
     std::string icon;  // an icon name, or the path of the picture the app sent
     std::string tag;   // the app's own name for this kind of window ("main", "prefs")
 

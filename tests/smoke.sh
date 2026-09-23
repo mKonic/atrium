@@ -5,7 +5,7 @@
 #
 #   tests/smoke.sh [BUILD_DIR]      (default: build-asan, else build)
 #
-# Needs vc (~/dev/c/vctools), foot and xmessage, and the build's ime_probe. Runs under its own D-Bus
+# Needs vc (~/dev/c/vctools), foot and xmessage, and the build's ime_probe and x11_probe. Runs under its own D-Bus
 # session so the shell can't take the live session's notification server.
 set -uo pipefail
 
@@ -66,8 +66,12 @@ check "the bar and the Dock appear" json layers \
 
 ctl action spawn foot >/dev/null
 check "a Wayland window opens (foot)" json windows "any(w['app_id'] == 'foot' for w in d)"
-ctl action spawn "xmessage -name smoke 'atrium smoke test'" >/dev/null
+ctl action spawn "xmessage -name smoke -geometry +200+150 'atrium smoke test'" >/dev/null
 check "an X11 window opens (xmessage)" json windows "any(w['xwayland'] for w in d)"
+check "where it asked to be (-geometry)" json windows "any(w['xwayland'] and w['geometry']['x'] == 200 for w in d)"
+ctl action spawn "$build/tests/x11_probe splash" >/dev/null
+check "a splash screen opens without taking focus" json windows \
+    "any(w['app_id'] == 'x11probe' and not w['focused'] for w in d) and any(w['focused'] for w in d)"
 
 foot=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['app_id']=='foot'][0])")
 ctl send "$foot" 2 >/dev/null
@@ -99,7 +103,7 @@ check "an input method starts" grep -q activate "$work/ime.log"
 vc in "$box" key a key b >/dev/null 2>&1
 check "it types into the app" grep -qx "αIME>" "$work/typed"
 
-xm=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['xwayland']][0])")
+xm=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['app_id'] == 'Xmessage'][0])")
 ctl close "$xm" >/dev/null
 check "a window closes" json windows "not any(w['id'] == $xm for w in d)"
 

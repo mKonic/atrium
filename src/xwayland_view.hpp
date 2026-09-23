@@ -22,6 +22,9 @@ public:
     bool unmanaged() const override { return xsurface->override_redirect; }
     bool wants_focus() const override;
     bool wants_ssd() const override;
+    std::optional<std::pair<int, int>> requested_position(bool& user) const override;
+    bool splash() const override;
+    bool passive() const override;
     void close() override;
 
     wlr_xwayland_surface* const xsurface;
@@ -35,6 +38,12 @@ protected:
     wlr_scene_tree* create_content(wlr_scene_tree* parent) override;
 
 private:
+    bool has_type(wlr_xwayland_net_wm_window_type type) const {
+        return wlr_xwayland_surface_has_window_type(xsurface, type);
+    }
+    // _NET_WM_STATE flags the window set (wlroots already updated them).
+    void apply_states();
+
     void map();
     void unmap();
     void request_configure(wlr_xwayland_surface_configure_event* event);
@@ -49,6 +58,7 @@ private:
     Listener<> request_move_;
     Listener<wlr_xwayland_resize_event> request_resize_;
     Listener<> set_geometry_, set_hints_, set_title_, set_class_, set_decorations_;
+    Listener<> request_above_, request_below_, request_sticky_, request_skip_taskbar_, request_attention_;
 };
 
 } // namespace atrium

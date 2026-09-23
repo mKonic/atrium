@@ -57,7 +57,7 @@ void Switcher::step(int direction, uint32_t hold) {
         const Space* only = (server_.shown_secret && server_.shown_secret->output == o) ? server_.shown_secret : nullptr;
         views_.clear();
         for (View* v : server_.views) {
-            if (v->unmanaged() || !v->mapped || v->output != o || !v->space)
+            if (v->unmanaged() || !v->mapped || v->output != o || !v->space || v->hidden_from_lists())
                 continue;
             if (only ? v->space != only : !v->space->shown())
                 continue;

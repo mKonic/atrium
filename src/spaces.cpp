@@ -82,17 +82,35 @@ void Server::switch_space(Output* output, int number) {
     output->active = target;
     target->set_shown(true);
     focused_output = output;
+    // Sticky windows come along, and hold still while the spaces slide.
+    // (`old` still counts as shown here, so moving its last window out
+    // can't prune it from under us.)
+    std::vector<uint64_t> sticky;
+    if (old)
+        for (View* v : std::vector<View*>(views))
+            if (v->space == old && v->sticky) {
+                move_to_space(v, target);
+                sticky.push_back(v->id);
+            }
+    auto hold = [this, sticky](int dx) {
+        for (View* v : views)
+            if (std::ranges::find(sticky, v->id) != sticky.end())
+                v->set_anim_offset(-dx, 0);
+    };
     if (old && !old->empty()) {
         // Both spaces slide together: toward the left when going to a higher number.
         old->set_shown(false, true);
         const int dir = target->number > old->number ? 1 : -1;
         const int w = output->box.width;
-        animator.start(output, 300, Ease::OutQuint, [old, target, dir, w](double t) {
+        animator.start(output, 300, Ease::OutQuint, [old, target, dir, w, hold](double t) {
             old->set_offset(int(std::lround(-dir * w * t)), 0);
-            target->set_offset(int(std::lround(dir * w * (1 - t))), 0);
-        }, [old, target] {
+            const int dx = int(std::lround(dir * w * (1 - t)));
+            target->set_offset(dx, 0);
+            hold(dx);
+        }, [old, target, hold] {
             old->hide_now();
             target->set_offset(0, 0);
+            hold(0);
         });
     } else if (old) {
         old->set_shown(false);

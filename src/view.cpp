@@ -105,6 +105,7 @@ void View::handle_map() {
     server.views.insert(server.views.begin(), this);
     create_toplevel_handles();
     place();
+    raise();  // new windows open on top, still under any kept above
     update_decorations();
     server.notify_window(*this, "opened");
     if (wish.fullscreen.value_or(false))
@@ -116,8 +117,9 @@ void View::handle_map() {
     else if (remembered_ && remembered_->snapped)
         snap(remembered_->snapped);
     remembered_.reset();
-    // A window a rule sent to a space you aren't looking at opens quietly.
-    if (!space || space->shown())
+    // A window a rule sent to a space you aren't looking at opens quietly;
+    // so do splash screens, notifications and menus.
+    if ((!space || space->shown()) && !splash() && !passive())
         server.focus_view(this);
     else
         server.spaces_changed();
@@ -207,9 +209,26 @@ void View::place() {
         return;
     }
 
-    // Back where the app's window last was.
+    // Splash screens sit in the middle of the screen.
+    if (splash() && target) {
+        const wlr_box u = usable_area();
+        move_to(u.x + (u.width - geom.width) / 2, u.y + (u.height - geom.height) / 2);
+        return;
+    }
+
+    // Back where the app's window last was, unless the user said where
+    // (X11 -geometry); where the app itself asks only counts for a first time.
     if (!remembered_)
         remembered_ = server.placement_for(this);
+    bool user = false;
+    if (auto want = requested_position(user); want && !p && (user || !remembered_)) {
+        const wlr_box frame{want->first, want->second - top(), geom.width, geom.height};
+        if (Output* o = server.output_at(frame.x + frame.width / 2.0, frame.y + frame.height / 2.0)) {
+            set_output(o);
+            move_to(frame.x, frame.y);
+            return;
+        }
+    }
     if (remembered_ && !p) {
         const wlr_box want = geometry::fit_into({target ? target->box.x + remembered_->x : remembered_->x,
                                                  target ? target->box.y + remembered_->y : remembered_->y,
@@ -481,8 +500,21 @@ void View::refresh_decoration_mode() {
 // --- state -------------------------------------------------------------------
 
 void View::raise() {
-    if (tree)
+    if (!tree)
+        return;
+    if (keep_below)
+        wlr_scene_node_lower_to_bottom(&tree->node);
+    else
         wlr_scene_node_raise_to_top(&tree->node);
+    // Its dialogs come along, over it.
+    for (View* v : server.views)
+        if (v != this && v->mapped && v->tree && v->parent() == this)
+            v->raise();
+    // Windows kept above stay above.
+    if (!keep_above)
+        for (View* v : server.views)
+            if (v != this && v->keep_above && v->mapped && v->tree)
+                wlr_scene_node_raise_to_top(&v->tree->node);
 }
 
 void View::set_activated(bool a) {

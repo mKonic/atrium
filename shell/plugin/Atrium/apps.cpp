@@ -237,6 +237,8 @@ void LauncherResults::rebuild() {
             std::vector<Hit> hits;
             for (const QVariant& v : Compositor::instance()->windows()) {
                 const QVariantMap w = v.toMap();
+                if (w.value("skip_taskbar").toBool())
+                    continue;
                 const QString app = index_.nameForApp(w.value("app_id").toString());
                 const int s = std::max(search::score(lq, lowered(w.value("title").toString())),
                                        search::score(lq, lowered(app)));
@@ -377,6 +379,8 @@ void DockApps::rebuild() {
     const size_t pinned = next.size();
     for (const QVariant& v : Compositor::instance()->windows()) {
         const QVariantMap w = v.toMap();
+        if (w.value("skip_taskbar").toBool())
+            continue;  // asked to stay out of the Dock
         const QString id = index_.idForApp(w.value("app_id").toString());
         auto it = std::ranges::find_if(next, [&](const App& a) { return a.id == id; });
         App& a = it != next.end() ? *it : add(id, false);

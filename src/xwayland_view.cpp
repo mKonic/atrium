@@ -57,6 +57,15 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     set_title_.connect(&xsurface->events.set_title, [this](void*) { update_title(); });
     set_class_.connect(&xsurface->events.set_class, [this](void*) { update_title(); });
     set_decorations_.connect(&xsurface->events.set_decorations, [this](void*) { refresh_decoration_mode(); });
+    auto states = [this](void*) {
+        if (mapped && !unmanaged())
+            apply_states();
+    };
+    request_above_.connect(&xsurface->events.request_above, states);
+    request_below_.connect(&xsurface->events.request_below, states);
+    request_sticky_.connect(&xsurface->events.request_sticky, states);
+    request_skip_taskbar_.connect(&xsurface->events.request_skip_taskbar, states);
+    request_attention_.connect(&xsurface->events.request_demands_attention, states);
 }
 
 XwaylandView::~XwaylandView() {
@@ -72,6 +81,46 @@ void XwaylandView::map() {
         set_fullscreen(true);
     else if (xsurface->maximized_horz && xsurface->maximized_vert)
         set_maximized(true);
+    apply_states();
+}
+
+void XwaylandView::apply_states() {
+    const bool was_above = keep_above, was_below = keep_below;
+    keep_above = xsurface->above;
+    keep_below = xsurface->below && !xsurface->above;
+    sticky = xsurface->sticky;
+    skip_taskbar = xsurface->skip_taskbar;
+    if (xsurface->demands_attention && this != server.focused_view)
+        urgent = true;
+    if (keep_above != was_above || keep_below != was_below)
+        raise();
+    server.notify_window(*this, "changed");
+}
+
+// Where it asked to be put, through its WM_NORMAL_HINTS. Programs often set
+// PPosition to 0,0 without meaning it; that one is ignored.
+std::optional<std::pair<int, int>> XwaylandView::requested_position(bool& user) const {
+    const xcb_size_hints_t* h = xsurface->size_hints;
+    if (!h)
+        return std::nullopt;
+    user = h->flags & XCB_ICCCM_SIZE_HINT_US_POSITION;
+    const bool program = h->flags & XCB_ICCCM_SIZE_HINT_P_POSITION;
+    if (!user && !(program && (xsurface->x != 0 || xsurface->y != 0)))
+        return std::nullopt;
+    return std::pair{int(xsurface->x), int(xsurface->y)};
+}
+
+bool XwaylandView::splash() const {
+    return has_type(WLR_XWAYLAND_NET_WM_WINDOW_TYPE_SPLASH);
+}
+
+bool XwaylandView::passive() const {
+    for (auto t : {WLR_XWAYLAND_NET_WM_WINDOW_TYPE_NOTIFICATION, WLR_XWAYLAND_NET_WM_WINDOW_TYPE_TOOLTIP,
+                   WLR_XWAYLAND_NET_WM_WINDOW_TYPE_DROPDOWN_MENU, WLR_XWAYLAND_NET_WM_WINDOW_TYPE_POPUP_MENU,
+                   WLR_XWAYLAND_NET_WM_WINDOW_TYPE_COMBO, WLR_XWAYLAND_NET_WM_WINDOW_TYPE_DND})
+        if (has_type(t))
+            return true;
+    return false;
 }
 
 void XwaylandView::unmap() {
@@ -167,7 +216,8 @@ bool XwaylandView::is_dialog() const {
 // X11 windows are decorated unless they draw their own frame (Motif hints
 // saying "no title"), like Steam or Chromium's own chrome.
 bool XwaylandView::wants_ssd() const {
-    return !unmanaged() && !(xsurface->decorations & WLR_XWAYLAND_SURFACE_DECORATIONS_NO_TITLE);
+    return !unmanaged() && !splash() && !passive() &&
+           !(xsurface->decorations & WLR_XWAYLAND_SURFACE_DECORATIONS_NO_TITLE);
 }
 
 bool XwaylandView::wants_focus() const {
