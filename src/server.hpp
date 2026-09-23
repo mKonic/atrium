@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,8 @@ class Titlebar;
 class Seat;
 class SessionLock;
 class Overview;
+class Placements;
+struct Placement;
 class SnapPreview;
 class Switcher;
 class Space;
@@ -100,6 +103,11 @@ public:
     void prune_space(Space* space);
     void spaces_changed();
     void fade_secret(Space* space, bool in);
+    // Where a new window should open, when it is its app's first window and
+    // the app has closed one before.
+    std::optional<Placement> placement_for(const View* view) const;
+    void remember_placement(const View* view);
+
     // Decide a new window's space from the rules; returns what else they ask for.
     RuleResult assign_space(View* view);
     void output_added(Output* output);
@@ -168,6 +176,7 @@ public:
     std::unique_ptr<SnapPreview> snap_preview;
     std::unique_ptr<Overview> overview;
     std::unique_ptr<Switcher> switcher;
+    std::unique_ptr<Placements> placements;
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     uint64_t next_view_id = 1;

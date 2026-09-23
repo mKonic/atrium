@@ -7,6 +7,7 @@ atrium_sources = files(
   'layer_surface.cpp',
   'main.cpp',
   'overview.cpp',
+  'placements.cpp',
   'output.cpp',
   'seat.cpp',
   'server.cpp',

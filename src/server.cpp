@@ -8,6 +8,7 @@
 #include "space.hpp"
 #include "settings.hpp"
 #include "overview.hpp"
+#include "placements.hpp"
 #include "switcher.hpp"
 #include "snap_preview.hpp"
 #include "theme.hpp"
@@ -84,6 +85,7 @@ void Server::setup() {
     snap_preview = std::make_unique<SnapPreview>(*this);
     overview = std::make_unique<Overview>(*this);
     switcher = std::make_unique<Switcher>(*this);
+    placements = std::make_unique<Placements>(Placements::default_file());
     background_blur = wlr_scene_optimized_blur_create(&scene->tree, 0, 0);
     wlr_scene_node_place_above(&background_blur->node, &layer(Layer::Bottom)->node);
     apply_blur_settings();
@@ -583,6 +585,40 @@ Hit Server::hit_test(double lx, double ly) const {
     hit.view = owner.view;
     hit.layer = owner.layer;
     return hit;
+}
+
+// --- remembered placements ---------------------------------------------------------
+
+namespace {
+
+bool placeable(const View* v) {
+    return !v->unmanaged() && !v->parent() && !v->is_dialog() && v->app_id() && *v->app_id();
+}
+
+} // namespace
+
+std::optional<Placement> Server::placement_for(const View* view) const {
+    if (!config.remember_placement || !placeable(view))
+        return std::nullopt;
+    const std::string_view app = view->app_id();
+    // Only the first window: a second one cascades off the first as usual.
+    for (const View* v : views)
+        if (v != view && v->mapped && v->app_id() && app == v->app_id())
+            return std::nullopt;
+    if (const Placement* p = placements->find(std::string(app)))
+        return *p;
+    return std::nullopt;
+}
+
+void Server::remember_placement(const View* view) {
+    if (!config.remember_placement || !placeable(view) || !view->output || !view->mapped)
+        return;
+    // The floating box, whatever state the window is in now.
+    const bool away = view->maximized || view->snapped || view->fullscreen;
+    const wlr_box b = away ? view->restore : view->geom;
+    const wlr_box& o = view->output->box;
+    placements->remember(view->app_id(), Placement{view->output->wlr->name, b.x - o.x, b.y - o.y,
+                                                   b.width, b.height, view->maximized, view->snapped});
 }
 
 View* Server::top_view(Output* output) const {

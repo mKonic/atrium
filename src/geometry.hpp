@@ -49,6 +49,10 @@ uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corn
 // around them. TOP alone (maximize) fills the area without a gap.
 wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap);
 
+// Bring a remembered window box back onto `area`: shrink it to fit, then
+// slide it in until it is fully inside.
+wlr_box fit_into(wlr_box box, const wlr_box& area);
+
 // Overview: every window scaled into `area` as rows of equal height, keeping
 // their rough arrangement (top rows stay on top, left stays left) and never
 // enlarged. `gap` separates windows and rows; `label` is extra room kept

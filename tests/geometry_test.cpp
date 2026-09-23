@@ -224,3 +224,13 @@ TEST(OverviewLayout, EmptyAndTiny) {
     const std::vector<wlr_box> one{{0, 0, 500, 500}};
     EXPECT_EQ(overview_layout(one, {0, 0, 4, 4}, 8, 8).size(), 1u);
 }
+
+TEST(FitInto, KeepsWhatFits) {
+    EXPECT_BOX(fit_into({100, 100, 400, 300}, kScreen), 100, 100, 400, 300);
+}
+
+TEST(FitInto, PullsBackAndShrinks) {
+    EXPECT_BOX(fit_into({1300, 800, 400, 300}, kScreen), 1040, 600, 400, 300);  // off the bottom right
+    EXPECT_BOX(fit_into({-50, 0, 400, 300}, kScreen), 0, 30, 400, 300);         // above the bar
+    EXPECT_BOX(fit_into({0, 0, 3000, 2000}, kScreen), 0, 30, 1440, 870);       // bigger than the screen
+}

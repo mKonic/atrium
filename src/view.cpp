@@ -110,6 +110,11 @@ void View::handle_map() {
         set_fullscreen(true);
     else if (wish.maximized.value_or(false))
         set_maximized(true);
+    else if (remembered_ && remembered_->maximized)
+        set_maximized(true);
+    else if (remembered_ && remembered_->snapped)
+        snap(remembered_->snapped);
+    remembered_.reset();
     // A window a rule sent to a space you aren't looking at opens quietly.
     if (!space || space->shown())
         server.focus_view(this);
@@ -125,6 +130,8 @@ void View::handle_map() {
 }
 
 void View::handle_unmap() {
+    if (!unmanaged())
+        server.remember_placement(this);
     if (server.overview)
         server.overview->view_unmapped(this);
     if (server.switcher)
@@ -192,6 +199,20 @@ void View::place() {
         target = server.output_at(cx, cy);
     }
     set_output(target);
+
+    // Back where the app's window last was.
+    if (!remembered_)
+        remembered_ = server.placement_for(this);
+    if (remembered_ && !p) {
+        const wlr_box want = geometry::fit_into({target ? target->box.x + remembered_->x : remembered_->x,
+                                                 target ? target->box.y + remembered_->y : remembered_->y,
+                                                 remembered_->width, remembered_->height}, usable_area());
+        if (want.width != geom.width || want.height != geom.height)
+            request_geometry(want);
+        else
+            move_to(want.x, want.y);
+        return;
+    }
 
     std::vector<wlr_box> others;
     for (View* v : server.views)

@@ -341,6 +341,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.tiled_titlebars", "Windows", "Title bars on tiled windows",
         "Keep title bars on windows snapped to halves and quarters. Off gives the room to the window.",
         &Config::tiled_titlebars, d));
+    s.push_back(boolean("windows.remember_placement", "Windows", "Reopen windows where they were",
+        "An app's first window comes back at the size and place it had when it last closed.",
+        &Config::remember_placement, d));
     s.push_back(number("windows.cascade_step", T::Int, "Windows", "Cascade offset",
         "How far a new window steps down and right when it would cover another.", &Config::cascade_step, d, 0, 200));
 

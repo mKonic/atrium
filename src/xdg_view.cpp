@@ -88,7 +88,13 @@ void XdgView::commit() {
                                             o->usable.height - (wants_ssd() ? Titlebar::kHeight : 0));
         }
         apply_decoration_mode();
-        wlr_xdg_toplevel_set_size(toplevel, 0, 0);  // client picks its own size
+        // Reopen at the size the app last had, or let it pick its own.
+        remembered_ = server.placement_for(this);
+        if (remembered_)
+            wlr_xdg_toplevel_set_size(toplevel, remembered_->width,
+                                      std::max(1, remembered_->height - (wants_ssd() ? Titlebar::kHeight : 0)));
+        else
+            wlr_xdg_toplevel_set_size(toplevel, 0, 0);
         return;
     }
     if (!mapped)

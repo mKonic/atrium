@@ -94,6 +94,7 @@ struct Config {
     bool snapping = true;     // drag to screen edges and corners to tile
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar
+    bool remember_placement = true;  // an app reopens where its window last closed
 
     // Keyboard
     std::string xkb_rules, xkb_model, xkb_layout = "us", xkb_variant, xkb_options;

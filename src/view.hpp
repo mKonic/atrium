@@ -1,8 +1,10 @@
 #pragma once
 #include "listener.hpp"
+#include "placements.hpp"
 #include "titlebar.hpp"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace atrium {
@@ -147,6 +149,9 @@ protected:
     // Hide the title bar for tiling; the frame shrinks by it, the content stays.
     void set_tile_bar_hidden(bool hidden);
     bool tile_bar_hidden_ = false;
+
+    // Where the app's last window was, claimed for this one (see Server::placement_for).
+    std::optional<Placement> remembered_;
 
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;

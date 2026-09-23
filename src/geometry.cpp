@@ -134,6 +134,14 @@ wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap) {
     return b;
 }
 
+wlr_box fit_into(wlr_box box, const wlr_box& area) {
+    box.width = std::clamp(box.width, 1, std::max(1, area.width));
+    box.height = std::clamp(box.height, 1, std::max(1, area.height));
+    box.x = std::clamp(box.x, area.x, area.x + area.width - box.width);
+    box.y = std::clamp(box.y, area.y, area.y + area.height - box.height);
+    return box;
+}
+
 namespace {
 
 struct Candidate {
