@@ -1,6 +1,6 @@
 // A minimal input method for the smoke test. It grabs the keyboard while a
-// text field is focused, turns the a key into "α" and the b key into "IME>"
-// and a new line, and swallows the rest. Proves the relay both ways: keys from the keyboard
+// text field is focused (and lets go after, as fcitx5 does), turns the a key
+// into "α" and the b key into "IME>" and a new line, and swallows the rest. Proves the relay both ways: keys from the keyboard
 // to the IME, text from the IME to the app. Prints what it sees.
 #include "input-method-unstable-v2-client-protocol.h"
 
@@ -14,6 +14,7 @@ static struct zwp_input_method_manager_v2* manager;
 static struct zwp_input_method_v2* im;
 static uint32_t serial;  // done events so far; commit() echoes it
 static int active, pending_active;
+static struct zwp_input_method_keyboard_grab_v2* grab;
 
 static void keymap(void* data, struct zwp_input_method_keyboard_grab_v2* grab, uint32_t format, int32_t fd,
                    uint32_t size) {
@@ -48,6 +49,13 @@ static void done(void* data, struct zwp_input_method_v2* m) {
     ++serial;
     if (pending_active != active) {
         active = pending_active;
+        if (active && !grab) {
+            grab = zwp_input_method_v2_grab_keyboard(im);
+            zwp_input_method_keyboard_grab_v2_add_listener(grab, &grab_listener, NULL);
+        } else if (!active && grab) {
+            zwp_input_method_keyboard_grab_v2_release(grab);
+            grab = NULL;
+        }
         printf(active ? "activate\n" : "deactivate\n");
         fflush(stdout);
     }
@@ -87,7 +95,6 @@ int main(void) {
     }
     im = zwp_input_method_manager_v2_get_input_method(manager, seat);
     zwp_input_method_v2_add_listener(im, &im_listener, NULL);
-    zwp_input_method_keyboard_grab_v2_add_listener(zwp_input_method_v2_grab_keyboard(im), &grab_listener, NULL);
     printf("ready\n");
     fflush(stdout);
     while (wl_display_dispatch(display) != -1) {

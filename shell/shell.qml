@@ -13,6 +13,7 @@ import qs.modules.notifications
 import qs.modules.osd
 import qs.modules.polkit
 import qs.modules.session
+import qs.modules.windowmenu
 
 // atrium's desktop shell.
 ShellRoot {
@@ -61,6 +62,8 @@ ShellRoot {
     Polkit {}
 
     SystemMenu {}
+
+    WindowMenu {}
 
     // System Settings runs as its own app (see settings.qml); a running one
     // hears the same action and switches page itself.

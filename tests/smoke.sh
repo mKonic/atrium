@@ -155,6 +155,19 @@ check "an input method starts" grep -q activate "$work/ime.log"
 vc in "$box" key a key b >/dev/null 2>&1
 check "it types into the app" grep -qx "αIME>" "$work/typed"
 
+# A right-click on a title bar: the window menu, gone again on Escape.
+read -r mx my < <(ctl -j windows | python3 -c "
+import json,sys
+g=[w for w in json.load(sys.stdin) if w['app_id'] == 'foot' and w['space'] == '1'][0]['geometry']
+print(max(g['x'], 0) + 60, g['y'] + 12)")
+vc in "$box" move "$mx" "$my" >/dev/null 2>&1
+vc in "$box" moverel 1 0 >/dev/null 2>&1
+vc in "$box" click right >/dev/null 2>&1
+check "right-clicking a title bar opens the window menu" json layers \
+    "any(l['namespace'] == 'atrium-window-menu' and l['mapped'] for l in d)"
+vc in "$box" key Escape >/dev/null 2>&1
+check "and Escape closes it" json layers "not any(l['namespace'] == 'atrium-window-menu' and l['mapped'] for l in d)"
+
 # A tab torn out of a window rides the drag (xdg-toplevel-drag).
 ctl action spawn "sh -c '$build/tests/drag_probe > $work/drag.log 2>&1'" >/dev/null
 check "a window to tear a tab from" grep -qx ready "$work/drag.log"

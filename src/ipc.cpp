@@ -733,6 +733,10 @@ json Ipc::handle(Client& c, const json& req) {
             v->set_maximized(has_value ? req["value"].get<bool>() : !v->maximized);
         } else if (cmd == "window.fullscreen") {
             v->set_fullscreen(has_value ? req["value"].get<bool>() : !v->fullscreen);
+        } else if (cmd == "window.pin") {
+            // On every space (sticky).
+            v->sticky = has_value ? req["value"].get<bool>() : !v->sticky;
+            server_.notify_window(*v, "changed");
         } else if (cmd == "window.move") {
             if (!req.contains("x") || !req.contains("y"))
                 return fail("window.move needs x and y");

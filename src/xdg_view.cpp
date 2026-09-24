@@ -58,6 +58,15 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
         if (mapped && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
             server.seat->begin_resize(this, e->edges);
     });
+    // A right-click on a GTK header bar: atrium's window menu.
+    request_window_menu_.connect(&toplevel->events.request_show_window_menu,
+        [this](wlr_xdg_toplevel_show_window_menu_event* e) {
+            if (!mapped)
+                return;
+            double ox, oy;
+            surface_origin(ox, oy);
+            server.show_window_menu(this, ox + e->x, oy + e->y);
+        });
     set_title_.connect(&toplevel->events.set_title, [this](void*) { update_title(); });
     set_app_id_.connect(&toplevel->events.set_app_id, [this](void*) { update_title(); });
 

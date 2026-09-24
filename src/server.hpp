@@ -136,6 +136,9 @@ public:
     // the app has closed one before.
     std::optional<Placement> placement_for(const View* view) const;
     void remember_placement(const View* view);
+    // The shell's menu for `view` (minimize, zoom, spaces, close...) at a
+    // point in the layout.
+    void show_window_menu(const View* view, double lx, double ly);
     // Where a window is, relative to its output, as it would be remembered.
     Placement placement_of(const View* view) const;
 

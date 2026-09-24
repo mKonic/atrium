@@ -163,6 +163,9 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "setting.changed") {
         settings_[e.value("key").toString()] = e.value("value").toVariant();
         emit settingsChanged();
+    } else if (kind == "window.menu") {
+        emit windowMenu(e.value("window").toObject().toVariantMap(), e.value("output").toString(),
+                        e.value("x").toInt(), e.value("y").toInt());
     } else if (kind.startsWith("window.")) {
         const QVariantMap w = e.value("window").toObject().toVariantMap();
         if (kind == "window.closed") {
@@ -285,6 +288,13 @@ void Compositor::toggleSecret(const QString& name) {
 
 void Compositor::focusWindow(int id) {
     request({{"cmd", "window.focus"}, {"window", id}});
+}
+
+void Compositor::windowRequest(int id, const QString& command, const QVariantMap& fields) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "window." + command;
+    req["window"] = id;
+    change(req);
 }
 
 void Compositor::closeWindow(int id) {

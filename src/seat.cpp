@@ -760,11 +760,13 @@ void Seat::set_titlebar_hover(Titlebar* bar, int part) {
 bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
     using Part = Titlebar::Part;
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+        const Part part = hit.titlebar->part_at(hit.sx, hit.sy);
         if (e->button != BTN_LEFT) {
             server.focus_view(hit.view);
+            if (e->button == BTN_RIGHT && part == Part::Bar)
+                server.show_window_menu(hit.view, cursor->x, cursor->y);
             return true;
         }
-        const Part part = hit.titlebar->part_at(hit.sx, hit.sy);
         if (part == Part::Bar) {
             server.focus_view(hit.view);
             // Double-click zooms, like macOS.

@@ -259,6 +259,7 @@ private:
     Listener<> request_fullscreen_, request_maximize_, request_minimize_;
     Listener<wlr_xdg_toplevel_move_event> request_move_;
     Listener<wlr_xdg_toplevel_resize_event> request_resize_;
+    Listener<wlr_xdg_toplevel_show_window_menu_event> request_window_menu_;
     Listener<> set_title_, set_app_id_;
     Listener<> decoration_request_, decoration_destroy_;
     Listener<> kde_mode_, kde_destroy_;

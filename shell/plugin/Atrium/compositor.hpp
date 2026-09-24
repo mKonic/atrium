@@ -77,6 +77,8 @@ public:
     Q_INVOKABLE void toggleSecret(const QString& name);
     Q_INVOKABLE void focusWindow(int id);
     Q_INVOKABLE void closeWindow(int id);
+    // "minimize", "maximize", "fullscreen", "pin", "to_space" ({number}), ...
+    Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
     Q_INVOKABLE void setSetting(const QString& key, const QVariant& value);
     Q_INVOKABLE void resetSetting(const QString& key);
@@ -115,6 +117,9 @@ signals:
     void refused(const QString& why);
     void connectedChanged();
     // A shortcut asked the shell to show something ("launcher").
+    // Right-click on a title bar (or an app asking): the window menu, at a
+    // point on that output.
+    void windowMenu(const QVariantMap& window, const QString& output, int x, int y);
     void shellAction(const QString& name);
 
 private:

@@ -1225,6 +1225,17 @@ void Server::apply_blur_settings() {
     wlr_scene_optimized_blur_mark_dirty(background_blur);
 }
 
+void Server::show_window_menu(const View* view, double lx, double ly) {
+    Output* o = output_at(lx, ly);
+    if (!ipc || !view || view->unmanaged() || !o)
+        return;
+    ipc->broadcast("windows", {{"event", "window.menu"},
+                               {"window", Ipc::window_json(*view)},
+                               {"output", o->wlr->name},
+                               {"x", int(lx) - o->box.x},
+                               {"y", int(ly) - o->box.y}});
+}
+
 void Server::notify_window(const View& view, const char* what) {
     if (sessions && !view.unmanaged())
         sessions->view_changed(&view);
