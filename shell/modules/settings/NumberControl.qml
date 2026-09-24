@@ -13,6 +13,10 @@ Item {
     property bool integer: true
     property real shown: value  // while dragging
     signal committed(var value)
+    // Each step while dragging, for settings that show the change live.
+    signal moved(var value)
+
+    onShownChanged: if (drag.pressed) moved(shown)
 
     readonly property real fraction: max > min ? (shown - min) / (max - min) : 0
 

@@ -276,6 +276,47 @@ Rectangle {
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.m3OnSurfaceVariant
         }
+
+        // Only screens whose EDID says they take HDR10 (PQ, BT.2020).
+        Setting {
+            visible: root.output?.hdr_supported ?? false
+            label: "HDR"
+
+            Switch {
+                anchors.verticalCenter: parent.verticalCenter
+                checked: root.output?.hdr ?? false
+                onToggled: root.configure({ hdr: !checked })
+            }
+        }
+
+        Setting {
+            visible: (root.output?.hdr_supported ?? false) && (root.output?.hdr ?? false)
+            label: "SDR brightness"
+
+            NumberControl {
+                value: root.output?.sdr_brightness ?? 30
+                onMoved: v => root.configure({ sdr_brightness: v })
+                onCommitted: v => root.configure({ sdr_brightness: v })
+            }
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: `${Math.round(root.output?.sdr_white_nits ?? 200)} nits`
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.m3OnSurfaceVariant
+            }
+        }
+
+        StyledText {
+            visible: root.output?.hdr_supported ?? false
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: (root.output?.hdr ?? false)
+                ? "HDR games and videos show their full brightness and color" + ((root.output?.max_luminance ?? 0) > 0 ? `, up to the ${Math.round(root.output.max_luminance)} nits this screen says it reaches` : "") + ". Everything else looks as it does without HDR, as bright as SDR brightness sets it."
+                : "Sends the screen an HDR10 signal, so HDR games and videos show their full brightness and color. Everything else looks as it does now."
+            font.pointSize: Theme.font.size.smaller
+            color: Theme.palette.m3OnSurfaceVariant
+        }
     }
 
     component Setting: Row {
