@@ -626,9 +626,14 @@ void Server::note_last_session() {
         crashed = pid > 0 && pid != getpid() && kill(pid, 0) != 0 && errno == ESRCH;
     }
     std::ofstream(session_marker_) << getpid() << "\n";
+    // Once the shell's notification server answers (gdbus comes with GLib,
+    // which atrium needs anyway; notify-send may not be there).
     if (crashed)
-        spawn("sleep 6; notify-send -a atrium -i dialog-warning 'atrium stopped unexpectedly' "
-              "'Your last session ended in a crash. For the details: coredumpctl info atrium'");
+        spawn("for i in $(seq 30); do gdbus call --session --dest org.freedesktop.Notifications "
+              "--object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify "
+              "atrium 0 dialog-warning 'atrium stopped unexpectedly' "
+              "'Your last session ended in a crash. For the details: coredumpctl info atrium' "
+              "'[]' '{}' 10000 >/dev/null 2>&1 && break; sleep 1; done");
 }
 
 void Server::quit() {
