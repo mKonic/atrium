@@ -139,10 +139,9 @@ wlr_scene_buffer* main_buffer(wlr_scene_tree* tree, wlr_surface* surface) {
 
 } // namespace
 
-// How far Liquid Glass bends light at a panel's very edge, and how deep in
-// from the edge the bend reaches, in logical pixels.
-constexpr float kGlassRefraction = 14, kGlassThickness = 18;
-constexpr float kGlassBlur = 0.3f;  // of the frosted blur's strength
+// How deep in from a glass panel's edge the bend reaches, in logical pixels:
+// a little more than the bend itself, so it fades out rather than stopping.
+constexpr float kGlassThickness = 18;
 
 void LayerSurface::update_blur() {
     const Config& c = server.config;
@@ -168,8 +167,9 @@ void LayerSurface::update_blur() {
     wlr_scene_blur_set_transparency_mask_source(blur_, mask);
     // Liquid Glass is clear glass, not frosted: a light blur, and what is
     // behind bent at the panel's edge (atrium's scenefx).
-    wlr_scene_blur_set_strength(blur_, c.liquid_glass ? kGlassBlur : 1.0f);
-    wlr_scene_blur_set_refraction(blur_, c.liquid_glass ? kGlassRefraction : 0, kGlassThickness);
+    wlr_scene_blur_set_strength(blur_, c.liquid_glass ? float(c.glass_frost) : 1.0f);
+    const float bend = c.liquid_glass ? float(c.glass_refraction) : 0.0f;
+    wlr_scene_blur_set_refraction(blur_, bend, std::max(kGlassThickness, bend * 1.3f));
 }
 
 void LayerSurface::unmap() {
