@@ -101,11 +101,28 @@ fs::path config_home() {
     return {};
 }
 
-bool has_qtengine() {
+bool has_platform_theme(const char* plugin) {
     for (const char* dir : {"/usr/lib/qt6/plugins", "/usr/lib64/qt6/plugins", "/usr/lib/x86_64-linux-gnu/qt6/plugins"})
-        if (fs::exists(fs::path(dir) / "platformthemes/libqt6engine-plugin.so"))
+        if (fs::exists(fs::path(dir) / "platformthemes" / plugin))
             return true;
     return false;
+}
+
+// Without qtengine: plasma-integration's platform theme reads kdeglobals
+// through XDG_CONFIG_DIRS, below the user's own, so a generated one first in
+// that list fills whatever the user's file doesn't set. Not live: apps pick
+// it up when they start.
+void install_kdeglobals(const fs::path& dir, bool light, std::string_view accent) {
+    const fs::path xdg = dir / "xdg";
+    if (!write_if_changed(xdg / "kdeglobals", palette::kde_colors(light, accent))) {
+        wlr_log(WLR_ERROR, "theme: couldn't write %s; Qt apps keep their own colours", xdg.c_str());
+        return;
+    }
+    const char* dirs = std::getenv("XDG_CONFIG_DIRS");
+    std::string list = dirs && *dirs ? dirs : "/etc/xdg";
+    if (!list.starts_with(xdg.string() + ":"))
+        setenv("XDG_CONFIG_DIRS", (xdg.string() + ":" + list).c_str(), 1);
+    setenv("QT_QPA_PLATFORMTHEME", "kde", 1);
 }
 
 } // namespace
@@ -138,14 +155,19 @@ void install_gtk_theme(bool light, std::string_view accent) {
 }
 
 void install_qt_theme(bool light, std::string_view accent) {
-    if (!has_qtengine())
-        return;  // Qt apps still follow the colour scheme through the portal
-    if (const char* qpa = std::getenv("QT_QPA_PLATFORMTHEME"); qpa && *qpa && std::string_view(qpa) != "qtengine")
-        return;  // the user picked another platform theme
     const fs::path base = data_home();
     if (base.empty())
         return;
     const fs::path dir = base / "atrium/qt";
+    const char* set = std::getenv("QT_QPA_PLATFORMTHEME");
+    const std::string_view qpa = set ? set : "";
+    if ((qpa == "kde" || (qpa.empty() && !has_platform_theme("libqt6engine-plugin.so"))) &&
+        has_platform_theme("KDEPlasmaPlatformTheme6.so")) {
+        install_kdeglobals(dir, light, accent);
+        return;
+    }
+    if (!has_platform_theme("libqt6engine-plugin.so") || (!qpa.empty() && qpa != "qtengine"))
+        return;  // another platform theme the user picked; Qt apps still follow dark/light through the portal
     // Named for what it holds, so a switch changes config.json too: that is
     // what qtengine watches to recolour running apps.
     const fs::path colors = dir / ("atrium-" + std::string(light ? "light-" : "dark-") + std::string(accent) + ".colors");

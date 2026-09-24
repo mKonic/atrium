@@ -11,8 +11,9 @@ namespace atrium {
 void install_gtk_theme(bool light, std::string_view accent);
 // Qt apps' colours: a KDE colour scheme from atrium's palette, through the
 // qtengine platform theme (QTENGINE_CONFIG, in $XDG_DATA_HOME/atrium/qt),
-// keeping the user's own qtengine style, icons and fonts. Nothing when
-// qtengine isn't installed or another platform theme was chosen.
+// keeping the user's own qtengine style, icons and fonts; without qtengine,
+// a kdeglobals for plasma-integration's platform theme. Nothing when another
+// platform theme (qt6ct, ...) was chosen.
 void install_qt_theme(bool light, std::string_view accent);
 // Tell apps through GSettings (read by the settings portal): libadwaita,
 // Firefox, Chromium and Qt follow color-scheme live.

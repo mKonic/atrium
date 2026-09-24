@@ -540,7 +540,7 @@ void Server::run(const char* startup_cmd) {
         // D-Bus-started apps get the session's environment, themes included.
         // (A nested atrium's environment isn't the host session's.)
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
-              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG");
+              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS");
         apply_gtk_button_layout();
         apply_color_scheme(config.light);
         apply_accent_color(config.accent);
