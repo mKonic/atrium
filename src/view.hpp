@@ -122,6 +122,7 @@ public:
     bool mapped = false;
     bool activated = false;
     bool minimized = false;
+    uint32_t keyboard_layout = 0;  // with keyboard.per_window: the layout it was left in
     bool maximized = false;
     bool fullscreen = false;
     int fullscreen_home = 0;  // the space it left for one of its own (windows.fullscreen_space)

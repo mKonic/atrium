@@ -272,6 +272,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            KeyboardPage {
+                visible: root.query === "" && root.page === "Keyboard"
+                width: parent.width
+            }
+
             DisplaysEditor {
                 visible: root.query === "" && root.page === "Displays"
                 width: parent.width
@@ -285,7 +290,7 @@ FloatingWindow {
             // A generated page: plain rows in one card, editors in their own.
             Card {
                 visible: root.query === "" && root.page !== "About" && rows.length > 0
-                rows: (SettingsPages.byPage[root.page] ?? []).filter(s => !root.wide(s.type))
+                rows: (SettingsPages.byPage[root.page] ?? []).filter(s => !root.wide(s.type) && !s.custom)
             }
 
             Repeater {

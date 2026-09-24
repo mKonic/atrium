@@ -14,6 +14,7 @@ Dropdown 1.0 Dropdown.qml
 Field 1.0 Field.qml
 Group 1.0 Group.qml
 KeyCaps 1.0 KeyCaps.qml
+KeyboardPage 1.0 KeyboardPage.qml
 ListEditor 1.0 ListEditor.qml
 MissingNote 1.0 MissingNote.qml
 NetworkPage 1.0 NetworkPage.qml

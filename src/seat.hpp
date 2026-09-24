@@ -63,6 +63,10 @@ public:
     void titlebar_gone(Titlebar* bar);
 
     void apply_keyboard_config();
+    // Keyboard layouts: the one in use (from 0), and each one's name.
+    uint32_t layout() const;
+    std::vector<std::string> layout_names() const;
+    void set_layout(uint32_t index);
     void apply_pointer_config();
     // Pointing devices plugged in now.
     std::vector<wlr_pointer*> pointer_devices() const;
@@ -142,6 +146,15 @@ private:
         Listener<> destroy;
     };
     std::vector<std::unique_ptr<PointerDevice>> pointers_;
+
+    // The physical keyboards, each told when the layout is picked for them
+    // (the group copies its members' state).
+    struct PhysicalKeyboard {
+        wlr_keyboard* wlr;
+        Listener<> destroy;
+    };
+    std::vector<std::unique_ptr<PhysicalKeyboard>> physical_;
+    uint32_t last_layout_ = 0;
 
     wlr_pointer_constraint_v1* active_constraint_ = nullptr;
     struct Constraint;

@@ -1,5 +1,6 @@
 #include "ipc.hpp"
 #include "input_method.hpp"
+#include "keyboard_conf.hpp"
 #include "layer_surface.hpp"
 #include "registry.hpp"
 #include "rules.hpp"
@@ -48,6 +49,8 @@ json schema_json(const SettingSchema& s) {
     };
     if (!s.needs.empty())
         j["needs"] = s.needs;
+    if (s.custom)
+        j["custom"] = true;
     if (s.type == SettingType::Int || s.type == SettingType::Float) {
         j["min"] = s.min;
         j["max"] = s.max;
@@ -327,6 +330,21 @@ json Ipc::devices_json(const Server& server) {
         });
     }
     return list;
+}
+
+json Ipc::keyboard_json(const Server& server) {
+    // Codes from the layouts in use ("us,de"), names from the keymap.
+    const Config& c = server.config;
+    std::string codes = c.xkb_layout.empty() ? system_keyboard().layout : c.xkb_layout;
+    json layouts = json::array();
+    const std::vector<std::string> names = server.seat->layout_names();
+    for (size_t i = 0; i < names.size(); ++i) {
+        const size_t comma = codes.find(',');
+        std::string code = codes.substr(0, comma);
+        codes = comma == std::string::npos ? "" : codes.substr(comma + 1);
+        layouts.push_back({{"name", names[i]}, {"code", code}});
+    }
+    return {{"layouts", layouts}, {"active", server.seat->layout()}};
 }
 
 json Ipc::spaces_json(const Server& server) {
@@ -657,6 +675,16 @@ json Ipc::handle(Client& c, const json& req) {
 
     if (cmd == "spaces")
         return ok(spaces_json(server_));
+
+    if (cmd == "keyboard")
+        return ok(keyboard_json(server_));
+
+    if (cmd == "keyboard.layout") {
+        if (!req.contains("index") || !req["index"].is_number_unsigned())
+            return fail("keyboard.layout needs an \"index\"");
+        server_.seat->set_layout(req["index"].get<uint32_t>());
+        return ok();
+    }
 
     if (cmd == "space.switch") {
         if (!req.contains("number") || !req["number"].is_number_integer())

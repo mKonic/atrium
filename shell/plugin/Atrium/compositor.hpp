@@ -36,6 +36,8 @@ class Compositor : public QObject {
     Q_PROPERTY(QVariant focusedOutput READ focusedOutput NOTIFY outputsChanged)
     Q_PROPERTY(QVariant shownSecret READ shownSecret NOTIFY spacesChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    // {layouts: [{name: "German", code: "de"}], active: 0}
+    Q_PROPERTY(QVariantMap keyboard READ keyboard NOTIFY keyboardChanged)
 
 public:
     explicit Compositor(QObject* parent = nullptr);
@@ -44,6 +46,7 @@ public:
 
     QVariantList windows() const { return windows_; }  // most recently focused first
     QVariantList spaces() const { return spaces_; }
+    QVariantMap keyboard() const { return keyboard_; }
     QVariantList outputs() const { return outputs_; }
     QVariantMap settings() const { return settings_; }
     QVariantList schema() const { return schema_; }
@@ -83,6 +86,7 @@ public:
     // "minimize", "maximize", "fullscreen", "pin", "to_space" ({number}), ...
     Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
+    Q_INVOKABLE void setKeyboardLayout(int index);
     Q_INVOKABLE void setSetting(const QString& key, const QVariant& value);
     Q_INVOKABLE void resetSetting(const QString& key);
 
@@ -107,6 +111,7 @@ public:
     Q_INVOKABLE void setDevice(const QString& name, const QVariantMap& fields);
 
 signals:
+    void keyboardChanged();
     void windowsChanged();
     void spacesChanged();
     void outputsChanged();
@@ -149,6 +154,7 @@ private:
     std::map<qint64, Reply> pending_;
 
     QVariantList windows_, spaces_, outputs_;
+    QVariantMap keyboard_;
     QVariantMap settings_;
     QVariantList schema_, apps_, rules_, shortcuts_, devices_;
     QStringList actions_;

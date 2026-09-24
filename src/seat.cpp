@@ -41,7 +41,11 @@ xkb_keymap* compile_keymap(const Config& c) {
     names.model = opt(c.xkb_model.empty() ? sys.model : c.xkb_model);
     names.layout = opt(own ? c.xkb_layout : sys.layout);
     names.variant = opt(own ? c.xkb_variant : sys.variant);
-    names.options = opt(c.xkb_options.empty() ? sys.options : c.xkb_options);
+    std::string options = c.xkb_options.empty() ? sys.options : c.xkb_options;
+    for (const std::string& own : {c.xkb_switch, c.xkb_compose})
+        if (!own.empty())
+            options += (options.empty() ? "" : ",") + own;
+    names.options = opt(options);
 
     xkb_context* ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
     xkb_keymap* keymap = xkb_keymap_new_from_names(ctx, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
@@ -234,10 +238,18 @@ void Seat::apply_keyboard_config() {
         wlr_keyboard_set_repeat_info(&g.group->keyboard, server.config.repeat_rate,
                                      server.config.repeat_delay);
     };
+    // The keyboards themselves too: a group only takes keymaps from its
+    // members, never gives one to them, and it's their state (the layout a
+    // switch key picks) it copies.
+    for (auto& k : physical_)
+        wlr_keyboard_set_keymap(k->wlr, keymap);
     apply(*keyboards_);
     for (auto& g : virtual_keyboards_)
         apply(*g);
     xkb_keymap_unref(keymap);
+    // A new keymap starts at its first layout, and the names may differ.
+    last_layout_ = layout();
+    server.keyboard_layout_changed();
 }
 
 void Seat::apply_cursor_theme() {
@@ -274,6 +286,49 @@ void Seat::new_input(wlr_input_device* device) {
 void Seat::add_keyboard(wlr_keyboard* keyboard) {
     wlr_keyboard_set_keymap(keyboard, keyboards_->group->keyboard.keymap);
     wlr_keyboard_group_add_keyboard(keyboards_->group, keyboard);
+    auto kb = std::make_unique<PhysicalKeyboard>(keyboard);
+    PhysicalKeyboard* raw = kb.get();
+    raw->destroy.connect(&keyboard->base.events.destroy, [this, raw](void*) {
+        std::erase_if(physical_, [raw](auto& k) { return k.get() == raw; });
+    });
+    physical_.push_back(std::move(kb));
+    // A keyboard plugged in types in the layout already in use.
+    if (last_layout_)
+        set_layout(last_layout_);
+}
+
+uint32_t Seat::layout() const {
+    const wlr_keyboard* kb = &keyboards_->group->keyboard;
+    return kb->xkb_state ? xkb_state_serialize_layout(kb->xkb_state, XKB_STATE_LAYOUT_EFFECTIVE) : 0;
+}
+
+std::vector<std::string> Seat::layout_names() const {
+    std::vector<std::string> names;
+    if (xkb_keymap* keymap = keyboards_->group->keyboard.keymap)
+        for (xkb_layout_index_t i = 0; i < xkb_keymap_num_layouts(keymap); ++i) {
+            const char* name = xkb_keymap_layout_get_name(keymap, i);
+            names.emplace_back(name ? name : "");
+        }
+    return names;
+}
+
+void Seat::set_layout(uint32_t index) {
+    wlr_keyboard* group = &keyboards_->group->keyboard;
+    const uint32_t count = group->keymap ? xkb_keymap_num_layouts(group->keymap) : 0;
+    if (count == 0)
+        return;
+    index %= count;
+    const bool changed = index != last_layout_;
+    last_layout_ = index;
+    for (auto& k : physical_)
+        wlr_keyboard_notify_modifiers(k->wlr, k->wlr->modifiers.depressed, k->wlr->modifiers.latched,
+                                      k->wlr->modifiers.locked, index);
+    // No keyboard at all (nested, or unplugged): the group itself.
+    if (physical_.empty())
+        wlr_keyboard_notify_modifiers(group, group->modifiers.depressed, group->modifiers.latched,
+                                      group->modifiers.locked, index);
+    if (changed)
+        server.keyboard_layout_changed();
 }
 
 void Seat::add_pointer(wlr_pointer* pointer) {
@@ -470,6 +525,17 @@ void Seat::modifiers(KeyboardGroup& g) {
     }
     // Letting go of Alt picks the window the switcher is on.
     server.switcher->modifiers(wlr_keyboard_get_modifiers(&g.group->keyboard));
+    if (!g.is_virtual && layout() != last_layout_) {
+        // Nested, the host's modifiers carry the host's layout: atrium's
+        // own stays (a switch key then only works on real keyboards).
+        const bool nested = std::ranges::any_of(physical_, [](auto& k) { return wlr_input_device_is_wl(&k->wlr->base); });
+        if (nested) {
+            set_layout(last_layout_);
+        } else {
+            last_layout_ = layout();
+            server.keyboard_layout_changed();
+        }
+    }
 }
 
 int Seat::key_repeat(KeyboardGroup& g) {

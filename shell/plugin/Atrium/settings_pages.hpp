@@ -28,6 +28,9 @@ public:
     // A key press as a shortcut is written ("Mod+Shift+E"): `modifier` is
     // the shortcut modifier's name ("super", "alt"), which becomes "Mod".
     // "" for a press of a modifier alone.
+    // A choice setting's values as a dropdown's [{value, label}]: "right_alt"
+    // as "Right Alt".
+    Q_INVOKABLE QVariantList choiceOptions(const QStringList& choices) const;
     Q_INVOKABLE QString chord(int key, int modifiers, const QString& modifier) const;
 
 signals:

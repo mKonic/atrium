@@ -192,6 +192,11 @@ PanelWindow {
                 bar: bar
             }
 
+            InputMenu {
+                anchors.verticalCenter: parent.verticalCenter
+                bar: bar
+            }
+
             Status {
                 anchors.verticalCenter: parent.verticalCenter
             }

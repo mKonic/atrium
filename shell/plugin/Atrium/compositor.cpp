@@ -51,7 +51,7 @@ Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     });
     connect(&events_, &QLocalSocket::connected, this, [this] {
         const QJsonObject sub{{"cmd", "subscribe"},
-                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell"}}};
+                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard"}}};
         events_.write(QJsonDocument(sub).toJson(QJsonDocument::Compact) + '\n');
         emit connectedChanged();
     });
@@ -114,6 +114,10 @@ void Compositor::refreshAll() {
         outputs_ = r.toArray().toVariantList();
         emit outputsChanged();
     });
+    request({{"cmd", "keyboard"}}, [this](const QJsonValue& r) {
+        keyboard_ = r.toObject().toVariantMap();
+        emit keyboardChanged();
+    });
     request({{"cmd", "settings.get"}}, [this](const QJsonValue& r) {
         settings_ = r.toObject().toVariantMap();
         emit settingsChanged();
@@ -165,6 +169,9 @@ void Compositor::applyEvent(const QJsonObject& e) {
         emit spacesChanged();
     } else if (kind == "registry.changed") {
         refreshTable(e.value("table").toString());
+    } else if (kind == "keyboard.changed") {
+        keyboard_ = e.value("keyboard").toObject().toVariantMap();
+        emit keyboardChanged();
     } else if (kind == "setting.changed") {
         settings_[e.value("key").toString()] = e.value("value").toVariant();
         emit settingsChanged();
@@ -345,6 +352,10 @@ void Compositor::action(const QString& name, const QVariant& arg) {
     if (arg.isValid() && !arg.isNull())
         req["arg"] = arg.toString();
     request(req);
+}
+
+void Compositor::setKeyboardLayout(int index) {
+    request({{"cmd", "keyboard.layout"}, {"index", index}});
 }
 
 void Compositor::setSetting(const QString& key, const QVariant& value) {

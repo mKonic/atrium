@@ -3,6 +3,8 @@
 #include "compositor.hpp"
 #include "search.hpp"
 
+#include <QRegularExpression>
+
 #include <algorithm>
 #include <map>
 #include <vector>
@@ -75,6 +77,17 @@ void SettingsPages::rebuild() {
     pages_ = pages;
     byPage_ = byPage;
     emit changed();
+}
+
+QVariantList SettingsPages::choiceOptions(const QStringList& choices) const {
+    QVariantList out;
+    for (const QString& c : choices) {
+        QStringList words = c.split(QRegularExpression("[-_]"), Qt::SkipEmptyParts);
+        for (QString& w : words)
+            w[0] = w[0].toUpper();
+        out.append(QVariantMap{{"value", c}, {"label", words.join(' ')}});
+    }
+    return out;
 }
 
 QString SettingsPages::chord(int key, int modifiers, const QString& modifier) const {

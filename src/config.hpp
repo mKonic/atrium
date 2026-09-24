@@ -53,6 +53,7 @@ enum class Action {
     MoveToSpaceNext,
     ToggleFloating,   // on a tiled space: out of the tiles and back
     TogglePin,        // on every space (sticky)
+    NextLayout,       // the next keyboard layout
 };
 
 struct Keybind {
@@ -119,6 +120,10 @@ struct Config {
     // Keyboard
     // Empty layout: the system's keyboard (keyboard_conf.hpp).
     std::string xkb_rules, xkb_model, xkb_layout, xkb_variant, xkb_options;
+    // xkb options of their own, added to xkb_options: the keys that switch
+    // layouts ("grp:alt_shift_toggle") and the compose key ("compose:ralt").
+    std::string xkb_switch, xkb_compose;
+    bool layout_per_window = false;  // each window keeps the layout it was typed in
     int repeat_rate = 35;
     int repeat_delay = 250;
 

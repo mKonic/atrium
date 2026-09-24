@@ -991,7 +991,17 @@ void Server::focus_view(View* view, bool raise) {
     if (!view->unmanaged()) {
         focused_view = view;
         notify_window(*view, "focused");
+        // Each window types in the layout it was left in (new ones: the first).
+        if (config.layout_per_window && seat->layout() != view->keyboard_layout)
+            seat->set_layout(view->keyboard_layout);
     }
+}
+
+void Server::keyboard_layout_changed() {
+    if (config.layout_per_window && focused_view)
+        focused_view->keyboard_layout = seat->layout();
+    if (ipc)
+        ipc->broadcast("keyboard", {{"event", "keyboard.changed"}, {"keyboard", Ipc::keyboard_json(*this)}});
 }
 
 void Server::drop_focus() {
@@ -1196,6 +1206,7 @@ void Server::run_action(const Keybind& b) {
             retile(v->space);
         }
         break;
+    case Action::NextLayout: seat->set_layout(seat->layout() + 1); break;
     case Action::TogglePin:
         if (v) {
             v->sticky = !v->sticky;

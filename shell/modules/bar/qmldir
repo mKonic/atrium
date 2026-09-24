@@ -13,3 +13,4 @@ SystemButton 1.0 SystemButton.qml
 Tray 1.0 Tray.qml
 TrayMenu 1.0 TrayMenu.qml
 Volume 1.0 Volume.qml
+InputMenu 1.0 InputMenu.qml

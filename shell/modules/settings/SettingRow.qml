@@ -105,6 +105,7 @@ Item {
                        : root.type === "int" || root.type === "float" ? numberControl
                        : root.key === "appearance.accent" ? accentControl
                        : root.key === "appearance.wallpaper" ? wallpaperControl
+                       : root.type === "choice" && (root.setting.choices?.length ?? 0) > 5 ? dropdownControl
                        : root.type === "choice" ? choiceControl
                        : root.type === "color" ? colorControl
                        : textControl
@@ -148,6 +149,18 @@ Item {
         ChoiceControl {
             value: String(root.value)
             choices: root.setting.choices ?? []
+            onPicked: v => root.set(v)
+        }
+    }
+
+    // Many choices: a pop-up menu, as macOS has them.
+    Component {
+        id: dropdownControl
+
+        Dropdown {
+            fieldWidth: 180
+            value: String(root.value)
+            options: SettingsPages.choiceOptions(root.setting.choices ?? [])
             onPicked: v => root.set(v)
         }
     }

@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 extern "C" {
@@ -60,6 +61,7 @@ constexpr ActionName kActions[] = {
     {Action::ToggleFullscreen, "fullscreen"},
     {Action::ToggleMaximize, "maximize"},
     {Action::Minimize, "minimize"},
+    {Action::NextLayout, "next_layout"},
     {Action::FocusNext, "focus-next"},
     {Action::FocusPrev, "focus-prev"},
     {Action::SwitchVt, "switch-vt"},
@@ -451,13 +453,40 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Keyboard layouts, comma-separated (us, de, ...). Empty: the system's keyboard.", &Config::xkb_layout, d));
     s.push_back(text("keyboard.variant", "Keyboard", "Variant", "Layout variants, comma-separated.",
         &Config::xkb_variant, d));
-    s.push_back(text("keyboard.options", "Keyboard", "Options",
-        "XKB options, e.g. caps:escape.", &Config::xkb_options, d));
-    s.push_back(text("keyboard.model", "Keyboard", "Model", "Keyboard model.", &Config::xkb_model, d));
+    // Both edited as the Keyboard page's list of layouts.
+    s[s.size() - 2].custom = s.back().custom = true;
     s.push_back(number("keyboard.repeat_rate", T::Int, "Keyboard", "Key repeat rate",
         "Repeats per second while a key is held.", &Config::repeat_rate, d, 1, 100));
     s.push_back(number("keyboard.repeat_delay", T::Int, "Keyboard", "Delay until repeat",
         "Milliseconds a key is held before it repeats.", &Config::repeat_delay, d, 100, 2000));
+    s.push_back(choice("keyboard.switch_keys", "Keyboard", "Switch layouts with",
+        "Keys that go to the next layout, besides the menu bar's layout menu.",
+        {"none", "alt_shift", "ctrl_shift", "caps_lock", "shift_caps_lock", "right_alt"}, "none",
+        [](Config& c, const json& v) {
+            static const std::map<std::string, std::string> grp = {
+                {"alt_shift", "grp:alt_shift_toggle"}, {"ctrl_shift", "grp:ctrl_shift_toggle"},
+                {"caps_lock", "grp:caps_toggle"}, {"shift_caps_lock", "grp:shift_caps_toggle"},
+                {"right_alt", "grp:toggle"}};
+            auto it = grp.find(v.get<std::string>());
+            c.xkb_switch = it == grp.end() ? "" : it->second;
+        }));
+    s.push_back(choice("keyboard.compose", "Keyboard", "Compose key",
+        "Press it, then two keys, for a character that isn't on the keyboard: ' then e for é.",
+        {"none", "right_alt", "right_ctrl", "menu", "caps_lock", "right_super", "scroll_lock"}, "none",
+        [](Config& c, const json& v) {
+            const std::string k = v.get<std::string>();
+            static const std::map<std::string, std::string> compose = {
+                {"right_alt", "compose:ralt"}, {"right_ctrl", "compose:rctrl"}, {"menu", "compose:menu"},
+                {"caps_lock", "compose:caps"}, {"right_super", "compose:rwin"}, {"scroll_lock", "compose:sclk"}};
+            auto it = compose.find(k);
+            c.xkb_compose = it == compose.end() ? "" : it->second;
+        }));
+    s.push_back(boolean("keyboard.per_window", "Keyboard", "Layout per window",
+        "Each window keeps the layout it was last typed in; new windows start with the first.",
+        &Config::layout_per_window, d));
+    s.push_back(text("keyboard.options", "Keyboard", "Options",
+        "XKB options, e.g. caps:escape.", &Config::xkb_options, d));
+    s.push_back(text("keyboard.model", "Keyboard", "Model", "Keyboard model.", &Config::xkb_model, d));
 
     // Mouse and touchpad
     s.push_back(number("pointer.speed", T::Float, "Mouse & Touchpad", "Pointer speed",

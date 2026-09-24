@@ -31,6 +31,8 @@ struct SettingSchema {
     // A service or program it does nothing without ("cliphist"); Settings
     // greys it out, saying so, when that's missing.
     std::string needs;
+    // Edited by a page's own view rather than a row of its own.
+    bool custom = false;
 
     // Copies a validated value into the in-memory config.
     std::function<void(Config&, const json&)> apply;
