@@ -163,6 +163,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "setting.changed") {
         settings_[e.value("key").toString()] = e.value("value").toVariant();
         emit settingsChanged();
+    } else if (kind == "text.not_inserted") {
+        emit textNotInserted(e.value("text").toString());
     } else if (kind == "window.menu") {
         emit windowMenu(e.value("window").toObject().toVariantMap(), e.value("output").toString(),
                         e.value("x").toInt(), e.value("y").toInt());
@@ -295,6 +297,10 @@ void Compositor::windowRequest(int id, const QString& command, const QVariantMap
     req["cmd"] = "window." + command;
     req["window"] = id;
     change(req);
+}
+
+void Compositor::insertText(const QString& text) {
+    change({{"cmd", "text.insert"}, {"text", text}});
 }
 
 void Compositor::closeWindow(int id) {

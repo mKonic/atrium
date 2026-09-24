@@ -3,6 +3,7 @@
 
 #include "layer_surface.hpp"
 #include "output.hpp"
+#include "ipc.hpp"
 #include "server.hpp"
 #include "seat.hpp"
 #include "view.hpp"
@@ -12,6 +13,14 @@
 namespace atrium {
 
 InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
+    pending_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
+        // No field took it: the shell copies it instead.
+        auto* self = static_cast<InputMethodRelay*>(data);
+        if (!self->pending_text_.empty() && self->server_.ipc)
+            self->server_.ipc->broadcast("shell", {{"event", "text.not_inserted"},
+                                                   {"text", std::exchange(self->pending_text_, {})}});
+        return 0;
+    }, this);
     text_inputs_manager_ = wlr_text_input_manager_v3_create(server.display);
     input_methods_manager_ = wlr_input_method_manager_v2_create(server.display);
     new_text_input_.connect(&text_inputs_manager_->events.new_text_input,
@@ -25,6 +34,8 @@ InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
 
 InputMethodRelay::~InputMethodRelay() {
     // The managers go with the display; nothing may stay hooked to them.
+    if (pending_timer_)
+        wl_event_source_remove(pending_timer_);
     popups_.clear();
     text_inputs_.clear();
     new_text_input_.disconnect();
@@ -69,8 +80,6 @@ bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, bool is_virtual
 // --- text inputs (apps) ------------------------------------------------------------
 
 InputMethodRelay::TextInput* InputMethodRelay::find_active() const {
-    if (!im_)
-        return nullptr;
     for (const auto& t : text_inputs_)
         if (t->input->focused_surface && t->input->current_enabled)
             return t.get();
@@ -87,6 +96,9 @@ void InputMethodRelay::update_active() {
         wlr_input_method_v2_send_done(im_);
     }
     active_ = now;
+    // Text waiting for a field (the emoji picker's): the field is back.
+    if (active_ && !pending_text_.empty())
+        commit_pending();
 }
 
 // Enter the focused surface on the text inputs of its client, leave elsewhere.
@@ -94,7 +106,8 @@ void InputMethodRelay::update_focused_surfaces() {
     for (const auto& t : text_inputs_) {
         wlr_text_input_v3* input = t->input;
         wlr_surface* target = nullptr;
-        if (im_ && focused_ && wl_resource_get_client(input->resource) == wl_resource_get_client(focused_->resource))
+        // Also without an IME: atrium itself types into fields (emoji).
+        if (focused_ && wl_resource_get_client(input->resource) == wl_resource_get_client(focused_->resource))
             target = focused_;
         if (input->focused_surface == target)
             continue;
@@ -106,6 +119,8 @@ void InputMethodRelay::update_focused_surfaces() {
 }
 
 void InputMethodRelay::send_state() {
+    if (!im_)
+        return;
     wlr_text_input_v3* input = active_->input;
     if (input->active_features & WLR_TEXT_INPUT_V3_FEATURE_SURROUNDING_TEXT)
         wlr_input_method_v2_send_surrounding_text(im_, input->current.surrounding.text,
@@ -146,6 +161,23 @@ void InputMethodRelay::new_text_input(wlr_text_input_v3* input) {
     });
     text_inputs_.push_back(std::move(t));
     update_focused_surfaces();
+}
+
+void InputMethodRelay::insert_text(const std::string& text) {
+    pending_text_ = text;
+    if (active_) {
+        commit_pending();
+        return;
+    }
+    // The picker still has the keyboard: the field comes back when it goes.
+    wl_event_source_timer_update(pending_timer_, 1500);
+}
+
+void InputMethodRelay::commit_pending() {
+    wlr_text_input_v3_send_commit_string(active_->input, pending_text_.c_str());
+    wlr_text_input_v3_send_done(active_->input);
+    pending_text_.clear();
+    wl_event_source_timer_update(pending_timer_, 0);
 }
 
 void InputMethodRelay::set_focus(wlr_surface* surface) {
@@ -215,6 +247,12 @@ void InputMethodRelay::new_input_method(wlr_input_method_v2* im) {
 
     update_focused_surfaces();
     update_active();
+    // A field was already active (atrium focuses fields without an IME
+    // too): this IME hasn't heard of it yet.
+    if (active_) {
+        wlr_input_method_v2_send_activate(im_);
+        send_state();
+    }
 }
 
 // --- candidate popups ------------------------------------------------------------

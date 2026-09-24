@@ -265,3 +265,57 @@ TEST(SysInfo, ClockTime) {
     EXPECT_EQ(atrium::sysinfo::clock_time(3723), "1:02:03");
     EXPECT_EQ(atrium::sysinfo::clock_time(-5), "0:00");
 }
+
+// --- the emoji picker -------------------------------------------------------------------
+
+#include "emoji_core.hpp"
+#include "paths.hpp"
+
+#include <fstream>
+#include <iterator>
+
+TEST(Emoji, ParsesFullyQualifiedWithoutVariants) {
+    const char* text =
+        "# group: Smileys & Emotion\n"
+        "# subgroup: face-smiling\n"
+        "1F600                                                  ; fully-qualified     # 😀 E1.0 grinning face\n"
+        "263A FE0F                                              ; fully-qualified     # ☺️ E0.6 smiling face\n"
+        "263A                                                   ; unqualified         # ☺ E0.6 smiling face\n"
+        "# group: People & Body\n"
+        "1F44D                                                  ; fully-qualified     # 👍 E0.6 thumbs up\n"
+        "1F44D 1F3FB                                            ; fully-qualified     # 👍🏻 E1.0 thumbs up: light skin tone\n"
+        "# group: Component\n"
+        "1F3FB                                                  ; component           # 🏻 E1.0 light skin tone\n"
+        "1F9B0                                                  ; fully-qualified     # 🦰 E11.0 red hair\n";
+    const auto all = atrium::emoji::parse(text);
+    ASSERT_EQ(all.size(), 3u);
+    EXPECT_EQ(all[0].text, "😀");
+    EXPECT_EQ(all[0].name, "grinning face");
+    EXPECT_EQ(all[0].group, "Smileys & Emotion");
+    EXPECT_EQ(all[0].first, U'\U0001F600');
+    EXPECT_EQ(all[1].text, "☺️");
+    EXPECT_EQ(all[2].name, "thumbs up");
+    EXPECT_EQ(all[2].group, "People & Body");
+}
+
+TEST(Emoji, SearchesByWordStarts) {
+    const auto all = atrium::emoji::parse(
+        "# group: X\n"
+        "1F600 ; fully-qualified # 😀 E1.0 grinning face\n"
+        "1F44D ; fully-qualified # 👍 E0.6 thumbs up\n"
+        "1F44E ; fully-qualified # 👎 E0.6 thumbs down\n");
+    using atrium::emoji::search;
+    EXPECT_EQ(search(all, "thumb"), (std::vector<size_t>{1, 2}));
+    EXPECT_EQ(search(all, "Thumb UP"), (std::vector<size_t>{1}));
+    EXPECT_EQ(search(all, "rin"), (std::vector<size_t>{}));  // word starts only
+    EXPECT_EQ(search(all, "").size(), 3u);
+}
+
+TEST(Emoji, TheShippedDataParses) {
+    std::ifstream in(ATRIUM_SOURCE_DIR "/data/emoji/emoji-test.txt");
+    ASSERT_TRUE(in);
+    const std::string text((std::istreambuf_iterator<char>(in)), {});
+    const auto all = atrium::emoji::parse(text);
+    EXPECT_GT(all.size(), 1500u);
+    EXPECT_FALSE(atrium::emoji::search(all, "red heart").empty());
+}

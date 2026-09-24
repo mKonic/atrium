@@ -63,7 +63,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 7;
+constexpr int kSchemaVersion = 8;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -216,6 +216,11 @@ void Registry::migrate() {
         exec("INSERT INTO shortcuts (position, keys, action) "
              "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+Ctrl+Down', 'app-expose' FROM shortcuts "
              "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = 'Mod+Ctrl+Down')");
+    // 8: the emoji picker (Super+Period, as in caelestia).
+    if (version >= 2 && version < 8)
+        exec("INSERT INTO shortcuts (position, keys, action, arg) "
+             "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+period', 'shell', 'emoji' FROM shortcuts "
+             "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = 'Mod+period')");
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

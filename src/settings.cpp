@@ -214,6 +214,7 @@ json default_keybinds() {
         {{"keys", "Mod+Ctrl+Down"}, {"action", "app-expose"}},
         {{"keys", "Mod+Space"}, {"action", "shell"}, {"arg", "launcher"}},
         {{"keys", "Mod+V"}, {"action", "shell"}, {"arg", "clipboard"}},
+        {{"keys", "Mod+period"}, {"action", "shell"}, {"arg", "emoji"}},
         {{"keys", "Mod+comma"}, {"action", "shell"}, {"arg", "settings"}},
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},

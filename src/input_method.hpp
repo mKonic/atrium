@@ -2,6 +2,7 @@
 #include "listener.hpp"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace atrium {
@@ -25,6 +26,10 @@ public:
     // A key or modifier change from `keyboard`: true when the IME took it.
     bool forward_key(wlr_keyboard* keyboard, bool is_virtual, const wlr_keyboard_key_event* event);
     bool forward_modifiers(wlr_keyboard* keyboard, bool is_virtual);
+    // Type `text` into the focused text field, as an IME would: now, or as
+    // soon as a field is active again (a picker had the keyboard). Nothing
+    // within a moment: the shell hears "text.not_inserted".
+    void insert_text(const std::string& text);
 
 private:
     struct TextInput {
@@ -43,6 +48,7 @@ private:
     void new_input_method(wlr_input_method_v2* im);
     void new_popup(wlr_input_popup_surface_v2* surface);
     void set_focus(wlr_surface* surface);
+    void commit_pending();
 
     TextInput* find_active() const;
     void update_active();
@@ -57,6 +63,8 @@ private:
     wlr_input_method_manager_v2* input_methods_manager_;
     wlr_input_method_v2* im_ = nullptr;
     wlr_surface* focused_ = nullptr;
+    std::string pending_text_;
+    wl_event_source* pending_timer_ = nullptr;
     TextInput* active_ = nullptr;
     std::vector<std::unique_ptr<TextInput>> text_inputs_;
     std::vector<std::unique_ptr<Popup>> popups_;

@@ -147,6 +147,7 @@ TEST(Registry, MigratesOldArrowDefaults) {
     EXPECT_EQ(find("Mod+0")->arg, "10");
     EXPECT_EQ(find("Mod+backslash")->action, "toggle-tiling");
     EXPECT_EQ(find("Mod+Ctrl+Down")->action, "app-expose");
+    EXPECT_EQ(find("Mod+period")->arg, "emoji");
     std::remove(path.c_str());
 }
 

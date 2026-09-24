@@ -77,6 +77,9 @@ public:
     Q_INVOKABLE void toggleSecret(const QString& name);
     Q_INVOKABLE void focusWindow(int id);
     Q_INVOKABLE void closeWindow(int id);
+    // Type into the focused text field (text-input-v3), as an input method
+    // would; textNotInserted when no field takes it.
+    Q_INVOKABLE void insertText(const QString& text);
     // "minimize", "maximize", "fullscreen", "pin", "to_space" ({number}), ...
     Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
@@ -119,6 +122,7 @@ signals:
     // A shortcut asked the shell to show something ("launcher").
     // Right-click on a title bar (or an app asking): the window menu, at a
     // point on that output.
+    void textNotInserted(const QString& text);
     void windowMenu(const QVariantMap& window, const QString& output, int x, int y);
     void shellAction(const QString& name);
 

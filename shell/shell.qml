@@ -8,6 +8,7 @@ import qs.modules.clipboard
 import qs.modules.controlcenter
 import qs.modules.desktop
 import qs.modules.dock
+import qs.modules.emoji
 import qs.modules.launcher
 import qs.modules.notifications
 import qs.modules.osd
@@ -50,6 +51,8 @@ ShellRoot {
     Launcher {}
 
     ClipboardPicker {}
+
+    EmojiPicker {}
 
     Notifications {}
 

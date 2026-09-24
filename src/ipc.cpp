@@ -1,4 +1,5 @@
 #include "ipc.hpp"
+#include "input_method.hpp"
 #include "layer_surface.hpp"
 #include "registry.hpp"
 #include "rules.hpp"
@@ -593,6 +594,15 @@ json Ipc::handle(Client& c, const json& req) {
     if (cmd == "output.set") {
         if (auto err = server_.configure_output(req))
             return fail(*err);
+        return ok();
+    }
+
+    // Type text into the focused field (the emoji picker).
+    if (cmd == "text.insert") {
+        if (!req.contains("text") || !req["text"].is_string() || req["text"].get<std::string>().empty())
+            return fail("text.insert needs a \"text\"");
+        if (server_.input_method)
+            server_.input_method->insert_text(req["text"]);
         return ok();
     }
 
