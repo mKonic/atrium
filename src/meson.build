@@ -15,6 +15,7 @@ atrium_sources = files(
   'displays.cpp',
   'output.cpp',
   'seat.cpp',
+  'keyboard_conf.cpp',
   'server.cpp',
   'rules.cpp',
   'sandbox.cpp',

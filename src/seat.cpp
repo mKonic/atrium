@@ -1,4 +1,5 @@
 #include "seat.hpp"
+#include "keyboard_conf.hpp"
 #include "input_method.hpp"
 
 #include "devices.hpp"
@@ -32,12 +33,15 @@ xkb_keysym_t sym_at_level(xkb_keymap* keymap, xkb_keycode_t key, xkb_layout_inde
 
 xkb_keymap* compile_keymap(const Config& c) {
     auto opt = [](const std::string& s) { return s.empty() ? nullptr : s.c_str(); };
+    // No layout set: the system's keyboard, as a whole.
+    const XkbNames& sys = system_keyboard();
+    const bool own = !c.xkb_layout.empty();
     xkb_rule_names names{};
     names.rules = opt(c.xkb_rules);
-    names.model = opt(c.xkb_model);
-    names.layout = opt(c.xkb_layout);
-    names.variant = opt(c.xkb_variant);
-    names.options = opt(c.xkb_options);
+    names.model = opt(c.xkb_model.empty() ? sys.model : c.xkb_model);
+    names.layout = opt(own ? c.xkb_layout : sys.layout);
+    names.variant = opt(own ? c.xkb_variant : sys.variant);
+    names.options = opt(c.xkb_options.empty() ? sys.options : c.xkb_options);
 
     xkb_context* ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
     xkb_keymap* keymap = xkb_keymap_new_from_names(ctx, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);

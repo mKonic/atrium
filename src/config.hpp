@@ -117,7 +117,8 @@ struct Config {
     bool remember_placement = true;  // an app reopens where its window last closed
 
     // Keyboard
-    std::string xkb_rules, xkb_model, xkb_layout = "us", xkb_variant, xkb_options;
+    // Empty layout: the system's keyboard (keyboard_conf.hpp).
+    std::string xkb_rules, xkb_model, xkb_layout, xkb_variant, xkb_options;
     int repeat_rate = 35;
     int repeat_delay = 250;
 

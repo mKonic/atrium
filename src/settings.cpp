@@ -448,7 +448,7 @@ std::vector<SettingSchema> build_schema(const Config& d) {
 
     // Keyboard
     s.push_back(text("keyboard.layout", "Keyboard", "Layout",
-        "Keyboard layouts, comma-separated (us, de, ...).", &Config::xkb_layout, d));
+        "Keyboard layouts, comma-separated (us, de, ...). Empty: the system's keyboard.", &Config::xkb_layout, d));
     s.push_back(text("keyboard.variant", "Keyboard", "Variant", "Layout variants, comma-separated.",
         &Config::xkb_variant, d));
     s.push_back(text("keyboard.options", "Keyboard", "Options",
