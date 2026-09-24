@@ -13,9 +13,10 @@ Rectangle {
     property var options: []
     property string value
     property int fieldWidth: 200
+    property string placeholder: "Choose…"  // while nothing is picked
     signal picked(string value)
 
-    readonly property string label: options.find(o => o.value === value)?.label ?? value
+    readonly property string label: options.find(o => o.value === value)?.label ?? (value || placeholder)
 
     implicitWidth: fieldWidth
     implicitHeight: 30
@@ -28,6 +29,7 @@ Rectangle {
         anchors.right: chevron.left
         anchors.verticalCenter: parent.verticalCenter
         text: root.label
+        color: root.value ? Theme.palette.m3OnSurface : Theme.palette.m3OnSurfaceVariant
         elide: Text.ElideRight
         font.pointSize: Theme.font.size.small
     }
