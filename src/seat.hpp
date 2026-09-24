@@ -64,6 +64,8 @@ public:
 
     void apply_keyboard_config();
     void apply_pointer_config();
+    // Pointing devices plugged in now.
+    std::vector<wlr_pointer*> pointer_devices() const;
     void apply_cursor_theme();
     void set_default_cursor();
 

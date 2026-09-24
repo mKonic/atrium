@@ -298,6 +298,12 @@ FloatingWindow {
                 }
             }
 
+            // Under the shared settings: each device's own.
+            DevicesEditor {
+                visible: root.query === "" && root.page === "Mouse & Touchpad"
+                width: parent.width
+            }
+
             ShortcutsEditor {
                 visible: root.query === "" && root.page === "Keyboard Shortcuts"
                 width: parent.width

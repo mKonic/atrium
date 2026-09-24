@@ -38,6 +38,8 @@ void usage() {
         "  schema                    every setting with its type and range\n"
         "  output NAME FIELD=VALUE... change a display (width, height, refresh, scale, x, y, enabled, transform)\n"
         "  output create | output remove NAME   add or take away a virtual screen (headless, or nested)\n"
+        "  devices                   mice and touchpads, with their own settings\n"
+        "  device NAME FIELD=VALUE... a device's own speed, acceleration, natural_scroll, left_handed (null: shared)\n"
         "  apps                      apps the registry knows: where they open, Dock pins\n"
         "  app ID [FIELD=VALUE...]   show or change an app (secret, space, launch, maximized, fullscreen)\n"
         "  forget ID                 drop everything remembered about an app\n"
@@ -331,6 +333,19 @@ int main(int argc, char** argv) {
     } else if (cmd == "output") {
         need(2);
         req = {{"cmd", "output.set"}, {"output", args[0]}};
+        for (size_t k = 1; k < args.size(); ++k) {
+            const size_t eq = args[k].find('=');
+            if (eq == std::string::npos) {
+                usage();
+                return 2;
+            }
+            req[args[k].substr(0, eq)] = parse_value(args[k].substr(eq + 1));
+        }
+    } else if (cmd == "devices") {
+        req = {{"cmd", "devices"}};
+    } else if (cmd == "device") {
+        need(2);
+        req = {{"cmd", "device.set"}, {"device", args[0]}};
         for (size_t k = 1; k < args.size(); ++k) {
             const size_t eq = args[k].find('=');
             if (eq == std::string::npos) {

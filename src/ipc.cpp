@@ -2,6 +2,7 @@
 #include "layer_surface.hpp"
 #include "registry.hpp"
 #include "rules.hpp"
+#include "seat.hpp"
 
 #include "output.hpp"
 #include "server.hpp"
@@ -290,6 +291,34 @@ json Ipc::window_json(const View& v) {
     };
 }
 
+json Ipc::devices_json(const Server& server) {
+    json list = json::array();
+    std::vector<std::string> seen;
+    auto opt = [](const auto& v) { return v ? json(*v) : json(nullptr); };
+    for (wlr_pointer* p : server.seat->pointer_devices()) {
+        const std::string name = p->base.name ? p->base.name : "";
+        // One entry per device: a mouse can show up as several nodes.
+        if (name.empty() || std::ranges::find(seen, name) != seen.end())
+            continue;
+        seen.push_back(name);
+        libinput_device* dev = wlr_input_device_is_libinput(&p->base) ? wlr_libinput_get_device_handle(&p->base) : nullptr;
+        const auto own = server.registry->device(name);
+        list.push_back({
+            {"name", name},
+            {"touchpad", dev && libinput_device_config_tap_get_finger_count(dev) > 0},
+            // What the device lets be changed (a nested session's pointer: nothing).
+            {"can", {{"speed", dev && libinput_device_config_accel_is_available(dev)},
+                     {"natural_scroll", dev && libinput_device_config_scroll_has_natural_scroll(dev)},
+                     {"left_handed", dev && libinput_device_config_left_handed_is_available(dev)}}},
+            {"speed", opt(own ? own->speed : std::nullopt)},
+            {"acceleration", opt(own ? own->acceleration : std::nullopt)},
+            {"natural_scroll", opt(own ? own->natural_scroll : std::nullopt)},
+            {"left_handed", opt(own ? own->left_handed : std::nullopt)},
+        });
+    }
+    return list;
+}
+
 json Ipc::spaces_json(const Server& server) {
     json list = json::array();
     for (const auto& s : server.spaces) {
@@ -565,6 +594,46 @@ json Ipc::handle(Client& c, const json& req) {
         if (auto err = server_.configure_output(req))
             return fail(*err);
         return ok();
+    }
+
+    // Pointing devices and their own settings (null: the shared one applies).
+    if (cmd == "devices")
+        return ok(devices_json(server_));
+
+    if (cmd == "device.set") {
+        if (!req.contains("device") || !req["device"].is_string())
+            return fail("device.set needs a \"device\" (its name, as devices lists it)");
+        DeviceRecord d = server_.registry->device(req["device"]).value_or(DeviceRecord{req["device"]});
+        if (req.contains("speed")) {
+            if (req["speed"].is_null())
+                d.speed.reset();
+            else if (req["speed"].is_number() && req["speed"] >= -1.0 && req["speed"] <= 1.0)
+                d.speed = req["speed"].get<double>();
+            else
+                return fail("speed goes from -1 to 1 (or null: the shared one)");
+        }
+        if (req.contains("acceleration")) {
+            if (req["acceleration"].is_null())
+                d.acceleration.reset();
+            else if (req["acceleration"] == "adaptive" || req["acceleration"] == "flat")
+                d.acceleration = req["acceleration"].get<std::string>();
+            else
+                return fail("acceleration is \"adaptive\" or \"flat\" (or null)");
+        }
+        for (auto [key, field] : {std::pair{"natural_scroll", &DeviceRecord::natural_scroll},
+                                  std::pair{"left_handed", &DeviceRecord::left_handed}}) {
+            if (!req.contains(key))
+                continue;
+            if (req[key].is_null())
+                (d.*field).reset();
+            else if (req[key].is_boolean())
+                d.*field = req[key].get<bool>();
+            else
+                return fail(std::string(key) + " is true or false (or null)");
+        }
+        server_.registry->put_device(d);
+        server_.seat->apply_pointer_config();
+        return ok(devices_json(server_));
     }
 
     if (cmd == "spaces")

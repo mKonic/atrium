@@ -30,6 +30,8 @@ class Compositor : public QObject {
     Q_PROPERTY(QVariantList rules READ rules NOTIFY rulesChanged)
     Q_PROPERTY(QVariantList shortcuts READ shortcuts NOTIFY shortcutsChanged)
     Q_PROPERTY(QStringList actions READ actions NOTIFY shortcutsChanged)  // what a shortcut can do
+    // Mice and touchpads plugged in, with their own settings (refreshDevices()).
+    Q_PROPERTY(QVariantList devices READ devices NOTIFY devicesChanged)
     Q_PROPERTY(QVariant focusedWindow READ focusedWindow NOTIFY windowsChanged)
     Q_PROPERTY(QVariant focusedOutput READ focusedOutput NOTIFY outputsChanged)
     Q_PROPERTY(QVariant shownSecret READ shownSecret NOTIFY spacesChanged)
@@ -48,6 +50,7 @@ public:
     QVariantList apps() const { return apps_; }
     QVariantList rules() const { return rules_; }
     QVariantList shortcuts() const { return shortcuts_; }
+    QVariantList devices() const { return devices_; }
     QStringList actions() const { return actions_; }
     // Desktop entry ids pinned in the Dock, in order.
     QStringList dockPins() const;
@@ -93,6 +96,10 @@ public:
     Q_INVOKABLE void setShortcut(qint64 id, const QVariantMap& fields);
     Q_INVOKABLE void removeShortcut(qint64 id);
     Q_INVOKABLE void resetShortcuts();
+    Q_INVOKABLE void refreshDevices();
+    // A device's own settings: speed, acceleration, natural_scroll,
+    // left_handed; an undefined/null value hands it back to the shared one.
+    Q_INVOKABLE void setDevice(const QString& name, const QVariantMap& fields);
 
 signals:
     void windowsChanged();
@@ -103,6 +110,7 @@ signals:
     void appsChanged();
     void rulesChanged();
     void shortcutsChanged();
+    void devicesChanged();
     // A registry change was refused: why, for the Settings app to say.
     void refused(const QString& why);
     void connectedChanged();
@@ -133,7 +141,7 @@ private:
 
     QVariantList windows_, spaces_, outputs_;
     QVariantMap settings_;
-    QVariantList schema_, apps_, rules_, shortcuts_;
+    QVariantList schema_, apps_, rules_, shortcuts_, devices_;
     QStringList actions_;
     void refreshTable(const QString& table);
     void change(QJsonObject req);

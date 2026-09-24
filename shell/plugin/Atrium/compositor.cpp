@@ -376,6 +376,28 @@ void Compositor::change(QJsonObject req) {
     });
 }
 
+void Compositor::refreshDevices() {
+    request({{"cmd", "devices"}}, [this](const QJsonValue& r) {
+        devices_ = r.toArray().toVariantList();
+        emit devicesChanged();
+    });
+}
+
+void Compositor::setDevice(const QString& name, const QVariantMap& fields) {
+    QJsonObject req{{"cmd", "device.set"}, {"device", name}};
+    for (auto it = fields.begin(); it != fields.end(); ++it)
+        req[it.key()] = it.value().isValid() && !it.value().isNull() ? QJsonValue::fromVariant(it.value())
+                                                                     : QJsonValue(QJsonValue::Null);
+    requestFull(req, [this](const QJsonObject& reply) {
+        if (!reply.value("ok").toBool()) {
+            emit refused(reply.value("error").toString());
+            return;
+        }
+        devices_ = reply.value("result").toArray().toVariantList();
+        emit devicesChanged();
+    });
+}
+
 void Compositor::setApp(const QString& appId, const QVariantMap& fields) {
     QJsonObject req = QJsonObject::fromVariantMap(fields);
     req["cmd"] = "app.set";

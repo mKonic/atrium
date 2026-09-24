@@ -1,6 +1,7 @@
 #include "seat.hpp"
 #include "input_method.hpp"
 
+#include "devices.hpp"
 #include "geometry.hpp"
 #include "layer_surface.hpp"
 #include "output.hpp"
@@ -282,6 +283,13 @@ void Seat::add_pointer(wlr_pointer* pointer) {
     pointers_.push_back(std::move(dev));
 }
 
+std::vector<wlr_pointer*> Seat::pointer_devices() const {
+    std::vector<wlr_pointer*> out;
+    for (const auto& p : pointers_)
+        out.push_back(p->wlr);
+    return out;
+}
+
 void Seat::apply_pointer_config() {
     for (auto& p : pointers_)
         if (wlr_input_device_is_libinput(&p->wlr->base))
@@ -292,6 +300,8 @@ void Seat::apply_pointer_config() {
 void Seat::configure_libinput(libinput_device* dev) {
     const Config& c = server.config;
     const bool touchpad = libinput_device_config_tap_get_finger_count(dev) > 0;
+    const auto own = server.registry ? server.registry->device(libinput_device_get_name(dev)) : std::nullopt;
+    const PointerSettings p = pointer_settings(c, own ? &*own : nullptr, touchpad);
 
     if (touchpad) {
         libinput_device_config_tap_set_enabled(dev, c.tap_to_click ? LIBINPUT_CONFIG_TAP_ENABLED
@@ -303,19 +313,18 @@ void Seat::configure_libinput(libinput_device* dev) {
         libinput_device_config_tap_set_button_map(dev, LIBINPUT_CONFIG_TAP_MAP_LRM);
     }
     if (libinput_device_config_scroll_has_natural_scroll(dev))
-        libinput_device_config_scroll_set_natural_scroll_enabled(dev,
-            touchpad ? c.touchpad_natural_scroll : c.natural_scroll);
+        libinput_device_config_scroll_set_natural_scroll_enabled(dev, p.natural_scroll);
     if (libinput_device_config_dwt_is_available(dev))
         libinput_device_config_dwt_set_enabled(dev, c.disable_while_typing ? LIBINPUT_CONFIG_DWT_ENABLED
                                                                            : LIBINPUT_CONFIG_DWT_DISABLED);
     if (libinput_device_config_left_handed_is_available(dev))
-        libinput_device_config_left_handed_set(dev, c.left_handed);
+        libinput_device_config_left_handed_set(dev, p.left_handed);
     if (libinput_device_config_middle_emulation_is_available(dev))
         libinput_device_config_middle_emulation_set_enabled(dev, c.middle_button_emulation
             ? LIBINPUT_CONFIG_MIDDLE_EMULATION_ENABLED : LIBINPUT_CONFIG_MIDDLE_EMULATION_DISABLED);
     if (libinput_device_config_accel_is_available(dev)) {
-        libinput_device_config_accel_set_profile(dev, c.accel_profile);
-        libinput_device_config_accel_set_speed(dev, c.accel_speed);
+        libinput_device_config_accel_set_profile(dev, p.profile);
+        libinput_device_config_accel_set_speed(dev, p.speed);
     }
 }
 

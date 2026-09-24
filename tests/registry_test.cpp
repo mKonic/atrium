@@ -149,3 +149,22 @@ TEST(Registry, MigratesOldArrowDefaults) {
     EXPECT_EQ(find("Mod+Ctrl+Down")->action, "app-expose");
     std::remove(path.c_str());
 }
+
+TEST(Registry, DevicesKeepOnlyWhatTheySet) {
+    Registry r(":memory:");
+    ASSERT_TRUE(r.ok());
+    EXPECT_FALSE(r.device("Mouse"));
+    r.put_device({"Mouse", 0.4, std::nullopt, true, std::nullopt});
+    auto d = r.device("Mouse");
+    ASSERT_TRUE(d);
+    EXPECT_EQ(d->speed, 0.4);
+    EXPECT_FALSE(d->acceleration);
+    EXPECT_EQ(d->natural_scroll, true);
+    EXPECT_FALSE(d->left_handed);
+    r.put_device({"Touchpad", std::nullopt, "flat", std::nullopt, std::nullopt});
+    EXPECT_EQ(r.devices().size(), 2u);
+    // Nothing of its own left: it follows the shared settings again.
+    r.put_device({"Mouse"});
+    EXPECT_FALSE(r.device("Mouse"));
+    EXPECT_EQ(r.devices().size(), 1u);
+}

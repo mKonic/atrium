@@ -42,6 +42,7 @@ public:
 
     static json window_json(const View& view);
     static json spaces_json(const Server& server);
+    static json devices_json(const Server& server);
 
 private:
     struct Client {

@@ -181,3 +181,27 @@ TEST(Settings, TextLists) {
     EXPECT_NE(s.set("appearance.blurred_panels", json::array({"foot", 3})), std::nullopt);
     EXPECT_NE(s.set("appearance.blurred_panels", "foot"), std::nullopt);
 }
+
+#include "devices.hpp"
+
+TEST(Devices, OwnSettingsOverTheSharedOnes) {
+    atrium::Config c;
+    c.accel_speed = -0.5;
+    c.natural_scroll = true;
+    c.touchpad_natural_scroll = false;
+    // Nothing of its own: the shared settings, the touchpad's scroll for a touchpad.
+    auto p = atrium::pointer_settings(c, nullptr, false);
+    EXPECT_DOUBLE_EQ(p.speed, -0.5);
+    EXPECT_TRUE(p.natural_scroll);
+    EXPECT_FALSE(atrium::pointer_settings(c, nullptr, true).natural_scroll);
+
+    atrium::DeviceRecord own{"G502", 0.3, "flat", false, std::nullopt};
+    p = atrium::pointer_settings(c, &own, false);
+    EXPECT_DOUBLE_EQ(p.speed, 0.3);
+    EXPECT_EQ(p.profile, LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT);
+    EXPECT_FALSE(p.natural_scroll);
+    EXPECT_EQ(p.left_handed, c.left_handed);  // not set: shared
+
+    own.speed = 5;  // out of range: libinput's limit
+    EXPECT_DOUBLE_EQ(atrium::pointer_settings(c, &own, false).speed, 1.0);
+}

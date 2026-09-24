@@ -12,6 +12,8 @@
 //              or a pattern over app ids)
 //   shortcuts  key combinations and the actions they run
 //   displays   how each monitor was last set up, by make, model and serial
+//   devices    a mouse's or touchpad's own settings over the Mouse & Touchpad
+//              ones, by device name
 
 #include "placements.hpp"
 
@@ -79,6 +81,16 @@ struct DisplayRecord {
     bool operator==(const DisplayRecord&) const = default;
 };
 
+// One pointing device's own settings; what isn't set follows the shared ones.
+struct DeviceRecord {
+    std::string name;  // as libinput names it ("Logitech G502 HERO Gaming Mouse")
+    std::optional<double> speed;              // -1 .. 1
+    std::optional<std::string> acceleration;  // "adaptive" or "flat"
+    std::optional<bool> natural_scroll, left_handed;
+
+    bool operator==(const DeviceRecord&) const = default;
+};
+
 class Registry {
 public:
     // Opens (creating) the database. ":memory:" for a throwaway one.
@@ -120,6 +132,12 @@ public:
     // --- displays ---
     std::optional<DisplayRecord> display(const std::string& id) const;
     void put_display(const DisplayRecord& display);
+
+    // --- devices ---
+    std::optional<DeviceRecord> device(const std::string& name) const;
+    std::vector<DeviceRecord> devices() const;
+    // A record with nothing set is removed: the device follows the shared settings.
+    void put_device(const DeviceRecord& device);
 
     // One transaction around many changes (an import).
     void begin();

@@ -56,12 +56,14 @@ public:
     bool null(int col) const { return sqlite3_column_type(stmt_, col) == SQLITE_NULL; }
     std::optional<int> opt_int(int col) const { return null(col) ? std::nullopt : std::optional<int>(int(integer(col))); }
     std::optional<bool> opt_bool(int col) const { return null(col) ? std::nullopt : std::optional<bool>(integer(col) != 0); }
+    std::optional<double> opt_real(int col) const { return null(col) ? std::nullopt : std::optional<double>(real(col)); }
+    std::optional<std::string> opt_text(int col) const { return null(col) ? std::nullopt : std::optional<std::string>(text(col)); }
 
 private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 5;
+constexpr int kSchemaVersion = 6;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -170,6 +172,8 @@ void Registry::migrate() {
          " id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1,"
          " width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, refresh INTEGER NOT NULL DEFAULT 0,"
          " scale REAL NOT NULL DEFAULT 1, transform INTEGER NOT NULL DEFAULT 0, x INTEGER, y INTEGER)");
+    exec("CREATE TABLE IF NOT EXISTS devices ("
+         " name TEXT PRIMARY KEY, speed REAL, acceleration TEXT, natural_scroll INTEGER, left_handed INTEGER)");
     // 3: tiling arrived with a shortcut of its own; registries from before
     // it get that one default (new ones are seeded with all of them).
     if (version == 2)
@@ -396,6 +400,45 @@ void Registry::put_display(const DisplayRecord& d) {
            " height = ?4, refresh = ?5, scale = ?6, transform = ?7, x = ?8, y = ?9");
     s.bind(1, d.id).bind(2, d.enabled).bind(3, d.width).bind(4, d.height).bind(5, d.refresh).bind(6, d.scale)
         .bind(7, d.transform).bind(8, d.x).bind(9, d.y);
+    s.run();
+}
+
+// --- devices -------------------------------------------------------------------------
+
+namespace {
+
+DeviceRecord device_row(const Stmt& s) {
+    return {s.text(0), s.opt_real(1), s.opt_text(2), s.opt_bool(3), s.opt_bool(4)};
+}
+
+} // namespace
+
+std::optional<DeviceRecord> Registry::device(const std::string& name) const {
+    Stmt s(db_, "SELECT name, speed, acceleration, natural_scroll, left_handed FROM devices WHERE name = ?1");
+    s.bind(1, name);
+    if (!s.step())
+        return std::nullopt;
+    return device_row(s);
+}
+
+std::vector<DeviceRecord> Registry::devices() const {
+    std::vector<DeviceRecord> out;
+    Stmt s(db_, "SELECT name, speed, acceleration, natural_scroll, left_handed FROM devices ORDER BY name");
+    while (s.step())
+        out.push_back(device_row(s));
+    return out;
+}
+
+void Registry::put_device(const DeviceRecord& d) {
+    if (!d.speed && !d.acceleration && !d.natural_scroll && !d.left_handed) {
+        Stmt s(db_, "DELETE FROM devices WHERE name = ?1");
+        s.bind(1, d.name).run();
+        return;
+    }
+    Stmt s(db_,
+           "INSERT INTO devices(name, speed, acceleration, natural_scroll, left_handed) VALUES(?1, ?2, ?3, ?4, ?5)"
+           " ON CONFLICT(name) DO UPDATE SET speed = ?2, acceleration = ?3, natural_scroll = ?4, left_handed = ?5");
+    s.bind(1, d.name).bind(2, d.speed).bind(3, d.acceleration).bind(4, d.natural_scroll).bind(5, d.left_handed);
     s.run();
 }
 

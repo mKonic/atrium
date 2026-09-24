@@ -139,6 +139,14 @@ ctl action fullscreen >/dev/null
 check "and comes back after" json windows "any(w['id'] == $fs and not w['fullscreen'] and w['space'] == '$home' for w in d)"
 ctl reset windows.fullscreen_space >/dev/null
 
+# A pointing device's own settings, over the shared ones.
+check "the pointer is listed" json devices "len(d) >= 1"
+dev=$(ctl -j devices | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['name'])")
+ctl device "$dev" speed=0.25 >/dev/null
+check "a device keeps a speed of its own" json devices "d[0]['speed'] == 0.25"
+ctl device "$dev" speed=null >/dev/null
+check "and gives it back" json devices "d[0]['speed'] is None"
+
 # An input method: keys go to it, what it composes lands in the app.
 ctl action spawn "foot -a ime-target sh -c 'head -1 > $work/typed'" >/dev/null
 check "a text field takes focus" json windows "any(w['app_id'] == 'ime-target' and w['focused'] for w in d)"
