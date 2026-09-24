@@ -227,6 +227,19 @@ PanelWindow {
                 focus: root.primary && (root.person !== null || nameField.text.length > 0)
                 onAccepted: root.submit()
                 Keys.onEscapePressed: text = ""
+                // Left and right pick someone else, before anything is typed.
+                Keys.onLeftPressed: event => {
+                    if (text.length > 0 || root.people.length < 2)
+                        event.accepted = false;
+                    else
+                        root.chosen = (root.chosen + root.people.length - 1) % root.people.length;
+                }
+                Keys.onRightPressed: event => {
+                    if (text.length > 0 || root.people.length < 2)
+                        event.accepted = false;
+                    else
+                        root.chosen = (root.chosen + 1) % root.people.length;
+                }
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
