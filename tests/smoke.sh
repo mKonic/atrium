@@ -4,6 +4,7 @@
 # the pieces start, talk and shut down together, ideally under ASan.
 #
 #   tests/smoke.sh [BUILD_DIR]      (default: build-asan, else build)
+#   ATRIUM_SMOKE_LOG=FILE keeps atrium's log (-d) there.
 #
 # Needs vc (~/dev/c/vctools), foot and xmessage, and the build's ime_probe and x11_probe. Runs under its own D-Bus
 # session so the shell can't take the live session's notification server.
@@ -36,6 +37,8 @@ check() {
     fail "$name"
     ctl windows 2>/dev/null | sed 's/^/         /'
     [[ -s $work/x11.log ]] && sed 's/^/         x11_probe: /' "$work/x11.log"
+    # Which step a lost X11 window missed (PLAN: lost X11 window).
+    grep 'x11: window' "$log" | tail -12 | sed 's/^/         /'
     return 1
 }
 ctl() { "$ctl" -s "$sock" "$@"; }
@@ -43,6 +46,7 @@ json() { ctl -j "$1" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.
 
 cleanup() {
     vc box kill "$box" >/dev/null 2>&1
+    [[ -n ${ATRIUM_SMOKE_LOG:-} ]] && cp "$log" "$ATRIUM_SMOKE_LOG"
     rm -rf "$work"
 }
 trap cleanup EXIT
@@ -51,7 +55,7 @@ echo "atrium smoke test ($build)"
 vc box start "$box" --size 1280x800 --hide "${ATRIUM_SMOKE_HIDE:-4}" >/dev/null 2>&1 || { echo "vc box start failed"; exit 1; }
 vc box exec "$box" -- dbus-run-session sh -c "
     ASAN_OPTIONS=detect_leaks=0 XDG_CACHE_HOME=$work/cache XDG_STATE_HOME=$work/state \
-    ATRIUM_DESKTOP_DIR=$work/desk $atrium -c $work/registry.db >$log 2>&1
+    ATRIUM_DESKTOP_DIR=$work/desk $atrium -d -c $work/registry.db >$log 2>&1
     echo \$? >$work/exit" >/dev/null 2>&1 &
 
 # atrium says where its socket is.
@@ -154,6 +158,7 @@ check "a window closes" json windows "not any(w['id'] == $xm for w in d)"
 ctl output create >/dev/null
 check "a second screen is plugged in" json outputs "len(d) == 2"
 check "and gets a bar" json layers "sum(l['namespace'] == 'atrium-bar' for l in d) == 2"
+check "one Dock: only one screen keeps room for it" json outputs "len({o['usable']['height'] for o in d}) == 2"
 x2=$(ctl -j outputs | python3 -c "import json,sys; print(max(o['geometry']['x'] for o in json.load(sys.stdin)))")
 out2=$(ctl -j outputs | python3 -c "import json,sys; print(max(json.load(sys.stdin), key=lambda o: o['geometry']['x'])['name'])")
 ctl move "$foot" $((x2 + 40)) 200 >/dev/null
@@ -192,7 +197,7 @@ fi
 
 if ((failures)); then
     echo "$failures failed; last lines of the log:"
-    tail -15 "$log"
+    grep -v DEBUG "$log" | tail -15
     exit 1
 fi
 echo "all passed"

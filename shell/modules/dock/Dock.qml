@@ -80,7 +80,10 @@ PanelWindow {
     readonly property bool autohide: Atrium.settings["dock.autohide"] ?? false
     // Nothing pinned and nothing open: no Dock at all, not an empty shelf.
     readonly property bool empty: dockApps.count === 0
-    readonly property bool hides: fullscreen || output.tiled || autohide || empty
+    // One Dock, on DockPlace.screen; the other screens keep only the edge
+    // that brings it over.
+    readonly property bool home: (Atrium.settings["dock.every_screen"] ?? false) || DockPlace.screen === (screen?.name ?? "")
+    readonly property bool hides: fullscreen || output.tiled || autohide || empty || !home
     property bool revealed: !hides
 
     onHidesChanged: revealed = !hides
@@ -91,12 +94,26 @@ PanelWindow {
         id: hover
 
         onHoveredChanged: {
+            if (!dock.home) {
+                // Resting at the bottom of this screen moves the Dock here.
+                claimTimer.running = hovered;
+                return;
+            }
             if (hovered)
                 dock.revealed = !dock.empty;
             else if (dock.hides && !dock.menuItem)
                 hideTimer.restart();
         }
     }
+
+    Timer {
+        id: claimTimer
+
+        interval: 500
+        onTriggered: DockPlace.screen = dock.screen?.name ?? ""
+    }
+
+    onHomeChanged: if (home && hover.hovered) revealed = !empty
 
     Timer {
         id: hideTimer
@@ -132,9 +149,10 @@ PanelWindow {
     }
 
     anchors.bottom: true
-    implicitWidth: Math.max(shelf.width + 40, menu.width + 40)
+    // Away from its screen, the whole bottom edge brings it over.
+    implicitWidth: home ? Math.max(shelf.width + 40, menu.width + 40) : (screen?.width ?? 0)
     implicitHeight: shelfHeight + gap + 150
-    exclusiveZone: autohide || empty || output.tiled ? 0 : shelfHeight + gap
+    exclusiveZone: autohide || empty || output.tiled || !home ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
 

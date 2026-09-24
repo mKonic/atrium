@@ -521,6 +521,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Show download and upload speed next to the network icon.", true, [](Config&, const json&) {}));
     s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
         "Icons grow as the pointer passes over them.", false, [](Config&, const json&) {}));
+    s.push_back(make("dock.every_screen", SettingType::Bool, "Dock", "Dock on every screen",
+        "Off, there is one Dock, as on a Mac: rest the pointer at the bottom of another screen to bring it there.",
+        false, [](Config&, const json&) {}));
 
     // Shortcuts (the modifier must apply before the bindings that use it)
     s.push_back(choice("shortcuts.modifier", "Keyboard Shortcuts", "Shortcut key",
