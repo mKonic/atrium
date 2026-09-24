@@ -18,7 +18,8 @@ constexpr unsigned kInfoDownloading = 10, kInfoUpdating = 11, kInfoInstalling = 
                    kInfoCleanup = 14, kInfoFinished = 18, kInfoPreparing = 21, kInfoDecompressing = 22;
 constexpr unsigned kRestartSession = 3, kRestartSystem = 4, kRestartSecuritySession = 5,
                    kRestartSecuritySystem = 6;
-constexpr unsigned kRoleRefreshCache = 13;
+constexpr unsigned kRoleInstallFiles = 10, kRoleInstallPackages = 11, kRoleRefreshCache = 13, kRoleRemovePackages = 14,
+                   kRoleUpdatePackages = 22, kRoleUpgradeSystem = 33;
 } // namespace pk
 
 struct PackageId {

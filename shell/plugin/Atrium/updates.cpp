@@ -40,6 +40,7 @@ Updates::Updates(QObject* parent) : QObject(parent) {
     if (!available_)
         return;
     bus().connect(kService, kPath, kService, "UpdatesChanged", this, SLOT(list()));
+    bus().connect(kService, kPath, kService, "TransactionListChanged", this, SLOT(onTransactions(QStringList)));
     readLastChecked();
     list();
     // Only the desktop shell checks by itself: a minute after login, then
@@ -133,10 +134,35 @@ void Updates::check() {
 }
 
 void Updates::list() {
-    if (!available_ || step_ != Step::None)
+    if (!available_)
         return;
+    if (step_ != Step::None) {
+        changedMeanwhile_ = true;  // after this one
+        return;
+    }
     found_.clear();
     begin(Step::List, "GetUpdates", {qulonglong(updates::pk::kFilterNone)});
+}
+
+void Updates::onTransactions(const QStringList& running) {
+    using namespace updates::pk;
+    for (const QString& path : running) {
+        if (seen_.contains(path))
+            continue;
+        seen_.append(path);
+        const QDBusMessage r = bus().call(call(path, "org.freedesktop.DBus.Properties", "Get", {kTransaction, "Role"}));
+        const uint role = r.arguments().isEmpty() ? 0 : r.arguments().first().value<QDBusVariant>().variant().toUInt();
+        if (role == kRoleRefreshCache || role == kRoleInstallPackages || role == kRoleInstallFiles ||
+            role == kRoleRemovePackages || role == kRoleUpdatePackages || role == kRoleUpgradeSystem)
+            changedMeanwhile_ = true;
+    }
+    if (!running.isEmpty())
+        return;
+    seen_.clear();
+    if (changedMeanwhile_ && step_ == Step::None) {
+        changedMeanwhile_ = false;
+        list();
+    }
 }
 
 void Updates::install() {
@@ -229,6 +255,10 @@ void Updates::onFinished(uint exit, uint) {
         checking_ = false;
         known_ = true;
         emit changed();
+        if (changedMeanwhile_) {
+            changedMeanwhile_ = false;
+            list();
+        }
         return;
     case Step::Install:
         installing_ = false;

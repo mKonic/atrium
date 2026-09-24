@@ -65,6 +65,10 @@ private slots:
     void onRequireRestart(uint type, const QString& id);
     void onProperties(const QString& interface, const QVariantMap& changed, const QStringList& invalidated);
     void list();  // what's newer, as PackageKit already knows (it says when that changes)
+    // Transactions anyone started: once one that changes packages
+    // (installing, updating, removing, refreshing) is over, what's newer may
+    // have changed. Listing itself is one too, so it's told apart by role.
+    void onTransactions(const QStringList& running);
 
 private:
     enum class Step { None, Refresh, List, Install };
@@ -82,6 +86,8 @@ private:
     Step step_ = Step::None;
     QString transaction_;
     QTimer schedule_;
+    QStringList seen_;           // transactions already asked their role
+    bool changedMeanwhile_ = false;  // packages changed: list again when free
 };
 
 } // namespace atrium
