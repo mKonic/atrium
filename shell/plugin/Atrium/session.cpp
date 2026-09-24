@@ -108,6 +108,11 @@ QVariantList Session::waylandSessions() const {
 namespace {
 
 QString login_state_file() {
+    // The greeter user's own directory (tmpfiles.d/atrium-greeter.conf): its
+    // home is often / and not its to write.
+    const QFileInfo shared("/var/lib/atrium-greeter");
+    if (shared.isDir() && shared.isWritable())
+        return shared.filePath() + "/greeter.conf";
     QString base = QString::fromLocal8Bit(qgetenv("XDG_STATE_HOME"));
     if (base.isEmpty())
         base = QDir::homePath() + "/.local/state";
