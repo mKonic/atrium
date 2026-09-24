@@ -4,6 +4,7 @@
 #include "desktop_entries.hpp"
 #include "palette.hpp"
 
+#include <QIcon>
 #include <QJsonArray>
 
 #include <algorithm>
@@ -44,6 +45,10 @@ Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     // Apps that run in a terminal get the one the shortcut opens.
     connect(this, &Compositor::settingsChanged, this, [this] {
         shell::DesktopEntries::instance()->setTerminal(settings_.value("shortcuts.terminal").toString());
+        // The shell's own icons in the theme picked for apps.
+        const QString icons = settings_.value("appearance.icon_theme").toString();
+        if (!icons.isEmpty() && icons != QIcon::themeName())
+            QIcon::setThemeName(icons);
     });
     connect(&requests_, &QLocalSocket::connected, this, [this] {
         emit connectedChanged();

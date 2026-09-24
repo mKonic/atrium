@@ -127,9 +127,22 @@ void use_defaults_dir() {
 // through XDG_CONFIG_DIRS, below the user's own, so a generated one first in
 // that list fills whatever the user's file doesn't set. Not live: apps pick
 // it up when they start.
-void install_kdeglobals(bool light, std::string_view accent) {
+void install_kdeglobals(bool light, std::string_view accent, const Interface& ui) {
     const fs::path xdg = defaults_dir();
-    if (xdg.empty() || !write_if_changed(xdg / "kdeglobals", palette::kde_colors(light, accent))) {
+    std::string text = palette::kde_colors(light, accent);
+    if (!ui.icon_theme.empty())
+        text += "\n[Icons]\nTheme=" + ui.icon_theme + "\n";
+    auto font = [&](const std::string& family) {
+        return family + "," + std::to_string(ui.font_size) + ",-1,5,400,0,0,0,0,0";
+    };
+    if (!ui.font.empty() || !ui.mono.empty()) {
+        text += "\n[General]\n";
+        if (!ui.font.empty())
+            text += "font=" + font(ui.font) + "\n";
+        if (!ui.mono.empty())
+            text += "fixed=" + font(ui.mono) + "\n";
+    }
+    if (xdg.empty() || !write_if_changed(xdg / "kdeglobals", text)) {
         wlr_log(WLR_ERROR, "theme: couldn't write %s; Qt apps keep their own colours", xdg.c_str());
         return;
     }
@@ -166,7 +179,7 @@ void install_gtk_theme(bool light, std::string_view accent) {
     setenv("GTK_THEME", "atrium", 1);
 }
 
-void install_qt_theme(bool light, std::string_view accent) {
+void install_qt_theme(bool light, std::string_view accent, const Interface& ui) {
     const fs::path base = data_home();
     if (base.empty())
         return;
@@ -175,7 +188,7 @@ void install_qt_theme(bool light, std::string_view accent) {
     const std::string_view qpa = set ? set : "";
     if ((qpa == "kde" || (qpa.empty() && !has_platform_theme("libqt6engine-plugin.so"))) &&
         has_platform_theme("KDEPlasmaPlatformTheme6.so")) {
-        install_kdeglobals(light, accent);
+        install_kdeglobals(light, accent, ui);
         return;
     }
     if (!has_platform_theme("libqt6engine-plugin.so") || (!qpa.empty() && qpa != "qtengine")) {
@@ -199,6 +212,13 @@ void install_qt_theme(bool light, std::string_view accent) {
     if (!theme.is_object())
         theme = json::object();
     theme["colorScheme"] = colors.string();
+    // What atrium's settings name wins; the rest stays the user's.
+    if (!ui.icon_theme.empty())
+        theme["iconTheme"] = ui.icon_theme;
+    if (!ui.font.empty())
+        theme["font"] = {{"family", ui.font}, {"size", ui.font_size}, {"weight", -1}};
+    if (!ui.mono.empty())
+        theme["fontFixed"] = {{"family", ui.mono}, {"size", ui.font_size}, {"weight", -1}};
     if (!theme.contains("iconTheme"))
         theme["iconTheme"] = light ? "breeze" : "breeze-dark";
     if (!theme.contains("style"))
@@ -248,6 +268,28 @@ void apply_color_scheme(bool light) {
     g_settings_set_string(s, "color-scheme", light ? "prefer-light" : "prefer-dark");
     g_settings_sync();
     g_object_unref(s);
+}
+
+void apply_interface(const Interface& ui) {
+    constexpr const char* kSchema = "org.gnome.desktop.interface";
+    GSettingsSchemaSource* source = g_settings_schema_source_get_default();
+    GSettingsSchema* schema = source ? g_settings_schema_source_lookup(source, kSchema, true) : nullptr;
+    if (!schema)
+        return;
+    GSettings* s = g_settings_new(kSchema);
+    auto set = [&](const char* key, const std::string& value) {
+        if (!value.empty() && g_settings_schema_has_key(schema, key))
+            g_settings_set_string(s, key, value.c_str());
+    };
+    set("icon-theme", ui.icon_theme);
+    set("font-name", ui.font.empty() ? "" : ui.font + " " + std::to_string(ui.font_size));
+    set("monospace-font-name", ui.mono.empty() ? "" : ui.mono + " " + std::to_string(ui.font_size));
+    set("cursor-theme", ui.cursor_theme);
+    if (g_settings_schema_has_key(schema, "cursor-size"))
+        g_settings_set_int(s, "cursor-size", ui.cursor_size);
+    g_settings_sync();
+    g_object_unref(s);
+    g_settings_schema_unref(schema);
 }
 
 void apply_accent_color(std::string_view accent) {

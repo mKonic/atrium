@@ -29,6 +29,7 @@
 #include "autostart.hpp"
 #include "battery.hpp"
 #include "disks.hpp"
+#include "themes.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -210,6 +211,8 @@ public:
             QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
             return o;
         });
+        qmlRegisterSingletonType<Themes>(uri, 1, 0, "Themes",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Themes; });
         qmlRegisterSingletonType<Autostart>(uri, 1, 0, "Autostart",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Autostart; });
         qmlRegisterSingletonType<Welcome>(uri, 1, 0, "Welcome",

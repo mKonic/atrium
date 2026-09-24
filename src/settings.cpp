@@ -517,7 +517,15 @@ std::vector<SettingSchema> build_schema(const Config& d) {
 
     // Cursor
     s.push_back(text("cursor.theme", "Appearance", "Cursor theme",
-        "Name of an installed cursor theme; empty for the default.", &Config::cursor_theme, d));
+        "The pointer's look, in atrium and in apps.", &Config::cursor_theme, d));
+    s.push_back(text("appearance.icon_theme", "Appearance", "Icons",
+        "The icon theme apps and the shell draw with.", &Config::icon_theme, d));
+    s.push_back(text("appearance.font", "Appearance", "Font",
+        "The font apps write their menus, buttons and text in.", &Config::font, d));
+    s.push_back(text("appearance.monospace_font", "Appearance", "Monospace font",
+        "For terminals and code.", &Config::mono_font, d));
+    s.push_back(number("appearance.font_size", T::Int, "Appearance", "Font size",
+        "In points, for both fonts.", &Config::font_size, d, 6, 24));
     s.push_back(number("cursor.size", T::Int, "Appearance", "Cursor size", "Cursor size in pixels.",
         &Config::cursor_size, d, 8, 256));
 

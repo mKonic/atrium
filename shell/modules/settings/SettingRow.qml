@@ -105,6 +105,7 @@ Item {
                        : root.type === "int" || root.type === "float" ? numberControl
                        : root.key === "appearance.accent" ? accentControl
                        : root.key === "appearance.wallpaper" ? wallpaperControl
+                       : Themes.optionsFor(root.key).length > 0 ? themeControl
                        : root.type === "choice" && (root.setting.choices?.length ?? 0) > 5 ? dropdownControl
                        : root.type === "choice" ? choiceControl
                        : root.type === "color" ? colorControl
@@ -149,6 +150,19 @@ Item {
         ChoiceControl {
             value: String(root.value)
             choices: root.setting.choices ?? []
+            onPicked: v => root.set(v)
+        }
+    }
+
+    // Installed icon themes, cursors and fonts.
+    Component {
+        id: themeControl
+
+        Dropdown {
+            fieldWidth: 220
+            value: String(root.value ?? "")
+            placeholder: "Default"
+            options: Themes.optionsFor(root.key)
             onPicked: v => root.set(v)
         }
     }

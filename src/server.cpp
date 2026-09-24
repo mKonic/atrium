@@ -551,7 +551,7 @@ void Server::run(const char* startup_cmd) {
     prepare_session_environment();
     if (!config.greeter) {  // the greeter's user has no home to theme
         install_gtk_theme(config.light, config.accent);
-        install_qt_theme(config.light, config.accent);
+        install_qt_theme(config.light, config.accent, interface());
         install_app_defaults();
     }
     if (!nested && !config.greeter) {
@@ -573,6 +573,7 @@ void Server::run(const char* startup_cmd) {
         apply_gtk_button_layout();
         apply_color_scheme(config.light);
         apply_accent_color(config.accent);
+        apply_interface(interface());
     }
     ipc = std::make_unique<Ipc>(*this, socket);
 
@@ -997,6 +998,11 @@ void Server::focus_view(View* view, bool raise) {
     }
 }
 
+Interface Server::interface() const {
+    return {config.icon_theme, config.font, config.font_size, config.mono_font, config.cursor_theme,
+            config.cursor_size};
+}
+
 void Server::keyboard_layout_changed() {
     if (config.layout_per_window && focused_view)
         focused_view->keyboard_layout = seat->layout();
@@ -1251,12 +1257,18 @@ void Server::setting_changed(const std::string& key) {
         background_effects->announce();
     if (key == "appearance.style" || key == "appearance.accent") {
         install_gtk_theme(config.light, config.accent);  // apps opened from now on
-        install_qt_theme(config.light, config.accent);   // Qt apps too, live (qtengine watches it)
+        install_qt_theme(config.light, config.accent, interface());   // Qt apps too, live (qtengine watches it)
         if (!nested) {
             // The rest, live, through the portal.
             apply_color_scheme(config.light);
             apply_accent_color(config.accent);
         }
+    }
+    if (key == "appearance.icon_theme" || is("appearance.font") || key == "appearance.monospace_font" ||
+        is("cursor.")) {
+        install_qt_theme(config.light, config.accent, interface());
+        if (!nested)
+            apply_interface(interface());
     }
     if (is("appearance.")) {
         wlr_scene_rect_set_color(root_bg, config.background.data());

@@ -139,6 +139,8 @@ struct Config {
     bool left_handed = false;
     bool middle_button_emulation = false;
     std::string cursor_theme;  // empty = XCURSOR_THEME / default
+    std::string icon_theme, font, mono_font;  // empty: what apps already use
+    int font_size = 11;
     int cursor_size = 24;
 
     // Idle inhibitors from hidden windows still count (a video in a
