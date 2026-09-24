@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Screen Sharing
+Comment=Choose the screen or window an app may share
+Icon=video-display
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-share
+OnlyShowIn=atrium;

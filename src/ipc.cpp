@@ -299,6 +299,7 @@ json Ipc::window_json(const View& v) {
         {"keep_above", v.keep_above},
         {"sticky", v.sticky},
         {"tiled", v.tiled()},
+        {"identifier", v.toplevel_identifier()},
     };
 }
 

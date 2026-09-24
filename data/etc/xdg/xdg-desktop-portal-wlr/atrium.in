@@ -1,0 +1,5 @@
+# Which screen or window to share: atrium's chooser, handed the choices on
+# stdin as dmenu would be.
+[screencast]
+chooser_type=dmenu
+chooser_cmd=@BINDIR@/atrium-shell @DATADIR@/atrium/shell/share.qml

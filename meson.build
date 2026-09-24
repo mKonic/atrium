@@ -81,7 +81,7 @@ install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_d
 install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
 install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
 install_data('data/share/xdg-desktop-portal/atrium-portals.conf', install_dir: get_option('datadir') / 'xdg-desktop-portal')
-# atrium's own portal backend (shell/portal.qml), started by D-Bus.
+# atrium's own portal backend (atrium-portal), started by D-Bus.
 install_data('data/share/xdg-desktop-portal/portals/atrium.portal',
   install_dir: get_option('datadir') / 'xdg-desktop-portal' / 'portals')
 portal_service = configuration_data()
@@ -90,6 +90,8 @@ portal_service.set('DATADIR', get_option('prefix') / get_option('datadir'))
 configure_file(input: 'data/share/dbus-1/services/org.freedesktop.impl.portal.desktop.atrium.service.in',
   output: 'org.freedesktop.impl.portal.desktop.atrium.service', configuration: portal_service,
   install_dir: get_option('datadir') / 'dbus-1' / 'services')
+# Sharing the screen: xdg-desktop-portal-wlr asks atrium's chooser (share.qml).
+subdir('data/etc/xdg/xdg-desktop-portal-wlr')
 # Sessions for the display manager (plain, and under uwsm).
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # The login screen: an example greetd config (atrium --greeter), and where

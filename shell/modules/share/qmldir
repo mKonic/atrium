@@ -1,0 +1,3 @@
+module shell.modules.share
+ShareWindow 1.0 ShareWindow.qml
+SourceCard 1.0 SourceCard.qml

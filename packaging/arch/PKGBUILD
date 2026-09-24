@@ -15,7 +15,7 @@ depends=(
   # what the shell fronts
   pipewire-pulse wireplumber polkit networkmanager bluez power-profiles-daemon udisks2
   xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
-  cliphist wl-clipboard
+  cliphist wl-clipboard grim
   # apps looking at home
   adw-gtk-theme breeze-icons
 )

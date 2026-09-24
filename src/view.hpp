@@ -73,6 +73,10 @@ public:
     void tile_to(const wlr_box& box);
     void untile();
     bool tiled() const { return tiled_; }
+    // Its name in ext-foreign-toplevel-list: how screen sharing names it.
+    std::string toplevel_identifier() const {
+        return ext_handle_ && ext_handle_->identifier ? ext_handle_->identifier : "";
+    }
     void set_activated(bool activated);
     // `restore_geometry` false drops the maximized state where the window is
     // (resizing a maximized window) instead of returning to `restore`.
