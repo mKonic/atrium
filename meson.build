@@ -57,6 +57,12 @@ if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')
 endif
+# Logging to the journal when a display manager starts the session.
+libsystemd = dependency('libsystemd', required: false)
+if libsystemd.found()
+  deps += libsystemd
+  add_project_arguments('-DATRIUM_JOURNAL', language: 'cpp')
+endif
 
 subdir('protocols')
 

@@ -1,6 +1,6 @@
 # atrium from this checkout: `makepkg -si` in this directory.
 pkgname=atrium-git
-pkgver=r130.941a7d1
+pkgver=r131.04bf544
 pkgrel=1
 pkgdesc='A floating-first Wayland desktop'
 arch=('x86_64')
@@ -8,7 +8,7 @@ url='https://github.com/mKonic/atrium'
 license=('GPL-3.0-or-later')
 depends=(
   # compositor
-  wlroots0.20 wayland libinput libxkbcommon pixman cairo pango libdrm glib2 sqlite
+  wlroots0.20 wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite
   xcb-util-wm libxcrypt fontconfig xorg-xwayland
   # shell
   qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse

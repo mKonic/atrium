@@ -5,6 +5,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <getopt.h>
+#include <unistd.h>
+
+#ifdef ATRIUM_JOURNAL
+#include <syslog.h>
+#include <systemd/sd-journal.h>
+#endif
 
 namespace {
 
@@ -52,6 +58,25 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Inside another compositor (a window on a desktop, or a test box) that
+    // compositor keeps Super for itself.
+    const bool nested = std::getenv("WAYLAND_DISPLAY") || std::getenv("WAYLAND_SOCKET") ||
+                        std::getenv("DISPLAY");
+
+#ifdef ATRIUM_JOURNAL
+    // Started on a console by a display manager, the log (and every app's
+    // started from here) would go to that console, where nobody reads it:
+    // to the journal instead, as `journalctl -t atrium`.
+    if (!nested && isatty(STDERR_FILENO)) {
+        const int fd = sd_journal_stream_fd("atrium", LOG_INFO, 0);
+        if (fd >= 0) {
+            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDERR_FILENO);
+            close(fd);
+        }
+    }
+#endif
+
     wlr_log_init(debug ? WLR_DEBUG : WLR_INFO, nullptr);
     wlr_log(WLR_INFO, "atrium %s (build %d)", ATRIUM_VERSION, ATRIUM_BUILD);
 
@@ -59,11 +84,6 @@ int main(int argc, char** argv) {
         wlr_log(WLR_ERROR, "XDG_RUNTIME_DIR must be set");
         return 1;
     }
-
-    // Inside another compositor (a window on a desktop, or a test box) that
-    // compositor keeps Super for itself.
-    const bool nested = std::getenv("WAYLAND_DISPLAY") || std::getenv("WAYLAND_SOCKET") ||
-                        std::getenv("DISPLAY");
 
     {
         atrium::Config config = atrium::Config::defaults(nested);
