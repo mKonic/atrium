@@ -361,6 +361,9 @@ const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
     const Keybind* bind = find_keybind(server.config.keybinds, mods, sym);
     if (!bind || (server.locked && !bind->locked))
         return nullptr;
+    // At the login screen nothing may be started as the greeter's user.
+    if (server.config.greeter && bind->action != Action::SwitchVt)
+        return nullptr;
     // The focused client asked for the keys; only switching VTs stays ours,
     // so there is always a way out.
     if (bind->action != Action::SwitchVt && shortcuts_inhibited())

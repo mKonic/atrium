@@ -153,6 +153,10 @@ struct Config {
     // `nested` = running as a window inside another compositor, which owns
     // Super; Alt is used as the modifier there instead.
     static Config defaults(bool nested);
+
+    // `atrium --greeter`: the login screen under greetd. The shell is the
+    // greeter, nothing is remembered, and no shortcut starts anything.
+    bool greeter = false;
 };
 
 } // namespace atrium

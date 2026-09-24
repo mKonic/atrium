@@ -3,6 +3,10 @@
 #include "compositor.hpp"
 
 #include <QDBusConnection>
+#include <QDir>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QSettings>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 
@@ -66,6 +70,38 @@ void Session::run(const QString& action) {
         logind("PowerOff");
     else if (action == "logout")
         Compositor::instance()->action("quit");
+}
+
+QVariantList Session::waylandSessions() const {
+    QStringList dirs = QString::fromLocal8Bit(qgetenv("XDG_DATA_DIRS")).split(':', Qt::SkipEmptyParts);
+    if (dirs.isEmpty())
+        dirs = {"/usr/local/share", "/usr/share"};
+    QVariantList out;
+    QStringList seen;
+    for (const QString& dir : dirs) {
+        const QDir sessions(dir + "/wayland-sessions");
+        for (const QString& file : sessions.entryList({"*.desktop"}, QDir::Files, QDir::Name)) {
+            if (seen.contains(file))
+                continue;  // earlier directories win, as with any desktop file
+            seen.append(file);
+            QSettings entry(sessions.filePath(file), QSettings::IniFormat);
+            entry.beginGroup("Desktop Entry");
+            if (entry.value("Hidden").toBool() || entry.value("NoDisplay").toBool())
+                continue;
+            // Field codes (%U and the like) mean nothing here.
+            QString exec = entry.value("Exec").toString();
+            exec.remove(QRegularExpression("\\s*%[a-zA-Z]"));
+            if (exec.isEmpty())
+                continue;
+            const QVariantMap s{{"name", entry.value("Name").toString()}, {"exec", exec.trimmed()},
+                                {"argv", QProcess::splitCommand(exec.trimmed())}, {"id", file.chopped(8)}};
+            if (file == "atrium.desktop")
+                out.prepend(s);
+            else
+                out.append(s);
+        }
+    }
+    return out;
 }
 
 void Session::setSecondsLeft(int seconds) {

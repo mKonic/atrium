@@ -112,6 +112,9 @@ std::string ShellProcess::command() const {
     const std::string dir = builtin_dir();
     if (dir.empty())
         return {};
+    // The login screen is its own shell, next to the desktop's.
+    if (server_.config.greeter)
+        return "exec qs -p " + quoted(dir + "/greeter.qml");
     return "exec qs -p " + quoted(dir);
 }
 
@@ -170,6 +173,13 @@ void ShellProcess::exited(int status) {
     g_shell_pid = -1;
     if (server_.shutting_down)
         return;
+    // The greeter is done once it has started a session: greetd runs that
+    // after the greeter's compositor (us) is gone.
+    if (server_.config.greeter && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        wlr_log(WLR_INFO, "greeter: done, leaving for the session");
+        server_.quit();
+        return;
+    }
     const double lived = now_ms() - started_ms_;
     if (WIFEXITED(status))
         wlr_log(WLR_ERROR, "shell: exited with %d after %.1fs", WEXITSTATUS(status), lived / 1000);

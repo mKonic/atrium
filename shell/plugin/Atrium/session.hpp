@@ -5,6 +5,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QVariant>
 
 namespace atrium {
 
@@ -25,6 +26,11 @@ public:
     Q_INVOKABLE void request(const QString& action);
     Q_INVOKABLE void confirm();
     Q_INVOKABLE void cancel();
+    // At once, without asking (the login screen's buttons).
+    Q_INVOKABLE void now(const QString& action) { run(action); }
+    // The desktops installed (wayland-sessions): [{id, name, exec, argv}],
+    // atrium first.
+    Q_INVOKABLE QVariantList waylandSessions() const;
 
 signals:
     void pendingChanged();

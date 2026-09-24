@@ -540,9 +540,11 @@ void Server::run(const char* startup_cmd) {
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
     setenv("XDG_SESSION_TYPE", "wayland", 1);
     prepare_session_environment();
-    install_gtk_theme(config.light, config.accent);
-    install_qt_theme(config.light, config.accent);
-    if (!nested) {
+    if (!config.greeter) {  // the greeter's user has no home to theme
+        install_gtk_theme(config.light, config.accent);
+        install_qt_theme(config.light, config.accent);
+    }
+    if (!nested && !config.greeter) {
         // D-Bus-started apps get the session's environment, themes included.
         // (A nested atrium's environment isn't the host session's.)
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
@@ -558,10 +560,12 @@ void Server::run(const char* startup_cmd) {
 
     shell = std::make_unique<ShellProcess>(*this);
     shell->start();
-    start_clipboard_history();
-    restore_power_and_brightness();
+    if (!config.greeter) {
+        start_clipboard_history();
+        restore_power_and_brightness();
+    }
 
-    if (startup_cmd) {
+    if (startup_cmd && !config.greeter) {
         startup_cmd_ = startup_cmd;
 #ifdef ATRIUM_XWAYLAND
         // X apps in it should find Xwayland set up (allow_root_x11); give

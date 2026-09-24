@@ -1,0 +1,8 @@
+# atrium's login screen under greetd: copy to /etc/greetd/config.toml and
+# enable greetd instead of the current display manager.
+[terminal]
+vt = 1
+
+[default_session]
+command = "atrium --greeter"
+user = "greeter"

@@ -1,0 +1,394 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Services.Greetd
+import Quickshell.Wayland
+import qs.components
+import qs.services
+import Atrium
+
+// The login screen, as macOS draws it: the time at the top, the people who
+// can log in along the bottom, a password field under the chosen one, and
+// Sleep, Restart and Shut Down below. Only the first screen takes the
+// keyboard; the others show the same backdrop and clock.
+PanelWindow {
+    id: root
+
+    readonly property bool primary: screen === Quickshell.screens[0]
+    // With AccountsService, pick from its people; without, type a name.
+    readonly property var people: Accounts.others
+    property int chosen: 0
+    readonly property var person: people[chosen] ?? null
+    readonly property var sessions: Session.waylandSessions()
+    property int sessionIndex: 0
+    readonly property var session: sessions[sessionIndex] ?? null
+    property string message: ""
+    property bool busy: false
+
+    function userName(): string {
+        return person ? person.userName : nameField.text.trim();
+    }
+
+    function submit(): void {
+        if (busy || userName().length === 0)
+            return;
+        if (!Greetd.available) {
+            message = "The login service (greetd) isn't running.";
+            return;
+        }
+        message = "";
+        busy = true;
+        Greetd.createSession(userName());
+    }
+
+    anchors {
+        top: true
+        bottom: true
+        left: true
+        right: true
+    }
+    exclusionMode: ExclusionMode.Ignore
+    color: "transparent"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "atrium-greeter"
+    WlrLayershell.keyboardFocus: primary ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+
+    Connections {
+        target: Greetd
+        enabled: root.primary
+
+        function onAuthMessage(message: string, error: bool, responseRequired: bool, echoResponse: bool): void {
+            if (responseRequired)
+                Greetd.respond(password.text);
+            else if (error)
+                root.message = message;
+        }
+
+        function onAuthFailure(message: string): void {
+            root.busy = false;
+            root.message = "Incorrect password.";
+            password.text = "";
+            shake.restart();
+            Greetd.cancelSession();
+        }
+
+        function onReadyToLaunch(): void {
+            Greetd.launch(root.session?.argv ?? ["atrium"], [], true);
+        }
+
+        function onError(error: string): void {
+            root.busy = false;
+            root.message = error;
+        }
+    }
+
+    // A calm backdrop in the theme's colours: there is no wallpaper before
+    // anyone has logged in.
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.darker(Theme.palette.m3PrimaryContainer, 2.2) }
+            GradientStop { position: 0.55; color: Theme.palette.m3Surface }
+            GradientStop { position: 1.0; color: Qt.darker(Theme.palette.m3SecondaryContainer, 1.6) }
+        }
+    }
+
+    SystemClock {
+        id: clock
+
+        precision: SystemClock.Minutes
+    }
+
+    Column {
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.round(parent.height * 0.1)
+        spacing: 0
+
+        StyledText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatDate(clock.date, "dddd d MMMM")
+            font.pointSize: 17
+            font.weight: Font.DemiBold
+            color: Qt.rgba(1, 1, 1, 0.85)
+        }
+
+        StyledText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatTime(clock.date, "hh:mm")
+            font.pointSize: 84
+            font.weight: Font.Bold
+            color: Qt.rgba(1, 1, 1, 0.92)
+        }
+    }
+
+    // The people, the chosen one large with the password field under them.
+    Column {
+        visible: root.primary
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: power.top
+        anchors.bottomMargin: 56
+        spacing: 14
+
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 18
+            visible: root.people.length > 1
+
+            Repeater {
+                model: root.people
+
+                Avatar {
+                    id: other
+
+                    required property var modelData
+                    required property int index
+
+                    user: modelData
+                    size: 44
+                    opacity: index === root.chosen ? 1 : 0.55
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.chosen = other.index;
+                            root.message = "";
+                            password.text = "";
+                            password.forceActiveFocus();
+                        }
+                    }
+                }
+            }
+        }
+
+        Avatar {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: root.person !== null
+            user: root.person ?? {}
+            size: 96
+        }
+
+        StyledText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: root.person !== null
+            text: root.person ? (root.person.realName || root.person.userName) : ""
+            font.pointSize: 15
+            font.weight: Font.DemiBold
+            color: "white"
+        }
+
+        Pill_ {
+            id: nameBox
+
+            visible: root.person === null
+
+            TextInput {
+                id: nameField
+
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                verticalAlignment: TextInput.AlignVCenter
+                color: "white"
+                font.pointSize: 12
+                focus: root.primary && root.person === null
+                onAccepted: password.forceActiveFocus()
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: nameField.text.length === 0
+                    text: "Name"
+                    color: Qt.rgba(1, 1, 1, 0.55)
+                }
+            }
+        }
+
+        Pill_ {
+            id: passwordBox
+
+            TextInput {
+                id: password
+
+                anchors.fill: parent
+                anchors.leftMargin: 16
+                anchors.rightMargin: 40
+                verticalAlignment: TextInput.AlignVCenter
+                color: "white"
+                font.pointSize: 12
+                echoMode: TextInput.Password
+                passwordCharacter: "●"
+                enabled: !root.busy
+                focus: root.primary && root.person !== null
+                onAccepted: root.submit()
+                Keys.onEscapePressed: text = ""
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: password.text.length === 0
+                    text: "Enter Password"
+                    color: Qt.rgba(1, 1, 1, 0.55)
+                }
+            }
+
+            MaterialIcon {
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.busy ? "progress_activity" : "arrow_forward"
+                color: "white"
+                opacity: password.text.length > 0 || root.busy ? 1 : 0.4
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -6
+                    onClicked: root.submit()
+                }
+
+                RotationAnimation on rotation {
+                    running: root.busy
+                    from: 0
+                    to: 360
+                    duration: 900
+                    loops: Animation.Infinite
+                }
+            }
+
+            SequentialAnimation {
+                id: shake
+
+                loops: 1
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: -12; duration: 50 }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: 12; duration: 70 }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: -8; duration: 60 }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: 0; duration: 50 }
+            }
+        }
+
+        StyledText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            height: 18
+            text: root.message
+            font.pointSize: Theme.font.size.small
+            color: Qt.rgba(1, 1, 1, 0.8)
+        }
+    }
+
+    // Sleep, Restart, Shut Down; and which desktop to start, when there are
+    // several.
+    Row {
+        id: power
+
+        visible: root.primary
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 36
+        spacing: 36
+
+        Repeater {
+            model: [
+                { icon: "bedtime", text: "Sleep", action: "sleep" },
+                { icon: "restart_alt", text: "Restart", action: "restart" },
+                { icon: "power_settings_new", text: "Shut Down", action: "shutdown" }
+            ]
+
+            Column {
+                id: button
+
+                required property var modelData
+
+                spacing: 6
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 44
+                    height: 44
+                    radius: 22
+                    color: Qt.rgba(1, 1, 1, powerArea.containsMouse ? 0.28 : 0.16)
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        text: button.modelData.icon
+                        color: "white"
+                        font.pointSize: 16
+                    }
+
+                    MouseArea {
+                        id: powerArea
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Session.now(button.modelData.action)
+                    }
+                }
+
+                StyledText {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: button.modelData.text
+                    font.pointSize: Theme.font.size.small
+                    color: Qt.rgba(1, 1, 1, 0.85)
+                }
+            }
+        }
+    }
+
+    StyledText {
+        visible: root.primary && root.sessions.length > 1
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 24
+        text: (root.session?.name ?? "") + "  ▾"
+        font.pointSize: Theme.font.size.small
+        color: Qt.rgba(1, 1, 1, 0.75)
+
+        MouseArea {
+            anchors.fill: parent
+            anchors.margins: -6
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.sessionIndex = (root.sessionIndex + 1) % root.sessions.length
+        }
+    }
+
+    // A round picture, or initials on a tint.
+    component Avatar: Rectangle {
+        id: avatar
+
+        property var user: ({})
+        property real size: 40
+
+        width: size
+        height: size
+        radius: size / 2
+        color: Qt.rgba(1, 1, 1, 0.18)
+        clip: true
+
+        StyledText {
+            anchors.centerIn: parent
+            visible: !(avatar.user.icon ?? "")
+            text: avatar.user.initials ?? ""
+            font.pointSize: avatar.size * 0.3
+            font.weight: Font.DemiBold
+            color: "white"
+        }
+
+        Image {
+            anchors.fill: parent
+            visible: !!(avatar.user.icon ?? "")
+            source: avatar.user.icon ?? ""
+            fillMode: Image.PreserveAspectCrop
+            sourceSize: Qt.size(avatar.size * 2, avatar.size * 2)
+        }
+    }
+
+    // A frosted pill for a text field.
+    component Pill_: Rectangle {
+        anchors.horizontalCenter: parent?.horizontalCenter
+        width: 240
+        height: 36
+        radius: 18
+        color: Qt.rgba(1, 1, 1, 0.16)
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.22)
+    }
+}
