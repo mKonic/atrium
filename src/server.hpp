@@ -97,11 +97,15 @@ public:
     Space* ensure_space(Output* output, int number);
     Space* find_secret(const std::string& name) const;
     Space* ensure_secret(const std::string& name);
-    void switch_space(Output* output, int number);
+    // `carry` comes along and holds still while the spaces slide.
+    void switch_space(Output* output, int number, View* carry = nullptr);
     void step_space(int direction);
     // Next or previous existing space on the focused output, wrapping around.
     void cycle_space(int direction);
     void move_to_space(View* view, Space* space);
+    // The space before (-1) or after (+1) on the view's screen, taking the
+    // view along (a window dragged against the screen's end). False if none.
+    bool carry_to_space(View* view, int direction);
     // Tiling (tiling.cpp).
     void toggle_tiling(Space* space);
     void retile(Space* space);         // lay a tiled space out again; nothing if it floats

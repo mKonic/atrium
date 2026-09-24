@@ -65,7 +65,7 @@ static void carry_to_output(View* view, Output* to) {
     view->move_to(view->geom.x - from.x + to->box.x, view->geom.y - from.y + to->box.y);
 }
 
-void Server::switch_space(Output* output, int number) {
+void Server::switch_space(Output* output, int number, View* carry) {
     if (!output || locked)
         return;
     overview->close_now();
@@ -88,7 +88,7 @@ void Server::switch_space(Output* output, int number) {
     std::vector<uint64_t> sticky;
     if (old)
         for (View* v : std::vector<View*>(views))
-            if (v->space == old && v->sticky) {
+            if (v->space == old && (v->sticky || v == carry)) {
                 move_to_space(v, target);
                 sticky.push_back(v->id);
             }
@@ -118,11 +118,22 @@ void Server::switch_space(Output* output, int number) {
     }
 
     output->refit_views();
-    focus_view(top_view(output));
+    focus_view(carry ? carry : top_view(output));
     if (!top_view(output))
         focus_view(nullptr);
     seat->refresh_pointer();
     spaces_changed();
+}
+
+bool Server::carry_to_space(View* view, int direction) {
+    if (!view || !view->space || view->space->secret || !view->output || view->space != view->output->active)
+        return false;
+    const int n = view->space->number + direction;
+    const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space; });
+    if (n < 1 || (direction > 0 && alone && !find_space(view->output, n)))
+        return false;  // nowhere to go, or it would only trade one empty space for another
+    switch_space(view->output, n, view);
+    return true;
 }
 
 // Previous/next space on the focused output. "Next" past the last one that

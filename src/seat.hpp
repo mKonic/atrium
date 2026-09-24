@@ -109,6 +109,12 @@ private:
     uint32_t grab_edges_ = 0;
     bool grab_unmaximize_ = false;  // moving a maximized/snapped window; restore once it drags
     uint32_t snap_zone_ = 0;        // snap zone under the cursor while moving
+    // Pushing a dragged window against the left or right end of the screens
+    // carries it to the space that way: how far the pointer pushed past the
+    // edge, and whether it just did (no snapping until it leaves the edge).
+    double edge_push_ = 0;
+    bool edge_carried_ = false;
+    void push_edge(double dx);
     bool overview_press_ = false;   // a button went down on the overview
     bool switcher_press_ = false;   // ... or while the window switcher was up
     void unmaximize_for_drag();

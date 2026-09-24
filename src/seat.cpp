@@ -486,6 +486,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
         wlr_cursor_move(cursor, device, dx, dy);
         wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+        if (mode == Mode::Move && grab_view_)
+            push_edge(dx);
     }
 
     wlr_scene_node_set_position(&server.drag_icons->node, int(std::lround(cursor->x)),
@@ -517,7 +519,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         // Screen edges and corners offer to tile the window.
         Output* o = server.output_at(cursor->x, cursor->y);
         const bool tiling = grab_view_->space && grab_view_->space->tiled;
-        const uint32_t zone = (o && server.config.snapping && !tiling)
+        const uint32_t zone = (o && server.config.snapping && !tiling && !edge_carried_)
             ? geometry::snap_zone(o->box, cursor->x, cursor->y, 4, 80) : 0;
         if (zone != snap_zone_) {
             snap_zone_ = zone;
@@ -808,6 +810,8 @@ void Seat::begin_move(View* view) {
     // click (or the first half of a double-click) must not restore it.
     grab_unmaximize_ = (view->maximized || view->snapped) && !view->tiled();
     snap_zone_ = 0;
+    edge_push_ = 0;
+    edge_carried_ = false;
     mode = Mode::Move;
     wlr_seat_pointer_clear_focus(wlr);
     wlr_cursor_set_xcursor(cursor, xcursor, "grabbing");
@@ -848,6 +852,30 @@ void Seat::begin_resize(View* view, uint32_t edges) {
     view->begin_resize(edges);
     wlr_seat_pointer_clear_focus(wlr);
     wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(edges)));
+}
+
+void Seat::push_edge(double dx) {
+    // A deliberate shove, well past the touch that offers to snap. The edge is
+    // a band a few pixels wide: a hand on a mouse (or vc's pointer) jitters.
+    constexpr double kPush = 300, kBand = 4;
+    wlr_box all;
+    wlr_output_layout_get_box(server.output_layout, nullptr, &all);
+    const int dir = cursor->x < all.x + kBand ? -1 : cursor->x >= all.x + all.width - kBand ? 1 : 0;
+    if (!dir) {
+        edge_push_ = 0, edge_carried_ = false;
+        return;
+    }
+    if (dx * dir <= 0)
+        return;
+    edge_push_ += std::abs(dx);
+    if (edge_push_ < kPush || grab_view_->tiled())
+        return;
+    edge_push_ = 0;
+    if (server.carry_to_space(grab_view_, dir)) {
+        edge_carried_ = true;
+        snap_zone_ = 0;
+        server.snap_preview->hide();
+    }
 }
 
 void Seat::cancel_grab() {

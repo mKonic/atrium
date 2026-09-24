@@ -91,12 +91,27 @@ check "the space tiles" json windows "all(w['tiled'] for w in d if w['space'] ==
 check "side by side, not overlapping" json windows "(lambda a, b: a['x'] + a['width'] <= b['x'] or b['x'] + b['width'] <= a['x'])(*[w['geometry'] for w in d if w['space'] == '2'])"
 ctl action toggle-tiling >/dev/null
 check "and floats again" json windows "not any(w['tiled'] for w in d)"
+
+# Dragged hard against the screen's left end, a window rides to the space before.
+read -r drag gx gy < <(ctl -j windows | python3 -c "
+import json,sys
+w=[w for w in json.load(sys.stdin) if w['space'] == '2' and w['focused']][0]; g=w['geometry']
+print(w['id'], g['x'] + g['width'] // 2, g['y'] + 12)")
+vc in "$box" move "$gx" "$gy" down >/dev/null 2>&1
+for _ in $(seq $((gx / 50 + 12))); do vc in "$box" moverel -50 0 >/dev/null 2>&1; done
+vc in "$box" up >/dev/null 2>&1
+check "a window pushed past the screen's edge moves to the space before" json windows \
+    "any(w['id'] == $drag and w['space'] == '1' for w in d)"
 ctl space 1 >/dev/null
 
 ctl action overview >/dev/null
 sleep 0.5
 ctl action overview >/dev/null
 check "Mission Control opens and closes" ctl version
+ctl action app-expose >/dev/null
+sleep 0.5
+ctl action app-expose >/dev/null
+check "app exposé opens and closes" ctl version
 
 ctl secret smoke >/dev/null
 check "a secret space shows" json spaces "any(s['secret'] and s['shown'] for s in d)"
