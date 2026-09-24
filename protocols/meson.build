@@ -29,6 +29,7 @@ endforeach
 own_protocol_xmls = [
   wl_protocol_dir / 'staging/ext-background-effect/ext-background-effect-v1.xml',
   wl_protocol_dir / 'staging/xdg-toplevel-drag/xdg-toplevel-drag-v1.xml',
+  wl_protocol_dir / 'staging/xdg-session-management/xdg-session-management-v1.xml',
 ]
 protocol_code = []
 # Interfaces the own protocols refer to (xdg-toplevel-drag names

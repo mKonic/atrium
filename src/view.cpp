@@ -8,6 +8,7 @@
 #include "switcher.hpp"
 #include "seat.hpp"
 #include "server.hpp"
+#include "session_management.hpp"
 #include "space.hpp"
 #include "toplevel_drag.hpp"
 
@@ -115,6 +116,8 @@ void View::handle_map() {
         set_fullscreen(true);
     else if (wish.maximized.value_or(false))
         set_maximized(true);
+    else if (const SessionWindow* w = server.sessions ? server.sessions->restoring(this) : nullptr; w && w->fullscreen)
+        set_fullscreen(true);
     else if (remembered_ && remembered_->maximized)
         set_maximized(true);
     else if (remembered_ && remembered_->snapped)
@@ -384,6 +387,8 @@ void View::move_to(int x, int y) {
     place_tree();
     notify_position();
     update_output_from_position();
+    if (server.sessions)
+        server.sessions->view_changed(this);
 }
 
 void View::fit_secret(bool keep_box) {

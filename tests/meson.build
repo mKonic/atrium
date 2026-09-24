@@ -48,6 +48,19 @@ if add_languages('c', required: false, native: false)
     dependencies: dependency('wayland-client'),
     c_args: ['-Wno-unused-parameter'])
 
+  # An app that asks for its window back (xdg-session-management-v1).
+  session_probe_src = [drag_probe_src[0], drag_probe_src[1]]  # xdg-shell
+  session_xml = wl_protocol_dir / 'staging/xdg-session-management/xdg-session-management-v1.xml'
+  session_probe_src += custom_target('session_client_h',
+    input: session_xml, output: '@BASENAME@-client-protocol.h',
+    command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
+  session_probe_src += custom_target('session_client_code',
+    input: session_xml, output: '@BASENAME@-client-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
+  executable('session_probe', 'session_probe.c', session_probe_src,
+    dependencies: dependency('wayland-client'),
+    c_args: ['-Wno-unused-parameter'])
+
   # An X11 window of any _NET_WM_WINDOW_TYPE.
   xcb_dep = dependency('xcb', required: false)
   if xcb_dep.found()

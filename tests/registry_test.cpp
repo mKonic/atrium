@@ -168,3 +168,25 @@ TEST(Registry, DevicesKeepOnlyWhatTheySet) {
     EXPECT_FALSE(r.device("Mouse"));
     EXPECT_EQ(r.devices().size(), 1u);
 }
+
+TEST(Registry, SessionsKeepTheirWindows) {
+    Registry r(":memory:");
+    ASSERT_TRUE(r.ok());
+    EXPECT_FALSE(r.has_session("abc"));
+    r.touch_session("abc", "org.example.Editor");
+    EXPECT_TRUE(r.has_session("abc"));
+    const SessionWindow main{"main", Placement{"DP-1", 40, 60, 800, 600, false, 0}, false};
+    r.put_session_window("abc", main);
+    EXPECT_EQ(r.session_window("abc", "main"), main);
+    EXPECT_FALSE(r.session_window("abc", "other"));
+    EXPECT_FALSE(r.session_window("xyz", "main"));
+    r.rename_session_window("abc", "main", "document-1");
+    EXPECT_FALSE(r.session_window("abc", "main"));
+    EXPECT_TRUE(r.session_window("abc", "document-1"));
+    // Unused for long enough, a session goes with its windows.
+    r.drop_sessions_before(0);
+    EXPECT_TRUE(r.has_session("abc"));
+    r.drop_sessions_before(INT64_MAX);
+    EXPECT_FALSE(r.has_session("abc"));
+    EXPECT_FALSE(r.session_window("abc", "document-1"));
+}

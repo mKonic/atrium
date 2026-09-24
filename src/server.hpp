@@ -22,6 +22,7 @@ class Seat;
 class InputMethodRelay;
 class BackgroundEffects;
 class ToplevelDrags;
+class SessionManagement;
 class SessionLock;
 class Overview;
 class Registry;
@@ -135,6 +136,8 @@ public:
     // the app has closed one before.
     std::optional<Placement> placement_for(const View* view) const;
     void remember_placement(const View* view);
+    // Where a window is, relative to its output, as it would be remembered.
+    Placement placement_of(const View* view) const;
 
     // Decide a new window's space from the rules; returns what else they ask for.
     RuleResult assign_space(View* view);
@@ -231,6 +234,7 @@ public:
     std::unique_ptr<InputMethodRelay> input_method;
     std::unique_ptr<BackgroundEffects> background_effects;
     std::unique_ptr<ToplevelDrags> toplevel_drags;
+    std::unique_ptr<SessionManagement> sessions;
     uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;

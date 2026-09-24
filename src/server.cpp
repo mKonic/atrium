@@ -1,6 +1,7 @@
 #include "server.hpp"
 #include "input_method.hpp"
 #include "background_effect.hpp"
+#include "session_management.hpp"
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
@@ -328,6 +329,7 @@ void Server::setup() {
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
     toplevel_drags = std::make_unique<ToplevelDrags>(*this);
+    sessions = std::make_unique<SessionManagement>(*this);
 
     output_manager = wlr_output_manager_v1_create(display);
     output_apply_.connect(&output_manager->events.apply,
@@ -495,6 +497,7 @@ void Server::teardown() {
     input_method.reset();  // hooked to the seat
     background_effects.reset();
     toplevel_drags.reset();
+    sessions.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
@@ -815,6 +818,10 @@ bool placeable(const View* v) {
 } // namespace
 
 std::optional<Placement> Server::placement_for(const View* view) const {
+    // The app asked for this window back (xdg-session-management), by name.
+    if (sessions)
+        if (const SessionWindow* w = sessions->restoring(view))
+            return w->placement;
     if (!config.remember_placement || !placeable(view))
         return std::nullopt;
     const std::string_view app = view->app_id();
@@ -827,18 +834,24 @@ std::optional<Placement> Server::placement_for(const View* view) const {
     return std::nullopt;
 }
 
+Placement Server::placement_of(const View* view) const {
+    // The floating box, whatever state the window is in now.
+    const bool away = view->maximized || view->snapped || view->fullscreen;
+    const wlr_box b = away ? view->restore : view->geom;
+    const wlr_box o = view->output ? view->output->box : wlr_box{};
+    return Placement{view->output ? view->output->wlr->name : "", b.x - o.x, b.y - o.y, b.width, b.height,
+                     view->maximized, view->snapped};
+}
+
 void Server::remember_placement(const View* view) {
+    if (sessions)
+        sessions->view_unmapping(view);
     // A secret space's size belongs to the space, not the app.
     if (!config.remember_placement || !placeable(view) || !view->output || !view->mapped ||
         (view->space && view->space->secret))
         return;
-    // The floating box, whatever state the window is in now.
-    const bool away = view->maximized || view->snapped || view->fullscreen;
-    const wlr_box b = away ? view->restore : view->geom;
-    const wlr_box& o = view->output->box;
     AppRecord a = registry->app(view->app_id()).value_or(AppRecord{.app_id = view->app_id()});
-    a.placement = Placement{view->output->wlr->name, b.x - o.x, b.y - o.y, b.width, b.height, view->maximized,
-                            view->snapped};
+    a.placement = placement_of(view);
     registry->put_app(a);
 }
 
@@ -1213,6 +1226,8 @@ void Server::apply_blur_settings() {
 }
 
 void Server::notify_window(const View& view, const char* what) {
+    if (sessions && !view.unmanaged())
+        sessions->view_changed(&view);
     if (!ipc || view.unmanaged())
         return;
     ipc->broadcast("windows", {{"event", std::string("window.") + what}, {"window", Ipc::window_json(view)}});

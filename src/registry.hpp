@@ -14,6 +14,8 @@
 //   displays   how each monitor was last set up, by make, model and serial
 //   devices    a mouse's or touchpad's own settings over the Mouse & Touchpad
 //              ones, by device name
+//   sessions   apps that ask for their windows back (xdg-session-management):
+//              where each named window was, per session
 
 #include "placements.hpp"
 
@@ -91,6 +93,15 @@ struct DeviceRecord {
     bool operator==(const DeviceRecord&) const = default;
 };
 
+// One window of an app's session, by the name the app gave it.
+struct SessionWindow {
+    std::string name;
+    Placement placement;
+    bool fullscreen = false;
+
+    bool operator==(const SessionWindow&) const = default;
+};
+
 class Registry {
 public:
     // Opens (creating) the database. ":memory:" for a throwaway one.
@@ -138,6 +149,18 @@ public:
     std::vector<DeviceRecord> devices() const;
     // A record with nothing set is removed: the device follows the shared settings.
     void put_device(const DeviceRecord& device);
+
+    // --- sessions ---
+    bool has_session(const std::string& id) const;
+    // Creates it, or marks it used now (unused sessions are dropped after a while).
+    void touch_session(const std::string& id, const std::string& app_id);
+    void remove_session(const std::string& id);
+    std::optional<SessionWindow> session_window(const std::string& session, const std::string& name) const;
+    void put_session_window(const std::string& session, const SessionWindow& window);
+    void remove_session_window(const std::string& session, const std::string& name);
+    void rename_session_window(const std::string& session, const std::string& from, const std::string& to);
+    // Sessions not used since `before` (unix seconds) go, with their windows.
+    void drop_sessions_before(int64_t before);
 
     // One transaction around many changes (an import).
     void begin();

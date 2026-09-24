@@ -172,6 +172,25 @@ check "which follows the pointer" json windows \
 vc in "$box" up >/dev/null 2>&1
 check "and stays where it was let go" grep -qE "dropped|cancelled" "$work/drag.log"
 
+# An app that asks for its window back gets it where it was (xdg-session-management).
+# Off, atrium's own "reopen where it was" can't be what puts it back.
+ctl set windows.remember_placement false >/dev/null
+ctl action spawn "sh -c 'echo \$\$ > $work/session.pid; exec $build/tests/session_probe > $work/session.log 2>&1'" >/dev/null
+check "an app starts a session" grep -q "^created " "$work/session.log"
+check "with its window" json windows "any(w['app_id'] == 'session-probe' for w in d)"
+sp=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['app_id'] == 'session-probe'][0])")
+ctl move "$sp" 130 170 >/dev/null
+sleep 1.5  # atrium writes it down once it holds still
+kill "$(cat "$work/session.pid")"
+check "the app quits" json windows "not any(w['app_id'] == 'session-probe' for w in d)"
+sid=$(awk '/^created/ {print $2}' "$work/session.log")
+ctl action spawn "sh -c 'echo \$\$ > $work/session.pid; exec $build/tests/session_probe $sid > $work/session2.log 2>&1'" >/dev/null
+check "started again, it gets its session back" grep -qx "window restored" "$work/session2.log"
+check "and its window where it was" json windows \
+    "any(w['app_id'] == 'session-probe' and w['geometry']['x'] == 130 and w['geometry']['y'] == 170 for w in d)"
+kill "$(cat "$work/session.pid")"
+ctl reset windows.remember_placement >/dev/null
+
 xm=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['app_id'] == 'Xmessage'][0])")
 ctl close "$xm" >/dev/null
 check "a window closes" json windows "not any(w['id'] == $xm for w in d)"

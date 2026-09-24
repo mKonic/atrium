@@ -63,7 +63,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 6;
+constexpr int kSchemaVersion = 7;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -174,6 +174,14 @@ void Registry::migrate() {
          " scale REAL NOT NULL DEFAULT 1, transform INTEGER NOT NULL DEFAULT 0, x INTEGER, y INTEGER)");
     exec("CREATE TABLE IF NOT EXISTS devices ("
          " name TEXT PRIMARY KEY, speed REAL, acceleration TEXT, natural_scroll INTEGER, left_handed INTEGER)");
+    exec("CREATE TABLE IF NOT EXISTS sessions ("
+         " id TEXT PRIMARY KEY, app_id TEXT NOT NULL DEFAULT '', used INTEGER NOT NULL DEFAULT 0)");
+    exec("CREATE TABLE IF NOT EXISTS session_windows ("
+         " session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, name TEXT NOT NULL,"
+         " output TEXT NOT NULL DEFAULT '', x INTEGER NOT NULL DEFAULT 0, y INTEGER NOT NULL DEFAULT 0,"
+         " w INTEGER NOT NULL DEFAULT 0, h INTEGER NOT NULL DEFAULT 0, maximized INTEGER NOT NULL DEFAULT 0,"
+         " snapped INTEGER NOT NULL DEFAULT 0, fullscreen INTEGER NOT NULL DEFAULT 0,"
+         " PRIMARY KEY(session, name))");
     // 3: tiling arrived with a shortcut of its own; registries from before
     // it get that one default (new ones are seeded with all of them).
     if (version == 2)
@@ -440,6 +448,66 @@ void Registry::put_device(const DeviceRecord& d) {
            " ON CONFLICT(name) DO UPDATE SET speed = ?2, acceleration = ?3, natural_scroll = ?4, left_handed = ?5");
     s.bind(1, d.name).bind(2, d.speed).bind(3, d.acceleration).bind(4, d.natural_scroll).bind(5, d.left_handed);
     s.run();
+}
+
+// --- sessions ------------------------------------------------------------------------
+
+bool Registry::has_session(const std::string& id) const {
+    Stmt s(db_, "SELECT 1 FROM sessions WHERE id = ?1");
+    s.bind(1, id);
+    return s.step();
+}
+
+void Registry::touch_session(const std::string& id, const std::string& app_id) {
+    Stmt s(db_, "INSERT INTO sessions(id, app_id, used) VALUES(?1, ?2, unixepoch())"
+                " ON CONFLICT(id) DO UPDATE SET used = unixepoch(), app_id = ?2");
+    s.bind(1, id).bind(2, app_id).run();
+}
+
+void Registry::remove_session(const std::string& id) {
+    Stmt w(db_, "DELETE FROM session_windows WHERE session = ?1");
+    w.bind(1, id).run();
+    Stmt s(db_, "DELETE FROM sessions WHERE id = ?1");
+    s.bind(1, id).run();
+}
+
+std::optional<SessionWindow> Registry::session_window(const std::string& session, const std::string& name) const {
+    Stmt s(db_, "SELECT name, output, x, y, w, h, maximized, snapped, fullscreen FROM session_windows"
+                " WHERE session = ?1 AND name = ?2");
+    s.bind(1, session).bind(2, name);
+    if (!s.step())
+        return std::nullopt;
+    return SessionWindow{s.text(0),
+                         Placement{s.text(1), int(s.integer(2)), int(s.integer(3)), int(s.integer(4)),
+                                   int(s.integer(5)), s.integer(6) != 0, uint32_t(s.integer(7))},
+                         s.integer(8) != 0};
+}
+
+void Registry::put_session_window(const std::string& session, const SessionWindow& w) {
+    const Placement& p = w.placement;
+    Stmt s(db_, "INSERT INTO session_windows(session, name, output, x, y, w, h, maximized, snapped, fullscreen)"
+                " VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) ON CONFLICT(session, name) DO UPDATE SET"
+                " output = ?3, x = ?4, y = ?5, w = ?6, h = ?7, maximized = ?8, snapped = ?9, fullscreen = ?10");
+    s.bind(1, session).bind(2, w.name).bind(3, p.output).bind(4, p.x).bind(5, p.y).bind(6, p.width)
+        .bind(7, p.height).bind(8, p.maximized).bind(9, int64_t(p.snapped)).bind(10, w.fullscreen);
+    s.run();
+}
+
+void Registry::remove_session_window(const std::string& session, const std::string& name) {
+    Stmt s(db_, "DELETE FROM session_windows WHERE session = ?1 AND name = ?2");
+    s.bind(1, session).bind(2, name).run();
+}
+
+void Registry::rename_session_window(const std::string& session, const std::string& from, const std::string& to) {
+    Stmt s(db_, "UPDATE session_windows SET name = ?3 WHERE session = ?1 AND name = ?2");
+    s.bind(1, session).bind(2, from).bind(3, to).run();
+}
+
+void Registry::drop_sessions_before(int64_t before) {
+    Stmt w(db_, "DELETE FROM session_windows WHERE session IN (SELECT id FROM sessions WHERE used < ?1)");
+    w.bind(1, before).run();
+    Stmt s(db_, "DELETE FROM sessions WHERE used < ?1");
+    s.bind(1, before).run();
 }
 
 // --- JSON forms ----------------------------------------------------------------------

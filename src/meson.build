@@ -7,6 +7,7 @@ atrium_sources = files(
   'ipc.cpp',
   'background_effect.cpp',
   'toplevel_drag.cpp',
+  'session_management.cpp',
   'layer_surface.cpp',
   'main.cpp',
   'overview.cpp',
