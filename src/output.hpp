@@ -53,10 +53,27 @@ public:
 
 private:
     void frame();
+    void render();
+    void send_frame_done();
+    void presented(int64_t when, int refresh);
+
+    // Render scheduling (see frame()).
+    static constexpr int64_t kMinDelayNs = 300'000;     // not worth a timer below this
+    static constexpr int64_t kMinMarginNs = 1'000'000;
+    static constexpr int64_t kMarginStepNs = 250'000;
+    static constexpr int kOnTimeToNarrow = 600;          // frames on time before the margin narrows
+    int render_timer_fd_ = -1;
+    wl_event_source* render_timer_ = nullptr;
+    int64_t vblank_ns_ = 0;               // the last vblank a frame was shown at
+    int64_t period_ns_ = 0;               // between vblanks
+    int64_t margin_ns_ = 2'000'000;       // before the vblank compositing starts
+    int64_t aimed_ns_ = 0;                // the vblank the waiting frame is aimed at
+    int on_time_ = 0;
 
     uint64_t night_generation_ = 0;  // night light's table this screen shows
     std::optional<bool> vrr_refused_;  // a switch the screen wouldn't take, not tried again
 
+    Listener<wlr_output_event_present> present_;
     Listener<> frame_;
     Listener<wlr_output_event_request_state> request_state_;
     Listener<> destroy_;

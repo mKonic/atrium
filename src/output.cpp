@@ -12,6 +12,9 @@
 #include <algorithm>
 #include <ctime>
 
+#include <sys/timerfd.h>
+#include <unistd.h>
+
 namespace atrium {
 
 Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
@@ -25,12 +28,27 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
     wlr_output_state_finish(&state);
 
     frame_.connect(&wlr->events.frame, [this](void*) { frame(); });
+    // Compositing waits for this timer: just before the screen's next vblank.
+    render_timer_fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (render_timer_fd_ >= 0)
+        render_timer_ = wl_event_loop_add_fd(server.loop, render_timer_fd_, WL_EVENT_READABLE,
+            [](int fd, uint32_t, void* data) {
+                uint64_t expirations;
+                if (read(fd, &expirations, sizeof expirations) > 0)
+                    static_cast<Output*>(data)->render();
+                return 0;
+            }, this);
     request_state_.connect(&wlr->events.request_state, [this](wlr_output_event_request_state* e) {
         // The nested backend asks for this when its host window is resized.
         wlr_output_commit_state(e->output, e->state);
         server.update_outputs();
     });
     destroy_.connect(&wlr->events.destroy, [this](void*) { delete this; });
+    present_.connect(&wlr->events.present, [this](wlr_output_event_present* e) {
+        if (!e->presented)
+            return;
+        presented(e->when.tv_sec * 1000000000LL + e->when.tv_nsec, e->refresh);
+    });
 
     // xdg-shell: nothing outside a fullscreen surface's own tree may show
     // through it, even where the surface is translucent.
@@ -71,6 +89,11 @@ Output::~Output() {
     }
 
     frame_.disconnect();
+    present_.disconnect();
+    if (render_timer_)
+        wl_event_source_remove(render_timer_);
+    if (render_timer_fd_ >= 0)
+        close(render_timer_fd_);
     request_state_.disconnect();
     destroy_.disconnect();
 
@@ -94,7 +117,64 @@ Output::~Output() {
         server.update_outputs();
 }
 
+namespace {
+
+int64_t now_ns() {
+    timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000000000LL + t.tv_nsec;
+}
+
+} // namespace
+
+// The screen is ready for a frame. Composited right away, a window's new
+// frame that arrives a moment later waits for the next vblank to be drawn
+// and another to be shown; composited just before the vblank, it is shown
+// at that one. So on a real screen with a fixed refresh the frame waits
+// for the vblank after next minus a margin: what compositing takes, learnt
+// from frames that missed their vblank. Variable refresh and tearing show
+// a frame the moment it's committed, so they don't wait.
 void Output::frame() {
+    if (render_timer_ && vblank_ns_ && period_ns_ && !wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr) &&
+        wlr->adaptive_sync_status != WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED && !tearing_view(server, *this)) {
+        const int64_t now = now_ns();
+        const int64_t next = vblank_ns_ + ((now - vblank_ns_) / period_ns_ + 1) * period_ns_;
+        const int64_t start = next - margin_ns_;
+        if (start - now > kMinDelayNs) {
+            aimed_ns_ = next;
+            itimerspec at{};
+            at.it_value.tv_sec = start / 1000000000LL;
+            at.it_value.tv_nsec = start % 1000000000LL;
+            if (timerfd_settime(render_timer_fd_, TFD_TIMER_ABSTIME, &at, nullptr) == 0)
+                return;
+        }
+    }
+    aimed_ns_ = 0;
+    render();
+}
+
+// Where the screen's vblanks fall, and whether the last frame made the one
+// it was aimed at: a miss widens the margin at once, a long run of hits
+// narrows it again.
+void Output::presented(int64_t when, int refresh) {
+    if (refresh > 0)
+        period_ns_ = refresh;
+    else if (wlr->refresh > 0)
+        period_ns_ = 1000000000000LL / wlr->refresh;
+    vblank_ns_ = when;
+    if (!aimed_ns_ || !period_ns_)
+        return;
+    if (when > aimed_ns_ + period_ns_ / 2) {
+        margin_ns_ = std::min(margin_ns_ + kMarginStepNs * 4, period_ns_ / 2);
+        on_time_ = 0;
+    } else if (++on_time_ >= kOnTimeToNarrow) {
+        margin_ns_ = std::max(margin_ns_ - kMarginStepNs, kMinMarginNs);
+        on_time_ = 0;
+    }
+    aimed_ns_ = 0;
+}
+
+void Output::render() {
     server.animator.tick();
     // Night light's colour table, when it changed and no app sets this
     // screen's gamma itself; screens without one (nested) do without.
@@ -113,9 +193,7 @@ void Output::frame() {
     // for one without new damage (Qt between animation steps) would
     // otherwise wait forever, frozen mid-animation.
     if (!wlr_scene_output_needs_frame(scene_output) && !recolour && !switch_vrr) {
-        timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        wlr_scene_output_send_frame_done(scene_output, &now);
+        send_frame_done();
         return;
     }
     wlr_output_state state;
@@ -149,9 +227,21 @@ void Output::frame() {
             server.ipc->broadcast("outputs", {{"event", "outputs.changed"}});
     }
     wlr_output_state_finish(&state);
+    send_frame_done();
+}
+
+// The scene sends frame callbacks to what shows; panels covered by a
+// fullscreen app get theirs here, or they could never draw themselves back
+// over it (see LayerSurface::commit).
+void Output::send_frame_done() {
     timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     wlr_scene_output_send_frame_done(scene_output, &now);
+    // Top and overlay only: a wallpaper animating under a window stays paused.
+    for (auto layer : {ZWLR_LAYER_SHELL_V1_LAYER_TOP, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY})
+        for (LayerSurface* l : layers[layer])
+            if (l->mapped)
+                wlr_surface_send_frame_done(l->wlr->surface, &now);
 }
 
 namespace {
