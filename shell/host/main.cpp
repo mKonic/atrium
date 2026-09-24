@@ -16,6 +16,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QIcon>
+#include <QSettings>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickWindow>
@@ -53,6 +55,31 @@ QString pragma(const QString& file, const QString& name) {
             return parts[1];
     }
     return {};
+}
+
+// The icon theme when the platform names none (no KDE or qtengine platform
+// theme): the one KDE's or GTK's settings name, else a full theme that is
+// installed. Qt alone knows only hicolor, where most icons aren't.
+void pick_icon_theme() {
+    const QString current = QIcon::themeName();
+    if (!current.isEmpty() && current != "hicolor")
+        return;
+    const QString config = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    QStringList wanted;
+    QSettings kde(config + "/kdeglobals", QSettings::IniFormat);
+    wanted << kde.value("Icons/Theme").toString();
+    for (const char* gtk : {"/gtk-4.0/settings.ini", "/gtk-3.0/settings.ini"})
+        wanted << QSettings(config + gtk, QSettings::IniFormat).value("Settings/gtk-icon-theme-name").toString();
+    wanted << "breeze-dark" << "breeze" << "Adwaita" << "Papirus";
+    for (const QString& name : wanted) {
+        if (name.isEmpty())
+            continue;
+        for (const QString& dir : QIcon::themeSearchPaths())
+            if (QFileInfo::exists(dir + "/" + name + "/index.theme")) {
+                QIcon::setThemeName(name);
+                return;
+            }
+    }
 }
 
 // Held for the process's life: a second instance of the file can't take it.
@@ -106,6 +133,7 @@ int main(int argc, char** argv) {
     // file decides when it quits.
     app.setQuitOnLastWindowClosed(false);
     app.setProperty("atriumShellDir", info.absolutePath());
+    pick_icon_theme();
 
     QQmlEngine engine;
     // The Atrium modules: built next to this binary when it runs from the

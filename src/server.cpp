@@ -560,9 +560,14 @@ void Server::run(const char* startup_cmd) {
         // else (uwsm) already runs the graphical session.
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
               "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS; "
-              "systemctl --user -q is-active graphical-session.target || "
-              "{ systemctl --user -q cat atrium-session.target >/dev/null 2>&1 && "
-              "systemctl --user start --no-block atrium-session.target; }");
+              // Ours still up is a crashed atrium's: over from the start, so
+              // login apps start again. Another's (uwsm's) is left alone.
+              "if systemctl --user -q is-active atrium-session.target; then "
+              "systemctl --user stop atrium-session.target graphical-session.target; "
+              "systemctl --user start --no-block atrium-session.target; "
+              "elif ! systemctl --user -q is-active graphical-session.target && "
+              "systemctl --user -q cat atrium-session.target >/dev/null 2>&1; then "
+              "systemctl --user start --no-block atrium-session.target; fi");
         session_target_ = true;
         apply_gtk_button_layout();
         apply_color_scheme(config.light);
