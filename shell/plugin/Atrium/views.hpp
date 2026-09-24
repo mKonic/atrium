@@ -23,6 +23,9 @@ class OutputState : public QObject {
     // the app ids of its windows, most recent first. Ones with no windows
     // appear only while shown.
     Q_PROPERTY(QVariantList secrets READ secrets NOTIFY changed)
+    // Over a fullscreen app, the edge the pointer rests on: "top", "bottom"
+    // or "", where the bar and the Dock wait to be brought over.
+    Q_PROPERTY(QString edge READ edge NOTIFY edgeChanged)
 
 public:
     explicit OutputState(QObject* parent = nullptr);
@@ -34,16 +37,19 @@ public:
     bool tiled() const { return tiled_; }
     QVariantList spaces() const { return spaces_; }
     QVariantList secrets() const { return secrets_; }
+    QString edge() const { return edge_; }
 
 signals:
     void nameChanged();
     void changed();
+    void edgeChanged();
 
 private:
     void update();
     QVariantList collectSecrets() const;
 
     QString name_;
+    QString edge_;
     int active_ = 1;
     bool fullscreen_ = false;
     bool tiled_ = false;

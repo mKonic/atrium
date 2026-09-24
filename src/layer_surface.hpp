@@ -25,6 +25,8 @@ public:
     wlr_scene_tree* tree = nullptr;
     wlr_scene_tree* popups = nullptr;
     bool mapped = false;
+    // Some of it is on screen, not covered: the scene sends it frame callbacks.
+    bool shown_on_output() const;
 
 private:
     void commit();

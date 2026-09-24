@@ -60,6 +60,15 @@ bool LayerSurface::wants_exclusive_keyboard() const {
     return wlr->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
 }
 
+bool LayerSurface::shown_on_output() const {
+    bool shown = false;
+    wlr_scene_node_for_each_buffer(&tree->node, [](wlr_scene_buffer* b, int, int, void* data) {
+        if (b->primary_output)
+            *static_cast<bool*>(data) = true;
+    }, &shown);
+    return shown;
+}
+
 void LayerSurface::commit() {
     if (!output)
         return;
@@ -81,6 +90,14 @@ void LayerSurface::commit() {
         wlr->current = old;
         return;
     }
+
+    // Covered entirely (the bar waiting under a fullscreen app), the surface
+    // gets no frame callbacks from the scene, and Qt draws nothing, so
+    // commits nothing, until it has one: not even the layer change that
+    // would bring it over. A frame for its screen sends it one.
+    if (wlr->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP &&
+        !wl_list_empty(&wlr->surface->current.frame_callback_list) && !shown_on_output())
+        wlr_output_schedule_frame(output->wlr);
 
     if (wlr->current.committed == 0 && mapped == wlr->surface->mapped)
         return;

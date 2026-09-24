@@ -201,6 +201,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
             upsertWindow(w, kind == "window.focused" || kind == "window.opened");
         }
         emit windowsChanged();
+    } else if (kind == "output.edge") {
+        emit edgeReached(e.value("output").toString(), e.value("edge").toString());
     } else if (kind == "outputs.changed") {
         request({{"cmd", "outputs"}}, [this](const QJsonValue& r) {
             outputs_ = r.toArray().toVariantList();

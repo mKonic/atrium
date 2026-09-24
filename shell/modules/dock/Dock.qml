@@ -86,7 +86,24 @@ PanelWindow {
 
     onHidesChanged: revealed = !hides
 
-    WlrLayershell.layer: fullscreen ? WlrLayer.Overlay : WlrLayer.Top
+    // Hidden over a fullscreen app it waits under the app, and comes over
+    // when the pointer reaches the bottom edge (see Bar.qml).
+    // Still sliding out counts as shown: it drops under the app once gone.
+    readonly property bool shelfShown: shelf.anchors.bottomMargin > -(shelfHeight + 4)
+    WlrLayershell.layer: fullscreen && (revealed || shelfShown) ? WlrLayer.Overlay : WlrLayer.Top
+
+    Connections {
+        target: output
+
+        function onEdgeChanged() {
+            if (!dock.fullscreen || !dock.home)
+                return;
+            if (output.edge === "bottom")
+                dock.revealed = !dock.empty;
+            else if (!hover.hovered && !dock.menuItem)
+                hideTimer.restart();
+        }
+    }
 
     HoverHandler {
         id: hover
@@ -117,7 +134,7 @@ PanelWindow {
         id: hideTimer
 
         interval: 450
-        onTriggered: dock.revealed = !dock.empty && (!dock.hides || hover.hovered || dock.menuItem !== null)
+        onTriggered: dock.revealed = !dock.empty && (!dock.hides || hover.hovered || dock.menuItem !== null || (dock.fullscreen && output.edge === "bottom"))
     }
 
     onMenuItemChanged: {

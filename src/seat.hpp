@@ -124,6 +124,9 @@ private:
     double edge_push_ = 0;
     bool edge_carried_ = false;
     void push_edge(double dx);
+    const char* edge_reached_ = nullptr;  // screen edge the pointer rests on over a fullscreen app
+    std::string edge_output_;             // ... and its screen's name
+    void reach_edge();
     bool overview_press_ = false;   // a button went down on the overview
     bool switcher_press_ = false;   // ... or while the window switcher was up
     void unmaximize_for_drag();

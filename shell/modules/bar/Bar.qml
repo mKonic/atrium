@@ -39,7 +39,24 @@ PanelWindow {
 
     onFullscreenChanged: revealed = !fullscreen
 
-    WlrLayershell.layer: fullscreen ? WlrLayer.Overlay : WlrLayer.Top
+    // Over a fullscreen app it waits under the app while hidden (so the app
+    // keeps its whole screen, pointer and direct scanout) and comes over when
+    // the pointer reaches the top edge.
+    readonly property bool over: fullscreen && (revealed || content.y > -content.height)
+    WlrLayershell.layer: over ? WlrLayer.Overlay : WlrLayer.Top
+
+    Connections {
+        target: output
+
+        function onEdgeChanged() {
+            if (!bar.fullscreen)
+                return;
+            if (output.edge === "top")
+                bar.revealed = true;
+            else if (!hover.hovered)
+                hideTimer.restart();
+        }
+    }
 
     // All of the bar's place once revealed (its content is still sliding in
     // from above then), just the top edge while hidden.
@@ -68,7 +85,7 @@ PanelWindow {
         id: hideTimer
 
         interval: 450
-        onTriggered: bar.revealed = !bar.fullscreen || hover.hovered
+        onTriggered: bar.revealed = !bar.fullscreen || hover.hovered || output.edge === "top"
     }
 
     Item {

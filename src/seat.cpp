@@ -5,6 +5,7 @@
 #include "devices.hpp"
 #include "geometry.hpp"
 #include "layer_surface.hpp"
+#include "ipc.hpp"
 #include "output.hpp"
 #include "overview.hpp"
 #include "switcher.hpp"
@@ -567,6 +568,32 @@ int Seat::key_repeat(KeyboardGroup& g) {
 
 // --- pointer -------------------------------------------------------------------
 
+// Over a fullscreen app the bar and the Dock wait under it, out of the way
+// of its pointer (and of direct scanout); pushing the pointer against the
+// top or bottom of that screen tells the shell to bring them over. Not
+// while the app holds the pointer: a confined game never reaches the edge.
+void Seat::reach_edge() {
+    const char* edge = nullptr;
+    Output* o = server.output_at(cursor->x, cursor->y);
+    if (o && !active_constraint_ && o->fullscreen_bg->node.enabled) {
+        if (cursor->y < o->box.y + 1)
+            edge = "top";
+        else if (cursor->y >= o->box.y + o->box.height - 1)
+            edge = "bottom";
+    }
+    const std::string at = edge ? o->wlr->name : "";
+    if (edge == edge_reached_ && at == edge_output_)
+        return;
+    // Leaving says so too ("" on the screen it left), so a bar brought over
+    // stays while the pointer rests on the edge.
+    if (!edge_output_.empty() && at != edge_output_ && server.ipc)
+        server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", edge_output_}, {"edge", ""}});
+    edge_reached_ = edge;
+    edge_output_ = at;
+    if (edge && server.ipc)
+        server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", at}, {"edge", edge}});
+}
+
 void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
     wlr_surface* focused = wlr->pointer_state.focused_surface;
@@ -647,6 +674,9 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             int(std::lround(cursor->x - grab_x_)), int(std::lround(cursor->y - grab_y_))));
         return;
     }
+
+    if (time && mode == Mode::Normal)
+        reach_edge();
 
     // A window riding a drag and drop follows the pointer, which looks
     // through it for where to drop.

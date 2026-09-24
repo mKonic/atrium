@@ -8,6 +8,12 @@ OutputState::OutputState(QObject* parent) : QObject(parent) {
     Compositor* c = Compositor::instance();
     connect(c, &Compositor::windowsChanged, this, &OutputState::update);
     connect(c, &Compositor::spacesChanged, this, &OutputState::update);
+    connect(c, &Compositor::edgeReached, this, [this](const QString& output, const QString& edge) {
+        if (output == name_ && edge != edge_) {
+            edge_ = edge;
+            emit edgeChanged();
+        }
+    });
 }
 
 void OutputState::setName(const QString& name) {

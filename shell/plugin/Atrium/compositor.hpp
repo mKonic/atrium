@@ -138,6 +138,9 @@ signals:
     void textNotInserted(const QString& text);
     void windowMenu(const QVariantMap& window, const QString& output, int x, int y);
     void shellAction(const QString& name);
+    // The pointer reached the top or bottom of a screen with a fullscreen
+    // app, where the bar and the Dock wait out of sight.
+    void edgeReached(const QString& output, const QString& edge);
 
 private:
     using Reply = std::function<void(const QJsonValue&)>;
