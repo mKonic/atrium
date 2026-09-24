@@ -7,6 +7,7 @@
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusArgument>
+#include <QDBusContext>
 #include <QDBusObjectPath>
 #include <QHash>
 #include <QObject>
@@ -21,6 +22,15 @@ struct PortalShortcut {
 };
 using PortalShortcuts = QList<PortalShortcut>;
 
+// The Settings portal's accent colour: red, green, blue, 0 to 1 (out of
+// that: no preference).
+struct PortalColor {
+    double r = -1, g = -1, b = -1;
+};
+using PortalNamespaces = QMap<QString, QVariantMap>;
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalColor& c);
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalColor& c);
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalShortcut& s);
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalShortcut& s);
 
@@ -49,10 +59,16 @@ private:
     QString path_, app_;
 };
 
-class PortalBackend : public QObject {
+class PortalBackend : public QObject, protected QDBusContext {
     Q_OBJECT
 
 public:
+    // An error for the D-Bus call being answered (adaptors have no context of their own).
+    void fail(const QString& name, const QString& message) {
+        if (calledFromDBus())
+            sendErrorReply(name, message);
+    }
+
     static PortalBackend* instance();
 
     // Takes the bus name; false when another backend has it.
@@ -103,7 +119,32 @@ private:
     PortalBackend* backend_;
 };
 
+// Settings: dark or light, the accent and contrast, from atrium's settings,
+// live (org.freedesktop.appearance).
+class SettingsAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Settings")
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit SettingsAdaptor(PortalBackend* parent);
+    uint version() const { return 2; }
+
+public slots:
+    atrium::PortalNamespaces ReadAll(const QStringList& namespaces);
+    QDBusVariant Read(const QString& ns, const QString& key);
+
+signals:
+    void SettingChanged(const QString& ns, const QString& key, const QDBusVariant& value);
+
+private:
+    QVariantMap appearance() const;
+    QVariantMap last_;
+};
+
 } // namespace atrium
 
+Q_DECLARE_METATYPE(atrium::PortalColor)
+Q_DECLARE_METATYPE(atrium::PortalNamespaces)
 Q_DECLARE_METATYPE(atrium::PortalShortcut)
 Q_DECLARE_METATYPE(atrium::PortalShortcuts)

@@ -4,7 +4,10 @@
 
 #include <QDBusConnection>
 #include <QDBusMetaType>
+#include <QColor>
 #include <QDateTime>
+
+#include <algorithm>
 
 namespace atrium {
 
@@ -23,6 +26,20 @@ QString appKey(const QString& app) {
 }
 
 } // namespace
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalColor& c) {
+    arg.beginStructure();
+    arg << c.r << c.g << c.b;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalColor& c) {
+    arg.beginStructure();
+    arg >> c.r >> c.g >> c.b;
+    arg.endStructure();
+    return arg;
+}
 
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalShortcut& s) {
     arg.beginStructure();
@@ -65,7 +82,10 @@ PortalBackend* PortalBackend::instance() {
 PortalBackend::PortalBackend() {
     qDBusRegisterMetaType<PortalShortcut>();
     qDBusRegisterMetaType<PortalShortcuts>();
+    qDBusRegisterMetaType<PortalColor>();
+    qDBusRegisterMetaType<PortalNamespaces>();
     new GlobalShortcutsAdaptor(this);
+    new SettingsAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 
@@ -185,6 +205,58 @@ uint GlobalShortcutsAdaptor::ListShortcuts(const QDBusObjectPath&, const QDBusOb
 
 void GlobalShortcutsAdaptor::ConfigureShortcuts(const QDBusObjectPath&, const QString&, const QVariantMap&) {
     Compositor::instance()->action("shell", "settings:Keyboard Shortcuts");
+}
+
+// --- Settings ----------------------------------------------------------------
+
+namespace {
+const QString kAppearance = QStringLiteral("org.freedesktop.appearance");
+}
+
+SettingsAdaptor::SettingsAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {
+    last_ = appearance();
+    connect(Compositor::instance(), &Compositor::settingsChanged, this, [this] {
+        const QVariantMap now = appearance();
+        for (auto it = now.begin(); it != now.end(); ++it)
+            if (last_.value(it.key()) != it.value())
+                emit SettingChanged(kAppearance, it.key(), QDBusVariant(it.value()));
+        last_ = now;
+    });
+}
+
+QVariantMap SettingsAdaptor::appearance() const {
+    Compositor* c = Compositor::instance();
+    const QVariantMap s = c->settings();
+    PortalColor accent;
+    const QColor color(c->accentColor(s.value("appearance.accent").toString()));
+    if (color.isValid())
+        accent = {color.redF(), color.greenF(), color.blueF()};
+    return {
+        // 1 dark, 2 light.
+        {"color-scheme", uint(s.value("appearance.style").toString() == "light" ? 2 : 1)},
+        {"accent-color", QVariant::fromValue(accent)},
+        {"contrast", uint(s.value("appearance.high_contrast").toBool() ? 1 : 0)},
+    };
+}
+
+PortalNamespaces SettingsAdaptor::ReadAll(const QStringList& namespaces) {
+    PortalNamespaces out;
+    // Globs ("org.freedesktop.*") or names; none asks for everything.
+    const bool wanted = namespaces.isEmpty() || std::ranges::any_of(namespaces, [](const QString& n) {
+        return n == kAppearance || (n.endsWith('*') && kAppearance.startsWith(n.chopped(1)));
+    });
+    if (wanted)
+        out.insert(kAppearance, appearance());
+    return out;
+}
+
+QDBusVariant SettingsAdaptor::Read(const QString& ns, const QString& key) {
+    const QVariantMap a = appearance();
+    if (ns != kAppearance || !a.contains(key)) {
+        static_cast<PortalBackend*>(parent())->fail("org.freedesktop.portal.Error.NotFound", "No such setting");
+        return {};
+    }
+    return QDBusVariant(a.value(key));
 }
 
 } // namespace atrium
