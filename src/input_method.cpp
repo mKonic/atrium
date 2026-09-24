@@ -21,6 +21,12 @@ InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
                                                    {"text", std::exchange(self->pending_text_, {})}});
         return 0;
     }, this);
+    settle_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
+        auto* self = static_cast<InputMethodRelay*>(data);
+        if (self->takes_text(self->active_) && !self->pending_text_.empty())
+            self->commit_pending();
+        return 0;
+    }, this);
     text_inputs_manager_ = wlr_text_input_manager_v3_create(server.display);
     input_methods_manager_ = wlr_input_method_manager_v2_create(server.display);
     new_text_input_.connect(&text_inputs_manager_->events.new_text_input,
@@ -36,6 +42,8 @@ InputMethodRelay::~InputMethodRelay() {
     // The managers go with the display; nothing may stay hooked to them.
     if (pending_timer_)
         wl_event_source_remove(pending_timer_);
+    if (settle_timer_)
+        wl_event_source_remove(settle_timer_);
     popups_.clear();
     text_inputs_.clear();
     new_text_input_.disconnect();
@@ -81,7 +89,7 @@ bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, bool is_virtual
 
 InputMethodRelay::TextInput* InputMethodRelay::find_active() const {
     for (const auto& t : text_inputs_)
-        if (t->input->focused_surface && t->input->current_enabled)
+        if (t->input->focused_surface && t->input->current_enabled && t->ready)
             return t.get();
     return nullptr;
 }
@@ -97,8 +105,16 @@ void InputMethodRelay::update_active() {
     }
     active_ = now;
     // Text waiting for a field (the emoji picker's): the field is back.
-    if (active_ && !pending_text_.empty())
-        commit_pending();
+    // Given once it holds still: an app just enabled sends more commits
+    // (cursor, content type), and a done answering an older one is dropped.
+    if (takes_text(active_) && !pending_text_.empty())
+        wl_event_source_timer_update(settle_timer_, kSettleMs);
+}
+
+// A window's field. The shell's own (the picker's search) is where the
+// request came from, going away as it arrives: never its target.
+bool InputMethodRelay::takes_text(const TextInput* t) const {
+    return t && t->input->focused_surface && !wlr_layer_surface_v1_try_from_wlr_surface(t->input->focused_surface);
 }
 
 // Enter the focused surface on the text inputs of its client, leave elsewhere.
@@ -111,6 +127,7 @@ void InputMethodRelay::update_focused_surfaces() {
             target = focused_;
         if (input->focused_surface == target)
             continue;
+        t->ready = false;
         if (input->focused_surface)
             wlr_text_input_v3_send_leave(input);
         if (target)
@@ -139,6 +156,7 @@ void InputMethodRelay::new_text_input(wlr_text_input_v3* input) {
     auto t = std::make_unique<TextInput>(input);
     TextInput* tp = t.get();
     tp->enable.connect(&input->events.enable, [this, tp](void*) {
+        tp->ready = true;
         update_active();
         if (active_ == tp) {
             place_popups();
@@ -146,11 +164,16 @@ void InputMethodRelay::new_text_input(wlr_text_input_v3* input) {
         }
         wlr_text_input_v3_send_done(tp->input);
     });
-    tp->disable.connect(&input->events.disable, [this](void*) { update_active(); });
+    tp->disable.connect(&input->events.disable, [this, tp](void*) {
+        tp->ready = false;
+        update_active();
+    });
     tp->commit.connect(&input->events.commit, [this, tp](void*) {
         if (active_ == tp) {
             place_popups();
             send_state();
+            if (!pending_text_.empty() && takes_text(tp))
+                wl_event_source_timer_update(settle_timer_, kSettleMs);
         }
     });
     tp->destroy.connect(&input->events.destroy, [this, tp](void*) {
@@ -165,7 +188,7 @@ void InputMethodRelay::new_text_input(wlr_text_input_v3* input) {
 
 void InputMethodRelay::insert_text(const std::string& text) {
     pending_text_ = text;
-    if (active_) {
+    if (takes_text(active_)) {
         commit_pending();
         return;
     }
@@ -178,6 +201,7 @@ void InputMethodRelay::commit_pending() {
     wlr_text_input_v3_send_done(active_->input);
     pending_text_.clear();
     wl_event_source_timer_update(pending_timer_, 0);
+    wl_event_source_timer_update(settle_timer_, 0);
 }
 
 void InputMethodRelay::set_focus(wlr_surface* surface) {

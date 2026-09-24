@@ -35,6 +35,10 @@ private:
     struct TextInput {
         explicit TextInput(wlr_text_input_v3* i) : input(i) {}
         wlr_text_input_v3* input;
+        // Enabled since it last entered a surface. wlroots keeps the old
+        // enabled state across leave and enter; text sent before the app
+        // enables again is dropped.
+        bool ready = false;
         Listener<> enable, commit, disable, destroy;
     };
     struct Popup {
@@ -49,6 +53,7 @@ private:
     void new_popup(wlr_input_popup_surface_v2* surface);
     void set_focus(wlr_surface* surface);
     void commit_pending();
+    bool takes_text(const TextInput* t) const;
 
     TextInput* find_active() const;
     void update_active();
@@ -65,6 +70,8 @@ private:
     wlr_surface* focused_ = nullptr;
     std::string pending_text_;
     wl_event_source* pending_timer_ = nullptr;
+    wl_event_source* settle_timer_ = nullptr;  // the field's commits have settled
+    static constexpr int kSettleMs = 40;
     TextInput* active_ = nullptr;
     std::vector<std::unique_ptr<TextInput>> text_inputs_;
     std::vector<std::unique_ptr<Popup>> popups_;
