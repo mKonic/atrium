@@ -1,5 +1,6 @@
 #include "updates.hpp"
 
+#include "compositor.hpp"
 #include "updates_core.hpp"
 
 #include <QDBusConnection>
@@ -64,7 +65,9 @@ QString Updates::lastChecked() const {
     if (!lastChecked_.isValid())
         return {};
     const QDate day = lastChecked_.date(), today = QDate::currentDate();
-    const QString time = QLocale().toString(lastChecked_.time(), QLocale::ShortFormat);
+    // In the menu bar clock's style.
+    const bool h24 = Compositor::instance()->settings().value("clock.24_hour").toBool();
+    const QString time = QLocale().toString(lastChecked_.time(), h24 ? QStringLiteral("HH:mm") : QStringLiteral("h:mm AP"));
     if (day == today)
         return "Today at " + time;
     if (day == today.addDays(-1))
@@ -78,7 +81,7 @@ void Updates::readLastChecked() {
         return;
     const uint seconds = r.arguments().first().toUInt();
     // PackageKit says "never" with the largest number it has.
-    if (seconds > 0 && seconds < 365u * 24 * 60 * 60)
+    if (seconds < 10u * 365 * 24 * 60 * 60)  // 0: just now
         lastChecked_ = QDateTime::currentDateTime().addSecs(-qint64(seconds));
 }
 
@@ -224,6 +227,7 @@ void Updates::onFinished(uint exit, uint) {
         packages_ = found_;
         found_.clear();
         checking_ = false;
+        known_ = true;
         emit changed();
         return;
     case Step::Install:

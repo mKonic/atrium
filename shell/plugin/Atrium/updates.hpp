@@ -1,7 +1,8 @@
 #pragma once
 // Software updates through PackageKit (any distro it has a backend for;
 // alpm on Arch). The desktop shell checks at login and every six hours;
-// installing asks for the administrator's password through polkit.
+// installing goes by the system's polkit rules (Arch lets an active local
+// user update without a password; elsewhere the polkit agent asks).
 //
 //   packages: [{id, name, version, repo, summary, security}], by name
 
@@ -19,6 +20,7 @@ class Updates : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool available READ available NOTIFY changed)      // PackageKit is there
     Q_PROPERTY(bool checking READ checking NOTIFY changed)
+    Q_PROPERTY(bool known READ known NOTIFY changed)  // PackageKit has said what's newer
     Q_PROPERTY(bool installing READ installing NOTIFY changed)
     Q_PROPERTY(QVariantList packages READ packages NOTIFY changed)
     Q_PROPERTY(int count READ count NOTIFY changed)
@@ -34,6 +36,7 @@ public:
 
     bool available() const { return available_; }
     bool checking() const { return checking_; }
+    bool known() const { return known_; }
     bool installing() const { return installing_; }
     QVariantList packages() const { return packages_; }
     int count() const { return int(packages_.size()); }
@@ -70,6 +73,7 @@ private:
     void end();
     void readLastChecked();
 
+    bool known_ = false;
     bool available_ = false, checking_ = false, installing_ = false, restartNeeded_ = false;
     QVariantList packages_, found_;
     int progress_ = 0;

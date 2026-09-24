@@ -6,7 +6,8 @@ import shell.components
 import shell.services
 
 // Software Update, as on a Mac: whether the system is up to date, what's
-// newer, and one button that installs it all (asking for the password).
+// newer, and one button that installs it all (with the password, where the
+// system wants one).
 Column {
     id: root
 
@@ -63,6 +64,7 @@ Column {
                         width: parent.width
                         text: Updates.installing ? "Installing updates…"
                             : Updates.checking ? "Checking for updates…"
+                            : !Updates.known ? "Looking for updates…"
                             : Updates.count > 0 ? Updates.summary : "Your computer is up to date"
                         font.weight: Font.DemiBold
                         font.pointSize: Theme.font.size.larger
@@ -172,6 +174,8 @@ Column {
             model: Updates.packages
 
             ControlRow {
+                id: update
+
                 required property var modelData
 
                 title: modelData.name
@@ -182,7 +186,7 @@ Column {
 
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: parent.parent.modelData?.security ?? false
+                        visible: update.modelData.security
                         width: securityLabel.implicitWidth + 12
                         height: 20
                         radius: 6
@@ -200,7 +204,7 @@ Column {
 
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: parent.parent.modelData?.version ?? ""
+                        text: update.modelData.version
                         font.pointSize: Theme.font.size.small
                         color: Theme.palette.m3OnSurfaceVariant
                     }
