@@ -207,6 +207,15 @@ private:
     wlr_foreign_toplevel_handle_v1* handle_ = nullptr;
     wlr_scene* capture_scene_ = nullptr;
     wlr_ext_image_capture_source_v1* capture_source_ = nullptr;
+    // wlroots' scene-node capture source (0.20) draws only on new damage, so
+    // a client asking for a frame of a still window, even its first, waits
+    // forever. The source's request_frame goes through this copy of its
+    // functions, which damages the capture scene first.
+    struct CaptureImpl {
+        wlr_ext_image_capture_source_v1_interface impl;  // first: source->impl points here
+        const wlr_ext_image_capture_source_v1_interface* base;
+        wlr_scene_node* node;
+    } capture_impl_{};
 
     Listener<wlr_foreign_toplevel_handle_v1_activated_event> handle_activate_;
     Listener<wlr_foreign_toplevel_handle_v1_maximized_event> handle_maximize_;
