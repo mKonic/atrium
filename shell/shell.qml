@@ -29,6 +29,16 @@ ShellRoot {
     Variants {
         model: Shell.screens
 
+        WallpaperLayer {
+            required property ShellScreen modelData
+
+            screen: modelData
+        }
+    }
+
+    Variants {
+        model: Shell.screens
+
         Desktop {
             required property ShellScreen modelData
 

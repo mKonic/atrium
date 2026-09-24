@@ -20,6 +20,7 @@
 #include "settings_pages.hpp"
 #include "accounts.hpp"
 #include "requirements.hpp"
+#include "wallpaper.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -179,6 +180,8 @@ public:
             QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
             return o;
         });
+        qmlRegisterSingletonType<Wallpaper>(uri, 1, 0, "Wallpaper",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Wallpaper; });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Accounts; });
         qmlRegisterSingletonType<Emojis>(uri, 1, 0, "Emojis",

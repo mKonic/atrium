@@ -27,4 +27,5 @@ Sheet 1.0 Sheet.qml
 ShortcutsEditor 1.0 ShortcutsEditor.qml
 SoundPage 1.0 SoundPage.qml
 TextControl 1.0 TextControl.qml
+WallpaperControl 1.0 WallpaperControl.qml
 UsersPage 1.0 UsersPage.qml

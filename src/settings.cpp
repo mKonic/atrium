@@ -366,6 +366,13 @@ std::vector<SettingSchema> build_schema(const Config& d) {
             "Highlights, selections and buttons, in the shell and in apps that follow the system. Multicolour keeps atrium's own.",
             std::move(accents), d.accent, [](Config& c, const json& v) { c.accent = v.get<std::string>(); }));
     }
+    // The wallpaper (read by the shell): a picture file, and how it meets
+    // screens of another shape.
+    s.push_back(make("appearance.wallpaper", SettingType::String, "Appearance", "Wallpaper",
+        "The picture on the desktop. None shows the desktop colour.", "", [](Config&, const json&) {}));
+    s.push_back(choice("appearance.wallpaper_fit", "Appearance", "Wallpaper fit",
+        "How the picture meets a screen of another shape.", {"fill", "fit", "stretch", "center", "tile"}, "fill",
+        [](Config&, const json&) {}));
     s.push_back(number("appearance.corner_radius", T::Int, "Appearance", "Corner radius",
         "Roundness of window corners, in pixels.", &Config::corner_radius, d, 0, 64));
     s.push_back(boolean("appearance.shadows", "Appearance", "Window shadows",

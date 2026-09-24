@@ -104,6 +104,7 @@ Item {
         sourceComponent: root.type === "bool" ? boolControl
                        : root.type === "int" || root.type === "float" ? numberControl
                        : root.key === "appearance.accent" ? accentControl
+                       : root.key === "appearance.wallpaper" ? wallpaperControl
                        : root.type === "choice" ? choiceControl
                        : root.type === "color" ? colorControl
                        : textControl
@@ -158,6 +159,15 @@ Item {
             value: String(root.value)
             choices: root.setting.choices ?? []
             onPicked: v => root.set(v)
+        }
+    }
+
+    Component {
+        id: wallpaperControl
+
+        WallpaperControl {
+            value: String(root.value ?? "")
+            onPicked: file => Wallpaper.set(file)
         }
     }
 
