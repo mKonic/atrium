@@ -300,6 +300,7 @@ json Ipc::window_json(const View& v) {
         {"sticky", v.sticky},
         {"tiled", v.tiled()},
         {"identifier", v.toplevel_identifier()},
+        {"title_bar", v.top()},  // the geometry's top rows that are atrium's title bar
     };
 }
 

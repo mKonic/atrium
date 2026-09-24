@@ -21,6 +21,8 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <functional>
+#include <optional>
 
 namespace atrium {
 
@@ -133,6 +135,7 @@ PortalBackend::PortalBackend() {
     new SettingsAdaptor(this);
     new WallpaperAdaptor(this);
     new AccessAdaptor(this);
+    new ScreenshotAdaptor(this);
     new InhibitAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
@@ -334,12 +337,53 @@ PortalRequest::~PortalRequest() {
     bus().unregisterObject(path_);
 }
 
+namespace {
+
+// What goes back to the portal, from a dialog's stdout (nothing when it
+// failed or the portal closed it first).
+using Answer = std::function<QVariantList(const std::optional<QByteArray>& out)>;
+
+// Runs a shell file (a dialog) in its own atrium-shell for the call being
+// answered, with `input` on its stdin and `mode` in ATRIUM_CAPTURE_MODE,
+// until it exits or the portal closes the request.
+void askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
+              Answer answer) {
+    PortalBackend* backend = PortalBackend::instance();
+    const QDBusMessage call = backend->delayReply();
+    auto* request = new PortalRequest(handle, backend);
+    auto* dialog = new QProcess(request);
+    auto finish = [call, request, answer](const std::optional<QByteArray>& out) {
+        if (request->property("answered").toBool())
+            return;
+        request->setProperty("answered", true);
+        bus().send(call.createReply(answer(out)));
+        request->deleteLater();
+    };
+    QObject::connect(request, &PortalRequest::closed, dialog, [dialog] { dialog->kill(); });
+    QObject::connect(dialog, &QProcess::finished, request, [dialog, finish](int code, QProcess::ExitStatus status) {
+        if (status == QProcess::NormalExit && code == 0)
+            finish(dialog->readAllStandardOutput());
+        else
+            finish(std::nullopt);
+    });
+    QObject::connect(dialog, &QProcess::errorOccurred, request, [finish](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart)
+            finish(std::nullopt);
+    });
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    if (!mode.isEmpty())
+        env.insert("ATRIUM_CAPTURE_MODE", mode);
+    dialog->setProcessEnvironment(env);
+    dialog->start(shellProgram(), {shellFile(file)});
+    dialog->write(input);
+    dialog->closeWriteChannel();
+}
+
+} // namespace
+
 uint AccessAdaptor::AccessDialog(const QDBusObjectPath& handle, const QString& app, const QString&,
                                  const QString& title, const QString& subtitle, const QString& body,
                                  const QVariantMap& options, QVariantMap&) {
-    PortalBackend* backend = PortalBackend::instance();
-    const QDBusMessage call = backend->delayReply();
-
     PortalChoices choices;
     if (options.contains("choices"))
         options.value("choices").value<QDBusArgument>() >> choices;
@@ -360,39 +404,56 @@ uint AccessAdaptor::AccessDialog(const QDBusObjectPath& handle, const QString& a
         {"deny", options.value("deny_label").toString()},
         {"choices", asked},
     };
-
-    auto* request = new PortalRequest(handle.path(), backend);
-    auto* dialog = new QProcess(request);
-    // Answers once: 0 allowed, 1 not, 2 closed or failed.
-    auto answer = [call, request](uint response, const PortalPairs& picked) {
-        QVariantMap results;
-        if (response == 0)
-            results.insert("choices", QVariant::fromValue(picked));
-        bus().send(call.createReply({response, results}));
-        request->deleteLater();
-    };
-    QObject::connect(request, &PortalRequest::closed, dialog, [dialog] { dialog->kill(); });
-    QObject::connect(dialog, &QProcess::finished, request, [dialog, answer](int code, QProcess::ExitStatus status) {
-        const QJsonObject reply = QJsonDocument::fromJson(dialog->readAllStandardOutput()).object();
-        if (status != QProcess::NormalExit || code != 0 || !reply.contains("response")) {
-            answer(2, {});
-            return;
-        }
-        PortalPairs picked;
-        const QJsonObject values = reply.value("choices").toObject();
-        for (auto it = values.begin(); it != values.end(); ++it)
-            picked.append({it.key(), it.value().toString()});
-        answer(uint(reply.value("response").toInt(2)), picked);
-    });
-    QObject::connect(dialog, &QProcess::errorOccurred, request, [answer](QProcess::ProcessError e) {
-        if (e == QProcess::FailedToStart)
-            answer(2, {});
-    });
-    dialog->setProcessChannelMode(QProcess::SeparateChannels);
-    dialog->start(shellProgram(), {shellFile("access.qml")});
-    dialog->write(QJsonDocument(question).toJson(QJsonDocument::Compact));
-    dialog->closeWriteChannel();
+    // 0 allowed, 1 not, 2 closed or failed.
+    askShell(handle.path(), "access.qml", QJsonDocument(question).toJson(QJsonDocument::Compact), {},
+             [](const std::optional<QByteArray>& out) -> QVariantList {
+                 const QJsonObject reply = out ? QJsonDocument::fromJson(*out).object() : QJsonObject();
+                 if (!reply.contains("response"))
+                     return {uint(2), QVariantMap()};
+                 const uint response = uint(reply.value("response").toInt(2));
+                 QVariantMap results;
+                 if (response == 0) {
+                     PortalPairs picked;
+                     const QJsonObject values = reply.value("choices").toObject();
+                     for (auto it = values.begin(); it != values.end(); ++it)
+                         picked.append({it.key(), it.value().toString()});
+                     results.insert("choices", QVariant::fromValue(picked));
+                 }
+                 return {response, results};
+             });
     return 2;  // unused: the reply goes later
+}
+
+// --- Screenshot --------------------------------------------------------------
+
+uint ScreenshotAdaptor::Screenshot(const QDBusObjectPath& handle, const QString&, const QString&,
+                                   const QVariantMap& options, QVariantMap&) {
+    // atrium's screenshot tool, answering with the file it saved; asked to
+    // be interactive, it lets the user pick first.
+    const QString mode = options.value("interactive").toBool() ? "portal-interactive" : "portal";
+    askShell(handle.path(), "capture.qml", {}, mode, [](const std::optional<QByteArray>& out) -> QVariantList {
+        if (!out)
+            return {uint(2), QVariantMap()};
+        const QString uri = QString::fromUtf8(*out).trimmed();
+        if (uri.isEmpty())
+            return {uint(1), QVariantMap()};  // the user left
+        return {uint(0), QVariantMap{{"uri", uri}}};
+    });
+    return 2;
+}
+
+uint ScreenshotAdaptor::PickColor(const QDBusObjectPath& handle, const QString&, const QString&,
+                                  const QVariantMap&, QVariantMap&) {
+    askShell(handle.path(), "capture.qml", {}, "color", [](const std::optional<QByteArray>& out) -> QVariantList {
+        if (!out)
+            return {uint(2), QVariantMap()};
+        const QStringList rgb = QString::fromUtf8(*out).trimmed().split(' ', Qt::SkipEmptyParts);
+        if (rgb.size() != 3)
+            return {uint(1), QVariantMap()};
+        const PortalColor color{rgb[0].toDouble(), rgb[1].toDouble(), rgb[2].toDouble()};
+        return {uint(0), QVariantMap{{"color", QVariant::fromValue(color)}}};
+    });
+    return 2;
 }
 
 // --- Wallpaper ---------------------------------------------------------------

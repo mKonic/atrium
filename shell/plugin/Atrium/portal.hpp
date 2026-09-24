@@ -185,6 +185,23 @@ public slots:
                       const QVariantMap& options, QVariantMap& results);
 };
 
+// Screenshot: atrium's screenshot tool (capture.qml), and its colour picker.
+class ScreenshotAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Screenshot")
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit ScreenshotAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {}
+    uint version() const { return 2; }
+
+public slots:
+    uint Screenshot(const QDBusObjectPath& handle, const QString& app, const QString& parentWindow,
+                    const QVariantMap& options, QVariantMap& results);
+    uint PickColor(const QDBusObjectPath& handle, const QString& app, const QString& parentWindow,
+                   const QVariantMap& options, QVariantMap& results);
+};
+
 // A question on screen, until answered or the portal closes it.
 class PortalRequest : public QObject {
     Q_OBJECT

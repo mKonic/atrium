@@ -222,6 +222,11 @@ json default_keybinds() {
         {{"keys", "Mod+D"}, {"action", "toggle-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+Shift+D"}, {"action", "move-to-secret"}, {"arg", "communication"}},
         {{"keys", "Mod+backslash"}, {"action", "toggle-tiling"}},
+        // Screenshots: Print as GNOME and Windows, Super+Shift+S for a region as Windows.
+        {{"keys", "Print"}, {"action", "shell"}, {"arg", "screenshot"}},
+        {{"keys", "Shift+Print"}, {"action", "shell"}, {"arg", "screenshot-screen"}},
+        {{"keys", "Alt+Print"}, {"action", "shell"}, {"arg", "screenshot-window"}},
+        {{"keys", "Mod+Shift+S"}, {"action", "shell"}, {"arg", "screenshot-region"}},
     });
     // Media keys go to the shell, which holds the audio and display
     // connections and shows what changed. Shift makes the steps finer.

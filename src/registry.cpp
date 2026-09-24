@@ -63,7 +63,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 8;
+constexpr int kSchemaVersion = 9;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -231,6 +231,19 @@ void Registry::migrate() {
         exec("INSERT INTO shortcuts (position, keys, action, arg) "
              "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+period', 'shell', 'emoji' FROM shortcuts "
              "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = 'Mod+period')");
+    // 9: screenshots (Print, Shift+Print, Alt+Print, Super+Shift+S).
+    if (version >= 2 && version < 9) {
+        const char* added[][2] = {
+            {"Print", "screenshot"}, {"Shift+Print", "screenshot-screen"},
+            {"Alt+Print", "screenshot-window"}, {"Mod+Shift+S", "screenshot-region"},
+        };
+        for (const auto& a : added) {
+            Stmt add(db_, "INSERT INTO shortcuts (position, keys, action, arg) "
+                          "SELECT COALESCE(MAX(position), 0) + 1, ?1, 'shell', ?2 FROM shortcuts "
+                          "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = ?1)");
+            add.bind(1, std::string(a[0])).bind(2, std::string(a[1])).run();
+        }
+    }
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

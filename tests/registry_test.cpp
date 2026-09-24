@@ -149,6 +149,8 @@ TEST(Registry, MigratesOldArrowDefaults) {
     EXPECT_EQ(find("Mod+backslash")->action, "toggle-tiling");
     EXPECT_EQ(find("Mod+Ctrl+Down")->action, "app-expose");
     EXPECT_EQ(find("Mod+period")->arg, "emoji");
+    EXPECT_EQ(find("Print")->arg, "screenshot");
+    EXPECT_EQ(find("Mod+Shift+S")->arg, "screenshot-region");
     std::remove(path.c_str());
 }
 

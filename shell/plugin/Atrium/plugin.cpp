@@ -26,6 +26,8 @@
 #include "welcome.hpp"
 #include "share.hpp"
 #include "access.hpp"
+#include "capture.hpp"
+#include "markup.hpp"
 #include "datetime.hpp"
 #include "region.hpp"
 #include "autostart.hpp"
@@ -226,6 +228,9 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ShareChooser; });
         qmlRegisterSingletonType<AccessPrompt>(uri, 1, 0, "AccessPrompt",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new AccessPrompt; });
+        qmlRegisterSingletonType<Capture>(uri, 1, 0, "Capture",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Capture; });
+        qmlRegisterType<MarkupCanvas>(uri, 1, 0, "MarkupCanvas");
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Accounts; });
         qmlRegisterSingletonType<Emojis>(uri, 1, 0, "Emojis",

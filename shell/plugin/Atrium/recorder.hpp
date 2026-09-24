@@ -27,6 +27,9 @@ public:
     // The whole of `output` at `fps`, with what the speakers play if `audio`.
     Q_INVOKABLE void start(const QString& output, int fps, bool audio);
     Q_INVOKABLE void stop();
+    // Stop, or start on the focused screen at its refresh rate, with sound
+    // as Settings says.
+    Q_INVOKABLE void toggle();
 
 signals:
     void recordingChanged();

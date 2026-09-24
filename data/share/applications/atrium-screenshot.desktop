@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot
+GenericName=Screenshot
+Comment=Take the screen, a window or part of it, and mark it up
+Icon=accessories-screenshot-tool
+Exec=atriumctl action shell screenshot
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;capture;print;snip;markup;
+StartupWMClass=atrium-screenshot
+OnlyShowIn=atrium;

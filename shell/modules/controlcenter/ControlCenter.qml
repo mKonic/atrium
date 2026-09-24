@@ -231,13 +231,8 @@ PanelWindow {
                     subtitle: Recorder.recording ? cc.formatTime(Recorder.seconds) : Recorder.available ? "Screen" : "Unavailable"
                     on: Recorder.recording
                     onToggled: {
-                        if (Recorder.recording) {
-                            Recorder.stop();
-                        } else if (Recorder.available) {
-                            const out = Atrium.focusedOutput;
-                            Panels.open = "";
-                            Recorder.start(out?.name ?? "", Math.round(out?.refresh ?? 60), Atrium.settings["recording.audio"] ?? false);
-                        }
+                        Panels.open = "";
+                        Recorder.toggle();
                     }
                 }
             }

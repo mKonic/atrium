@@ -1,5 +1,7 @@
 #include "recorder.hpp"
 
+#include "compositor.hpp"
+
 #include <QDateTime>
 #include <QDir>
 #include <QStandardPaths>
@@ -46,6 +48,19 @@ void Recorder::start(const QString& output, int fps, bool audio) {
     clock_.start();
     tick_.start();
     emit recordingChanged();
+}
+
+void Recorder::toggle() {
+    if (recording()) {
+        stop();
+        return;
+    }
+    if (!available())
+        return;
+    Compositor* c = Compositor::instance();
+    const QVariantMap out = c->focusedOutput().toMap();
+    start(out.value("name").toString(), qRound(out.value("refresh", 60).toDouble()),
+          c->settings().value("recording.audio").toBool());
 }
 
 void Recorder::stop() {

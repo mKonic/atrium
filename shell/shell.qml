@@ -84,6 +84,11 @@ ShellRoot {
         function onShellAction(name: string): void {
             if (name === "welcome")
                 Shell.launch("welcome.qml", {});
+            if (name === "record")
+                Recorder.toggle();
+            // "screenshot" (the toolbar), "screenshot-region", "-window", "-screen".
+            if (name.startsWith("screenshot"))
+                Shell.launch("capture.qml", { ATRIUM_CAPTURE_MODE: name.slice(11) || "toolbar" });
             if (name !== "settings" && !name.startsWith("settings:"))
                 return;
             Shell.launch("settings.qml", { ATRIUM_SETTINGS_PAGE: name.slice(9) });

@@ -1,0 +1,5 @@
+module shell.modules.capture
+CaptureOverlay 1.0 CaptureOverlay.qml
+CaptureToolbar 1.0 CaptureToolbar.qml
+Thumbnail 1.0 Thumbnail.qml
+MarkupWindow 1.0 MarkupWindow.qml
