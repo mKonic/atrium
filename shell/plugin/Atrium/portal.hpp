@@ -4,11 +4,13 @@
 // the portal first asks for it. GlobalShortcuts: an app's shortcuts are rows of atrium's
 // shortcut list (action "portal", arg "APP/ID"), so they're kept and can
 // be changed in Settings; the compositor says when one is pressed and let go.
+// Settings, Wallpaper and Inhibit follow atrium's settings and logind.
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusArgument>
 #include <QDBusContext>
 #include <QDBusObjectPath>
+#include <QDBusUnixFileDescriptor>
 #include <QHash>
 #include <QObject>
 #include <QVariantMap>
@@ -141,6 +143,65 @@ signals:
 private:
     QVariantMap appearance() const;
     QVariantMap last_;
+};
+
+// Wallpaper: an app sets the desktop picture. atrium keeps its own copy
+// (a sandboxed app's file can vanish) and sets it at once; it has no lock
+// screen, so "lockscreen" alone is refused.
+class WallpaperAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Wallpaper")
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit WallpaperAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {}
+    uint version() const { return 1; }
+
+public slots:
+    uint SetWallpaperURI(const QDBusObjectPath& handle, const QString& app, const QString& parentWindow,
+                         const QString& uri, const QVariantMap& options);
+};
+
+// One app's inhibition, alive until the portal closes its request: idle and
+// suspend hold a logind idle lock (atrium itself never sleeps when idle, but
+// logind's IdleAction and `systemd-inhibit --list` see it). Logging out and
+// switching user aren't held up, as in Plasma.
+class InhibitRequest : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Request")
+
+public:
+    InhibitRequest(const QString& path, QDBusUnixFileDescriptor lock, QObject* parent);
+    ~InhibitRequest() override;
+
+public slots:
+    void Close();
+
+private:
+    QString path_;
+    QDBusUnixFileDescriptor lock_;
+};
+
+class InhibitAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Inhibit")
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit InhibitAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {}
+    uint version() const { return 3; }
+
+public slots:
+    void Inhibit(const QDBusObjectPath& handle, const QString& app, const QString& window, uint flags,
+                 const QVariantMap& options);
+    // The session's state for apps that watch it: always running, never
+    // a screensaver (atrium has none).
+    uint CreateMonitor(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString& app,
+                       const QString& window, QVariantMap& results);
+    void QueryEndResponse(const QDBusObjectPath&) {}
+
+signals:
+    void StateChanged(const QDBusObjectPath& session, const QVariantMap& state);
 };
 
 } // namespace atrium

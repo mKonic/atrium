@@ -2,10 +2,18 @@
 
 #include "compositor.hpp"
 
-#include <QDBusConnection>
-#include <QDBusMetaType>
 #include <QColor>
+#include <QCryptographicHash>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusMetaType>
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QStandardPaths>
+#include <QTimer>
+#include <QUrl>
 
 #include <algorithm>
 
@@ -86,6 +94,8 @@ PortalBackend::PortalBackend() {
     qDBusRegisterMetaType<PortalNamespaces>();
     new GlobalShortcutsAdaptor(this);
     new SettingsAdaptor(this);
+    new WallpaperAdaptor(this);
+    new InhibitAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 
@@ -259,6 +269,73 @@ QDBusVariant SettingsAdaptor::Read(const QString& ns, const QString& key) {
         return {};
     }
     return QDBusVariant(a.value(key));
+}
+
+// --- Wallpaper ---------------------------------------------------------------
+
+uint WallpaperAdaptor::SetWallpaperURI(const QDBusObjectPath&, const QString&, const QString&, const QString& uri,
+                                       const QVariantMap& options) {
+    // 0 done, 2 not done (1 is the user saying no).
+    if (options.value("set-on").toString() == "lockscreen")
+        return 2;
+    QFile source(QUrl(uri).toLocalFile());
+    if (source.fileName().isEmpty() || !source.open(QIODevice::ReadOnly))
+        return 2;
+    const QByteArray data = source.readAll();
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/atrium/wallpapers";
+    const QString suffix = QFileInfo(source.fileName()).suffix();
+    // Named by what's in it: the same picture twice is one file.
+    const QString name = QCryptographicHash::hash(data, QCryptographicHash::Sha1).toHex().left(16) +
+                         (suffix.isEmpty() ? "" : "." + suffix);
+    QFile copy(dir + "/" + name);
+    if (!QDir().mkpath(dir) || (!copy.exists() && (!copy.open(QIODevice::WriteOnly) || copy.write(data) != data.size())))
+        return 2;
+    Compositor::instance()->setSetting("appearance.wallpaper", copy.fileName());
+    return 0;
+}
+
+// --- Inhibit -----------------------------------------------------------------
+
+InhibitRequest::InhibitRequest(const QString& path, QDBusUnixFileDescriptor lock, QObject* parent)
+    : QObject(parent), path_(path), lock_(std::move(lock)) {
+    bus().registerObject(path, this, QDBusConnection::ExportAllSlots);
+}
+
+InhibitRequest::~InhibitRequest() {
+    bus().unregisterObject(path_);
+}
+
+void InhibitRequest::Close() {
+    deleteLater();  // and with it the lock
+}
+
+void InhibitAdaptor::Inhibit(const QDBusObjectPath& handle, const QString& app, const QString&, uint flags,
+                             const QVariantMap& options) {
+    // Flags: 1 logout, 2 switching user, 4 suspend, 8 idle.
+    QDBusUnixFileDescriptor lock;
+    if (flags & (4 | 8)) {
+        QString why = options.value("reason").toString();
+        if (why.isEmpty())
+            why = QStringLiteral("Asked through the portal");
+        QDBusMessage call = QDBusMessage::createMethodCall("org.freedesktop.login1", "/org/freedesktop/login1",
+                                                           "org.freedesktop.login1.Manager", "Inhibit");
+        call << QStringLiteral("idle") << appKey(app) << why << QStringLiteral("block");
+        const QDBusMessage reply = QDBusConnection::systemBus().call(call);
+        if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty())
+            lock = reply.arguments().first().value<QDBusUnixFileDescriptor>();
+    }
+    new InhibitRequest(handle.path(), std::move(lock), this);
+}
+
+uint InhibitAdaptor::CreateMonitor(const QDBusObjectPath&, const QDBusObjectPath& session, const QString& app,
+                                   const QString&, QVariantMap&) {
+    auto* s = new PortalSession(session.path(), app, PortalBackend::instance());
+    PortalBackend::instance()->addSession(s);
+    // After the reply, which makes the session the app's.
+    QTimer::singleShot(0, this, [this, session] {
+        emit StateChanged(session, {{"screensaver-active", false}, {"session-state", uint(1)}});
+    });
+    return 0;
 }
 
 } // namespace atrium
