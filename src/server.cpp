@@ -543,6 +543,7 @@ void Server::run(const char* startup_cmd) {
     if (!config.greeter) {  // the greeter's user has no home to theme
         install_gtk_theme(config.light, config.accent);
         install_qt_theme(config.light, config.accent);
+        install_app_defaults();
     }
     if (!nested && !config.greeter) {
         // D-Bus-started apps get the session's environment, themes included.

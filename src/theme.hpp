@@ -15,6 +15,10 @@ void install_gtk_theme(bool light, std::string_view accent);
 // a kdeglobals for plasma-integration's platform theme. Nothing when another
 // platform theme (qt6ct, ...) was chosen.
 void install_qt_theme(bool light, std::string_view accent);
+// Defaults for other programs that follow atrium's look through their own
+// settings (fcitx5's popup), in a directory first in XDG_CONFIG_DIRS: the
+// user's own ~/.config files still win.
+void install_app_defaults();
 // Tell apps through GSettings (read by the settings portal): libadwaita,
 // Firefox, Chromium and Qt follow color-scheme live.
 void apply_color_scheme(bool light);
