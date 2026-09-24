@@ -282,6 +282,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            PrintersPage {
+                visible: root.query === "" && root.page === "Printers"
+                width: parent.width
+            }
+
             PowerPage {
                 visible: root.query === "" && root.page === "Power"
                 width: parent.width

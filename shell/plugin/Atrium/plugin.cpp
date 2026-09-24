@@ -30,6 +30,7 @@
 #include "battery.hpp"
 #include "disks.hpp"
 #include "themes.hpp"
+#include "printers.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -213,6 +214,8 @@ public:
         });
         qmlRegisterSingletonType<Themes>(uri, 1, 0, "Themes",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Themes; });
+        qmlRegisterSingletonType<Printers>(uri, 1, 0, "Printers",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Printers; });
         qmlRegisterSingletonType<Autostart>(uri, 1, 0, "Autostart",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Autostart; });
         qmlRegisterSingletonType<Welcome>(uri, 1, 0, "Welcome",

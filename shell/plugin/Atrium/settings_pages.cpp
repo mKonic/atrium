@@ -42,6 +42,7 @@ constexpr PageInfo kPages[] = {
     {"Mouse & Touchpad", "mouse", "#8e8e93"},
     {"Power", "bolt", "#30d158"},
     {"Disks", "hard_drive", "#8e8e93"},
+    {"Printers", "print", "#8e8e93"},
     {"Screen Recording", "screen_record", "#ff453a"},
     {"Privacy & Security", "back_hand", "#0a84ff"},
     {"Session", "power_settings_new", "#636366"},
@@ -50,7 +51,7 @@ constexpr PageInfo kPages[] = {
 
 // Pages with their own view and no schema settings.
 const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound", "Users & Groups", "Language & Region",
-                             "Default Apps", "Login Items"};
+                             "Default Apps", "Login Items", "Printers"};
 
 } // namespace
 

@@ -37,6 +37,7 @@ constexpr Program kPrograms[] = {
     {"cliphist", "cliphist"},
     {"ddcutil", "ddcutil"},
     {"gpu-screen-recorder", "gpu-screen-recorder"},
+    {"cups", "lpstat"},
 };
 
 } // namespace
@@ -75,7 +76,7 @@ void Requirements::check() {
     }
     for (const Program& p : kPrograms)
         if (QStandardPaths::findExecutable(p.binary).isEmpty())
-            missing.insert(p.need, QStringLiteral("Needs %1, which isn't installed.").arg(p.binary));
+            missing.insert(p.need, QStringLiteral("Needs %1, which isn't installed.").arg(p.need));
     // No adapter: BlueZ doesn't even start then, and that's the thing to say.
     if (!QFileInfo::exists("/sys/class/bluetooth")) {
         missing.remove("bluez");
