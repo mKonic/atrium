@@ -54,6 +54,10 @@ std::vector<std::string> split_list(std::string_view value);
 std::vector<std::string> exec_argv(std::string_view exec, std::string_view name = {},
                                    std::string_view icon = {}, std::string_view file = {});
 
+// The systemd scope an app is started in, so the portal (and systemd) know
+// it by its id: app-atrium-<id, systemd-escaped>-<random>.scope.
+std::string scope_name(std::string_view app_id, std::string_view random);
+
 // Shown on this desktop, given XDG_CURRENT_DESKTOP (colon-separated).
 bool shown_in(const Entry& e, std::string_view current_desktops);
 

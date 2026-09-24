@@ -1,5 +1,6 @@
 #include "desktop_entries.hpp"
 #include "terminal.hpp"
+#include <QRandomGenerator>
 
 #include <QDir>
 #include <QDirIterator>
@@ -99,6 +100,17 @@ void DesktopEntry::launch(QStringList argv) const {
             term += QProcess::splitCommand(QString::fromStdString(terminal_run_args(term.first().toStdString())));
             argv = term + argv;
         }
+    }
+    // In a systemd scope of its own named for the app, as GNOME and Plasma
+    // start apps: portals know it by its id from that (and systemd can tell
+    // its processes apart).
+    static const bool scopes = !QStandardPaths::findExecutable("systemd-run").isEmpty() &&
+                               QFile::exists(qEnvironmentVariable("XDG_RUNTIME_DIR") + "/systemd/private");
+    if (scopes) {
+        const QString random = QString::number(QRandomGenerator::global()->generate(), 16);
+        const QString unit = QString::fromStdString(desktop_entry::scope_name(id_.toStdString(), random.toStdString()));
+        argv = QStringList{"systemd-run", "--user", "--scope", "--quiet", "--collect",
+                           "--slice=app-graphical.slice", "--unit=" + unit, "--"} + argv;
     }
     QProcess p;
     p.setProgram(argv.takeFirst());

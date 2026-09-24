@@ -1,5 +1,8 @@
 #include "desktop_entry_core.hpp"
 
+#include <cctype>
+#include <cstdio>
+
 #include <algorithm>
 
 namespace atrium::desktop_entry {
@@ -246,6 +249,24 @@ bool shown_in(const Entry& e, std::string_view current_desktops) {
     if (!e.only_show_in.empty() && !any(e.only_show_in))
         return false;
     return !any(e.not_show_in);
+}
+
+std::string scope_name(std::string_view app_id, std::string_view random) {
+    // systemd's escaping: letters, digits, ':', '_' and '.' (not first) as
+    // they are, anything else as \xNN; so a dash in the id can't be taken
+    // for the separator.
+    std::string id;
+    for (size_t i = 0; i < app_id.size(); ++i) {
+        const unsigned char c = app_id[i];
+        if (std::isalnum(c) || c == ':' || c == '_' || (c == '.' && i > 0)) {
+            id += char(c);
+        } else {
+            char buf[5];
+            std::snprintf(buf, sizeof buf, "\\x%02x", c);
+            id += buf;
+        }
+    }
+    return "app-atrium-" + id + "-" + std::string(random) + ".scope";
 }
 
 } // namespace atrium::desktop_entry

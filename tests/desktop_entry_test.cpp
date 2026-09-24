@@ -111,3 +111,9 @@ TEST(DesktopEntry, ShownOnThisDesktop) {
     EXPECT_FALSE(shown_in(e, "atrium"));
     EXPECT_TRUE(shown_in(e, "GNOME"));
 }
+
+TEST(DesktopEntry, ScopeNames) {
+    EXPECT_EQ(scope_name("org.kde.dolphin", "1a2b"), "app-atrium-org.kde.dolphin-1a2b.scope");
+    EXPECT_EQ(scope_name("google-chrome", "9"), "app-atrium-google\\x2dchrome-9.scope");
+    EXPECT_EQ(scope_name(".x y", "1"), "app-atrium-\\x2ex\\x20y-1.scope");
+}

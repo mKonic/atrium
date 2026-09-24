@@ -48,6 +48,7 @@ public:
     QString path() const { return path_; }
     QString app() const { return app_; }
     QStringList ids;  // the shortcuts it bound
+    QHash<QString, QString> descriptions;  // id → what the app calls it
 
 public slots:
     void Close();

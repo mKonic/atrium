@@ -158,7 +158,8 @@ PortalShortcuts GlobalShortcutsAdaptor::listFor(PortalSession* s) const {
     const auto have = backend_->shortcutsOf(s->app());
     for (const QString& id : s->ids) {
         const QString keys = have.value(id).value("keys").toString();
-        out.append({id, {{"description", id}, {"trigger_description", PortalBackend::describe(keys)}}});
+        out.append({id, {{"description", s->descriptions.value(id, id)},
+                         {"trigger_description", PortalBackend::describe(keys)}}});
     }
     return out;
 }
@@ -185,6 +186,7 @@ uint GlobalShortcutsAdaptor::BindShortcuts(const QDBusObjectPath&, const QDBusOb
         }
         if (!s->ids.contains(sc.id))
             s->ids.append(sc.id);
+        s->descriptions.insert(sc.id, sc.options.value("description", sc.id).toString());
         QVariantMap options = sc.options;
         options.remove("preferred_trigger");
         options["trigger_description"] = PortalBackend::describe(keys);
