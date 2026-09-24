@@ -944,9 +944,12 @@ void Server::drop_focus() {
 void Server::focus_layer(LayerSurface* layer) {
     if (locked)
         return;
-    if (focused_view) {
+    // The shell's menus and panels above windows take the keyboard but, as
+    // on a Mac, the window stays the active one under them (its title bar,
+    // the bar's app name). The desktop below windows is another matter: it
+    // takes focus the way an app does.
+    if (focused_view && layer->wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
         drop_focus();
-    }
     seat->keyboard_enter(layer->wlr->surface);
 }
 
