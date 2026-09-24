@@ -1086,14 +1086,23 @@ void Server::new_toplevel_capture(
         ci.base = view->capture_source_->impl;
         ci.impl = *ci.base;
         ci.node = &view->capture_scene_->tree.node;
+        // Off and on again damages all of it.
+        static constexpr auto redraw = [](wlr_scene_node* node) {
+            wlr_scene_node_set_enabled(node, false);
+            wlr_scene_node_set_enabled(node, true);
+        };
+        ci.refresh = wl_event_loop_add_timer(loop, [](void* data) {
+            redraw(static_cast<View::CaptureImpl*>(data)->node);
+            return 0;
+        }, &ci);
         ci.impl.request_frame = [](wlr_ext_image_capture_source_v1* source, bool schedule_frame) {
             const auto* ci = reinterpret_cast<const View::CaptureImpl*>(source->impl);
-            // A frame is owed (a new session's first, or one drawn while the
-            // client wasn't asking): off and on again damages all of it.
-            if (schedule_frame) {
-                wlr_scene_node_set_enabled(ci->node, false);
-                wlr_scene_node_set_enabled(ci->node, true);
-            }
+            // Owed: a new session's first, or one drawn while the client
+            // wasn't asking.
+            if (schedule_frame)
+                redraw(ci->node);
+            else if (ci->refresh)
+                wl_event_source_timer_update(ci->refresh, 1000);
             ci->base->request_frame(source, schedule_frame);
         };
         view->capture_source_->impl = &ci.impl;

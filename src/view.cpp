@@ -890,6 +890,10 @@ void View::destroy_toplevel_handles() {
         wlr_ext_foreign_toplevel_handle_v1_destroy(ext_handle_);
         ext_handle_ = nullptr;
     }
+    if (capture_impl_.refresh) {
+        wl_event_source_remove(capture_impl_.refresh);
+        capture_impl_.refresh = nullptr;
+    }
     if (capture_scene_) {
         wlr_scene_node_destroy(&capture_scene_->tree.node);
         capture_scene_ = nullptr;
