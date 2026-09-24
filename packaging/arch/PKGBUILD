@@ -1,0 +1,60 @@
+# atrium from this checkout: `makepkg -si` in this directory.
+pkgname=atrium-git
+pkgver=r108.cccc524
+pkgrel=1
+pkgdesc='A floating-first Wayland desktop'
+arch=('x86_64')
+url='https://github.com/mKonic/atrium'
+license=('GPL-3.0-or-later')
+depends=(
+  # compositor
+  wlroots0.20 wayland libinput libxkbcommon pixman cairo pango libdrm glib2 sqlite
+  xcb-util-wm libxcrypt fontconfig xorg-xwayland
+  # shell
+  qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse
+  # what the shell fronts
+  pipewire-pulse wireplumber polkit networkmanager bluez power-profiles-daemon udisks2
+  xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
+  cliphist wl-clipboard
+  # apps looking at home
+  adw-gtk-theme breeze-icons
+)
+makedepends=(git meson ninja wayland-protocols gtest cmake)
+optdepends=(
+  "greetd: atrium's login screen (see /usr/share/atrium/greetd-config.toml)"
+  'uwsm: the uwsm-managed session'
+  'gpu-screen-recorder: screen recording'
+  'ddcutil: brightness of external monitors'
+  'fcitx5: input methods'
+  'xdg-terminal-exec: terminal apps started in your terminal'
+)
+provides=(atrium)
+conflicts=(atrium)
+source=("atrium::git+file://${startdir}/../..")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd atrium
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  cd atrium
+  # The pinned scenefx (with atrium's patch) and nlohmann-json, fetched here,
+  # not while building.
+  meson subprojects download scenefx nlohmann_json
+}
+
+build() {
+  arch-meson atrium build --wrap-mode=nodownload -Dtests=enabled
+  meson compile -C build
+}
+
+check() {
+  meson test -C build --print-errorlogs
+}
+
+package() {
+  # scenefx is linked in; its headers and library stay out.
+  meson install -C build --destdir "$pkgdir" --skip-subprojects
+}
