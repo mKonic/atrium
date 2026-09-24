@@ -1,0 +1,3 @@
+module Atrium.Shell
+plugin atriumshellplugin
+IconImage 1.0 IconImage.qml

@@ -74,7 +74,7 @@ paths.set_quoted('ATRIUM_BUILD_DIR', meson.project_build_root())
 paths.set_quoted('ATRIUM_QML_DIR', get_option('prefix') / get_option('libdir') / 'atrium' / 'qml')
 paths_h = configure_file(output: 'paths.hpp', configuration: paths)
 
-install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin'])
+install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin', 'host'])
 # System Settings' desktop entry and icon.
 install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
 install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
@@ -86,6 +86,7 @@ install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir')
 install_data('data/lib/tmpfiles.d/atrium-greeter.conf', install_dir: get_option('prefix') / 'lib' / 'tmpfiles.d')
 install_data('data/share/atrium/greetd-config.toml', install_dir: get_option('datadir') / 'atrium')
 subdir('shell/plugin/Atrium')
+subdir('shell/host')
 
 subdir('src')
 subdir('tests')

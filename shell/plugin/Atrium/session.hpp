@@ -35,7 +35,7 @@ public:
     // in last and into which desktop (a session id), kept in the greeter
     // user's state directory.
     Q_INVOKABLE QVariantMap lastLogin() const;
-    Q_INVOKABLE void rememberLogin(const QString& user, const QString& session);
+    Q_INVOKABLE static void rememberLogin(const QString& user, const QString& session);
 
 signals:
     void pendingChanged();

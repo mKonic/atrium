@@ -6,16 +6,23 @@
 #include "desktop_files.hpp"
 #include "levels.hpp"
 #include "session.hpp"
+#include "greeter.hpp"
+#include "mpris.hpp"
+#include "tray.hpp"
+#include "audio.hpp"
+#include "bluetooth.hpp"
+#include "network.hpp"
 #include "sysinfo.hpp"
 #include "emojis.hpp"
 #include "netspeed.hpp"
-#include "admin_cache.hpp"
+#include "polkit_agent.hpp"
 #include "settings_pages.hpp"
 #include "accounts.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
+#include "notification_server.hpp"
 #include "views.hpp"
 #include "search.hpp"
 
@@ -67,6 +74,13 @@ class AtriumPlugin : public QQmlExtensionPlugin {
     Q_PLUGIN_METADATA(IID QQmlExtensionInterface_iid)
 
 public:
+    void initializeEngine(QQmlEngine* engine, const char*) override {
+        if (!engine->imageProvider("notification"))
+            engine->addImageProvider("notification", new NotificationImages);
+        if (!engine->imageProvider("trayicon"))
+            engine->addImageProvider("trayicon", new TrayIcons);
+    }
+
     void registerTypes(const char* uri) override {
         qmlRegisterSingletonType<SearchApi>(uri, 1, 0, "Search", [](QQmlEngine*, QJSEngine*) -> QObject* {
             return new SearchApi;
@@ -78,7 +92,19 @@ public:
             return c;
         });
         qmlRegisterSingletonType<NotificationHistory>(uri, 1, 0, "NotificationHistory",
-            [](QQmlEngine*, QJSEngine*) -> QObject* { return new NotificationHistory; });
+            [](QQmlEngine*, QJSEngine*) -> QObject* {
+                QObject* o = NotificationHistory::instance();
+                QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+                return o;
+            });
+        // The notification server, as `NotificationServer.popups`.
+        qmlRegisterSingletonType<NotificationServer>(uri, 1, 0, "NotificationServer",
+            [](QQmlEngine*, QJSEngine*) -> QObject* {
+                QObject* o = NotificationServer::instance();
+                QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+                return o;
+            });
+        qmlRegisterUncreatableType<Notification>(uri, 1, 0, "Notification", "from NotificationServer");
         qmlRegisterSingletonType<ClipboardHistory>(uri, 1, 0, "Clipboard",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ClipboardHistory; });
         qmlRegisterSingletonType<Brightness>(uri, 1, 0, "Brightness",
@@ -92,8 +118,56 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Session; });
         qmlRegisterSingletonType<SystemInfo>(uri, 1, 0, "SystemInfo",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new SystemInfo; });
-        qmlRegisterSingletonType<AdminCache>(uri, 1, 0, "AdminCache",
-            [](QQmlEngine*, QJSEngine*) -> QObject* { return new AdminCache; });
+        // The polkit agent, as `PolkitAgent.flow`.
+        qmlRegisterSingletonType<PolkitAgent>(uri, 1, 0, "PolkitAgent", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = PolkitAgent::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        // Media players: `Mpris.players`, `Mpris.active`.
+        qmlRegisterSingletonType<Mpris>(uri, 1, 0, "Mpris", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Mpris::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        qmlRegisterUncreatableType<MprisPlayer>(uri, 1, 0, "MprisPlayer", "from Mpris.players");
+        // Sound: `Audio.sink`, `Audio.outputs`, `Audio.apps`.
+        qmlRegisterSingletonType<Audio>(uri, 1, 0, "Audio", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Audio::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        qmlRegisterUncreatableType<AudioNode>(uri, 1, 0, "AudioNode", "from Audio");
+        // Bluetooth: `Bluetooth.adapter`.
+        qmlRegisterSingletonType<Bluetooth>(uri, 1, 0, "Bluetooth", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Bluetooth::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        qmlRegisterUncreatableType<BluetoothAdapter>(uri, 1, 0, "BluetoothAdapter", "Bluetooth.adapter");
+        qmlRegisterUncreatableType<BluetoothDevice>(uri, 1, 0, "BluetoothDevice", "from an adapter");
+        qmlRegisterUncreatableType<BluetoothDeviceState>(uri, 1, 0, "BluetoothDeviceState", "an enum");
+        // Networks: `Network.networks`, `Network.wifiEnabled`.
+        qmlRegisterSingletonType<Network>(uri, 1, 0, "Network", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Network::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        qmlRegisterUncreatableType<WifiNetwork>(uri, 1, 0, "WifiNetwork", "from Network.networks");
+        qmlRegisterUncreatableType<WiredDevice>(uri, 1, 0, "WiredDevice", "from Network.wired");
+        // The system tray: `SystemTray.items`.
+        qmlRegisterSingletonType<SystemTray>(uri, 1, 0, "SystemTray", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = SystemTray::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        qmlRegisterUncreatableType<SystemTrayItem>(uri, 1, 0, "SystemTrayItem", "from SystemTray.items");
+        // greetd, for the login screen.
+        qmlRegisterSingletonType<Greeter>(uri, 1, 0, "Greeter", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return new Greeter;
+        });
+        qmlRegisterUncreatableType<AuthFlow>(uri, 1, 0, "AuthFlow", "from PolkitAgent");
+        qmlRegisterUncreatableType<PolkitIdentity>(uri, 1, 0, "PolkitIdentity", "from an AuthFlow");
         qmlRegisterSingletonType<SettingsPages>(uri, 1, 0, "SettingsPages",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new SettingsPages; });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",

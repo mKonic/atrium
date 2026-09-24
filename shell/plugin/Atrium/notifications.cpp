@@ -11,6 +11,11 @@
 
 namespace atrium {
 
+NotificationHistory* NotificationHistory::instance() {
+    static auto* self = new NotificationHistory;
+    return self;
+}
+
 namespace {
 
 constexpr int kMaxItems = 200;

@@ -17,6 +17,8 @@ class NotificationHistory : public QObject {
 
 public:
     explicit NotificationHistory(QObject* parent = nullptr);
+    // The one the notification server adds to and the shell shows.
+    static NotificationHistory* instance();
     ~NotificationHistory() override;
 
     QVariantList items() const { return items_; }
