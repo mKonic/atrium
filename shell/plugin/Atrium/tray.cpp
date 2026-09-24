@@ -13,11 +13,8 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QIcon>
-#include <QMenu>
 #include <QMutex>
-#include <QPixmap>
 #include <QUrl>
-#include <QWindow>
 #include <QtEndian>
 
 namespace atrium {
@@ -117,54 +114,37 @@ MenuNode read_node(const QDBusArgument& arg) {
     return n;
 }
 
-// dbusmenu mnemonics are "_", Qt's are "&".
-QString qt_label(QString label) {
-    label.replace("&", "&&");
+// dbusmenu marks mnemonics with "_" ("__" is a literal one); the shell
+// shows none.
+QString plain_label(QString label) {
     label.replace("__", QString(QChar(1)));
-    label.replace("_", "&");
+    label.remove('_');
     label.replace(QChar(1), "_");
     return label;
 }
 
-void fill(QMenu* menu, const MenuNode& node, const QString& service, const QString& path) {
+QVariantList entries(const MenuNode& node) {
+    QVariantList out;
     for (const MenuNode& c : node.children) {
         if (c.props.contains("visible") && !plain(c.props.value("visible")).toBool())
             continue;
         if (plain(c.props.value("type")).toString() == "separator") {
-            menu->addSeparator();
+            out.append(QVariantMap{{"separator", true}});
             continue;
         }
-        const QString label = qt_label(plain(c.props.value("label")).toString());
-        QAction* a;
-        if (!c.children.isEmpty() || plain(c.props.value("children-display")).toString() == "submenu") {
-            QMenu* sub = menu->addMenu(label);
-            fill(sub, c, service, path);
-            a = sub->menuAction();
-        } else {
-            a = menu->addAction(label);
-            const int id = c.id;
-            QObject::connect(a, &QAction::triggered, menu, [service, path, id] {
-                QDBusMessage m = QDBusMessage::createMethodCall(service, path, kMenu, "Event");
-                m << id << QStringLiteral("clicked") << QVariant::fromValue(QDBusVariant(0))
-                  << uint(QDateTime::currentSecsSinceEpoch());
-                QDBusConnection::sessionBus().asyncCall(m);
-            });
-        }
-        if (c.props.contains("enabled"))
-            a->setEnabled(plain(c.props.value("enabled")).toBool());
+        const bool sub = !c.children.isEmpty() || plain(c.props.value("children-display")).toString() == "submenu";
         const QString toggle = plain(c.props.value("toggle-type")).toString();
-        if (toggle == "checkmark" || toggle == "radio") {
-            a->setCheckable(true);
-            a->setChecked(plain(c.props.value("toggle-state")).toInt() == 1);
-        }
-        if (const QString icon = plain(c.props.value("icon-name")).toString(); !icon.isEmpty()) {
-            a->setIcon(QIcon::fromTheme(icon));
-        } else if (const QByteArray png = plain(c.props.value("icon-data")).toByteArray(); !png.isEmpty()) {
-            QPixmap p;
-            if (p.loadFromData(png))
-                a->setIcon(QIcon(p));
-        }
+        const bool ticked = (toggle == "checkmark" || toggle == "radio") && plain(c.props.value("toggle-state")).toInt() == 1;
+        out.append(QVariantMap{
+            {"id", c.id},
+            {"text", plain_label(plain(c.props.value("label")).toString())},
+            {"checked", ticked},
+            {"enabled", !c.props.contains("enabled") || plain(c.props.value("enabled")).toBool()},
+            {"separator", false},
+            {"children", sub ? entries(c) : QVariantList()},
+        });
     }
+    return out;
 }
 
 // "service/path" → (service, path).
@@ -212,8 +192,6 @@ SystemTrayItem::SystemTrayItem(const QString& service, const QString& path, QObj
 
 SystemTrayItem::~SystemTrayItem() {
     TrayIcons::drop(key());
-    if (shown_)
-        shown_->deleteLater();
 }
 
 void SystemTrayItem::refresh() {
@@ -281,11 +259,9 @@ void SystemTrayItem::scroll(int delta, bool horizontal) {
     call("Scroll", {delta, horizontal ? QStringLiteral("horizontal") : QStringLiteral("vertical")});
 }
 
-void SystemTrayItem::display(QObject* window, int x, int y) {
+QVariantList SystemTrayItem::menu() const {
     if (!hasMenu())
-        return;
-    if (shown_)
-        shown_->close();
+        return {};
     QDBusConnection bus = QDBusConnection::sessionBus();
     // Apps that build their menu lazily do it now.
     QDBusMessage about = QDBusMessage::createMethodCall(service_, menu_, kMenu, "AboutToShow");
@@ -295,22 +271,14 @@ void SystemTrayItem::display(QObject* window, int x, int y) {
     get << 0 << -1 << QStringList();
     const QDBusMessage reply = bus.call(get, QDBus::Block, 1000);
     if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().size() < 2)
-        return;
-    const MenuNode root = read_node(reply.arguments().at(1).value<QDBusArgument>());
+        return {};
+    return entries(read_node(reply.arguments().at(1).value<QDBusArgument>()));
+}
 
-    auto* menu = new QMenu;
-    menu->setAttribute(Qt::WA_DeleteOnClose);
-    fill(menu, root, service_, menu_);
-    if (menu->isEmpty()) {
-        delete menu;
-        return;
-    }
-    auto* parent = qobject_cast<QWindow*>(window);
-    menu->winId();
-    if (parent)
-        menu->windowHandle()->setTransientParent(parent);
-    shown_ = menu;
-    menu->popup(parent ? parent->mapToGlobal(QPoint(x, y)) : QPoint(x, y));
+void SystemTrayItem::trigger(int id) const {
+    QDBusMessage m = QDBusMessage::createMethodCall(service_, menu_, kMenu, "Event");
+    m << id << QStringLiteral("clicked") << QVariant::fromValue(QDBusVariant(0)) << uint(QDateTime::currentSecsSinceEpoch());
+    QDBusConnection::sessionBus().asyncCall(m);
 }
 
 // --- TrayWatcher -------------------------------------------------------------

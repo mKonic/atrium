@@ -5,12 +5,15 @@ import shell.components
 import shell.services
 
 // A small popup menu: a title and rows of {icon, text, run}. The owner
-// places it and closes it.
+// places it and closes it. A row may be disabled (`enabled: false`) or keep
+// the menu open when picked (`keep: true`, a submenu opening in place).
 Rectangle {
     id: root
 
     property string title: ""
-    property var actions: []  // [{ icon, text, run, danger? }] or "-" for a separator
+    property var actions: []  // [{ icon, text, run, danger?, enabled?, keep?, trailing? }] or "-" for a separator
+    // Rows line up: when any has an icon, all keep its room.
+    readonly property bool iconColumn: actions.some(a => a !== "-" && (a.icon ?? "") !== "")
     signal picked
 
     width: 220
@@ -76,10 +79,12 @@ Rectangle {
             id: item
 
             readonly property var action: (parent as Loader).modelData
+            readonly property bool usable: action.enabled ?? true
 
             height: 34
             radius: Theme.rounding.small
-            color: hover.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+            opacity: usable ? 1 : 0.4
+            color: hover.containsMouse && usable ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
 
             Row {
                 anchors.verticalCenter: parent.verticalCenter
@@ -89,6 +94,8 @@ Rectangle {
 
                 MaterialIcon {
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: root.iconColumn
+                    width: root.iconColumn ? Math.max(implicitWidth, Theme.font.size.normal * 1.6) : 0
                     text: item.action.icon ?? ""
                     font.pointSize: Theme.font.size.normal
                     color: item.action.danger ? "#ffb4ab" : Theme.palette.m3OnSurface
@@ -101,14 +108,27 @@ Rectangle {
                 }
             }
 
+            // A submenu's chevron, at the end.
+            MaterialIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.padding.normal
+                visible: text.length > 0
+                text: item.action.trailing ?? ""
+                font.pointSize: Theme.font.size.normal
+                color: Theme.palette.m3OnSurfaceVariant
+            }
+
             MouseArea {
                 id: hover
 
                 anchors.fill: parent
                 hoverEnabled: true
+                enabled: item.usable
                 onClicked: {
                     item.action.run();
-                    root.picked();
+                    if (!item.action.keep)
+                        root.picked();
                 }
             }
         }

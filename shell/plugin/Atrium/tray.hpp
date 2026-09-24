@@ -1,6 +1,6 @@
 #pragma once
 // The system tray (StatusNotifierItem): `SystemTray.items`, the apps'
-// icons for the bar, each with activate() and display() for its menu.
+// icons for the bar, each with activate() and its menu (menu(), trigger()).
 // atrium serves org.kde.StatusNotifierWatcher itself when nothing else
 // does, and is the host that shows the items.
 
@@ -11,8 +11,6 @@
 #include <QQuickImageProvider>
 #include <QStringList>
 
-class QMenu;
-class QQuickWindow;
 
 namespace atrium {
 
@@ -40,8 +38,11 @@ public:
     Q_INVOKABLE void activate();
     Q_INVOKABLE void secondaryActivate();
     Q_INVOKABLE void scroll(int delta, bool horizontal);
-    // The item's menu, below (x, y) in `window`.
-    Q_INVOKABLE void display(QObject* window, int x, int y);
+    // The item's menu as the shell shows it: [{ id, text, checked, enabled,
+    // separator, children }], hidden entries left out.
+    Q_INVOKABLE QVariantList menu() const;
+    // An entry of it was picked.
+    Q_INVOKABLE void trigger(int id) const;
 
 signals:
     void changed();
@@ -57,7 +58,6 @@ private:
     QString id_, title_, icon_, status_, menu_, iconName_, themePath_;
     bool onlyMenu_ = false;
     int serial_ = 0;
-    QPointer<QMenu> shown_;
 };
 
 class TrayIcons : public QQuickImageProvider {

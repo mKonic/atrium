@@ -11,4 +11,5 @@ Spaces 1.0 Spaces.qml
 Status 1.0 Status.qml
 SystemButton 1.0 SystemButton.qml
 Tray 1.0 Tray.qml
+TrayMenu 1.0 TrayMenu.qml
 Volume 1.0 Volume.qml

@@ -14,6 +14,12 @@ Pill {
     visible: items.count > 0
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2
 
+    TrayMenu {
+        id: menu
+
+        screen: root.bar.screen
+    }
+
     Row {
         id: row
 
@@ -39,7 +45,7 @@ Pill {
                         modelData.activate();
                     else if (modelData.hasMenu) {
                         const p = mapToItem(null, 0, height + 6);
-                        modelData.display(root.bar, p.x, p.y);
+                        menu.open(modelData, p.x, p.y);
                     }
                 }
 
