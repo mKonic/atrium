@@ -79,6 +79,9 @@ Rectangle {
     implicitHeight: content.implicitHeight + 24
     radius: 18
     color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.82)
+
+    GlassRim {}
+
     border.width: critical ? 2 : 1
     border.color: critical ? "#ffb4ab" : Theme.alpha(Theme.palette.m3Outline, 0.2)
 

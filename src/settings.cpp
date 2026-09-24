@@ -387,6 +387,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("appearance.transparency", "Appearance", "Transparent windows",
         "Let windows with translucent backgrounds show what is behind them. Off gives every window a solid background.",
         &Config::transparency, d));
+    s.push_back(boolean("appearance.liquid_glass", "Appearance", "Liquid Glass",
+        "The bar, Dock and panels as clear glass with a lit edge over a vivid blur, as in macOS 26. Windows stay as they are.",
+        &Config::liquid_glass, d));
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));

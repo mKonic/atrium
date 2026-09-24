@@ -99,6 +99,7 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent
             color: Theme.panel(Theme.palette.m3Surface, 0.7)
+
             opacity: bar.chrome ? 1 : 0
 
             Behavior on opacity {

@@ -78,6 +78,9 @@ PanelWindow {
         height: column.implicitHeight
         radius: 26
         color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.78)
+
+        GlassRim {}
+
         border.width: 1
         border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
 

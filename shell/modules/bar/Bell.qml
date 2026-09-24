@@ -12,7 +12,7 @@ Pill {
     readonly property bool open: Panels.open === "notifications"
 
     implicitWidth: implicitHeight
-    color: open ? Theme.palette.m3SecondaryContainer : Theme.palette.m3SurfaceContainer
+    color: open ? Theme.palette.m3SecondaryContainer : Theme.pill(Theme.palette.m3SurfaceContainer)
 
     MaterialIcon {
         anchors.centerIn: parent

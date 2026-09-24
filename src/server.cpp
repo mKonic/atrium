@@ -1172,7 +1172,7 @@ void Server::setting_changed(const std::string& key) {
     rebuild_from_registry();  // the modifier key changes what shortcuts mean
 
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
-    if (is("appearance.blur"))
+    if (is("appearance.blur") || key == "appearance.liquid_glass")
         apply_blur_settings();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
@@ -1221,7 +1221,12 @@ void Server::setting_changed(const std::string& key) {
 }
 
 void Server::apply_blur_settings() {
-    wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.02f, 0.9f, 0.9f, 1.1f);
+    // Liquid Glass lets the colours behind through, brighter and richer;
+    // frosted glass dims and greys them a little.
+    if (config.liquid_glass)
+        wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.01f, 1.02f, 0.95f, 1.45f);
+    else
+        wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.02f, 0.9f, 0.9f, 1.1f);
     wlr_scene_node_set_enabled(&background_blur->node, config.blur);
     for (View* v : views)
         v->update_decorations();

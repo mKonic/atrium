@@ -82,10 +82,18 @@ Singleton {
 
     // Panels turn to frosted glass only with appearance.transparency on
     // (atrium blurs behind them then); otherwise they are solid.
-    readonly property bool glass: Atrium.settings["appearance.transparency"] ?? false
+    // Liquid Glass (appearance.liquid_glass): panels clearer still, with a
+    // lit rim (GlassRim) over a more vivid blur, whatever the windows do.
+    readonly property bool liquid: Atrium.settings["appearance.liquid_glass"] ?? false
+    readonly property bool glass: liquid || (Atrium.settings["appearance.transparency"] ?? false)
 
     function panel(c: color, glassAlpha: real): color {
-        return glass ? alpha(c, glassAlpha) : c;
+        return liquid ? alpha(c, glassAlpha * 0.6) : glass ? alpha(c, glassAlpha) : c;
+    }
+
+    // A bar pill's fill: clear glass in Liquid Glass, solid otherwise.
+    function pill(c: color): color {
+        return liquid ? alpha(c, 0.38) : c;
     }
 
     // A color with its alpha replaced.

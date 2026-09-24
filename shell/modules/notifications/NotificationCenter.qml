@@ -59,6 +59,9 @@ PanelWindow {
         implicitHeight: body.implicitHeight + 16
         radius: 22
         color: Theme.panel(Theme.palette.m3Surface, 0.8)
+
+        GlassRim {}
+
         border.width: 1
         border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
         focus: true

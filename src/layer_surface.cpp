@@ -141,7 +141,7 @@ wlr_scene_buffer* main_buffer(wlr_scene_tree* tree, wlr_surface* surface) {
 
 void LayerSurface::update_blur() {
     const Config& c = server.config;
-    const bool want = mapped && c.blur && c.transparency && wlr->namespace_ &&
+    const bool want = mapped && c.blur && (c.transparency || c.liquid_glass) && wlr->namespace_ &&
                       namespace_matches(wlr->namespace_, c.blurred_panels);
     if (!want) {
         if (blur_)

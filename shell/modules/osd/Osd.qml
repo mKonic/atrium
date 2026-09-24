@@ -134,6 +134,9 @@ PanelWindow {
         anchors.fill: parent
         radius: 22
         color: Theme.panel(Theme.palette.m3Surface, 0.82)
+
+        GlassRim {}
+
         border.width: 1
         border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
         opacity: osd.shown ? 1 : 0

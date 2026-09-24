@@ -176,6 +176,9 @@ PanelWindow {
         radius: 22
         color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.62)
 
+        GlassRim {}
+
+
         Behavior on color {
             CAnim {}
         }

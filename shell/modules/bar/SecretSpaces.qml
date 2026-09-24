@@ -31,7 +31,7 @@ Row {
 
             anchors.verticalCenter: parent.verticalCenter
             implicitWidth: row.implicitWidth + Theme.padding.normal * 2
-            color: modelData.shown ? Theme.palette.m3Primary : Theme.palette.m3SurfaceContainer
+            color: modelData.shown ? Theme.palette.m3Primary : Theme.pill(Theme.palette.m3SurfaceContainer)
 
             Behavior on color {
                 CAnim {

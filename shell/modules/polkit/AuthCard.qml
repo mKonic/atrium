@@ -19,6 +19,9 @@ Rectangle {
     height: column.implicitHeight + 48
     radius: 26
     color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.92)
+
+    GlassRim {}
+
     border.width: 1
     border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
 
