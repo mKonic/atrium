@@ -258,7 +258,9 @@ Column {
 
         title: "New User"
         action: "Create User"
-        ready: fullName.text.trim().length > 0 && Accounts.validUserName(account.text) && newPassword.text === newVerify.text
+        // An account with no password would let anyone in.
+        ready: fullName.text.trim().length > 0 && Accounts.validUserName(account.text) && newPassword.text.length > 0
+               && newPassword.text === newVerify.text
         onOpened: {
             fullName.text = account.text = newPassword.text = newVerify.text = "";
             nameEdited = false;
