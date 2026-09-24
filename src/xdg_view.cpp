@@ -234,16 +234,17 @@ void XdgView::set_kde_decoration(wlr_server_decoration* d) {
 }
 
 bool XdgView::wants_ssd() const {
-    return decoration_ ||
+    return (decoration_ && decoration_->requested_mode != WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE) ||
            (kde_decoration_ && kde_decoration_->mode == WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
 }
 
 void XdgView::apply_decoration_mode() {
-    // Always server-side, whatever the client asked for: every window gets
-    // atrium's title bar. The protocol lets the compositor decide.
+    // atrium's title bar unless the client says it draws its own (a
+    // browser's tab strip with its buttons): forcing ours on those gave two.
     if (decoration_ && toplevel->base->initialized)
-        wlr_xdg_toplevel_decoration_v1_set_mode(decoration_,
-            WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+        wlr_xdg_toplevel_decoration_v1_set_mode(decoration_, wants_ssd()
+            ? WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+            : WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
     refresh_decoration_mode();
 }
 
