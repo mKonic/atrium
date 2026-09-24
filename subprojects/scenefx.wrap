@@ -2,5 +2,6 @@
 url = https://github.com/wlrfx/scenefx.git
 revision = 0.5
 depth = 1
-# Liquid Glass: blur nodes that bend the background at their edge.
-diff_files = scenefx/0001-liquid-glass-refraction.patch
+# 0001 Liquid Glass: blur nodes that bend the background at their edge.
+# 0002 Visibility recomputed after the cached background blur re-renders.
+diff_files = scenefx/0001-liquid-glass-refraction.patch, scenefx/0002-optimized-blur-visibility.patch

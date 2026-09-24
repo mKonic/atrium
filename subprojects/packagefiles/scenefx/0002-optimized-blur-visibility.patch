@@ -1,0 +1,60 @@
+From a95b4f58f54b5e207c605c08954f4b6407275434 Mon Sep 17 00:00:00 2001
+From: mKonic <mkonic676@gmail.com>
+Date: Thu, 24 Sep 2026 23:41:03 +0300
+Subject: [PATCH] scene: recompute visibility after an optimized blur
+ re-renders
+
+---
+ include/scenefx/types/wlr_scene.h |  3 +++
+ types/scene/wlr_scene.c           | 14 ++++++++++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/include/scenefx/types/wlr_scene.h b/include/scenefx/types/wlr_scene.h
+index eeef21c..9966bcf 100644
+--- a/include/scenefx/types/wlr_scene.h
++++ b/include/scenefx/types/wlr_scene.h
+@@ -126,6 +126,9 @@ struct wlr_scene {
+ 		bool highlight_transparent_region;
+ 
+ 		struct blur_data blur_data;
++		// An optimized blur re-rendered since visibility was last computed:
++		// what it forced visible below it can be culled again.
++		bool optimized_blur_rendered;
+ 	} WLR_PRIVATE;
+ };
+ 
+diff --git a/types/scene/wlr_scene.c b/types/scene/wlr_scene.c
+index 1a2731f..005b886 100644
+--- a/types/scene/wlr_scene.c
++++ b/types/scene/wlr_scene.c
+@@ -2197,6 +2197,7 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
+ 			bool result = fx_render_pass_add_optimized_blur(fx_pass, &blur_options);
+ 			if (result) {
+ 				scene_blur->dirty = false;
++				scene->optimized_blur_rendered = true;
+ 			}
+ 		}
+ 		break;
+@@ -3500,6 +3501,19 @@ bool wlr_scene_output_build_state(struct wlr_scene_output *scene_output,
+ 		scene_output_state_attempt_gamma(scene_output, state);
+ 	}
+ 
++	// While it was dirty, the optimized blur kept everything below it
++	// visible to re-blur it. Content-only commits (a fullscreen game) never
++	// recompute visibility, so without this the nodes under an opaque window
++	// stay in the render list, drawn every frame and blocking direct scanout.
++	if (scene_output->scene->optimized_blur_rendered) {
++		scene_output->scene->optimized_blur_rendered = false;
++		pixman_region32_t region;
++		pixman_region32_init_rect(&region, scene_output->x, scene_output->y,
++			render_data.logical.width, render_data.logical.height);
++		scene_update_region(scene_output->scene, &region);
++		pixman_region32_fini(&region);
++	}
++
+ 	TRACY_MARK_FRAME;
+ 	return true;
+ }
+-- 
+2.55.0
+
