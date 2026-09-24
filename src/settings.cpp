@@ -1,5 +1,7 @@
 #include "settings.hpp"
 
+#include "accent.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -357,6 +359,12 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Dark or light: the bar, panels, title bars and apps that follow the system.",
         {"dark", "light"}, d.light ? "light" : "dark",
         [](Config& c, const json& v) { c.light = v.get<std::string>() == "light"; }));
+    {
+        std::vector<std::string> accents(accent::names().begin(), accent::names().end());
+        s.push_back(choice("appearance.accent", "Appearance", "Accent colour",
+            "Highlights, selections and buttons, in the shell and in apps that follow the system. Multicolour keeps atrium's own.",
+            std::move(accents), d.accent, [](Config& c, const json& v) { c.accent = v.get<std::string>(); }));
+    }
     s.push_back(number("appearance.corner_radius", T::Int, "Appearance", "Corner radius",
         "Roundness of window corners, in pixels.", &Config::corner_radius, d, 0, 64));
     s.push_back(boolean("appearance.shadows", "Appearance", "Window shadows",

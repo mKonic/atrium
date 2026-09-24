@@ -1,4 +1,5 @@
 #pragma once
+#include "config.hpp"
 #include "wlr.hpp"
 
 #include <memory>
@@ -106,6 +107,7 @@ private:
     void finish_close();
     void destroy_all();
     bool included(View* view) const;
+    Color ring_color() const;
 
     Server& server_;
     State state_ = State::Closed;

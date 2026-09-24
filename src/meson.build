@@ -26,6 +26,7 @@ atrium_sources = files(
   'spaces.cpp',
   'settings.cpp',
   'theme.cpp',
+  'accent.cpp',
   'titlebar.cpp',
   'view.cpp',
   'window_copy.cpp',

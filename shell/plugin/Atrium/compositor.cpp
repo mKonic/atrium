@@ -1,5 +1,7 @@
 #include "compositor.hpp"
 
+#include "accent.hpp"
+
 #include <QJsonArray>
 
 #include <algorithm>
@@ -286,6 +288,30 @@ void Compositor::focusWindow(int id) {
 
 void Compositor::closeWindow(int id) {
     request({{"cmd", "window.close"}, {"window", id}});
+}
+
+QVariantMap Compositor::accentTones(const QString& name, bool light) const {
+    const auto rgb = accent::seed(name.toStdString());
+    if (!rgb)
+        return {};
+    const accent::Tones t = accent::tones(*rgb, light);
+    auto c = [](uint32_t v) { return QString::asprintf("#%06x", v & 0xffffff); };
+    return {{"primary", c(t.primary)},
+            {"onPrimary", c(t.on_primary)},
+            {"primaryContainer", c(t.primary_container)},
+            {"onPrimaryContainer", c(t.on_primary_container)},
+            {"secondaryContainer", c(t.secondary_container)},
+            {"onSecondaryContainer", c(t.on_secondary_container)}};
+}
+
+QString Compositor::accentColor(const QString& name) const {
+    const auto rgb = accent::seed(name.toStdString());
+    return rgb ? QString::asprintf("#%06x", *rgb) : QString();
+}
+
+QString Compositor::accentLabel(const QString& name) const {
+    const std::string_view l = accent::label(name.toStdString());
+    return QString::fromUtf8(l.data(), qsizetype(l.size()));
 }
 
 void Compositor::action(const QString& name, const QVariant& arg) {

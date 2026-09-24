@@ -538,10 +538,11 @@ void Server::run(const char* startup_cmd) {
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
     setenv("XDG_SESSION_TYPE", "wayland", 1);
     prepare_session_environment();
-    install_gtk_theme(config.light);
+    install_gtk_theme(config.light, config.accent);
     if (!nested) {
         apply_gtk_button_layout();
         apply_color_scheme(config.light);
+        apply_accent_color(config.accent);
     }
     ipc = std::make_unique<Ipc>(*this, socket);
 
@@ -1144,10 +1145,13 @@ void Server::setting_changed(const std::string& key) {
         apply_blur_settings();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
-    if (key == "appearance.style") {
-        install_gtk_theme(config.light);  // apps opened from now on
-        if (!nested)
-            apply_color_scheme(config.light);  // the rest, live, through the portal
+    if (key == "appearance.style" || key == "appearance.accent") {
+        install_gtk_theme(config.light, config.accent);  // apps opened from now on
+        if (!nested) {
+            // The rest, live, through the portal.
+            apply_color_scheme(config.light);
+            apply_accent_color(config.accent);
+        }
     }
     if (is("appearance.")) {
         wlr_scene_rect_set_color(root_bg, config.background.data());

@@ -93,6 +93,7 @@ struct Config {
 
     // Blur
     bool light = false;  // appearance.style: light chrome, shell and apps
+    std::string accent = "multicolor";  // appearance.accent: accent::names()
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;
     std::vector<std::string> blurred_panels{"atrium-*"};  // layer namespaces frosted behind (with transparency)

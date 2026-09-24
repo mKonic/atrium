@@ -1,5 +1,6 @@
 #include "overview.hpp"
 
+#include "accent.hpp"
 #include "cairo_buffer.hpp"
 #include "geometry.hpp"
 #include "layer_surface.hpp"
@@ -38,7 +39,7 @@ constexpr int kRing = 3;           // highlight ring width
 constexpr float kShadowSigma = 18.0f;
 
 constexpr Color kDim{0.0f, 0.0f, 0.0f, 0.22f};
-constexpr Color kRingColor{0.04f, 0.52f, 1.0f, 0.95f};  // system blue
+constexpr Color kSystemBlue{0.04f, 0.52f, 1.0f, 0.95f};
 constexpr Color kShadow{0.0f, 0.0f, 0.0f, 0.45f};
 constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};  // as behind real windows
 constexpr Color kTileCurrent{1.0f, 1.0f, 1.0f, 0.85f};
@@ -66,6 +67,14 @@ Overview::~Overview() {
     server_.animator.cancel_owner(this, false);
     server_.animator.cancel_owner(&screens_, false);
     destroy_all();
+}
+
+// The accent (appearance.accent); multicolour: the system blue.
+Color Overview::ring_color() const {
+    const auto rgb = accent::seed(server_.config.accent);
+    if (!rgb)
+        return kSystemBlue;
+    return {((*rgb >> 16) & 0xff) / 255.0f, ((*rgb >> 8) & 0xff) / 255.0f, (*rgb & 0xff) / 255.0f, kSystemBlue[3]};
 }
 
 bool Overview::included(View* v) const {
@@ -249,7 +258,7 @@ void Overview::add_thumb(View* view, Screen* screen) {
     t->screen = screen;
     t->tree = wlr_scene_tree_create(screen->tree);
     t->shadow = wlr_scene_shadow_create(t->tree, 0, 0, 0, kShadowSigma, kShadow.data());
-    t->ring = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(kRingColor).data());
+    t->ring = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(ring_color()).data());
     wlr_scene_node_set_enabled(&t->ring->node, false);
     const Config& c = server_.config;
     t->blur = wlr_scene_blur_create(t->tree, 0, 0);
@@ -637,7 +646,7 @@ void Overview::build_strip(Screen& sc) {
         wlr_scene_shadow_set_clipped_region(shadow, clipped_region{
             .area = {8, 8, tw, kTileHeight}, .corners = corner_radii_all(kTileRadius)});
         t->ring = wlr_scene_rect_create(t->tree, tw + 2 * kRing, kTileHeight + 2 * kRing,
-                                        premultiplied(current ? kTileCurrent : kRingColor).data());
+                                        premultiplied(current ? kTileCurrent : ring_color()).data());
         wlr_scene_node_set_position(&t->ring->node, -kRing, -kRing);
         wlr_scene_rect_set_corner_radius(t->ring, kTileRadius + kRing);
         wlr_scene_rect_set_clipped_region(t->ring, clipped_region{
@@ -693,11 +702,11 @@ Overview::Tile* Overview::tile_at(double lx, double ly) {
 void Overview::set_tile_hover(Tile* tile) {
     if (tile == tile_hover_)
         return;
-    auto show = [](Tile* t, bool hover) {
+    auto show = [this](Tile* t, bool hover) {
         if (!t)
             return;
         wlr_scene_node_set_enabled(&t->ring->node, hover || t->current);
-        wlr_scene_rect_set_color(t->ring, premultiplied(hover ? kRingColor : kTileCurrent).data());
+        wlr_scene_rect_set_color(t->ring, premultiplied(hover ? ring_color() : kTileCurrent).data());
     };
     show(tile_hover_, false);
     tile_hover_ = tile;

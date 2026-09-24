@@ -89,6 +89,7 @@ Item {
         height: item?.implicitHeight ?? 0
         sourceComponent: root.type === "bool" ? boolControl
                        : root.type === "int" || root.type === "float" ? numberControl
+                       : root.key === "appearance.accent" ? accentControl
                        : root.type === "choice" ? choiceControl
                        : root.type === "color" ? colorControl
                        : textControl
@@ -130,6 +131,16 @@ Item {
         id: choiceControl
 
         ChoiceControl {
+            value: String(root.value)
+            choices: root.setting.choices ?? []
+            onPicked: v => root.set(v)
+        }
+    }
+
+    Component {
+        id: accentControl
+
+        AccentControl {
             value: String(root.value)
             choices: root.setting.choices ?? []
             onPicked: v => root.set(v)

@@ -63,6 +63,12 @@ public:
     // A fullscreen window is showing on the output: panels get out of the way.
     Q_INVOKABLE bool fullscreenOn(const QString& output) const;
     Q_INVOKABLE QVariant setting(const QString& key, const QVariant& fallback) const;
+    // The palette's accent tones for appearance.accent (primary, onPrimary,
+    // primaryContainer, ...), or an empty map for multicolour: keep the default.
+    Q_INVOKABLE QVariantMap accentTones(const QString& accent, bool light) const;
+    // The accent's own colour, for swatches; invalid for multicolour.
+    Q_INVOKABLE QString accentColor(const QString& accent) const;
+    Q_INVOKABLE QString accentLabel(const QString& accent) const;
 
     Q_INVOKABLE void switchSpace(int number);
     Q_INVOKABLE void toggleSecret(const QString& name);

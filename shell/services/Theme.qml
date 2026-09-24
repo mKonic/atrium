@@ -6,18 +6,22 @@ import Atrium
 
 // Design tokens: caelestia's sizes, rounding and motion, with a Material 3
 // palette in dark and light (appearance.style), from the user's caelestia
-// scheme until atrium derives one from the wallpaper.
+// scheme; appearance.accent swaps its accent tones for one of macOS's colours.
 Singleton {
+    id: root
+
     readonly property bool light: Atrium.settings["appearance.style"] === "light"
+    // Empty for multicolour: the palettes below keep their own.
+    readonly property var accent: Atrium.accentTones(Atrium.settings["appearance.accent"] ?? "multicolor", light)
     readonly property QtObject palette: light ? lightPalette : darkPalette
 
     readonly property QtObject darkPalette: QtObject {
-        readonly property color m3Primary: "#bfc1ff"
-        readonly property color m3OnPrimary: "#282b60"
-        readonly property color m3PrimaryContainer: "#6f72ac"
-        readonly property color m3OnPrimaryContainer: "#e0e0ff"
-        readonly property color m3SecondaryContainer: "#44455c"
-        readonly property color m3OnSecondaryContainer: "#e1e0f9"
+        readonly property color m3Primary: root.accent.primary ?? "#bfc1ff"
+        readonly property color m3OnPrimary: root.accent.onPrimary ?? "#282b60"
+        readonly property color m3PrimaryContainer: root.accent.primaryContainer ?? "#6f72ac"
+        readonly property color m3OnPrimaryContainer: root.accent.onPrimaryContainer ?? "#e0e0ff"
+        readonly property color m3SecondaryContainer: root.accent.secondaryContainer ?? "#44455c"
+        readonly property color m3OnSecondaryContainer: root.accent.onSecondaryContainer ?? "#e1e0f9"
         readonly property color m3Surface: "#131317"
         readonly property color m3SurfaceContainer: "#1f1f23"
         readonly property color m3SurfaceContainerHigh: "#2a292e"
@@ -28,12 +32,12 @@ Singleton {
     }
 
     readonly property QtObject lightPalette: QtObject {
-        readonly property color m3Primary: "#575a92"
-        readonly property color m3OnPrimary: "#ffffff"
-        readonly property color m3PrimaryContainer: "#e0e0ff"
-        readonly property color m3OnPrimaryContainer: "#13154b"
-        readonly property color m3SecondaryContainer: "#e1e0f9"
-        readonly property color m3OnSecondaryContainer: "#181a2c"
+        readonly property color m3Primary: root.accent.primary ?? "#575a92"
+        readonly property color m3OnPrimary: root.accent.onPrimary ?? "#ffffff"
+        readonly property color m3PrimaryContainer: root.accent.primaryContainer ?? "#e0e0ff"
+        readonly property color m3OnPrimaryContainer: root.accent.onPrimaryContainer ?? "#13154b"
+        readonly property color m3SecondaryContainer: root.accent.secondaryContainer ?? "#e1e0f9"
+        readonly property color m3OnSecondaryContainer: root.accent.onSecondaryContainer ?? "#181a2c"
         readonly property color m3Surface: "#fcf8ff"
         readonly property color m3SurfaceContainer: "#f0ecf4"
         readonly property color m3SurfaceContainerHigh: "#eae7ef"
