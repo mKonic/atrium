@@ -613,6 +613,14 @@ json Ipc::handle(Client& c, const json& req) {
                 {"adaptive_sync", o->adaptive_sync},
                 {"adaptive_sync_active", o->wlr->adaptive_sync_supported &&
                                              o->wlr->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED},
+                // HDR: whether the screen takes it, what it's set to, whether it's on,
+                // and SDR content's brightness (0-100) with the white it gives.
+                {"hdr_supported", o->hdr_supported()},
+                {"hdr", o->hdr},
+                {"hdr_active", o->hdr_active()},
+                {"sdr_brightness", o->sdr_brightness},
+                {"sdr_white_nits", Output::sdr_white_nits(o->sdr_brightness)},
+                {"max_luminance", o->hdr_caps ? o->hdr_caps->max_nits : 0.0},
             });
         }
         return ok(list);

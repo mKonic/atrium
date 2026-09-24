@@ -200,8 +200,11 @@ void NightLight::step() {
 
 void NightLight::set_transform(double kelvin) {
     wlr_color_transform* next = nullptr;
+    linear_white_ = {};
     if (kelvin < 6500) {
         const night::Rgb wp = night::whitepoint(int(std::lround(kelvin)));
+        // The table scales encoded values; the same look in linear light.
+        linear_white_ = {std::pow(wp.r, 2.2), std::pow(wp.g, 2.2), std::pow(wp.b, 2.2)};
         constexpr size_t n = 256;
         std::array<uint16_t, n> r, g, b;
         for (size_t i = 0; i < n; ++i) {

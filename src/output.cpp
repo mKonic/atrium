@@ -10,6 +10,7 @@
 #include "geometry.hpp"
 
 #include <algorithm>
+#include <drm_fourcc.h>
 #include <ctime>
 
 #include <sys/timerfd.h>
@@ -58,6 +59,8 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
     wlr_scene_node_set_enabled(&fullscreen_bg->node, false);
 
     scene_output = wlr_scene_output_create(server.scene, wlr);
+    if (!wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr))
+        hdr_caps = hdr_caps_from_edid(connector_edid(wlr->name));
     // Adding to the layout fires layout.change, which runs update_outputs().
     wlr_output_layout_add_auto(server.output_layout, wlr);
 }
@@ -115,6 +118,59 @@ Output::~Output() {
 
     if (!server.shutting_down)
         server.update_outputs();
+}
+
+bool Output::hdr_supported() const {
+    return (wlr->supported_transfer_functions & WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ) &&
+           (wlr->supported_primaries & WLR_COLOR_NAMED_PRIMARIES_BT2020);
+}
+
+bool Output::hdr_active() const {
+    return wlr->image_description && wlr->image_description->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+}
+
+bool Output::apply_hdr() {
+    const bool want = hdr && hdr_supported();
+    bool ok = true;
+    if (want != hdr_active()) {
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        state.allow_reconfiguration = true;
+        if (want) {
+            // The metadata describes the screen (what Windows sends from the
+            // EDID): its primaries and the luminances it says it can show.
+            wlr_output_image_description desc{};
+            desc.primaries = WLR_COLOR_NAMED_PRIMARIES_BT2020;
+            desc.transfer_function = WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+            if (wlr->default_primaries)
+                desc.mastering_display_primaries = *wlr->default_primaries;
+            else
+                wlr_color_primaries_from_named(&desc.mastering_display_primaries, WLR_COLOR_NAMED_PRIMARIES_BT2020);
+            const double max = hdr_caps && hdr_caps->max_nits > 0 ? hdr_caps->max_nits : 1000.0;
+            desc.mastering_luminance.min = hdr_caps ? hdr_caps->min_nits : 0.0;
+            desc.mastering_luminance.max = max;
+            desc.max_cll = max;
+            desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? hdr_caps->max_frame_avg_nits : max;
+            wlr_output_state_set_image_description(&state, &desc);
+            wlr_output_state_set_render_format(&state, DRM_FORMAT_XRGB2101010);
+            // Night light moves from the gamma table into the renderer.
+            if (wlr_output_get_gamma_size(wlr) > 0)
+                wlr_output_state_set_color_transform(&state, nullptr);
+        } else {
+            wlr_output_state_set_image_description(&state, nullptr);
+            wlr_output_state_set_render_format(&state, DRM_FORMAT_XRGB8888);
+        }
+        ok = wlr_output_test_state(wlr, &state) && wlr_output_commit_state(wlr, &state);
+        if (!ok)
+            wlr_log(WLR_ERROR, "%s: refused %s HDR", wlr->name, want ? "turning on" : "turning off");
+        wlr_output_state_finish(&state);
+    }
+    wlr_scene_output_set_sdr_white_nits(scene_output, hdr_active() ? float(sdr_white_nits(sdr_brightness)) : 0.0f);
+    if (!hdr_active())
+        wlr_scene_output_set_tint(scene_output, 1, 1, 1);
+    night_generation_ = 0;  // night light shown the way this mode shows it
+    wlr_output_schedule_frame(wlr);
+    return ok;
 }
 
 namespace {
@@ -179,8 +235,16 @@ void Output::render() {
     // Night light's colour table, when it changed and no app sets this
     // screen's gamma itself; screens without one (nested) do without.
     const NightLight* night = server.night_light.get();
-    const bool recolour = night && night_generation_ != night->generation() && wlr_output_get_gamma_size(wlr) > 0 &&
-                          !wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr);
+    // In HDR the renderer warms the picture in linear light instead: a table
+    // on the PQ signal would bend brightness along with colour.
+    const bool hdr_on = hdr_active();
+    const bool recolour = night && night_generation_ != night->generation() &&
+                          (hdr_on || (wlr_output_get_gamma_size(wlr) > 0 &&
+                                      !wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr)));
+    if (recolour && hdr_on) {
+        const night::Rgb w = night->linear_white();
+        wlr_scene_output_set_tint(scene_output, float(w.r), float(w.g), float(w.b));
+    }
     // Variable refresh, as set: always, or while a fullscreen game is in front.
     const bool vrr = wlr->adaptive_sync_supported &&
                      (adaptive_sync == "on" || (adaptive_sync == "games" && game_view(server, *this)));
@@ -199,7 +263,7 @@ void Output::render() {
     wlr_output_state state;
     wlr_output_state_init(&state);
     if (wlr_scene_output_build_state(scene_output, &state, nullptr)) {
-        if (recolour)
+        if (recolour && !hdr_on)
             wlr_output_state_set_color_transform(&state, night->transform());
         if (switch_vrr)
             wlr_output_state_set_adaptive_sync_enabled(&state, vrr);
@@ -211,7 +275,7 @@ void Output::render() {
                 state.tearing_page_flip = false;
         }
         const bool committed = wlr_output_commit_state(wlr, &state);
-        if (!committed && (recolour || switch_vrr)) {
+        if (!committed && ((recolour && !hdr_on) || switch_vrr)) {
             // The screen wouldn't take the table or the switch: the frame
             // without them, and they're not tried again.
             wlr_log(WLR_ERROR, "%s: refused%s%s", wlr->name, recolour ? " night light's colour table" : "",

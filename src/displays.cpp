@@ -70,6 +70,8 @@ void Server::remember_displays() {
     for (Output* o : outputs) {
         DisplayRecord d{.id = display_id(o->wlr), .enabled = o->wlr->enabled};
         d.adaptive_sync = o->adaptive_sync;
+        d.hdr = o->hdr;
+        d.sdr_brightness = o->sdr_brightness;
         if (o->wlr->enabled) {
             d.width = o->wlr->width;
             d.height = o->wlr->height;
@@ -82,6 +84,8 @@ void Server::remember_displays() {
             d = *old;  // keep how it was when it comes back on
             d.enabled = false;
             d.adaptive_sync = o->adaptive_sync;
+            d.hdr = o->hdr;
+            d.sdr_brightness = o->sdr_brightness;
         }
         registry->put_display(d);
     }
@@ -92,6 +96,8 @@ void Server::restore_display(Output* output) {
     if (!d)
         return;
     output->adaptive_sync = d->adaptive_sync;
+    output->hdr = d->hdr;
+    output->sdr_brightness = d->sdr_brightness;
     wlr_output* w = output->wlr;
     wlr_output_state state;
     wlr_output_state_init(&state);
@@ -118,6 +124,8 @@ void Server::restore_display(Output* output) {
     wlr_output_state_finish(&state);
     if (d->enabled && d->x && d->y)
         wlr_output_layout_add(output_layout, w, *d->x, *d->y);
+    if (d->enabled)
+        output->apply_hdr();
     update_outputs();
 }
 
@@ -136,6 +144,25 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             return "adaptive_sync is off, games or on";
         target->adaptive_sync = v;
         wlr_output_schedule_frame(target->wlr);
+    }
+    if (req.contains("sdr_brightness")) {
+        const auto& v = req["sdr_brightness"];
+        if (!v.is_number() || v.get<double>() < 0 || v.get<double>() > 100)
+            return "sdr_brightness goes from 0 to 100";
+        target->sdr_brightness = int(std::lround(v.get<double>()));
+    }
+    if (req.contains("hdr")) {
+        if (!req["hdr"].is_boolean())
+            return "hdr is true or false";
+        if (req["hdr"] == true && !target->hdr_supported())
+            return std::string(target->wlr->name) + " doesn't take HDR";
+        target->hdr = req["hdr"];
+    }
+    if ((req.contains("hdr") || req.contains("sdr_brightness")) && target->enabled() && !target->apply_hdr()) {
+        target->hdr = false;
+        target->apply_hdr();
+        remember_displays();
+        return std::string(target->wlr->name) + " didn't take the HDR signal";
     }
 
     wlr_output_configuration_v1* config = wlr_output_configuration_v1_create();

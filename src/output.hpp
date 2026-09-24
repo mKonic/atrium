@@ -1,4 +1,5 @@
 #pragma once
+#include "edid.hpp"
 #include "listener.hpp"
 
 #include <optional>
@@ -47,6 +48,19 @@ public:
     bool asleep = false;  // turned off through wlr-output-power-management
     // Variable refresh: "off", "games" (while a fullscreen game is in front), "on".
     std::string adaptive_sync = "games";
+
+    // HDR, as Windows does it: the screen gets an HDR10 signal (BT.2020, PQ)
+    // described with its own EDID luminances, everything is composited as
+    // before and SDR content's white sits at sdr_brightness (0-100: 80-480
+    // nits); HDR apps keep their absolute brightness.
+    bool hdr = false;
+    int sdr_brightness = 30;
+    std::optional<HdrCaps> hdr_caps;  // from the screen's EDID (real screens only)
+    bool hdr_supported() const;
+    bool hdr_active() const;
+    // Signal and compositing as set; false when the screen refused HDR.
+    bool apply_hdr();
+    static double sdr_white_nits(int brightness) { return 80.0 + 4.0 * brightness; }
 
     Space* active = nullptr;  // the numbered space shown here
     wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;

@@ -42,6 +42,7 @@ cairo = dependency('cairo')
 pangocairo = dependency('pangocairo')
 libdrm = dependency('libdrm')
 gio = dependency('gio-2.0')
+display_info = dependency('libdisplay-info')
 sqlite = dependency('sqlite3')
 json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
 
@@ -52,7 +53,7 @@ if xwayland_opt.enabled() and not have_xwayland
 endif
 use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
-deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio]
+deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')

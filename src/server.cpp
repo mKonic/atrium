@@ -249,6 +249,30 @@ void Server::setup() {
 
     gamma_manager = wlr_gamma_control_manager_v1_create(display);
     wlr_scene_set_gamma_control_manager_v1(scene, gamma_manager);
+    // Color management: apps say what their content is (an HDR video, a
+    // game's HDR10 swapchain) and hear what a screen prefers. The renderer
+    // converts PQ or linear content in BT.2020 or sRGB primaries.
+    {
+        static constexpr wp_color_manager_v1_render_intent intents[] = {WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL};
+        // What wlroots 0.20 can describe (no deprecated sRGB curve, no
+        // custom primaries).
+        static constexpr wp_color_manager_v1_transfer_function tfs[] = {
+            WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22, WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
+            WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR};
+        static constexpr wp_color_manager_v1_primaries primaries[] = {
+            WP_COLOR_MANAGER_V1_PRIMARIES_SRGB, WP_COLOR_MANAGER_V1_PRIMARIES_BT2020};
+        wlr_color_manager_v1_options options{};
+        options.features.parametric = true;
+        options.features.set_mastering_display_primaries = true;
+        options.render_intents = intents;
+        options.render_intents_len = std::size(intents);
+        options.transfer_functions = tfs;
+        options.transfer_functions_len = std::size(tfs);
+        options.primaries = primaries;
+        options.primaries_len = std::size(primaries);
+        if (wlr_color_manager_v1* cm = wlr_color_manager_v1_create(display, 1, &options))
+            wlr_scene_set_color_manager_v1(scene, cm);
+    }
 
     power_manager = wlr_output_power_manager_v1_create(display);
     output_power_.connect(&power_manager->events.set_mode, [this](auto* e) { set_output_power(e); });

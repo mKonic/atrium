@@ -80,6 +80,8 @@ struct DisplayRecord {
     int transform = 0;  // wl_output_transform
     std::optional<int> x, y;  // none: placed automatically
     std::string adaptive_sync = "games";  // variable refresh: off, games (fullscreen games only), on
+    bool hdr = false;                     // HDR10 output, when the screen takes it
+    int sdr_brightness = 30;              // 0-100 as Windows' "SDR content brightness": 80-480 nits
 
     bool operator==(const DisplayRecord&) const = default;
 };

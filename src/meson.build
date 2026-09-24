@@ -13,6 +13,7 @@ atrium_sources = files(
   'overview.cpp',
   'registry.cpp',
   'displays.cpp',
+  'edid.cpp',
   'output.cpp',
   'night_light.cpp',
   'night_light_core.cpp',
