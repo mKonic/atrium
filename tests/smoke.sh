@@ -158,6 +158,18 @@ x2=$(ctl -j outputs | python3 -c "import json,sys; print(max(o['geometry']['x'] 
 out2=$(ctl -j outputs | python3 -c "import json,sys; print(max(json.load(sys.stdin), key=lambda o: o['geometry']['x'])['name'])")
 ctl move "$foot" $((x2 + 40)) 200 >/dev/null
 check "a window moved onto it joins its space" json windows "any(w['id'] == $foot and w['output'] == '$out2' for w in d)"
+# Closed there, an app's window reopens there, whichever screen has focus.
+ctl action spawn "foot -a smoke-reopen" >/dev/null
+check "another window opens" json windows "any(w['app_id'] == 'smoke-reopen' for w in d)"
+re=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['app_id'] == 'smoke-reopen'][0])")
+ctl move "$re" $((x2 + 60)) 150 >/dev/null
+check "and goes to the second screen" json windows "any(w['id'] == $re and w['output'] == '$out2' for w in d)"
+ctl close "$re" >/dev/null
+check "and closes there" json windows "not any(w['app_id'] == 'smoke-reopen' for w in d)"
+other=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['output'] != '$out2' and not w['minimized']][0])")
+ctl focus "$other" >/dev/null
+ctl action spawn "foot -a smoke-reopen" >/dev/null
+check "reopened, it comes back on the second screen" json windows "any(w['app_id'] == 'smoke-reopen' and w['output'] == '$out2' for w in d)"
 ctl output remove "$out2" >/dev/null
 check "unplugged, the window comes back" json windows "any(w['id'] == $foot and w['output'] != '$out2' for w in d)"
 check "the last screen can't be removed" sh -c "! $ctl -s $sock output remove \$($ctl -s $sock -j outputs | python3 -c 'import json,sys; print(json.load(sys.stdin)[0][\"name\"])')"

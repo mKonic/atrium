@@ -369,6 +369,12 @@ RuleResult Server::assign_space(View* view) {
         view->space = p->space;  // dialogs open where their parent lives
     } else {
         Output* o = focused_output;
+        // An app's first window reopens on the screen it was last on, if
+        // that screen is still here.
+        if (auto p = placement_for(view); p && !r.space)
+            for (Output* out : outputs)
+                if (out->enabled() && p->output == out->wlr->name)
+                    o = out;
         if (!o) {
             for (Output* out : outputs)
                 if (out->enabled()) {
