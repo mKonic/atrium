@@ -1,5 +1,9 @@
 <div align = center>
 
+<img src="./assets/header.svg" width="750" height="300" alt="banner">
+
+<br>
+
 ![Badge Hi Mom]<br>
 
 <br>
@@ -29,6 +33,27 @@ It provides the latest Wayland features, has all the eyecandy and more...
 <br>
 <br>
 
+<div align = center>
+
+# Gallery
+
+<br>
+
+![Preview A]
+
+<br>
+
+![Preview B]
+
+<br>
+
+![Preview C]
+
+<br>
+<br>
+
+</div>
+
 # Special Thanks
 
 <br>
@@ -48,6 +73,13 @@ It provides the latest Wayland features, has all the eyecandy and more...
 [TinyWl]: https://gitlab.freedesktop.org/wlroots/wlroots/-/blob/master/tinywl/tinywl.c
 [Sway]: https://github.com/swaywm/sway
 [DWL]: https://codeberg.org/dwl/dwl
+
+<!----------------------------------{ Images }--------------------------------->
+
+[Preview A]: ./assets/prev1.png
+[Preview B]: ./assets/prev2.png
+[Preview C]: ./assets/prev3.png
+
 
 <!----------------------------------{ Badges }--------------------------------->
 
