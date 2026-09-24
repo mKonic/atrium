@@ -277,6 +277,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            NotificationAppsPage {
+                visible: root.query === "" && root.page === "Notifications"
+                width: parent.width
+            }
+
             PowerPage {
                 visible: root.query === "" && root.page === "Power"
                 width: parent.width
@@ -324,7 +329,7 @@ FloatingWindow {
             }
 
             Repeater {
-                model: root.query === "" ? (SettingsPages.byPage[root.page] ?? []).filter(s => root.wide(s.type)) : []
+                model: root.query === "" ? (SettingsPages.byPage[root.page] ?? []).filter(s => root.wide(s.type) && !s.custom) : []
 
                 Card {
                     required property var modelData

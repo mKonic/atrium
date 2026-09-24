@@ -191,6 +191,10 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
     Notification::Data d = resolve(app_name, app_icon, actions, hints, expire_timeout, id);
     d.summary = summary;
     d.body = body;
+    // Turned off in Settings: not kept, not shown.
+    const QString mode = NotificationHistory::modeOf(d.app);
+    if (mode == "off")
+        return id;
 
     NotificationHistory::instance()->add({
         {"app", d.app}, {"icon", d.icon}, {"summary", summary}, {"body", body},
@@ -204,7 +208,7 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
     auto* n = new Notification(id, std::move(d), this);
     live_.insert(id, n);
     const bool dnd = Compositor::instance()->settings().value("notifications.dnd").toBool();
-    if (!dnd || n->critical()) {
+    if ((!dnd && mode != "quiet") || n->critical()) {
         popups_.prepend(n);
         // The oldest beyond the limit leave the screen.
         while (popups_.size() > kMaxPopups) {

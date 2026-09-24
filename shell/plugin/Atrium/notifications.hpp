@@ -3,6 +3,7 @@
 // newest first and grouped by app, kept across restarts in
 // $XDG_STATE_HOME/atrium/notifications.json.
 
+#include <QFileSystemWatcher>
 #include <QObject>
 #include <QTimer>
 #include <QVariant>
@@ -14,6 +15,9 @@ class NotificationHistory : public QObject {
     Q_PROPERTY(QVariantList items READ items NOTIFY changed)    // newest first
     Q_PROPERTY(QVariantList groups READ groups NOTIFY changed)  // [{ app, icon, items }], newest group first
     Q_PROPERTY(int unread READ unread NOTIFY changed)
+    // Every app that has notified, with what its notifications do:
+    // [{name, icon, mode}], mode "on", "quiet" (no popups) or "off".
+    Q_PROPERTY(QVariantList apps READ apps NOTIFY appsChanged)
 
 public:
     explicit NotificationHistory(QObject* parent = nullptr);
@@ -24,6 +28,11 @@ public:
     QVariantList items() const { return items_; }
     QVariantList groups() const;
     int unread() const { return unread_; }
+    QVariantList apps() const;
+
+    // "on", "quiet" or "off", kept in the notifications.quiet and .off settings.
+    Q_INVOKABLE void setAppMode(const QString& app, const QString& mode);
+    static QString modeOf(const QString& app);
 
     // { app, icon, summary, body, image, urgency, desktopEntry }; gets a uid and time.
     Q_INVOKABLE int add(const QVariantMap& entry);
@@ -37,6 +46,7 @@ public:
 
 signals:
     void changed();
+    void appsChanged();
 
 private:
     void load();
@@ -45,9 +55,11 @@ private:
 
     QString file_;
     QVariantList items_;
+    QVariantMap seen_;  // app name → icon, kept when the history is cleared
     int unread_ = 0;
     int nextUid_ = 1;
     QTimer saveTimer_;
+    QFileSystemWatcher watcher_;
 };
 
 } // namespace atrium

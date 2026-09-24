@@ -1,5 +1,10 @@
 #include "notifications.hpp"
 
+#include "compositor.hpp"
+
+#include <QFileSystemWatcher>
+#include <QGuiApplication>
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -34,6 +39,16 @@ NotificationHistory::NotificationHistory(QObject* parent) : QObject(parent), fil
     saveTimer_.setInterval(500);
     connect(&saveTimer_, &QTimer::timeout, this, &NotificationHistory::save);
     load();
+    connect(Compositor::instance(), &Compositor::settingsChanged, this, &NotificationHistory::appsChanged);
+    // Elsewhere than the shell (System Settings), what the shell writes shows up too.
+    if (QGuiApplication::desktopFileName() != "atrium-shell") {
+        watcher_.addPath(QFileInfo(file_).path());
+        connect(&watcher_, &QFileSystemWatcher::directoryChanged, this, [this] {
+            load();
+            emit changed();
+            emit appsChanged();
+        });
+    }
 }
 
 NotificationHistory::~NotificationHistory() {
@@ -47,6 +62,10 @@ void NotificationHistory::load() {
         return;
     const QJsonObject doc = QJsonDocument::fromJson(f.readAll()).object();
     items_ = doc.value("items").toArray().toVariantList();
+    seen_ = doc.value("apps").toObject().toVariantMap();
+    for (const QVariant& v : items_)
+        if (!seen_.contains(v.toMap().value("app").toString()))
+            seen_.insert(v.toMap().value("app").toString(), v.toMap().value("icon"));
     for (const QVariant& v : items_)
         nextUid_ = std::max(nextUid_, v.toMap().value("uid").toInt() + 1);
 }
@@ -56,7 +75,8 @@ void NotificationHistory::save() const {
     QSaveFile f(file_);
     if (!f.open(QIODevice::WriteOnly))
         return;
-    f.write(QJsonDocument(QJsonObject{{"items", QJsonArray::fromVariantList(items_)}}).toJson(QJsonDocument::Compact));
+    f.write(QJsonDocument(QJsonObject{{"items", QJsonArray::fromVariantList(items_)},
+                                         {"apps", QJsonObject::fromVariantMap(seen_)}}).toJson(QJsonDocument::Compact));
     f.commit();
 }
 
@@ -64,8 +84,49 @@ void NotificationHistory::scheduleSave() {
     saveTimer_.start();
 }
 
+QString NotificationHistory::modeOf(const QString& app) {
+    const QVariantMap s = Compositor::instance()->settings();
+    if (s.value("notifications.off").toStringList().contains(app))
+        return QStringLiteral("off");
+    if (s.value("notifications.quiet").toStringList().contains(app))
+        return QStringLiteral("quiet");
+    return QStringLiteral("on");
+}
+
+QVariantList NotificationHistory::apps() const {
+    QVariantMap all = seen_;
+    // Named in the settings but not seen here (another computer's registry).
+    for (const char* key : {"notifications.quiet", "notifications.off"})
+        for (const QString& app : Compositor::instance()->settings().value(key).toStringList())
+            if (!all.contains(app))
+                all.insert(app, QString());
+    QVariantList out;
+    for (auto it = all.begin(); it != all.end(); ++it)
+        if (!it.key().isEmpty())
+            out.append(QVariantMap{{"name", it.key()}, {"icon", it.value()}, {"mode", modeOf(it.key())}});
+    return out;  // QVariantMap keeps them by name
+}
+
+void NotificationHistory::setAppMode(const QString& app, const QString& mode) {
+    Compositor* c = Compositor::instance();
+    for (const QString& m : {QStringLiteral("quiet"), QStringLiteral("off")}) {
+        const QString key = "notifications." + m;
+        QStringList list = c->settings().value(key).toStringList();
+        const bool had = list.contains(app);
+        list.removeAll(app);
+        if (m == mode)
+            list.append(app);
+        if (had != (m == mode))
+            c->setSetting(key, list);
+    }
+}
+
 int NotificationHistory::add(const QVariantMap& entry) {
     QVariantMap e = entry;
+    if (!seen_.contains(e.value("app").toString())) {
+        seen_.insert(e.value("app").toString(), e.value("icon"));
+        emit appsChanged();
+    }
     const int uid = nextUid_++;
     e["uid"] = uid;
     e["time"] = QDateTime::currentMSecsSinceEpoch();
