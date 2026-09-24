@@ -146,5 +146,6 @@ TEST(Registry, MigratesOldArrowDefaults) {
     EXPECT_EQ(find("Mod+Shift+Left")->action, "move-direction");
     EXPECT_EQ(find("Mod+0")->arg, "10");
     EXPECT_EQ(find("Mod+backslash")->action, "toggle-tiling");
+    EXPECT_EQ(find("Mod+Ctrl+Down")->action, "app-expose");
     std::remove(path.c_str());
 }

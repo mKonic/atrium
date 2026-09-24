@@ -70,7 +70,7 @@ Overview::~Overview() {
 
 bool Overview::included(View* v) const {
     return v->mapped && !v->minimized && !v->unmanaged() && v->space && !v->space->secret &&
-           v->space->shown() && v->output && v->tree;
+           v->space->shown() && v->output && v->tree && (app_.empty() || app_ == v->app_id());
 }
 
 Overview::Screen* Overview::screen_for(Output* output) {
@@ -104,6 +104,19 @@ void Overview::toggle() {
         close();
     else
         open();
+}
+
+void Overview::open_app(const std::string& app_id) {
+    if (app_id.empty())
+        return;
+    if (state_ == State::Open && app_ == app_id) {
+        close();
+        return;
+    }
+    const bool switching = state_ == State::Open;
+    close_now();
+    app_ = app_id;
+    open(!switching);
 }
 
 void Overview::open(bool animate) {
@@ -190,6 +203,7 @@ void Overview::finish_close() {
         views.push_back(t->view);
     destroy_all();
     state_ = State::Closed;
+    app_.clear();
     for (View* v : views)
         v->set_alpha(1.0f);
     server_.seat->refresh_pointer();

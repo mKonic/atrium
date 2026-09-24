@@ -1057,6 +1057,22 @@ void Server::run_action(const Keybind& b) {
     case Action::SpacePrev: step_space(-1); break;
     case Action::SpaceNext: step_space(+1); break;
     case Action::Overview: overview->toggle(); break;
+    case Action::AppExpose: {
+        std::string app = b.arg;
+        if (app.empty() || app.starts_with("window:")) {
+            const View* of = v;
+            if (!app.empty()) {
+                of = nullptr;
+                const uint64_t id = std::strtoull(app.c_str() + 7, nullptr, 10);
+                for (View* w : views)
+                    if (w->id == id)
+                        of = w;
+            }
+            app = of && of->app_id() ? of->app_id() : "";
+        }
+        overview->open_app(app);
+        break;
+    }
     case Action::SwitchNext: switcher->step(+1, b.mods & ~uint32_t(WLR_MODIFIER_SHIFT)); break;
     case Action::SwitchPrev: switcher->step(-1, b.mods & ~uint32_t(WLR_MODIFIER_SHIFT)); break;
     case Action::CycleSpaceNext: cycle_space(+1); break;

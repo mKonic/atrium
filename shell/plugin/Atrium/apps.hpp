@@ -124,6 +124,8 @@ public:
     Q_INVOKABLE void placePin(const QString& appId, int index);
     Q_INVOKABLE int pinnedCount() const;
     Q_INVOKABLE void closeAll(const QString& appId);
+    // App exposé: the overview with only this app's windows.
+    Q_INVOKABLE void expose(const QString& appId);
 
 signals:
     void entriesChanged();

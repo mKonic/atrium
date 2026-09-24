@@ -18,6 +18,8 @@ Rectangle {
         const list = [];
         if (item.running)
             list.push({ icon: "add", text: "New Window", action: "launch" });
+        if (item.windowCount > 1)
+            list.push({ icon: "select_window", text: "Show All Windows", action: "expose" });
         list.push(item.pinned ? { icon: "keep_off", text: "Remove from Dock", action: "unpin" }
                               : { icon: "keep", text: "Keep in Dock", action: "pin" });
         if (item.running)
@@ -32,6 +34,8 @@ Rectangle {
             apps.launch(item.appId);
         else if (action === "pin" || action === "unpin")
             apps.setPinned(item.appId, action === "pin");
+        else if (action === "expose")
+            apps.expose(item.appId);
         else if (action === "close")
             apps.closeAll(item.appId);
     }

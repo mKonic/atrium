@@ -61,7 +61,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 4;
+constexpr int kSchemaVersion = 5;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -199,6 +199,11 @@ void Registry::migrate() {
             add.bind(1, std::string(a[0])).bind(2, std::string(a[1])).bind(3, std::string(a[2])).run();
         }
     }
+    // 5: app exposé, on macOS's key for it (Ctrl+Down) plus Mod.
+    if (version >= 2 && version < 5)
+        exec("INSERT INTO shortcuts (position, keys, action) "
+             "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+Ctrl+Down', 'app-expose' FROM shortcuts "
+             "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = 'Mod+Ctrl+Down')");
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

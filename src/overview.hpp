@@ -31,6 +31,8 @@ public:
     // `animate` false shows the finished overview at once (switching spaces
     // from inside it).
     void open(bool animate = true);
+    // Only `app_id`'s windows (app exposé). Again for the same app closes it.
+    void open_app(const std::string& app_id);
     // Animate back; `pick` (if any) is focused and raised first.
     void close(View* pick = nullptr);
     // Drop everything at once (space switch, lock, teardown).
@@ -107,6 +109,7 @@ private:
 
     Server& server_;
     State state_ = State::Closed;
+    std::string app_;  // app exposé: only this app's windows
     wlr_scene_tree* root_ = nullptr;
     std::vector<std::unique_ptr<Screen>> screens_;
     std::vector<std::unique_ptr<Thumb>> thumbs_;

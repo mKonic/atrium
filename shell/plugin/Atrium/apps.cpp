@@ -499,6 +499,12 @@ int DockApps::pinnedCount() const {
     return int(std::ranges::count_if(apps_, [](const App& a) { return a.pinned; }));
 }
 
+void DockApps::expose(const QString& appId) {
+    // By one of its windows: a Dock entry's id needn't be the windows' app id.
+    if (const App* a = find(appId); a && !a->windows.isEmpty())
+        Compositor::instance()->action("app-expose", QString("window:%1").arg(a->windows.first()));
+}
+
 void DockApps::closeAll(const QString& appId) {
     if (const App* a = find(appId))
         for (int id : a->windows)

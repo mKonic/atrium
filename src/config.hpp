@@ -38,6 +38,8 @@ enum class Action {
     SnapRight,
     Restore,          // out of fullscreen, maximized or snapped
     Overview,         // every window of the space, side by side
+    AppExpose,        // the overview with one app's windows; arg: app id, or
+                      // "window:ID" for that window's app; none: the focused one's
     SwitchNext,       // Alt+Tab: hold the modifier, tap to walk the windows
     SwitchPrev,
     CycleSpaceNext,   // existing spaces on the output, wrapping around

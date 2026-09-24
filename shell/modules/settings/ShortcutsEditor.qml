@@ -24,7 +24,7 @@ Rectangle {
             "move-to-space": "Move window to space", "space-prev": "Previous space", "space-next": "Next space",
             "toggle-secret": "Show secret space", "move-to-secret": "Move window to secret space",
             "snap-left": "Snap left", "snap-right": "Snap right", "restore": "Restore window",
-            "overview": "Mission Control", "switch-next": "Switch windows", "switch-prev": "Switch windows backwards",
+            "overview": "Mission Control", "app-expose": "App windows", "switch-next": "Switch windows", "switch-prev": "Switch windows backwards",
             "cycle-space-next": "Cycle spaces", "cycle-space-prev": "Cycle spaces backwards",
             "restart-shell": "Restart the shell", "shell": "Shell", "toggle-tiling": "Tile windows",
             "focus-direction": "Focus the window beside", "move-direction": "Move window",
@@ -34,7 +34,8 @@ Rectangle {
     readonly property var argHints: ({
             "spawn": "Command", "space": "Number", "move-to-space": "Number", "switch-vt": "Number",
             "toggle-secret": "Space name", "move-to-secret": "Space name", "shell": "What",
-            "focus-direction": "left, right, up, down", "move-direction": "left, right, up, down"
+            "focus-direction": "left, right, up, down", "move-direction": "left, right, up, down",
+            "app-expose": "App id (focused app if empty)"
         })
 
     function add(): void {
