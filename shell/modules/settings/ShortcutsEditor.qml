@@ -28,13 +28,14 @@ Rectangle {
             "restart-shell": "Restart the shell", "shell": "Shell", "toggle-tiling": "Tile windows",
             "focus-direction": "Focus the window beside", "move-direction": "Move window",
             "move-to-space-prev": "Move window to previous space", "move-to-space-next": "Move window to next space",
-            "toggle-floating": "Float out of the tiles", "toggle-pin": "Show on every space"
+            "toggle-floating": "Float out of the tiles", "toggle-pin": "Show on every space",
+            "next_layout": "Next keyboard layout", "portal": "An app's shortcut"
         })
     readonly property var argHints: ({
             "spawn": "Command", "space": "Number", "move-to-space": "Number", "switch-vt": "Number",
             "toggle-secret": "Space name", "move-to-secret": "Space name", "shell": "What",
             "focus-direction": "left, right, up, down", "move-direction": "left, right, up, down",
-            "app-expose": "App id (focused app if empty)"
+            "app-expose": "App id (focused app if empty)", "portal": "App/shortcut"
         })
 
     function add(): void {
@@ -103,8 +104,78 @@ Rectangle {
             height: 8
         }
 
+        // Apps' own (through the portal): which app, what for, and its keys.
         Repeater {
-            model: Atrium.shortcuts
+            model: Atrium.shortcuts.filter(s => s.action === "portal")
+
+            Item {
+                id: appRow
+
+                required property var modelData
+                required property int index
+                readonly property string app: modelData.arg.split("/")[0]
+                readonly property string what: modelData.arg.slice(app.length + 1)
+
+                width: column.width
+                height: 44
+
+                Item {
+                    y: 7
+                    width: 230
+                    height: 30
+
+                    KeyCaps {
+                        anchors.verticalCenter: parent.verticalCenter
+                        keys: appRow.modelData.keys
+                        recording: root.recording === appRow.modelData.id
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.recording = appRow.modelData.id;
+                            catcher.forceActiveFocus();
+                        }
+                    }
+                }
+
+                StyledText {
+                    x: 240
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - x - 40
+                    elide: Text.ElideRight
+                    text: `${Icons.appName(appRow.app) || appRow.app}: ${appRow.what}`
+                }
+
+                MaterialIcon {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "remove_circle"
+                    font.pointSize: Theme.font.size.larger
+                    color: appRemove.containsMouse ? "#ffb4ab" : Theme.palette.m3OnSurfaceVariant
+
+                    MouseArea {
+                        id: appRemove
+
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        hoverEnabled: true
+                        onClicked: Atrium.removeShortcut(appRow.modelData.id)
+                    }
+                }
+
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    width: parent.width
+                    height: 1
+                    color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+                }
+            }
+        }
+
+        Repeater {
+            model: Atrium.shortcuts.filter(s => s.action !== "portal")
 
             Item {
                 id: row

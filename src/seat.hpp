@@ -3,6 +3,8 @@
 #include "listener.hpp"
 
 #include <array>
+#include <string>
+#include <unordered_map>
 #include <memory>
 #include <vector>
 
@@ -108,6 +110,7 @@ private:
     std::unique_ptr<KeyboardGroup> keyboards_;
     std::vector<std::unique_ptr<KeyboardGroup>> virtual_keyboards_;
     std::array<bool, KEY_MAX + 1> consumed_{};  // keycodes whose press ran a binding
+    std::unordered_map<uint32_t, std::string> portal_held_;  // keycode → portal shortcut held down
 
     View* grab_view_ = nullptr;
     double grab_x_ = 0, grab_y_ = 0;  // cursor at grab start

@@ -1003,6 +1003,16 @@ Interface Server::interface() const {
             config.cursor_size};
 }
 
+// An app's global shortcut pressed or let go: the portal backend hears it
+// and tells the app (push-to-talk needs both).
+void Server::portal_shortcut(const std::string& arg, bool pressed) {
+    const size_t slash = arg.find('/');
+    if (!ipc || slash == std::string::npos)
+        return;
+    ipc->broadcast("portal", {{"event", pressed ? "shortcut.activated" : "shortcut.deactivated"},
+                              {"app", arg.substr(0, slash)}, {"id", arg.substr(slash + 1)}});
+}
+
 void Server::keyboard_layout_changed() {
     if (config.layout_per_window && focused_view)
         focused_view->keyboard_layout = seat->layout();
@@ -1213,6 +1223,7 @@ void Server::run_action(const Keybind& b) {
         }
         break;
     case Action::NextLayout: seat->set_layout(seat->layout() + 1); break;
+    case Action::Portal: portal_shortcut(b.arg, true); break;
     case Action::TogglePin:
         if (v) {
             v->sticky = !v->sticky;

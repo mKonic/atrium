@@ -73,6 +73,8 @@ struct Owner {
 
 class Server {
 public:
+    // An app's global shortcut (Action::Portal) pressed or let go.
+    void portal_shortcut(const std::string& arg, bool pressed);
     // The layout changed (a switch key, a new keymap, a window's own): tell
     // the shell, and remember it for the window with keyboard.per_window.
     void keyboard_layout_changed();

@@ -1,0 +1,3 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.atrium
+Interfaces=org.freedesktop.impl.portal.GlobalShortcuts

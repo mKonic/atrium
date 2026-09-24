@@ -62,6 +62,7 @@ constexpr ActionName kActions[] = {
     {Action::ToggleMaximize, "maximize"},
     {Action::Minimize, "minimize"},
     {Action::NextLayout, "next_layout"},
+    {Action::Portal, "portal"},
     {Action::FocusNext, "focus-next"},
     {Action::FocusPrev, "focus-prev"},
     {Action::SwitchVt, "switch-vt"},
@@ -264,6 +265,9 @@ std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod, std::vect
             continue;
         }
         const std::string keys = b["keys"];
+        // No keys yet (an app's shortcut the user hasn't given any): kept, not bound.
+        if (keys.empty())
+            continue;
         auto chord = parse_chord(keys);
         if (!chord) {
             fail("can't read key combination '" + keys + "'");
@@ -282,7 +286,7 @@ std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod, std::vect
         if (*action == Action::SwitchVt || *action == Action::Space || *action == Action::MoveToSpace)
             k.iarg = std::atoi(k.arg.c_str());
         if ((*action == Action::Spawn || *action == Action::ToggleSecret || *action == Action::MoveToSecret ||
-             *action == Action::FocusDirection || *action == Action::MoveDirection) &&
+             *action == Action::FocusDirection || *action == Action::MoveDirection || *action == Action::Portal) &&
             k.arg.empty()) {
             fail("'" + keys + "': " + b["action"].get<std::string>() + " needs \"arg\"");
             continue;

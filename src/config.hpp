@@ -54,6 +54,7 @@ enum class Action {
     ToggleFloating,   // on a tiled space: out of the tiles and back
     TogglePin,        // on every space (sticky)
     NextLayout,       // the next keyboard layout
+    Portal,           // arg: "APP/ID", an app's global shortcut (the portal): held and let go
 };
 
 struct Keybind {

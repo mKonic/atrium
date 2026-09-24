@@ -56,7 +56,7 @@ Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     });
     connect(&events_, &QLocalSocket::connected, this, [this] {
         const QJsonObject sub{{"cmd", "subscribe"},
-                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard"}}};
+                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard", "portal"}}};
         events_.write(QJsonDocument(sub).toJson(QJsonDocument::Compact) + '\n');
         emit connectedChanged();
     });
@@ -174,6 +174,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
         emit spacesChanged();
     } else if (kind == "registry.changed") {
         refreshTable(e.value("table").toString());
+    } else if (kind == "shortcut.activated" || kind == "shortcut.deactivated") {
+        emit portalShortcut(e.value("app").toString(), e.value("id").toString(), kind == "shortcut.activated");
     } else if (kind == "keyboard.changed") {
         keyboard_ = e.value("keyboard").toObject().toVariantMap();
         emit keyboardChanged();

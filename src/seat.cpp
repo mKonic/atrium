@@ -466,6 +466,15 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
             if ((bind = find_binding(g.mods, sym)))
                 break;
 
+    // An app's shortcut is held, not repeated.
+    if (bind && bind->action == Action::Portal) {
+        wl_event_source_timer_update(g.repeat_source, 0);
+        consumed_[e->keycode] = true;
+        portal_held_[e->keycode] = bind->arg;
+        server.run_action(*bind);
+        return;
+    }
+
     if (bind && kb->repeat_info.delay > 0)
         wl_event_source_timer_update(g.repeat_source, kb->repeat_info.delay);
     else
@@ -479,8 +488,13 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 
     // The release of a key whose press ran a binding is not the client's.
     if (consumed_[e->keycode]) {
-        if (e->state == WL_KEYBOARD_KEY_STATE_RELEASED)
+        if (e->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
             consumed_[e->keycode] = false;
+            if (auto held = portal_held_.find(e->keycode); held != portal_held_.end()) {
+                server.portal_shortcut(held->second, false);
+                portal_held_.erase(held);
+            }
+        }
         return;
     }
 

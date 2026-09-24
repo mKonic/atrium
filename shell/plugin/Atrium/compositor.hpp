@@ -111,6 +111,8 @@ public:
     Q_INVOKABLE void setDevice(const QString& name, const QVariantMap& fields);
 
 signals:
+    // An app's global shortcut (bound through the portal) pressed or let go.
+    void portalShortcut(const QString& app, const QString& id, bool pressed);
     void keyboardChanged();
     void windowsChanged();
     void spacesChanged();

@@ -258,7 +258,12 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         return ok();
     }
     if (cmd == "shortcuts.reset") {
-        reg.replace_shortcuts(shortcuts_from_json(default_keybinds()));
+        // Apps' own shortcuts (the portal's) aren't atrium's to reset.
+        std::vector<ShortcutRecord> fresh = shortcuts_from_json(default_keybinds());
+        for (const ShortcutRecord& k : reg.shortcuts())
+            if (k.action == "portal")
+                fresh.push_back(k);
+        reg.replace_shortcuts(fresh);
         changed("shortcuts");
         return ok();
     }
