@@ -1,9 +1,9 @@
 # The shell's runtime (windows, screens, installed apps, the clock), as a
 # library both QML modules link: Atrium.Shell registers its types, and
 # Atrium's services share its DesktopEntries.
-shell_qt = dependency('qt6', modules: ['Core', 'Gui', 'Qml', 'Quick'])
+shell_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'Qml', 'Quick'])
 # The window's wl_surface, for the protocols Qt has no API for.
-shell_qt_private = dependency('qt6', modules: ['Gui'], private_headers: true)
+shell_qt_private = dependency('qt6', version: '>=6.8', modules: ['Gui'], private_headers: true)
 wayland_client = dependency('wayland-client')
 
 client_protocols = []

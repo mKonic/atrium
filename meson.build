@@ -31,7 +31,8 @@ add_project_arguments(
 # Liquid Glass), built in and linked statically.
 scenefx_proj = subproject('scenefx', default_options: ['examples=false', 'default_library=static'])
 scenefx = scenefx_proj.get_variable('scenefx')
-wlroots = dependency('wlroots-0.20')
+# The system's wlroots, else the pinned one (subprojects/wlroots.wrap).
+wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
 wayland_protos = dependency('wayland-protocols')
 xkbcommon = dependency('xkbcommon')

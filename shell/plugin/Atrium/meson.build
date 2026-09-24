@@ -2,7 +2,7 @@
 # (next to its qmldir), so the parent directory is a QML import path both
 # here in the build tree and where it is installed.
 qt6 = import('qt6')
-qt = dependency('qt6', modules: ['Core', 'DBus', 'Network', 'Qml', 'Quick', 'Widgets'])
+qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'DBus', 'Network', 'Qml', 'Quick', 'Widgets'])
 
 plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 'views.hpp', 'notifications.hpp', 'notification_server.hpp', 'clipboard.hpp', 'brightness.hpp', 'recorder.hpp', 'apps.hpp', 'desktop_files.hpp', 'session.hpp', 'greeter.hpp', 'mpris.hpp', 'tray.hpp', 'audio.hpp', 'bluetooth.hpp', 'network.hpp', 'keyed_model.hpp', 'sysinfo.hpp', 'netspeed.hpp', 'admin_cache.hpp', 'polkit_agent.hpp', 'settings_pages.hpp', 'accounts.hpp', 'emojis.hpp'], dependencies: qt)
 
