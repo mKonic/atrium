@@ -182,7 +182,13 @@ void View::handle_unmap() {
     tiled_ = false;
     before_tile_.reset();
     server.retile(old_space);  // the others close the gap
-    server.prune_space(old_space);
+    // Closed in the space it went fullscreen into: back to where it came from
+    // (which prunes that space).
+    if (const int home = std::exchange(fullscreen_home, 0);
+        home && old_space && old_output && old_output->active == old_space && old_space->empty())
+        server.switch_space(old_output, home);
+    else
+        server.prune_space(old_space);
     if (was_focused || (unmanaged() && wants_focus()))
         server.focus_top();
     server.seat->refresh_pointer();
@@ -637,6 +643,7 @@ void View::set_fullscreen(bool f) {
     if (!f)
         server.retile(space);
     server.notify_window(*this, "changed");
+    server.fullscreen_space(this);
 }
 
 void View::set_minimized(bool m) {

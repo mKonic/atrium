@@ -124,6 +124,7 @@ public:
     bool minimized = false;
     bool maximized = false;
     bool fullscreen = false;
+    int fullscreen_home = 0;  // the space it left for one of its own (windows.fullscreen_space)
     uint32_t snapped = 0;  // snap zone the window fills, 0 when free
     bool urgent = false;
     bool keep_above = false;    // stays over other windows (X11 _NET_WM_STATE_ABOVE)

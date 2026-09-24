@@ -106,6 +106,9 @@ public:
     // The space before (-1) or after (+1) on the view's screen, taking the
     // view along (a window dragged against the screen's end). False if none.
     bool carry_to_space(View* view, int direction);
+    // windows.fullscreen_space: into a space of its own on fullscreen, and
+    // back home after.
+    void fullscreen_space(View* view);
     // Tiling (tiling.cpp).
     void toggle_tiling(Space* space);
     void retile(Space* space);         // lay a tiled space out again; nothing if it floats

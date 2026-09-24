@@ -1165,6 +1165,9 @@ void Server::setting_changed(const std::string& key) {
         apply_power_profile();
     if (key == "session.shell" && shell)
         shell->restart();
+    if (key == "windows.fullscreen_space" && !config.fullscreen_space)
+        for (View* v : views)
+            v->fullscreen_home = 0;
     if (key == "windows.tiled_titlebars")
         for (View* v : views)
             v->refresh_tiled_titlebar();

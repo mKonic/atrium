@@ -123,6 +123,18 @@ check "a setting changes" json get "d.get('appearance.blur') is False"
 ctl reset appearance.blur >/dev/null
 check "and resets" json get "d.get('appearance.blur') is True"
 
+# windows.fullscreen_space: fullscreen gets a space of its own, and comes home.
+ctl set windows.fullscreen_space true >/dev/null
+read -r fs home < <(ctl -j windows | python3 -c "
+import json,sys
+w=[w for w in json.load(sys.stdin) if w['focused']][0]; print(w['id'], w['space'])")
+ctl action fullscreen >/dev/null
+check "fullscreen, a window gets a space of its own" json windows \
+    "any(w['id'] == $fs and w['fullscreen'] and w['space'] != '$home' for w in d)"
+ctl action fullscreen >/dev/null
+check "and comes back after" json windows "any(w['id'] == $fs and not w['fullscreen'] and w['space'] == '$home' for w in d)"
+ctl reset windows.fullscreen_space >/dev/null
+
 # An input method: keys go to it, what it composes lands in the app.
 ctl action spawn "foot -a ime-target sh -c 'head -1 > $work/typed'" >/dev/null
 check "a text field takes focus" json windows "any(w['app_id'] == 'ime-target' and w['focused'] for w in d)"

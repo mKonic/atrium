@@ -109,6 +109,7 @@ struct Config {
     bool snapping = true;     // drag to screen edges and corners to tile
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar
+    bool fullscreen_space = false;  // a window going fullscreen gets a space of its own
     bool remember_placement = true;  // an app reopens where its window last closed
 
     // Keyboard

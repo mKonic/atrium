@@ -136,6 +136,29 @@ bool Server::carry_to_space(View* view, int direction) {
     return true;
 }
 
+void Server::fullscreen_space(View* view) {
+    Output* o = view->output;
+    if (!o || !view->space || view->space->secret || view->space != o->active)
+        return;
+    if (!view->fullscreen) {
+        const int home = std::exchange(view->fullscreen_home, 0);
+        const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space; });
+        if (home && alone && home != view->space->number)
+            switch_space(o, home, view);
+        return;
+    }
+    if (!config.fullscreen_space || view->space->tiled || view->fullscreen_home)
+        return;
+    const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space; });
+    if (alone)
+        return;  // it has the space to itself already
+    int n = view->space->number + 1;
+    while (find_space(o, n))
+        ++n;
+    view->fullscreen_home = view->space->number;
+    switch_space(o, n, view);
+}
+
 // Previous/next space on the focused output. "Next" past the last one that
 // has windows opens a fresh, empty space, as long as the current one isn't
 // already empty.

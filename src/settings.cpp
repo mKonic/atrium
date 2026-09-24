@@ -412,6 +412,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.tiled_titlebars", "Windows", "Title bars on tiled windows",
         "Keep title bars on windows snapped to halves and quarters. Off gives the room to the window.",
         &Config::tiled_titlebars, d));
+    s.push_back(boolean("windows.fullscreen_space", "Windows", "Fullscreen apps get their own space",
+        "As on a Mac: a window going fullscreen moves to a new space next to its own, and comes back when it leaves fullscreen.",
+        &Config::fullscreen_space, d));
     s.push_back(boolean("windows.remember_placement", "Windows", "Reopen windows where they were",
         "An app's first window comes back at the size and place it had when it last closed.",
         &Config::remember_placement, d));
