@@ -93,7 +93,7 @@ PanelWindow {
             height: 26
             radius: 13
             color: Theme.material.thick
-            border.width: 1
+            border.width: Theme.lens ? 0 : 1
             border.color: Theme.palette.separator
 
             MaterialIcon {

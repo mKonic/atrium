@@ -91,8 +91,9 @@ Singleton {
 
     // What panels are made of, thinnest to thickest: with transparency off a
     // solid window background, otherwise frosted glass (atrium blurs behind
-    // it) letting less through the thicker it is. Liquid Glass is clearer
-    // still.
+    // it) letting less through the thicker it is. Liquid Glass is the
+    // compositor's: its lens, tint and lit rim are drawn behind the panel,
+    // which only leaves a breath of colour to mark where the glass is.
     readonly property QtObject material: QtObject {
         // Bar, Dock and bar pills.
         readonly property color thin: root.glassy(0.7)
@@ -101,7 +102,7 @@ Singleton {
         // Dialogs and sheets.
         readonly property color thick: root.glassy(0.92)
         // A bar pill: clear glass, or a step off the bar when solid.
-        readonly property color pill: root.liquid ? root.alpha(root.palette.windowBackground, 0.38) : root.glass ? root.glassy(0.7) : Qt.tint(root.palette.windowBackground, root.palette.quaternaryFill)
+        readonly property color pill: root.glass ? root.glassy(0.7) : Qt.tint(root.palette.windowBackground, root.palette.quaternaryFill)
     }
 
     readonly property QtObject rounding: QtObject {
@@ -162,9 +163,12 @@ Singleton {
     // The shell kept crashing: atrium restarts it without effects.
     readonly property bool safeMode: Shell.env("ATRIUM_SAFE_MODE") === "1"
     readonly property bool glass: liquid || (Atrium.settings["appearance.transparency"] ?? false)
+    // atrium draws Liquid Glass behind the panels (only with blur on): its
+    // tint, rim light and shadow. Panels then leave all three to it.
+    readonly property bool lens: liquid && (Atrium.settings["appearance.blur"] ?? true)
 
     function glassy(a: real): color {
-        return liquid ? alpha(palette.windowBackground, a * 0.6) : glass ? alpha(palette.windowBackground, a) : palette.windowBackground;
+        return lens ? alpha(palette.windowBackground, 0.06) : glass ? alpha(palette.windowBackground, a) : palette.windowBackground;
     }
 
     // A color with its alpha replaced.

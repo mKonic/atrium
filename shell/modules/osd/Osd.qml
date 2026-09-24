@@ -82,7 +82,6 @@ PanelWindow {
     onVolumeChanged: show("volume")
     onMutedChanged: show("volume")
 
-
     Timer {
         running: true
         interval: 2000
@@ -129,9 +128,7 @@ PanelWindow {
         radius: 22
         color: Theme.material.regular
 
-        GlassRim {}
-
-        border.width: 1
+        border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
         opacity: osd.shown ? 1 : 0
         scale: osd.shown ? 1 : 0.94

@@ -168,7 +168,7 @@ Item {
         height: label.implicitHeight + Theme.padding.small * 2
         radius: Theme.rounding.full
         color: Theme.material.regular
-        border.width: 1
+        border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
         opacity: mouse.containsMouse && !mouse.pressed && !root.menuOpen ? 1 : 0
         visible: opacity > 0

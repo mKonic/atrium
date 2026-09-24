@@ -1,6 +1,7 @@
 #include "layer_surface.hpp"
 
 #include "output.hpp"
+#include "palette.hpp"
 #include "seat.hpp"
 #include "server.hpp"
 #include "view.hpp"
@@ -48,6 +49,7 @@ LayerSurface::LayerSurface(Server& srv, wlr_layer_surface_v1* surface) : server(
 }
 
 LayerSurface::~LayerSurface() {
+    server.animator.cancel_owner(this, false);
     if (output)
         for (auto& list : output->layers)
             std::erase(list, this);
@@ -101,7 +103,17 @@ void LayerSurface::commit() {
 
     if (wlr->current.committed == 0 && mapped == wlr->surface->mapped)
         return;
+    const bool was_mapped = mapped;
     mapped = wlr->surface->mapped;
+    // Liquid Glass comes in by bending light more and more, not by fading.
+    if (mapped && !was_mapped && server.config.liquid_glass) {
+        lensing_ = 0;
+        server.animator.cancel_owner(this, false);
+        server.animator.start(this, 280, Ease::OutCubic, [this](double t) {
+            lensing_ = t;
+            update_blur();
+        });
+    }
 
     wlr_scene_tree* parent = server.layer(scene_layer_for(wlr->current.layer));
     if (parent != tree->node.parent) {
@@ -156,9 +168,16 @@ wlr_scene_buffer* main_buffer(wlr_scene_tree* tree, wlr_surface* surface) {
 
 } // namespace
 
-// How deep in from a glass panel's edge the bend reaches, in logical pixels:
-// a little more than the bend itself, so it fades out rather than stopping.
-constexpr float kGlassThickness = 18;
+// Liquid Glass (macOS 26, WWDC25 "Meet Liquid Glass"): not frosted but a
+// lens. What is behind is only lightly blurred, bent at the edge like a
+// rounded bevel, and thicker glass, on a bigger panel, bends it further. It
+// takes on just enough of the appearance's colour to keep what is on it
+// legible (more where the backdrop fights that), makes the colours behind a
+// little richer, and its rim catches a light from the top left. Clear lets
+// the most through; Tinted (macOS 26.1) is more opaque.
+// How far past its edge Liquid Glass's shadow reaches: its shape blurred by
+// a Gaussian of a bevel / 2.5, which fades out by three of those.
+constexpr int kGlassShadowReach = 24;
 
 void LayerSurface::update_blur() {
     const Config& c = server.config;
@@ -176,17 +195,39 @@ void LayerSurface::update_blur() {
         blur_ = wlr_scene_blur_create(tree, 0, 0);
         wlr_scene_blur_set_should_only_blur_bottom_layer(blur_, false);  // windows under a bar too
     }
+    const int width = wlr->surface->current.width, height = wlr->surface->current.height;
     wlr_scene_node_lower_to_bottom(&blur_->node);
     wlr_scene_node_set_enabled(&blur_->node, true);
-    wlr_scene_node_set_position(&blur_->node, mask->node.x, mask->node.y);
-    wlr_scene_blur_set_size(blur_, wlr->surface->current.width, wlr->surface->current.height);
+    // Liquid Glass casts a soft shadow past the panel's edge: room for it.
+    const int reach = c.liquid_glass ? kGlassShadowReach : 0;
+    wlr_scene_node_set_position(&blur_->node, mask->node.x - reach, mask->node.y - reach);
+    wlr_scene_blur_set_size(blur_, width + 2 * reach, height + 2 * reach);
     // Only where the panel actually draws: a dock's window is mostly empty.
     wlr_scene_blur_set_transparency_mask_source(blur_, mask);
-    // Liquid Glass is clear glass, not frosted: a light blur, and what is
-    // behind bent at the panel's edge (atrium's scenefx).
-    wlr_scene_blur_set_strength(blur_, c.liquid_glass ? float(c.glass_frost) : 1.0f);
-    const float bend = c.liquid_glass ? float(c.glass_refraction) : 0.0f;
-    wlr_scene_blur_set_refraction(blur_, bend, std::max(kGlassThickness, bend * 1.3f));
+    if (!c.liquid_glass) {
+        wlr_scene_blur_set_strength(blur_, 1.0f);
+        wlr_scene_blur_set_refraction(blur_, 0, 0);
+        return;
+    }
+    wlr_scene_blur_set_strength(blur_, c.glass_tinted ? 0.45f : 0.12f);
+    // The bevel's width, from the panel's short side (a bar is thin glass,
+    // Control Center thick), and the slab's height, which sets how far light
+    // bends in it: grown in from flat as the glass materializes.
+    const float bevel = std::clamp(0.3f * float(std::min(width, height)), 8.0f, 20.0f);
+    wlr_scene_blur_set_refraction(blur_, std::max(0.01f, bevel * float(lensing_)), bevel);
+    const uint32_t bg = palette::make(c.light, c.accent).window_background;
+    wlr_scene_glass glass{};
+    glass.tint[0] = float((bg >> 24) & 0xff) / 255;
+    glass.tint[1] = float((bg >> 16) & 0xff) / 255;
+    glass.tint[2] = float((bg >> 8) & 0xff) / 255;
+    glass.tint[3] = c.glass_tinted ? (c.light ? 0.6f : 0.55f) : (c.light ? 0.2f : 0.12f);
+    glass.adapt = c.glass_tinted ? 0.2f : 0.3f;
+    glass.saturation = c.glass_tinted ? 1.2f : 1.35f;
+    glass.highlight = c.light ? 0.6f : 0.5f;
+    glass.light_dir[0] = 0.7071f;
+    glass.light_dir[1] = 0.7071f;
+    glass.shadow = c.light ? 0.16f : 0.3f;
+    wlr_scene_blur_set_glass(blur_, &glass);
 }
 
 void LayerSurface::unmap() {

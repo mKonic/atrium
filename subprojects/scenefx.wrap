@@ -5,4 +5,5 @@ depth = 1
 # 0001 Liquid Glass: blur nodes that bend the background at their edge.
 # 0002 Visibility recomputed after the cached background blur re-renders.
 # 0003 HDR output: a half-float blend buffer and PQ encoding, SDR white level.
-diff_files = scenefx/0001-liquid-glass-refraction.patch, scenefx/0002-optimized-blur-visibility.patch, scenefx/0003-hdr-output.patch
+# 0004 Liquid Glass material: squircle lens over a blurred shape field, adaptive tint, lit rim, shadow.
+diff_files = scenefx/0001-liquid-glass-refraction.patch, scenefx/0002-optimized-blur-visibility.patch, scenefx/0003-hdr-output.patch, scenefx/0004-glass-material.patch

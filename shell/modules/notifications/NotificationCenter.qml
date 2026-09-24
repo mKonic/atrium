@@ -58,9 +58,7 @@ PanelWindow {
         radius: 22
         color: Theme.material.regular
 
-        GlassRim {}
-
-        border.width: 1
+        border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: Panels.open = ""

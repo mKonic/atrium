@@ -112,7 +112,6 @@ PanelWindow {
     WlrLayershell.namespace: "atrium-control-center"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-
     Connections {
         target: Atrium
 
@@ -144,9 +143,7 @@ PanelWindow {
         radius: 24
         color: Theme.material.regular
 
-        GlassRim {}
-
-        border.width: 1
+        border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: cc.page === "" ? Panels.open = "" : cc.collapse()

@@ -47,9 +47,7 @@ PanelWindow {
         radius: 26
         color: Theme.material.thick
 
-        GlassRim {}
-
-        border.width: 1
+        border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: Session.cancel()
@@ -58,7 +56,7 @@ PanelWindow {
 
         layer.enabled: true
         layer.effect: MultiEffect {
-            shadowEnabled: true
+            shadowEnabled: !Theme.lens
             shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 8

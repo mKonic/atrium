@@ -407,14 +407,12 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Let windows with translucent backgrounds show what is behind them. Off gives every window a solid background.",
         &Config::transparency, d));
     s.push_back(boolean("appearance.liquid_glass", "Appearance", "Liquid Glass",
-        "The bar, Dock and panels as clear glass with a lit edge over a vivid blur, as in macOS 26. Windows stay as they are.",
+        "The bar, Dock and panels as glass that bends what is behind at its edge and catches the light, as in macOS 26. Windows stay as they are.",
         &Config::liquid_glass, d));
-    s.push_back(number("appearance.glass_refraction", T::Float, "Appearance", "Glass refraction",
-        "How far Liquid Glass bends what is behind at a panel's edge, in pixels. 0 is flat glass.",
-        &Config::glass_refraction, d, 0, 40));
-    s.push_back(number("appearance.glass_frost", T::Float, "Appearance", "Glass frost",
-        "How much Liquid Glass blurs what is behind it: 0 is clear, 1 as frosted as the plain panels.",
-        &Config::glass_frost, d, 0, 1));
+    s.push_back(choice("appearance.glass_style", "Appearance", "Liquid Glass style",
+        "Clear lets the most of what is behind through. Tinted makes the glass more opaque, for more contrast.",
+        {"clear", "tinted"}, d.glass_tinted ? "tinted" : "clear",
+        [](Config& c, const json& v) { c.glass_tinted = v.get<std::string>() == "tinted"; }));
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));

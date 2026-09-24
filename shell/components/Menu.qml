@@ -20,7 +20,7 @@ Rectangle {
     height: column.implicitHeight + Theme.padding.small * 2
     radius: Theme.rounding.normal
     color: Theme.material.regular
-    border.width: 1
+    border.width: Theme.lens ? 0 : 1
     border.color: Theme.palette.separator
 
     Column {

@@ -7,8 +7,6 @@ Rectangle {
     radius: Theme.rounding.full
     implicitHeight: Theme.bar.inner
 
-    GlassRim {}
-
     Behavior on color {
         CAnim {}
     }

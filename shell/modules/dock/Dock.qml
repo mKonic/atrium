@@ -191,13 +191,10 @@ PanelWindow {
         radius: 22
         color: Theme.material.thin
 
-        GlassRim {}
-
-
         Behavior on color {
             CAnim {}
         }
-        border.width: 1
+        border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
 
         // No animation of its own: it follows the icons, which grow and

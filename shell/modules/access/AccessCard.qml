@@ -17,16 +17,14 @@ Rectangle {
     height: column.implicitHeight + 48
     radius: 26
     color: Theme.material.thick
-    border.width: 1
+    border.width: Theme.lens ? 0 : 1
     border.color: Theme.palette.separator
     focus: true
     Keys.onEscapePressed: AccessPrompt.answer(false)
 
-    GlassRim {}
-
     layer.enabled: true
     layer.effect: MultiEffect {
-        shadowEnabled: true
+        shadowEnabled: !Theme.lens
         shadowColor: Theme.palette.shadow
         shadowBlur: 1
         shadowVerticalOffset: 8

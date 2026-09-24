@@ -35,6 +35,8 @@ private:
     void update_blur();
 
     wlr_scene_blur* blur_ = nullptr;  // in `tree`, which frees it
+    // Liquid Glass materializes: its lensing grows in on map (0..1).
+    double lensing_ = 1;
     uint32_t keyboard_interactive_ = 0;  // as of the last commit
 
     Listener<> destroy_;

@@ -15,14 +15,12 @@ Rectangle {
     height: 52
     radius: 16
     color: Theme.material.thick
-    border.width: 1
+    border.width: Theme.lens ? 0 : 1
     border.color: Theme.palette.separator
-
-    GlassRim {}
 
     layer.enabled: true
     layer.effect: MultiEffect {
-        shadowEnabled: true
+        shadowEnabled: !Theme.lens
         shadowColor: Theme.palette.shadow
         shadowBlur: 1
         shadowVerticalOffset: 6

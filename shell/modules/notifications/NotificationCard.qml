@@ -80,8 +80,6 @@ Rectangle {
     radius: 18
     color: Theme.material.regular
 
-    GlassRim {}
-
     border.width: critical ? 2 : 1
     border.color: critical ? Theme.palette.red : Theme.palette.separator
 
