@@ -1,0 +1,3 @@
+module shell.modules.access
+AccessDialog 1.0 AccessDialog.qml
+AccessCard 1.0 AccessCard.qml

@@ -25,6 +25,7 @@
 #include "keyboard_layouts.hpp"
 #include "welcome.hpp"
 #include "share.hpp"
+#include "access.hpp"
 #include "datetime.hpp"
 #include "region.hpp"
 #include "autostart.hpp"
@@ -223,6 +224,8 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Welcome; });
         qmlRegisterSingletonType<ShareChooser>(uri, 1, 0, "ShareChooser",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ShareChooser; });
+        qmlRegisterSingletonType<AccessPrompt>(uri, 1, 0, "AccessPrompt",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new AccessPrompt; });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Accounts; });
         qmlRegisterSingletonType<Emojis>(uri, 1, 0, "Emojis",

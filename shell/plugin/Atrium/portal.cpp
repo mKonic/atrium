@@ -1,6 +1,7 @@
 #include "portal.hpp"
 
 #include "compositor.hpp"
+#include "paths.hpp"
 
 #include <QColor>
 #include <QCryptographicHash>
@@ -11,6 +12,10 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
@@ -45,6 +50,34 @@ QDBusArgument& operator<<(QDBusArgument& arg, const PortalColor& c) {
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalColor& c) {
     arg.beginStructure();
     arg >> c.r >> c.g >> c.b;
+    arg.endStructure();
+    return arg;
+}
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalPair& p) {
+    arg.beginStructure();
+    arg << p.id << p.label;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalPair& p) {
+    arg.beginStructure();
+    arg >> p.id >> p.label;
+    arg.endStructure();
+    return arg;
+}
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalChoice& c) {
+    arg.beginStructure();
+    arg << c.id << c.label << c.options << c.initial;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalChoice& c) {
+    arg.beginStructure();
+    arg >> c.id >> c.label >> c.options >> c.initial;
     arg.endStructure();
     return arg;
 }
@@ -92,9 +125,14 @@ PortalBackend::PortalBackend() {
     qDBusRegisterMetaType<PortalShortcuts>();
     qDBusRegisterMetaType<PortalColor>();
     qDBusRegisterMetaType<PortalNamespaces>();
+    qDBusRegisterMetaType<PortalPair>();
+    qDBusRegisterMetaType<PortalPairs>();
+    qDBusRegisterMetaType<PortalChoice>();
+    qDBusRegisterMetaType<PortalChoices>();
     new GlobalShortcutsAdaptor(this);
     new SettingsAdaptor(this);
     new WallpaperAdaptor(this);
+    new AccessAdaptor(this);
     new InhibitAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
@@ -269,6 +307,92 @@ QDBusVariant SettingsAdaptor::Read(const QString& ns, const QString& key) {
         return {};
     }
     return QDBusVariant(a.value(key));
+}
+
+// --- Access ------------------------------------------------------------------
+
+namespace {
+
+// An installed file, else the source tree's (running from the build tree).
+QString shellFile(const QString& name) {
+    const QString installed = QStringLiteral(ATRIUM_DATADIR "/shell/") + name;
+    return QFileInfo::exists(installed) ? installed : QStringLiteral(ATRIUM_SOURCE_DIR "/shell/") + name;
+}
+
+QString shellProgram() {
+    const QString installed = QStringLiteral(ATRIUM_BINDIR "/atrium-shell");
+    return QFileInfo::exists(installed) ? installed : QStringLiteral(ATRIUM_BUILD_DIR "/shell/host/atrium-shell");
+}
+
+} // namespace
+
+PortalRequest::PortalRequest(const QString& path, QObject* parent) : QObject(parent), path_(path) {
+    bus().registerObject(path, this, QDBusConnection::ExportAllSlots);
+}
+
+PortalRequest::~PortalRequest() {
+    bus().unregisterObject(path_);
+}
+
+uint AccessAdaptor::AccessDialog(const QDBusObjectPath& handle, const QString& app, const QString&,
+                                 const QString& title, const QString& subtitle, const QString& body,
+                                 const QVariantMap& options, QVariantMap&) {
+    PortalBackend* backend = PortalBackend::instance();
+    const QDBusMessage call = backend->delayReply();
+
+    PortalChoices choices;
+    if (options.contains("choices"))
+        options.value("choices").value<QDBusArgument>() >> choices;
+    QJsonArray asked;
+    for (const PortalChoice& c : choices) {
+        QJsonArray opts;
+        for (const PortalPair& o : c.options)
+            opts.append(QJsonObject{{"id", o.id}, {"label", o.label}});
+        asked.append(QJsonObject{{"id", c.id}, {"label", c.label}, {"options", opts}, {"value", c.initial}});
+    }
+    const QJsonObject question{
+        {"app", app},
+        {"title", title},
+        {"subtitle", subtitle},
+        {"body", body},
+        {"icon", options.value("icon").toString()},
+        {"grant", options.value("grant_label").toString()},
+        {"deny", options.value("deny_label").toString()},
+        {"choices", asked},
+    };
+
+    auto* request = new PortalRequest(handle.path(), backend);
+    auto* dialog = new QProcess(request);
+    // Answers once: 0 allowed, 1 not, 2 closed or failed.
+    auto answer = [call, request](uint response, const PortalPairs& picked) {
+        QVariantMap results;
+        if (response == 0)
+            results.insert("choices", QVariant::fromValue(picked));
+        bus().send(call.createReply({response, results}));
+        request->deleteLater();
+    };
+    QObject::connect(request, &PortalRequest::closed, dialog, [dialog] { dialog->kill(); });
+    QObject::connect(dialog, &QProcess::finished, request, [dialog, answer](int code, QProcess::ExitStatus status) {
+        const QJsonObject reply = QJsonDocument::fromJson(dialog->readAllStandardOutput()).object();
+        if (status != QProcess::NormalExit || code != 0 || !reply.contains("response")) {
+            answer(2, {});
+            return;
+        }
+        PortalPairs picked;
+        const QJsonObject values = reply.value("choices").toObject();
+        for (auto it = values.begin(); it != values.end(); ++it)
+            picked.append({it.key(), it.value().toString()});
+        answer(uint(reply.value("response").toInt(2)), picked);
+    });
+    QObject::connect(dialog, &QProcess::errorOccurred, request, [answer](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart)
+            answer(2, {});
+    });
+    dialog->setProcessChannelMode(QProcess::SeparateChannels);
+    dialog->start(shellProgram(), {shellFile("access.qml")});
+    dialog->write(QJsonDocument(question).toJson(QJsonDocument::Compact));
+    dialog->closeWriteChannel();
+    return 2;  // unused: the reply goes later
 }
 
 // --- Wallpaper ---------------------------------------------------------------

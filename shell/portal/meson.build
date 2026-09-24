@@ -5,9 +5,9 @@ portal_moc = qt6.compile_moc(headers: ['../plugin/Atrium/portal.hpp', '../plugin
   dependencies: portal_qt)
 
 executable('atrium-portal', 'main.cpp', '../plugin/Atrium/portal.cpp', '../plugin/Atrium/compositor.cpp',
-  '../../src/accent.cpp', '../../src/palette.cpp', portal_moc,
+  '../../src/accent.cpp', '../../src/palette.cpp', portal_moc, paths_h,
   dependencies: [portal_qt, atrium_runtime_dep],
-  include_directories: include_directories('../plugin/Atrium', '../../src'),
+  include_directories: include_directories('../plugin/Atrium', '../../src', '../..'),
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),
   override_options: ['b_sanitize=none'],
   install_rpath: get_option('prefix') / get_option('libdir') / 'atrium',

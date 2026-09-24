@@ -9,6 +9,7 @@
 #include <QDBusAbstractAdaptor>
 #include <QDBusArgument>
 #include <QDBusContext>
+#include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QDBusUnixFileDescriptor>
 #include <QHash>
@@ -31,8 +32,24 @@ struct PortalColor {
 };
 using PortalNamespaces = QMap<QString, QVariantMap>;
 
+// Access dialog choices: a(ssa(ss)s) asked, a(ss) answered.
+struct PortalPair {
+    QString id, label;
+};
+using PortalPairs = QList<PortalPair>;
+struct PortalChoice {
+    QString id, label;
+    PortalPairs options;  // none: a checkbox, "true" or "false"
+    QString initial;
+};
+using PortalChoices = QList<PortalChoice>;
+
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalColor& c);
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalColor& c);
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalPair& p);
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalPair& p);
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalChoice& c);
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalChoice& c);
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalShortcut& s);
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalShortcut& s);
 
@@ -76,6 +93,11 @@ public:
 
     // Takes the bus name; false when another backend has it.
     Q_INVOKABLE bool start();
+    // The call being answered, to answer later (an adaptor's slot returns first).
+    QDBusMessage delayReply() {
+        setDelayedReply(true);
+        return message();
+    }
 
     PortalSession* session(const QString& path) const { return sessions_.value(path); }
     void addSession(PortalSession* s);
@@ -145,6 +167,43 @@ private:
     QVariantMap last_;
 };
 
+// Access: the portal asks the user to allow something (an app setting the
+// wallpaper, running in the background). atrium's dialog (access.qml) is
+// its own process, handed the question on stdin; it answers on stdout.
+class AccessAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Access")
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit AccessAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {}
+    uint version() const { return 1; }
+
+public slots:
+    uint AccessDialog(const QDBusObjectPath& handle, const QString& app, const QString& parentWindow,
+                      const QString& title, const QString& subtitle, const QString& body,
+                      const QVariantMap& options, QVariantMap& results);
+};
+
+// A question on screen, until answered or the portal closes it.
+class PortalRequest : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Request")
+
+public:
+    PortalRequest(const QString& path, QObject* parent);
+    ~PortalRequest() override;
+
+public slots:
+    void Close() { emit closed(); }
+
+signals:
+    void closed();
+
+private:
+    QString path_;
+};
+
 // Wallpaper: an app sets the desktop picture. atrium keeps its own copy
 // (a sandboxed app's file can vanish) and sets it at once; it has no lock
 // screen, so "lockscreen" alone is refused.
@@ -207,6 +266,10 @@ signals:
 } // namespace atrium
 
 Q_DECLARE_METATYPE(atrium::PortalColor)
+Q_DECLARE_METATYPE(atrium::PortalPair)
+Q_DECLARE_METATYPE(atrium::PortalPairs)
+Q_DECLARE_METATYPE(atrium::PortalChoice)
+Q_DECLARE_METATYPE(atrium::PortalChoices)
 Q_DECLARE_METATYPE(atrium::PortalNamespaces)
 Q_DECLARE_METATYPE(atrium::PortalShortcut)
 Q_DECLARE_METATYPE(atrium::PortalShortcuts)
