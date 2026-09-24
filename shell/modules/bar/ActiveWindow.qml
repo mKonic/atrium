@@ -19,6 +19,9 @@ Item {
         return t === appName ? "" : t;
     }
 
+    // The room there is before the bar's right side; the title gives way first.
+    property real maxWidth: 10000
+
     implicitHeight: Theme.bar.inner
     implicitWidth: row.implicitWidth
     opacity: window ? 1 : 0
@@ -47,12 +50,14 @@ Item {
         }
 
         StyledText {
+            id: titleText
+
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(implicitWidth, 420)
+            width: Math.max(0, Math.min(implicitWidth, 420, root.maxWidth - x))
             elide: Text.ElideRight
             text: root.title
             color: Theme.palette.m3OnSurfaceVariant
-            visible: text.length > 0
+            visible: text.length > 0 && width > 40
         }
     }
 }

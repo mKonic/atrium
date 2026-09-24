@@ -41,6 +41,7 @@ constexpr PageInfo kPages[] = {
     {"Keyboard Shortcuts", "keyboard_command_key", "#8e8e93"},
     {"Mouse & Touchpad", "mouse", "#8e8e93"},
     {"Power", "bolt", "#30d158"},
+    {"Disks", "hard_drive", "#8e8e93"},
     {"Screen Recording", "screen_record", "#ff453a"},
     {"Privacy & Security", "back_hand", "#0a84ff"},
     {"Session", "power_settings_new", "#636366"},

@@ -272,6 +272,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            DisksPage {
+                visible: root.query === "" && root.page === "Disks"
+                width: parent.width
+            }
+
             PowerPage {
                 visible: root.query === "" && root.page === "Power"
                 width: parent.width

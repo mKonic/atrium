@@ -536,6 +536,12 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Keep notifications quiet: they go straight to the notification center without popping up.", false,
         [](Config&, const json&) {}));
 
+    // Disks (read by the shell)
+    s.push_back(make("disks.automount", SettingType::Bool, "Disks", "Open drives when plugged in",
+        "Mount a USB drive or memory card as soon as it's plugged in, and offer to open it.", true,
+        [](Config&, const json&) {}));
+    s.back().needs = "udisks2";
+
     // Date & Time (read by the shell)
     s.push_back(make("clock.24_hour", SettingType::Bool, "Date & Time", "24-hour time",
         "The menu bar's clock as 14:05 rather than 2:05 PM.", false, [](Config&, const json&) {}));

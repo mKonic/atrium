@@ -23,6 +23,7 @@ const QList<Service>& services() {
         {"power-profiles-daemon", "power-profiles-daemon",
          {"org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles"}, true},
         {"accountsservice", "AccountsService", {"org.freedesktop.Accounts"}, true},
+        {"udisks2", "udisks2", {"org.freedesktop.UDisks2"}, true},
     };
     return list;
 }

@@ -28,6 +28,7 @@
 #include "region.hpp"
 #include "autostart.hpp"
 #include "battery.hpp"
+#include "disks.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -200,6 +201,12 @@ public:
         // The battery: `Battery.present`, `Battery.glyph`, `Battery.remaining`.
         qmlRegisterSingletonType<Battery>(uri, 1, 0, "Battery", [](QQmlEngine*, QJSEngine*) -> QObject* {
             QObject* o = Battery::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        // Drives: `Disks.disks`, `Disks.ejectable`.
+        qmlRegisterSingletonType<Disks>(uri, 1, 0, "Disks", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Disks::instance();
             QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
             return o;
         });

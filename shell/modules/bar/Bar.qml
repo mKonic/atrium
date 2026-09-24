@@ -148,6 +148,7 @@ PanelWindow {
 
             ActiveWindow {
                 anchors.verticalCenter: parent.verticalCenter
+                maxWidth: rightRow.x - leftRow.x - x - Theme.spacing.large
                 opacity: bar.chrome ? 1 : 0
 
                 Behavior on opacity {
@@ -172,6 +173,8 @@ PanelWindow {
         }
 
         Row {
+            id: rightRow
+
             anchors.right: parent.right
             opacity: bar.chrome ? 1 : 0
 
@@ -193,6 +196,11 @@ PanelWindow {
             }
 
             InputMenu {
+                anchors.verticalCenter: parent.verticalCenter
+                bar: bar
+            }
+
+            EjectMenu {
                 anchors.verticalCenter: parent.verticalCenter
                 bar: bar
             }

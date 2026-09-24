@@ -15,3 +15,4 @@ TrayMenu 1.0 TrayMenu.qml
 Volume 1.0 Volume.qml
 InputMenu 1.0 InputMenu.qml
 BatteryIndicator 1.0 BatteryIndicator.qml
+EjectMenu 1.0 EjectMenu.qml

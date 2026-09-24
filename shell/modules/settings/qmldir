@@ -12,6 +12,7 @@ DefaultAppsPage 1.0 DefaultAppsPage.qml
 Destination 1.0 Destination.qml
 DeviceRow 1.0 DeviceRow.qml
 DevicesEditor 1.0 DevicesEditor.qml
+DisksPage 1.0 DisksPage.qml
 DisplaysEditor 1.0 DisplaysEditor.qml
 Dropdown 1.0 Dropdown.qml
 Field 1.0 Field.qml
