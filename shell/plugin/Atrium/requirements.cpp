@@ -24,6 +24,7 @@ const QList<Service>& services() {
          {"org.freedesktop.UPower.PowerProfiles", "net.hadess.PowerProfiles"}, true},
         {"accountsservice", "AccountsService", {"org.freedesktop.Accounts"}, true},
         {"udisks2", "udisks2", {"org.freedesktop.UDisks2"}, true},
+        {"packagekit", "PackageKit", {"org.freedesktop.PackageKit"}, true},
     };
     return list;
 }

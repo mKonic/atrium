@@ -27,6 +27,7 @@ optdepends=(
   'ddcutil: brightness of external monitors'
   'fcitx5: input methods'
   'xdg-terminal-exec: terminal apps started in your terminal'
+  'packagekit: software updates in Settings'
 )
 provides=(atrium)
 conflicts=(atrium)

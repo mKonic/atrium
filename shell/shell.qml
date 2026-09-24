@@ -86,6 +86,9 @@ ShellRoot {
                 Shell.launch("welcome.qml", {});
             if (name === "record")
                 Recorder.toggle();
+            // "session:restart" and the rest, asked for from another app (Settings).
+            if (name.startsWith("session:"))
+                Session.request(name.slice(8));
             // "screenshot" (the toolbar), "screenshot-region", "-window", "-screen".
             if (name.startsWith("screenshot"))
                 Shell.launch("capture.qml", { ATRIUM_CAPTURE_MODE: name.slice(11) || "toolbar" });

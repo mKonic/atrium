@@ -36,6 +36,7 @@ SettingRow 1.0 SettingRow.qml
 Settings 1.0 Settings.qml
 Sheet 1.0 Sheet.qml
 ShortcutsEditor 1.0 ShortcutsEditor.qml
+SoftwareUpdatePage 1.0 SoftwareUpdatePage.qml
 SoundPage 1.0 SoundPage.qml
 TextControl 1.0 TextControl.qml
 UsersPage 1.0 UsersPage.qml

@@ -45,13 +45,14 @@ constexpr PageInfo kPages[] = {
     {"Printers", "print", "#8e8e93"},
     {"Screen Recording", "screen_record", "#ff453a"},
     {"Privacy & Security", "back_hand", "#0a84ff"},
+    {"Software Update", "system_update_alt", "#8e8e93"},
     {"Session", "power_settings_new", "#636366"},
     {"Users & Groups", "group", "#8e8e93"},
 };
 
 // Pages with their own view and no schema settings.
 const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound", "Users & Groups", "Language & Region",
-                             "Default Apps", "Login Items", "Printers"};
+                             "Default Apps", "Login Items", "Printers", "Software Update"};
 
 } // namespace
 

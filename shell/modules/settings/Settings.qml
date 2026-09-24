@@ -287,6 +287,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            SoftwareUpdatePage {
+                visible: root.query === "" && root.page === "Software Update"
+                width: parent.width
+            }
+
             PowerPage {
                 visible: root.query === "" && root.page === "Power"
                 width: parent.width
