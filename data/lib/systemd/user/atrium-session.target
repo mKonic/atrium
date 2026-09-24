@@ -1,0 +1,11 @@
+# The session atrium runs: it brings up graphical-session.target, so user
+# services made for a graphical session start, and the apps set to start at
+# login (XDG autostart). atrium starts it once its environment is exported,
+# and stops it when it quits. Under uwsm, uwsm does this instead.
+[Unit]
+Description=atrium session
+Documentation=man:systemd.special(7)
+BindsTo=graphical-session.target
+Wants=graphical-session-pre.target xdg-desktop-autostart.target
+After=graphical-session-pre.target
+Before=xdg-desktop-autostart.target

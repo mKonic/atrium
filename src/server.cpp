@@ -153,6 +153,9 @@ void Server::rebuild_from_registry() {
 }
 
 Server::~Server() {
+    // The session's services and autostarted apps go with it.
+    if (session_target_)
+        spawn("systemctl --user -q is-active atrium-session.target && systemctl --user stop --no-block atrium-session.target");
     teardown();
     g_server = nullptr;
 }
@@ -548,8 +551,14 @@ void Server::run(const char* startup_cmd) {
     if (!nested && !config.greeter) {
         // D-Bus-started apps get the session's environment, themes included.
         // (A nested atrium's environment isn't the host session's.)
+        // Then the session's services and autostart apps, unless something
+        // else (uwsm) already runs the graphical session.
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
-              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS");
+              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS; "
+              "systemctl --user -q is-active graphical-session.target || "
+              "{ systemctl --user -q cat atrium-session.target >/dev/null 2>&1 && "
+              "systemctl --user start --no-block atrium-session.target; }");
+        session_target_ = true;
         apply_gtk_button_layout();
         apply_color_scheme(config.light);
         apply_accent_color(config.accent);

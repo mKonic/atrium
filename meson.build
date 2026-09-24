@@ -85,6 +85,7 @@ install_data('data/share/xdg-desktop-portal/atrium-portals.conf', install_dir: g
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # The login screen: an example greetd config (atrium --greeter), and where
 # it remembers the last login.
+install_data('data/lib/systemd/user/atrium-session.target', install_dir: get_option('prefix') / 'lib' / 'systemd' / 'user')
 install_data('data/lib/tmpfiles.d/atrium-greeter.conf', install_dir: get_option('prefix') / 'lib' / 'tmpfiles.d')
 install_data('data/share/atrium/greetd-config.toml', install_dir: get_option('datadir') / 'atrium')
 subdir('shell/plugin/Atrium')
