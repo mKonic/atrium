@@ -315,6 +315,13 @@ json Ipc::devices_json(const Server& server) {
             {"acceleration", opt(own ? own->acceleration : std::nullopt)},
             {"natural_scroll", opt(own ? own->natural_scroll : std::nullopt)},
             {"left_handed", opt(own ? own->left_handed : std::nullopt)},
+            // What libinput has now, whoever set it.
+            {"applied", dev ? json{{"speed", libinput_device_config_accel_is_available(dev)
+                                               ? json(libinput_device_config_accel_get_speed(dev)) : json(nullptr)},
+                                   {"flat", libinput_device_config_accel_get_profile(dev) == LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT},
+                                   {"natural_scroll", libinput_device_config_scroll_get_natural_scroll_enabled(dev) != 0},
+                                   {"left_handed", libinput_device_config_left_handed_get(dev) != 0}}
+                            : json(nullptr)},
         });
     }
     return list;
