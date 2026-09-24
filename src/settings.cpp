@@ -536,6 +536,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Keep notifications quiet: they go straight to the notification center without popping up.", false,
         [](Config&, const json&) {}));
 
+    // Date & Time (read by the shell)
+    s.push_back(make("clock.24_hour", SettingType::Bool, "Date & Time", "24-hour time",
+        "The menu bar's clock as 14:05 rather than 2:05 PM.", false, [](Config&, const json&) {}));
+
     // Desktop (read by the shell)
     s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
         "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));

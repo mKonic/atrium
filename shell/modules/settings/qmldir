@@ -6,6 +6,8 @@ BluetoothPage 1.0 BluetoothPage.qml
 Card 1.0 Card.qml
 ChoiceControl 1.0 ChoiceControl.qml
 ColorControl 1.0 ColorControl.qml
+ControlRow 1.0 ControlRow.qml
+DateTimePage 1.0 DateTimePage.qml
 Destination 1.0 Destination.qml
 DeviceRow 1.0 DeviceRow.qml
 DevicesEditor 1.0 DevicesEditor.qml
@@ -20,6 +22,7 @@ MissingNote 1.0 MissingNote.qml
 NetworkPage 1.0 NetworkPage.qml
 NumberControl 1.0 NumberControl.qml
 PillButton 1.0 PillButton.qml
+RegionPage 1.0 RegionPage.qml
 RulesEditor 1.0 RulesEditor.qml
 SectionHeader 1.0 SectionHeader.qml
 SettingRow 1.0 SettingRow.qml
@@ -28,5 +31,5 @@ Sheet 1.0 Sheet.qml
 ShortcutsEditor 1.0 ShortcutsEditor.qml
 SoundPage 1.0 SoundPage.qml
 TextControl 1.0 TextControl.qml
-WallpaperControl 1.0 WallpaperControl.qml
 UsersPage 1.0 UsersPage.qml
+WallpaperControl 1.0 WallpaperControl.qml

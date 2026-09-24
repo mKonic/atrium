@@ -33,6 +33,8 @@ constexpr PageInfo kPages[] = {
     {"Windows", "select_window", "#0a84ff"},
     {"Displays", "brightness_high", "#0a84ff"},
     {"Notifications", "notifications", "#ff453a"},
+    {"Language & Region", "language", "#0a84ff"},
+    {"Date & Time", "schedule", "#8e8e93"},
     {"Keyboard", "keyboard", "#8e8e93"},
     {"Keyboard Shortcuts", "keyboard_command_key", "#8e8e93"},
     {"Mouse & Touchpad", "mouse", "#8e8e93"},
@@ -44,7 +46,7 @@ constexpr PageInfo kPages[] = {
 };
 
 // Pages with their own view and no schema settings.
-const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound", "Users & Groups"};
+const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound", "Users & Groups", "Language & Region"};
 
 } // namespace
 

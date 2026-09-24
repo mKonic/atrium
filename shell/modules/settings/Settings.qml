@@ -272,6 +272,16 @@ FloatingWindow {
                 width: parent.width
             }
 
+            RegionPage {
+                visible: root.query === "" && root.page === "Language & Region"
+                width: parent.width
+            }
+
+            DateTimePage {
+                visible: root.query === "" && root.page === "Date & Time"
+                width: parent.width
+            }
+
             KeyboardPage {
                 visible: root.query === "" && root.page === "Keyboard"
                 width: parent.width

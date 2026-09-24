@@ -1,5 +1,6 @@
 import QtQuick
 import Atrium.Shell
+import Atrium
 import shell.components
 import shell.services
 
@@ -27,7 +28,7 @@ Pill {
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
-            text: Qt.formatDateTime(clock.date, "ddd d MMM   h:mm AP")
+            text: Qt.formatDateTime(clock.date, (Atrium.settings["clock.24_hour"] ?? false) ? "ddd d MMM   H:mm" : "ddd d MMM   h:mm AP")
             font.weight: Font.Medium
         }
     }

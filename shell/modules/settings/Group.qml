@@ -14,9 +14,11 @@ Column {
     width: parent?.width ?? 0
     spacing: 8
 
+    // A card with nothing to say above it has no heading.
     SectionHeader {
         id: header
 
+        visible: implicitHeight > 0
         width: parent.width
         title: root.title
         subtitle: root.subtitle

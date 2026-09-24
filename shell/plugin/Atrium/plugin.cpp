@@ -24,6 +24,8 @@
 #include "default_apps.hpp"
 #include "keyboard_layouts.hpp"
 #include "welcome.hpp"
+#include "datetime.hpp"
+#include "region.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -189,6 +191,10 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new DefaultApps; });
         qmlRegisterSingletonType<KeyboardLayouts>(uri, 1, 0, "KeyboardLayouts",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new KeyboardLayouts; });
+        qmlRegisterSingletonType<DateTime>(uri, 1, 0, "DateTime",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new DateTime; });
+        qmlRegisterSingletonType<Region>(uri, 1, 0, "LocaleSettings",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Region; });
         qmlRegisterSingletonType<Welcome>(uri, 1, 0, "Welcome",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Welcome; });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",

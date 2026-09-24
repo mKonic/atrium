@@ -22,6 +22,7 @@ Item {
         spacing: 2
 
         StyledText {
+            visible: text.length > 0
             text: root.title
             font.pointSize: Theme.font.size.larger
             font.weight: Font.DemiBold
