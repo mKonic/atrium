@@ -28,8 +28,19 @@ endforeach
 # interface tables too.
 own_protocol_xmls = [
   wl_protocol_dir / 'staging/ext-background-effect/ext-background-effect-v1.xml',
+  wl_protocol_dir / 'staging/xdg-toplevel-drag/xdg-toplevel-drag-v1.xml',
 ]
 protocol_code = []
+# Interfaces the own protocols refer to (xdg-toplevel-drag names
+# xdg_toplevel), which wlroots keeps to itself.
+foreach xml : [wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml']
+  protocol_code += custom_target(
+    xml.underscorify() + '_code',
+    input: xml,
+    output: '@BASENAME@-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+  )
+endforeach
 foreach xml : own_protocol_xmls
   protocol_headers += custom_target(
     xml.underscorify() + '_server_h',

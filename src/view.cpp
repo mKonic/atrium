@@ -1,4 +1,5 @@
 #include "view.hpp"
+
 #include "background_effect.hpp"
 
 #include "geometry.hpp"
@@ -8,6 +9,7 @@
 #include "seat.hpp"
 #include "server.hpp"
 #include "space.hpp"
+#include "toplevel_drag.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -212,6 +214,11 @@ void View::place() {
         target = server.output_at(cx, cy);
     }
     set_output(target);
+
+    // Torn out of another window (a browser tab): under the pointer, riding
+    // the drag that made it.
+    if (server.toplevel_drags && server.toplevel_drags->place(this))
+        return;
 
     // A tiled space finds it a slot. Born tiled, it has no floating place
     // to go back to yet (untile() finds it one).

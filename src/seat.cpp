@@ -10,6 +10,7 @@
 #include "server.hpp"
 #include "space.hpp"
 #include "snap_preview.hpp"
+#include "toplevel_drag.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
 
@@ -546,7 +547,14 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         return;
     }
 
-    Hit hit = server.hit_test(cursor->x, cursor->y);
+    // A window riding a drag and drop follows the pointer, which looks
+    // through it for where to drop.
+    View* riding = nullptr;
+    if (wlr->drag) {
+        server.toplevel_drags->motion(cursor->x, cursor->y);
+        riding = server.toplevel_drags->dragged();
+    }
+    Hit hit = server.hit_test(cursor->x, cursor->y, riding);
 
     // A title-bar button held down: it shows pressed only while the pointer
     // stays on it, and nothing else gets the pointer meanwhile.

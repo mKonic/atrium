@@ -21,6 +21,7 @@ class Titlebar;
 class Seat;
 class InputMethodRelay;
 class BackgroundEffects;
+class ToplevelDrags;
 class SessionLock;
 class Overview;
 class Registry;
@@ -80,7 +81,9 @@ public:
     wlr_scene_tree* layer(Layer l) const { return layers_[int(l)]; }
 
     Output* output_at(double lx, double ly) const;
-    Hit hit_test(double lx, double ly) const;
+    // `through`: a window the pointer looks through (one riding a drag).
+    Hit hit_test(double lx, double ly, View* through = nullptr) const;
+    Hit hit_test_scene(double lx, double ly) const;
     static Owner owner_of(wlr_surface* surface);
 
     // Focus. `raise` also brings the view to the top of the stack.
@@ -227,6 +230,7 @@ public:
     std::unique_ptr<Seat> seat;
     std::unique_ptr<InputMethodRelay> input_method;
     std::unique_ptr<BackgroundEffects> background_effects;
+    std::unique_ptr<ToplevelDrags> toplevel_drags;
     uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;

@@ -33,6 +33,21 @@ if add_languages('c', required: false, native: false)
     dependencies: dependency('wayland-client'),
     c_args: ['-Wno-unused-parameter'])
 
+  # A tab torn out of a window, riding the drag (xdg-toplevel-drag-v1).
+  drag_probe_src = []
+  foreach xml : [wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
+                 wl_protocol_dir / 'staging/xdg-toplevel-drag/xdg-toplevel-drag-v1.xml']
+    drag_probe_src += custom_target(xml.underscorify() + '_client_h',
+      input: xml, output: '@BASENAME@-client-protocol.h',
+      command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
+    drag_probe_src += custom_target(xml.underscorify() + '_client_code',
+      input: xml, output: '@BASENAME@-client-protocol.c',
+      command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
+  endforeach
+  executable('drag_probe', 'drag_probe.c', drag_probe_src,
+    dependencies: dependency('wayland-client'),
+    c_args: ['-Wno-unused-parameter'])
+
   # An X11 window of any _NET_WM_WINDOW_TYPE.
   xcb_dep = dependency('xcb', required: false)
   if xcb_dep.found()

@@ -155,6 +155,23 @@ check "an input method starts" grep -q activate "$work/ime.log"
 vc in "$box" key a key b >/dev/null 2>&1
 check "it types into the app" grep -qx "αIME>" "$work/typed"
 
+# A tab torn out of a window rides the drag (xdg-toplevel-drag).
+ctl action spawn "sh -c '$build/tests/drag_probe > $work/drag.log 2>&1'" >/dev/null
+check "a window to tear a tab from" grep -qx ready "$work/drag.log"
+check "and it is on screen" json windows "any(w['app_id'] == 'drag-probe' for w in d)"
+read -r px py < <(ctl -j windows | python3 -c "
+import json,sys
+g=[w for w in json.load(sys.stdin) if w['app_id'] == 'drag-probe'][0]['geometry']
+print(g['x'] + g['width'] // 2, g['y'] + g['height'] // 2)")
+vc in "$box" move "$px" "$py" >/dev/null 2>&1
+vc in "$box" down >/dev/null 2>&1
+check "pressing tears one off" json windows "any(w['app_id'] == 'drag-probe-torn' for w in d)"
+for _ in 1 2 3 4 5 6; do vc in "$box" moverel 25 15 >/dev/null 2>&1; done
+check "which follows the pointer" json windows \
+    "any(w['app_id'] == 'drag-probe-torn' and w['geometry']['x'] == $px + 150 - 20 for w in d)"
+vc in "$box" up >/dev/null 2>&1
+check "and stays where it was let go" grep -qE "dropped|cancelled" "$work/drag.log"
+
 xm=$(ctl -j windows | python3 -c "import json,sys; print([w['id'] for w in json.load(sys.stdin) if w['app_id'] == 'Xmessage'][0])")
 ctl close "$xm" >/dev/null
 check "a window closes" json windows "not any(w['id'] == $xm for w in d)"

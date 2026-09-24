@@ -1,6 +1,7 @@
 #include "server.hpp"
 #include "input_method.hpp"
 #include "background_effect.hpp"
+#include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
 #include <fstream>
@@ -326,6 +327,7 @@ void Server::setup() {
     seat = std::make_unique<Seat>(*this);
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
+    toplevel_drags = std::make_unique<ToplevelDrags>(*this);
 
     output_manager = wlr_output_manager_v1_create(display);
     output_apply_.connect(&output_manager->events.apply,
@@ -492,6 +494,7 @@ void Server::teardown() {
     spaces.clear();
     input_method.reset();  // hooked to the seat
     background_effects.reset();
+    toplevel_drags.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
@@ -758,7 +761,18 @@ Owner Server::owner_of(wlr_surface* surface) {
     return owner;
 }
 
-Hit Server::hit_test(double lx, double ly) const {
+Hit Server::hit_test(double lx, double ly, View* through) const {
+    // Out of the scene for the lookup only; nothing draws in between.
+    const bool hide = through && through->tree && through->tree->node.enabled;
+    if (hide)
+        wlr_scene_node_set_enabled(&through->tree->node, false);
+    Hit hit = hit_test_scene(lx, ly);
+    if (hide)
+        wlr_scene_node_set_enabled(&through->tree->node, true);
+    return hit;
+}
+
+Hit Server::hit_test_scene(double lx, double ly) const {
     Hit hit;
     const int lowest = locked ? int(Layer::Lock) : 0;
     for (int l = kLayerCount - 1; l >= lowest && !hit.surface; --l) {
