@@ -30,6 +30,7 @@ struct Entry {
     std::string startup_wm_class;
     std::vector<std::string> keywords;
     std::vector<std::string> categories;
+    std::vector<std::string> mime_types;
     std::vector<std::string> only_show_in;
     std::vector<std::string> not_show_in;
     bool no_display = false;

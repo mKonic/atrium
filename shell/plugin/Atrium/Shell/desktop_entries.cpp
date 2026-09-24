@@ -1,4 +1,5 @@
 #include "desktop_entries.hpp"
+#include "terminal.hpp"
 
 #include <QDir>
 #include <QDirIterator>
@@ -67,6 +68,10 @@ QStringList DesktopEntry::categories() const {
     return strings(e_.categories);
 }
 
+QStringList DesktopEntry::mimeTypes() const {
+    return strings(e_.mime_types);
+}
+
 QStringList DesktopEntry::argv(const std::string& exec) const {
     return strings(desktop_entry::exec_argv(exec, e_.name, e_.icon, file_.toStdString()));
 }
@@ -83,7 +88,15 @@ void DesktopEntry::launch(QStringList argv) const {
             argv.prepend("xdg-terminal-exec");
         } else {
             QStringList term = QProcess::splitCommand(DesktopEntries::instance()->terminal());
-            term.append("-e");
+            if (term.isEmpty())
+                for (const Terminal& t : kTerminals)
+                    if (!QStandardPaths::findExecutable(t.program).isEmpty()) {
+                        term = {QString::fromUtf8(t.program)};
+                        break;
+                    }
+            if (term.isEmpty())
+                return;
+            term += QProcess::splitCommand(QString::fromStdString(terminal_run_args(term.first().toStdString())));
             argv = term + argv;
         }
     }
@@ -113,7 +126,7 @@ DesktopEntries::DesktopEntries() {
 }
 
 void DesktopEntries::setTerminal(const QString& t) {
-    if (t == terminal_ || t.isEmpty())
+    if (t == terminal_)
         return;
     terminal_ = t;
     emit terminalChanged();

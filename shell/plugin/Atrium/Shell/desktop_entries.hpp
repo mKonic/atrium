@@ -49,6 +49,7 @@ class DesktopEntry : public QObject {
     Q_PROPERTY(QString startupClass READ startupClass CONSTANT)
     Q_PROPERTY(QStringList keywords READ keywords CONSTANT)
     Q_PROPERTY(QStringList categories READ categories CONSTANT)
+    Q_PROPERTY(QStringList mimeTypes READ mimeTypes CONSTANT)
     Q_PROPERTY(bool noDisplay READ noDisplay CONSTANT)
     Q_PROPERTY(bool runInTerminal READ runInTerminal CONSTANT)
     Q_PROPERTY(QList<QObject*> actions READ actions CONSTANT)
@@ -68,6 +69,7 @@ public:
     QString startupClass() const { return QString::fromStdString(e_.startup_wm_class); }
     QStringList keywords() const;
     QStringList categories() const;
+    QStringList mimeTypes() const;
     bool noDisplay() const { return !shown_; }
     bool runInTerminal() const { return e_.terminal; }
     QList<QObject*> actions() const { return actions_; }
@@ -109,8 +111,9 @@ class DesktopEntries : public QObject {
     Q_OBJECT
     Q_PROPERTY(atrium::shell::EntryList* applications READ applications NOTIFY applicationsChanged)
     // How apps that want a terminal are started: the terminal's command, to
-    // which "-e" and the app's command are added. xdg-terminal-exec, when
-    // installed, is used instead.
+    // which its way of running one ("-e", "--") and the app's command are
+    // added; none picks an installed one. xdg-terminal-exec, when installed,
+    // is used instead.
     Q_PROPERTY(QString terminal READ terminal WRITE setTerminal NOTIFY terminalChanged)
 
 public:
@@ -137,7 +140,7 @@ private:
 
     EntryList list_;
     QHash<QString, DesktopEntry*> byId_;
-    QString terminal_ = QStringLiteral("foot");
+    QString terminal_;  // none: the first of kTerminals installed
     QFileSystemWatcher watcher_;
     QTimer rescan_;
 };

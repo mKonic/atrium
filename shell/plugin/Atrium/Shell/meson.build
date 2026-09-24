@@ -25,6 +25,7 @@ runtime_moc = qt6.compile_moc(headers: ['shortcut_inhibitor.hpp', 'scope.hpp', '
 atrium_runtime = shared_library('atrium-shell-runtime',
   'screens.cpp', 'shell_api.cpp', 'variants.cpp', 'system_clock.cpp', 'windows.cpp', 'desktop_entries.cpp', 'desktop_entry_core.cpp', 'shortcut_inhibitor.cpp', runtime_moc, client_protocols,
   dependencies: [shell_qt, shell_qt_private, layershellqt, wayland_client],
+  include_directories: include_directories('../../../../src'),
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),
   override_options: ['b_sanitize=none'],
   install: true,

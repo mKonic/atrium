@@ -176,7 +176,7 @@ void DesktopFiles::openFolder() {
 void DesktopFiles::terminalHere() {
     QStringList cmd = QProcess::splitCommand(Compositor::instance()->setting("shortcuts.terminal", QString()).toString());
     if (cmd.isEmpty()) {
-        run("sh", {"-c", kDefaultTerminal}, folder_);
+        run("sh", {"-c", QString::fromStdString(default_terminal_command())}, folder_);
         return;
     }
     const QString program = cmd.takeFirst();

@@ -17,6 +17,7 @@ Icon=firefox
 Exec=/usr/lib/firefox/firefox %u
 Keywords=Internet;WWW;Browser\;Web;
 Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/https;
 StartupWMClass=firefox
 Actions=new-window;new-private-window;
 
@@ -62,6 +63,7 @@ TEST(DesktopEntry, ListsKeepEscapedSemicolons) {
     ASSERT_TRUE(e);
     EXPECT_EQ(e->keywords, (std::vector<std::string>{"Internet", "WWW", "Browser;Web"}));
     EXPECT_EQ(e->categories, (std::vector<std::string>{"Network", "WebBrowser"}));
+    EXPECT_EQ(e->mime_types, (std::vector<std::string>{"text/html", "x-scheme-handler/https"}));
 }
 
 TEST(DesktopEntry, NeedsTheMainGroup) {

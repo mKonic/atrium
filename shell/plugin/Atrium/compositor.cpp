@@ -1,6 +1,7 @@
 #include "compositor.hpp"
 
 #include "accent.hpp"
+#include "desktop_entries.hpp"
 #include "palette.hpp"
 
 #include <QJsonArray>
@@ -40,6 +41,10 @@ Compositor* Compositor::instance() {
 Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     connect(&requests_, &QLocalSocket::readyRead, this, &Compositor::readReplies);
     connect(&events_, &QLocalSocket::readyRead, this, &Compositor::readEvents);
+    // Apps that run in a terminal get the one the shortcut opens.
+    connect(this, &Compositor::settingsChanged, this, [this] {
+        shell::DesktopEntries::instance()->setTerminal(settings_.value("shortcuts.terminal").toString());
+    });
     connect(&requests_, &QLocalSocket::connected, this, [this] {
         emit connectedChanged();
         refreshAll();

@@ -146,6 +146,7 @@ std::optional<Entry> parse(std::string_view text, std::string_view locale) {
     e.startup_wm_class = unescape(raw("StartupWMClass"));
     e.keywords = split_list(unescape(pick(g, "Keywords", locales)));
     e.categories = split_list(raw("Categories"));
+    e.mime_types = split_list(raw("MimeType"));
     e.only_show_in = split_list(raw("OnlyShowIn"));
     e.not_show_in = split_list(raw("NotShowIn"));
     e.no_display = truthy(raw("NoDisplay"));
