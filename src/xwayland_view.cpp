@@ -12,11 +12,17 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     // The wlr_surface only exists between associate and dissociate.
     wlr_log(WLR_DEBUG, "x11: window 0x%x created", xsurface->window_id);
     associate_.connect(&xsurface->events.associate, [this](void*) {
-        wlr_log(WLR_DEBUG, "x11: window 0x%x has its surface (mapped: %d)", xsurface->window_id,
-                surface()->mapped);
+        wlr_log(WLR_DEBUG, "x11: window 0x%x has its surface (mapped: %d, buffer: %d)", xsurface->window_id,
+                surface()->mapped, wlr_surface_has_buffer(surface()));
         map_.connect(&surface()->events.map, [this](void*) { map(); });
         unmap_.connect(&surface()->events.unmap, [this](void*) { unmap(); });
         commit_.connect(&surface()->events.commit, [this](void*) { commit(); });
+        // wlroots maps an X11 surface on a commit with a buffer after this
+        // point. Xwayland's Wayland and X11 sockets race, so the buffer can
+        // land before the surface is paired with its window, and a window
+        // that never redraws (xmessage, a splash) then never maps.
+        if (!surface()->mapped && wlr_surface_has_buffer(surface()))
+            wlr_surface_map(surface());
     });
     dissociate_.connect(&xsurface->events.dissociate, [this](void*) {
         map_.disconnect();
