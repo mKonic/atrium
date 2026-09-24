@@ -1,0 +1,2 @@
+module shell.modules.clipboard
+ClipboardPicker 1.0 ClipboardPicker.qml

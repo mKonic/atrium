@@ -1,7 +1,7 @@
 #pragma once
-// Apps for the launcher and the Dock. Quickshell reads the desktop entries
-// (and launches them); QML hands its DesktopEntries singleton in as
-// `entries`, and everything else happens here.
+// Apps for the launcher and the Dock, from the shell's DesktopEntries (which
+// also launches them). QML hands the singleton in as `entries`, so these
+// hear when the installed apps change.
 
 #include <QAbstractListModel>
 #include <QTimer>
@@ -12,7 +12,7 @@
 
 namespace atrium {
 
-// Desktop entry lookups on Quickshell's DesktopEntries singleton.
+// Desktop entry lookups.
 class EntryIndex {
 public:
     void setSource(QObject* entries) { entries_ = entries; }
@@ -26,7 +26,6 @@ public:
     QList<QObject*> all() const;
 
 private:
-    QObject* call(const char* method, const QString& arg) const;
     QPointer<QObject> entries_;
 };
 

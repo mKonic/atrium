@@ -12,7 +12,7 @@ class Server;
 // running: started with the session, restarted when it dies, backing off
 // if it keeps dying right away.
 //
-// session.shell picks it: "builtin" runs atrium's own Quickshell shell,
+// session.shell picks it: "builtin" runs atrium's own shell (atrium-shell),
 // anything else is a command, empty or "none" runs nothing.
 class ShellProcess {
 public:

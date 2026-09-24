@@ -1,11 +1,10 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Services.SystemTray
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import Atrium
+import shell.components
+import shell.services
 
 Pill {
     id: root

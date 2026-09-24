@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A small popup menu: a title and rows of {icon, text, run}. The owner
 // places it and closes it.

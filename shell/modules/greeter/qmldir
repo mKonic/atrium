@@ -1,0 +1,2 @@
+module shell.modules.greeter
+GreeterScreen 1.0 GreeterScreen.qml

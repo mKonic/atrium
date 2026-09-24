@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // The rounded container every bar item sits in.
 Rectangle {

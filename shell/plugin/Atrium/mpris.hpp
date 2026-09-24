@@ -6,6 +6,8 @@
 #include <QDBusVariant>
 #include <QElapsedTimer>
 #include <QObject>
+#include <QPointer>
+#include <QStringList>
 #include <QTimer>
 #include <QVariant>
 
@@ -19,6 +21,7 @@ class MprisPlayer : public QObject {
     Q_PROPERTY(QString trackTitle READ trackTitle NOTIFY changed)
     Q_PROPERTY(QString trackArtist READ trackArtist NOTIFY changed)
     Q_PROPERTY(QString trackAlbum READ trackAlbum NOTIFY changed)
+    Q_PROPERTY(QString subtitle READ subtitle NOTIFY changed)  // "Artist · Album"
     Q_PROPERTY(QString trackArtUrl READ trackArtUrl NOTIFY changed)
     Q_PROPERTY(bool isPlaying READ isPlaying NOTIFY changed)
     Q_PROPERTY(double length READ length NOTIFY changed)
@@ -38,6 +41,13 @@ public:
     QString trackTitle() const { return title_; }
     QString trackArtist() const { return artist_; }
     QString trackAlbum() const { return album_; }
+    QString subtitle() const {
+        QStringList parts;
+        for (const QString& p : {artist_, album_})
+            if (!p.isEmpty())
+                parts.append(p);
+        return parts.join(QStringLiteral(" · "));
+    }
     QString trackArtUrl() const { return artUrl_; }
     bool isPlaying() const { return status_ == "Playing"; }
     double length() const { return lengthUs_ / 1e6; }
@@ -82,12 +92,19 @@ class Mpris : public QObject {
     Q_OBJECT
     Q_PROPERTY(QList<QObject*> players READ players NOTIFY playersChanged)
     Q_PROPERTY(QObject* active READ active NOTIFY activeChanged)
+    // The one picked on the Now Playing page, while it's there.
+    Q_PROPERTY(QObject* chosen READ chosen WRITE setChosen NOTIFY activeChanged)
+    // What Now Playing shows: the chosen one, else the active one.
+    Q_PROPERTY(QObject* current READ current NOTIFY activeChanged)
 
 public:
     static Mpris* instance();
 
     QList<QObject*> players() const;
     QObject* active() const;
+    QObject* chosen() const { return chosen_; }
+    void setChosen(QObject* p);
+    QObject* current() const { return chosen_ ? chosen_.data() : active(); }
 
 signals:
     void playersChanged();
@@ -102,6 +119,7 @@ private:
     void remove(const QString& service);
 
     QList<MprisPlayer*> players_;
+    QPointer<MprisPlayer> chosen_;
 };
 
 } // namespace atrium

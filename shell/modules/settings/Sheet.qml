@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A macOS-style sheet over the window: a title, a few fields, a line for
 // what went wrong, and Cancel and the action. Fields go in as children.

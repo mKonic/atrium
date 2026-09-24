@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.services
+import shell.services
 
 // A group of settings on one rounded card, rows split by hairlines.
 Rectangle {

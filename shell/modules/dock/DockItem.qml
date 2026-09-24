@@ -1,10 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // One app in the Dock: its icon, a dot while it runs, its name on hover.
@@ -95,7 +94,7 @@ Item {
         implicitSize: size
         scale: 0.6 + 0.4 * root.presence
         // A file URL is a picture the window sent itself.
-        source: root.icon.startsWith("file:") ? root.icon : Quickshell.iconPath(root.icon, "application-x-executable")
+        source: root.icon.startsWith("file:") ? root.icon : Shell.iconPath(root.icon, "application-x-executable")
         asynchronous: true
         smooth: true
         mipmap: true

@@ -1,25 +1,23 @@
-//@ pragma UseQApplication
-
 import QtQuick
-import Quickshell
+import Atrium.Shell
 import Atrium
-import qs.modules.bar
-import qs.modules.clipboard
-import qs.modules.controlcenter
-import qs.modules.desktop
-import qs.modules.dock
-import qs.modules.emoji
-import qs.modules.launcher
-import qs.modules.notifications
-import qs.modules.osd
-import qs.modules.polkit
-import qs.modules.session
-import qs.modules.windowmenu
+import shell.modules.bar
+import shell.modules.clipboard
+import shell.modules.controlcenter
+import shell.modules.desktop
+import shell.modules.dock
+import shell.modules.emoji
+import shell.modules.launcher
+import shell.modules.notifications
+import shell.modules.osd
+import shell.modules.polkit
+import shell.modules.session
+import shell.modules.windowmenu
 
 // atrium's desktop shell.
 ShellRoot {
     Variants {
-        model: Quickshell.screens
+        model: Shell.screens
 
         Bar {
             required property ShellScreen modelData
@@ -29,7 +27,7 @@ ShellRoot {
     }
 
     Variants {
-        model: Quickshell.screens
+        model: Shell.screens
 
         Desktop {
             required property ShellScreen modelData
@@ -39,7 +37,7 @@ ShellRoot {
     }
 
     Variants {
-        model: Quickshell.screens
+        model: Shell.screens
 
         Dock {
             required property ShellScreen modelData
@@ -76,8 +74,7 @@ ShellRoot {
         function onShellAction(name: string): void {
             if (name !== "settings" && !name.startsWith("settings:"))
                 return;
-            Quickshell.execDetached(["env", `ATRIUM_SETTINGS_PAGE=${name.slice(9)}`, "qs", "-n", "-p",
-                                     `${Quickshell.shellDir}/settings.qml`]);
+            Shell.launch("settings.qml", { ATRIUM_SETTINGS_PAGE: name.slice(9) });
         }
     }
 

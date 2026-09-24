@@ -7,6 +7,8 @@
 #include <QDBusServiceWatcher>
 #include <QDBusVariant>
 
+#include <tuple>
+
 namespace atrium {
 
 namespace {
@@ -50,6 +52,12 @@ BluetoothDevice::BluetoothDevice(const QString& path, QObject* parent) : QObject
 }
 
 void BluetoothDevice::apply(const QString& interface, const QVariantMap& props) {
+    const auto shown = [this] {
+        return std::tuple(name_, alias_, address_, icon_, paired_, trusted_, connected_, connecting_, battery_);
+    };
+    const auto place = [this] { return std::tuple(paired_, connected_, name()); };
+    const auto before = shown();
+    const auto wasPlace = place();
     for (auto it = props.begin(); it != props.end(); ++it) {
         const QVariant v = plain(it.value());
         if (interface == kBattery) {
@@ -70,7 +78,12 @@ void BluetoothDevice::apply(const QString& interface, const QVariantMap& props) 
             connecting_ = disconnecting_ = false;
         }
     }
+    // Signal strength and the like change often while looking; nothing shown.
+    if (shown() == before)
+        return;
     emit changed();
+    if (place() != wasPlace)
+        emit placeChanged();
 }
 
 void BluetoothDevice::dropBattery() {
@@ -89,6 +102,23 @@ int BluetoothDevice::state() const {
     if (disconnecting_)
         return BluetoothDeviceState::Disconnecting;
     return connected_ ? BluetoothDeviceState::Connected : BluetoothDeviceState::Disconnected;
+}
+
+QString BluetoothDevice::glyph() const {
+    const auto has = [this](const char* word) { return icon_.contains(QLatin1String(word)); };
+    if (has("headset") || has("headphone") || has("audio"))
+        return QStringLiteral("headphones");
+    if (has("phone"))
+        return QStringLiteral("smartphone");
+    if (has("keyboard"))
+        return QStringLiteral("keyboard");
+    if (has("mouse"))
+        return QStringLiteral("mouse");
+    if (has("gaming") || has("joystick"))
+        return QStringLiteral("sports_esports");
+    if (has("computer"))
+        return QStringLiteral("computer");
+    return QStringLiteral("bluetooth");
 }
 
 bool BluetoothDevice::named() const {
@@ -202,7 +232,7 @@ void BluetoothAdapter::add(BluetoothDevice* d) {
         return;
     d->setParent(this);
     devices_.append(d);
-    QObject::connect(d, &BluetoothDevice::changed, this, &BluetoothAdapter::devicesChanged);
+    QObject::connect(d, &BluetoothDevice::placeChanged, this, &BluetoothAdapter::devicesChanged);
     emit devicesChanged();
 }
 

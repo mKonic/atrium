@@ -1,13 +1,11 @@
-//@ pragma UseQApplication
-
 import QtQuick
-import Quickshell
-import qs.modules.greeter
+import Atrium.Shell
+import shell.modules.greeter
 
 // atrium's login screen: what `atrium --greeter` shows under greetd.
 ShellRoot {
     Variants {
-        model: Quickshell.screens
+        model: Shell.screens
 
         GreeterScreen {
             required property ShellScreen modelData

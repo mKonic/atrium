@@ -2,15 +2,10 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Bluetooth
-import Quickshell.Networking
-import Quickshell.Services.Mpris
-import Quickshell.Services.Pipewire
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
 import Atrium
+import shell.components
+import shell.services
 
 // Control Center: the switches and sliders people reach for, one click from
 // the bar. Wi-Fi and Bluetooth open their lists in place.
@@ -24,14 +19,10 @@ PanelWindow {
     property string joinError: ""
     property bool showOthers: false  // "Other Networks" / "Other Devices" disclosed
 
-    readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
-    readonly property var wifiNetwork: wifi?.networks.values.find(n => n.connected) ?? null
-    readonly property var adapter: Bluetooth.defaultAdapter
-    readonly property var btConnected: adapter?.devices.values.filter(d => d.connected) ?? []
-    readonly property PwNode sink: Pipewire.defaultAudioSink
-    property var chosenPlayer: null  // picked on the Now Playing page
-    readonly property var player: (Mpris.players.values.includes(chosenPlayer) ? chosenPlayer : null)
-                                  ?? Mpris.players.values.find(p => p.isPlaying) ?? Mpris.players.values[0] ?? null
+    readonly property WifiNetwork wifiNetwork: Network.current
+    readonly property BluetoothAdapter adapter: Bluetooth.adapter
+    readonly property AudioNode sink: Audio.sink
+    readonly property var player: Mpris.current
     readonly property bool dnd: Atrium.settings["notifications.dnd"] ?? false
     readonly property string profile: Atrium.settings["power.profile"] ?? "performance"
 
@@ -87,6 +78,15 @@ PanelWindow {
         onFinished: if (cc.open === 0) cc.page = ""
     }
 
+    // Looking for Wi-Fi networks only while their list is open.
+    Binding {
+        when: cc.page === "wifi" && Network.wifiEnabled
+        target: Network
+        property: "scanning"
+        value: true
+        restoreMode: Binding.RestoreValue
+    }
+
     // Looking for new Bluetooth devices only while their list is open.
     Binding {
         when: cc.page === "bluetooth" && cc.showOthers && (cc.adapter?.enabled ?? false)
@@ -95,7 +95,7 @@ PanelWindow {
         value: true
         restoreMode: Binding.RestoreValue
     }
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         right: true
@@ -112,9 +112,6 @@ PanelWindow {
     WlrLayershell.namespace: "atrium-control-center"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-    PwObjectTracker {
-        objects: [cc.sink]
-    }
 
     Connections {
         target: Atrium
@@ -177,12 +174,12 @@ PanelWindow {
 
                     width: (parent.width - 10) / 2
                     wide: true
-                    icon: !Networking.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
+                    icon: !Network.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
                     title: "Wi-Fi"
-                    subtitle: !cc.wifi ? "No Wi-Fi" : !Networking.wifiEnabled ? "Off" : cc.wifiNetwork?.name ?? "Not connected"
-                    on: Networking.wifiEnabled && !!cc.wifiNetwork
-                    expandable: !!cc.wifi
-                    onToggled: Networking.wifiEnabled = !Networking.wifiEnabled
+                    subtitle: !Network.hasWifi ? "No Wi-Fi" : !Network.wifiEnabled ? "Off" : cc.wifiNetwork?.name ?? "Not connected"
+                    on: Network.wifiEnabled && !!cc.wifiNetwork
+                    expandable: Network.hasWifi
+                    onToggled: Network.wifiEnabled = !Network.wifiEnabled
                     onExpand: cc.expand("wifi", wifiTile)
                 }
 
@@ -191,10 +188,10 @@ PanelWindow {
 
                     width: (parent.width - 10) / 2
                     wide: true
-                    icon: !cc.adapter?.enabled ? "bluetooth_disabled" : cc.btConnected.length ? "bluetooth_connected" : "bluetooth"
+                    icon: !cc.adapter?.enabled ? "bluetooth_disabled" : cc.adapter.connectedNames ? "bluetooth_connected" : "bluetooth"
                     title: "Bluetooth"
                     subtitle: !cc.adapter ? "No Bluetooth" : !cc.adapter.enabled ? "Off"
-                            : cc.btConnected.length ? cc.btConnected.map(d => d.name).join(", ") : "On"
+                            : cc.adapter.connectedNames || "On"
                     on: cc.adapter?.enabled ?? false
                     expandable: !!cc.adapter
                     onToggled: if (cc.adapter) cc.adapter.enabled = !cc.adapter.enabled
@@ -282,20 +279,20 @@ PanelWindow {
 
                 BigSlider {
                     width: parent.width
-                    icon: cc.sink?.audio?.muted ? "volume_off" : "volume_up"
-                    value: cc.sink?.audio?.muted ? 0 : cc.sink?.audio?.volume ?? 0
+                    icon: cc.sink?.muted ? "volume_off" : "volume_up"
+                    value: cc.sink?.muted ? 0 : cc.sink?.volume ?? 0
                     onMoved: v => {
-                        if (!cc.sink?.audio)
+                        if (!cc.sink)
                             return;
-                        cc.sink.audio.muted = false;
-                        cc.sink.audio.volume = v;
+                        cc.sink.muted = false;
+                        cc.sink.volume = v;
                     }
                 }
 
                 StyledText {
                     width: parent.width
                     leftPadding: 4
-                    text: cc.sink?.description ?? ""
+                    text: cc.sink?.label ?? ""
                     elide: Text.ElideRight
                     font.pointSize: Theme.font.size.small
                     color: Theme.palette.m3OnSurfaceVariant
@@ -475,10 +472,10 @@ PanelWindow {
                         anchors.right: parent.right
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
-                        checked: cc.page === "wifi" ? Networking.wifiEnabled : (cc.adapter?.enabled ?? false)
+                        checked: cc.page === "wifi" ? Network.wifiEnabled : (cc.adapter?.enabled ?? false)
                         onToggled: {
                             if (cc.page === "wifi")
-                                Networking.wifiEnabled = !Networking.wifiEnabled;
+                                Network.wifiEnabled = !Network.wifiEnabled;
                             else if (cc.adapter)
                                 cc.adapter.enabled = !cc.adapter.enabled;
                         }
@@ -492,29 +489,29 @@ PanelWindow {
                     visible: cc.page === "media"
                     width: list.width
                     player: cc.player
-                    players: Mpris.players.values
-                    onChoose: p => cc.chosenPlayer = p
+                    players: Mpris.players
+                    onChoose: p => Mpris.chosen = p
                 }
 
                 // --- Wi-Fi ---
                 SectionLabel {
-                    visible: cc.page === "wifi" && Networking.wifiEnabled
+                    visible: cc.page === "wifi" && Network.wifiEnabled
                     text: "Known Networks"
                 }
 
                 Repeater {
-                    model: cc.page === "wifi" && Networking.wifiEnabled ? cc.networks(true) : []
+                    model: cc.page === "wifi" && Network.wifiEnabled ? Network.saved : []
 
                     delegate: networkRow
                 }
 
                 Disclosure {
-                    visible: cc.page === "wifi" && Networking.wifiEnabled
+                    visible: cc.page === "wifi" && Network.wifiEnabled
                     text: "Other Networks"
                 }
 
                 Repeater {
-                    model: cc.page === "wifi" && Networking.wifiEnabled && cc.showOthers ? cc.networks(false) : []
+                    model: cc.page === "wifi" && Network.wifiEnabled && cc.showOthers ? Network.unsaved : []
 
                     delegate: networkRow
                 }
@@ -526,13 +523,12 @@ PanelWindow {
                 }
 
                 Repeater {
-                    model: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false)
-                           ? (cc.adapter?.devices.values ?? []).filter(d => d.paired || d.connected) : []
+                    model: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false) ? cc.adapter.mine : []
 
                     Entry {
                         required property var modelData
 
-                        glyph: cc.deviceGlyph(modelData)
+                        glyph: modelData.glyph
                         name: modelData.name || modelData.deviceName || "Unknown"
                         connected: modelData.connected
                         busy: modelData.state === BluetoothDeviceState.Connecting || modelData.state === BluetoothDeviceState.Disconnecting
@@ -543,7 +539,7 @@ PanelWindow {
 
                 StyledText {
                     visible: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false)
-                             && !(cc.adapter?.devices.values ?? []).some(d => d.paired || d.connected)
+                             && cc.adapter.mine.length === 0
                     x: 14
                     topPadding: 4
                     bottomPadding: 8
@@ -558,31 +554,18 @@ PanelWindow {
                 }
 
                 Repeater {
-                    model: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false) && cc.showOthers
-                           ? (cc.adapter?.devices.values ?? []).filter(d => !d.paired && !d.connected && d.name && d.name !== d.address.replace(/:/g, "-")).slice(0, 8) : []
+                    model: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false) && cc.showOthers ? cc.adapter.nearby : []
 
                     Entry {
                         id: nearby
 
                         required property var modelData
 
-                        glyph: cc.deviceGlyph(modelData)
+                        glyph: modelData.glyph
                         name: modelData.name
                         busy: modelData.pairing
                         status: modelData.pairing ? "Pairing…" : ""
                         onClicked: modelData.pairing ? modelData.cancelPair() : modelData.pair()
-
-                        // Paired: trust it, so it reconnects by itself, and connect.
-                        Connections {
-                            target: nearby.modelData
-
-                            function onPairedChanged(): void {
-                                if (!nearby.modelData.paired)
-                                    return;
-                                nearby.modelData.trusted = true;
-                                nearby.modelData.connect();
-                            }
-                        }
                     }
                 }
 
@@ -634,7 +617,7 @@ PanelWindow {
                 width: list.width
 
                 Entry {
-                    glyph: network.modelData.signalStrength > 0.66 ? "network_wifi" : network.modelData.signalStrength > 0.33 ? "network_wifi_2_bar" : "network_wifi_1_bar"
+                    glyph: network.modelData.glyph
                     name: network.modelData.name
                     connected: network.modelData.connected
                     busy: network.modelData.stateChanging
@@ -734,23 +717,6 @@ PanelWindow {
                     }
                 }
             }
-    }
-
-    // Known networks (or the rest), connected first, strongest next.
-    function networks(known: bool): var {
-        return (wifi?.networks.values ?? []).filter(n => (n.known || n.connected) === known)
-            .sort((a, b) => b.connected - a.connected || b.signalStrength - a.signalStrength).slice(0, 12);
-    }
-
-    function deviceGlyph(d: var): string {
-        const icon = d?.icon ?? "";
-        return icon.includes("headset") || icon.includes("headphone") || icon.includes("audio") ? "headphones"
-             : icon.includes("phone") ? "smartphone"
-             : icon.includes("keyboard") ? "keyboard"
-             : icon.includes("mouse") ? "mouse"
-             : icon.includes("gaming") || icon.includes("joystick") ? "sports_esports"
-             : icon.includes("computer") ? "computer"
-             : "bluetooth";
     }
 
     // A row of a module's list: a round badge (filled while connected), the

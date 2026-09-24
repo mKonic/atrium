@@ -21,6 +21,7 @@ class BluetoothDevice : public QObject {
     Q_PROPERTY(QString deviceName READ deviceName NOTIFY changed)  // what the device calls itself
     Q_PROPERTY(QString address READ address CONSTANT)
     Q_PROPERTY(QString icon READ icon NOTIFY changed)           // BlueZ's icon name ("audio-headset")
+    Q_PROPERTY(QString glyph READ glyph NOTIFY changed)         // Material Symbols name for it
     Q_PROPERTY(bool paired READ paired NOTIFY changed)
     Q_PROPERTY(bool trusted READ trusted NOTIFY changed)
     Q_PROPERTY(bool connected READ connected NOTIFY changed)
@@ -38,6 +39,7 @@ public:
     QString deviceName() const { return name_; }
     QString address() const { return address_; }
     QString icon() const { return icon_; }
+    QString glyph() const;
     bool paired() const { return paired_; }
     bool trusted() const { return trusted_; }
     bool connected() const { return connected_; }
@@ -60,6 +62,8 @@ public:
 
 signals:
     void changed();
+    // Paired, connected or named changed: which of the adapter's lists it is in.
+    void placeChanged();
 
 private slots:
     void propertiesChanged(const QString& interface, const QVariantMap& changed, const QStringList& invalidated);

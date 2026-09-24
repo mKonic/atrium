@@ -12,6 +12,7 @@
 #include "audio.hpp"
 #include "bluetooth.hpp"
 #include "network.hpp"
+#include "keyed_model.hpp"
 #include "sysinfo.hpp"
 #include "emojis.hpp"
 #include "netspeed.hpp"
@@ -147,6 +148,7 @@ public:
         qmlRegisterUncreatableType<BluetoothAdapter>(uri, 1, 0, "BluetoothAdapter", "Bluetooth.adapter");
         qmlRegisterUncreatableType<BluetoothDevice>(uri, 1, 0, "BluetoothDevice", "from an adapter");
         qmlRegisterUncreatableType<BluetoothDeviceState>(uri, 1, 0, "BluetoothDeviceState", "an enum");
+        qmlRegisterType<KeyedModel>(uri, 1, 0, "KeyedModel");
         // Networks: `Network.networks`, `Network.wifiEnabled`.
         qmlRegisterSingletonType<Network>(uri, 1, 0, "Network", [](QQmlEngine*, QJSEngine*) -> QObject* {
             QObject* o = Network::instance();

@@ -1,9 +1,8 @@
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // The distribution's logo at the bar's left end, as the Apple menu is on a
@@ -28,7 +27,7 @@ Item {
 
         anchors.centerIn: parent
         implicitSize: 18
-        source: Quickshell.iconPath(SystemInfo.logo, "start-here")
+        source: Shell.iconPath(SystemInfo.logo, "start-here")
         visible: false
     }
 

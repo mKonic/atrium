@@ -1,6 +1,6 @@
 pragma Singleton
 
-import Quickshell
+import Atrium.Shell
 
 // Which drop-down panel is open ("notifications", or "" for none). One at a
 // time, like menus.

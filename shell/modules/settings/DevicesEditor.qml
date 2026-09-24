@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // Mouse & Touchpad, per device: each mouse or touchpad plugged in, with its

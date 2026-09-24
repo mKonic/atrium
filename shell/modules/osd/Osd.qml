@@ -2,13 +2,10 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Services.Mpris
-import Quickshell.Services.Pipewire
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
 import Atrium
+import shell.components
+import shell.services
 
 // The media keys, and what they changed: volume, microphone and brightness
 // show for a moment under the bar's right end, as macOS shows them. Volume
@@ -16,11 +13,11 @@ import Atrium
 PanelWindow {
     id: osd
 
-    readonly property PwNode sink: Pipewire.defaultAudioSink
-    readonly property PwNode source: Pipewire.defaultAudioSource
-    readonly property real volume: sink?.audio?.volume ?? 0
-    readonly property bool muted: sink?.audio?.muted ?? false
-    readonly property var player: Mpris.players.values.find(p => p.isPlaying) ?? Mpris.players.values[0] ?? null
+    readonly property AudioNode sink: Audio.sink
+    readonly property AudioNode source: Audio.source
+    readonly property real volume: sink?.volume ?? 0
+    readonly property bool muted: sink?.muted ?? false
+    readonly property var player: Mpris.active
 
     property string kind: "volume"  // volume, brightness, mic
     property bool shown: false
@@ -35,7 +32,7 @@ PanelWindow {
     }
 
     function setVolume(direction: int, fine: bool): void {
-        const a = sink?.audio;
+        const a = sink;
         if (!a)
             return;
         a.muted = false;
@@ -60,14 +57,14 @@ PanelWindow {
             case "volume-down": osd.setVolume(-1, false); break;
             case "volume-down-fine": osd.setVolume(-1, true); break;
             case "volume-mute":
-                if (osd.sink?.audio) {
-                    osd.sink.audio.muted = !osd.sink.audio.muted;
+                if (osd.sink) {
+                    osd.sink.muted = !osd.sink.muted;
                     osd.show("volume");
                 }
                 break;
             case "mic-mute":
-                if (osd.source?.audio) {
-                    osd.source.audio.muted = !osd.source.audio.muted;
+                if (osd.source) {
+                    osd.source.muted = !osd.source.muted;
                     osd.show("mic");
                 }
                 break;
@@ -85,9 +82,6 @@ PanelWindow {
     onVolumeChanged: show("volume")
     onMutedChanged: show("volume")
 
-    PwObjectTracker {
-        objects: [osd.sink, osd.source]
-    }
 
     Timer {
         running: true
@@ -102,15 +96,15 @@ PanelWindow {
         onTriggered: osd.shown = false
     }
 
-    readonly property real level: kind === "brightness" ? Brightness.value / 100 : kind === "mic" ? (source?.audio?.volume ?? 0) : volume
-    readonly property bool off: kind === "mic" ? (source?.audio?.muted ?? false) : kind === "volume" && muted
+    readonly property real level: kind === "brightness" ? Brightness.value / 100 : kind === "mic" ? (source?.volume ?? 0) : volume
+    readonly property bool off: kind === "mic" ? (source?.muted ?? false) : kind === "volume" && muted
     readonly property string glyph: kind === "brightness" ? (level > 0.5 ? "brightness_high" : "brightness_low")
         : kind === "mic" ? (off ? "mic_off" : "mic")
         : off || level === 0 ? "volume_off" : level < 0.34 ? "volume_mute" : level < 0.67 ? "volume_down" : "volume_up"
     readonly property string title: kind === "brightness" ? "Display" : kind === "mic" ? (off ? "Microphone Off" : "Microphone")
-        : (sink?.description || sink?.nickname || "Sound")
+        : (sink?.label || "Sound")
 
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     visible: shown || card.opacity > 0
     anchors {
         top: true

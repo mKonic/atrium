@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A slider with its value beside it. The setting changes when the handle is
 // let go (each change is saved); the number follows the drag.

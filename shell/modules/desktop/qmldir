@@ -1,0 +1,3 @@
+module shell.modules.desktop
+Desktop 1.0 Desktop.qml
+DesktopIcon 1.0 DesktopIcon.qml

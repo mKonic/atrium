@@ -1,22 +1,30 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell.Networking
-import qs.components
-import qs.services
+import Atrium
+import shell.components
+import shell.services
 
 // Wired and Wi-Fi: what is connected, networks to join (a password asked
 // for right here), and known ones to forget.
 Column {
     id: root
 
-    readonly property var wired: Networking.devices.values.filter(d => d.type === DeviceType.Wired)
-    readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
-    readonly property var networks: (wifi?.networks.values ?? []).slice().sort((a, b) => b.connected - a.connected || b.signalStrength - a.signalStrength)
+    readonly property var wired: Network.wired
+    readonly property var networks: Network.networks
     property var joining: null
     property string error: ""
 
     spacing: 20
+
+    // Looking for networks only while the page is open.
+    Binding {
+        when: root.visible && Network.wifiEnabled
+        target: Network
+        property: "scanning"
+        value: true
+        restoreMode: Binding.RestoreValue
+    }
 
     Group {
         visible: root.wired.length > 0
@@ -37,24 +45,24 @@ Column {
     }
 
     Group {
-        visible: root.wifi !== null
+        visible: Network.hasWifi
         title: "Wi-Fi"
         headerActions: [
             Switch {
-                checked: Networking.wifiEnabled
-                onToggled: Networking.wifiEnabled = !Networking.wifiEnabled
+                checked: Network.wifiEnabled
+                onToggled: Network.wifiEnabled = !Network.wifiEnabled
             }
         ]
 
         StyledText {
-            visible: !Networking.wifiEnabled || root.networks.length === 0
+            visible: !Network.wifiEnabled || root.networks.length === 0
             padding: 10
-            text: Networking.wifiEnabled ? "No networks in range." : "Wi-Fi is off."
+            text: Network.wifiEnabled ? "No networks in range." : "Wi-Fi is off."
             color: Theme.palette.m3OnSurfaceVariant
         }
 
         Repeater {
-            model: Networking.wifiEnabled ? root.networks.slice(0, 20) : []
+            model: Network.wifiEnabled ? root.networks : []
 
             Column {
                 id: net
@@ -65,7 +73,7 @@ Column {
                 width: parent.width
 
                 DeviceRow {
-                    glyph: net.modelData.signalStrength > 0.66 ? "network_wifi" : net.modelData.signalStrength > 0.33 ? "network_wifi_2_bar" : "network_wifi_1_bar"
+                    glyph: net.modelData.glyph
                     name: net.modelData.name
                     note: net.modelData.connected ? "Connected" : net.modelData.known ? "Known" : net.modelData.security > 0 ? "Secured" : "Open"
                     active: net.modelData.connected

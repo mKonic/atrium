@@ -1,8 +1,7 @@
 import QtQuick
-import Quickshell
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // The menu under the bar's logo, as the Apple menu is laid out.
@@ -10,7 +9,7 @@ PanelWindow {
     id: root
 
     visible: Panels.open === "system"
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         left: true

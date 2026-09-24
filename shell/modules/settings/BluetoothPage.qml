@@ -1,32 +1,21 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Bluetooth
-import qs.components
-import qs.services
+import Atrium.Shell
+import Atrium
+import shell.components
+import shell.services
 
 // Bluetooth: your devices (connect, disconnect, forget) and, while this page
 // is open, the ones nearby to pair.
 Column {
     id: root
 
-    readonly property var adapter: Bluetooth.defaultAdapter
-    readonly property var mine: (adapter?.devices.values ?? []).filter(d => d.paired || d.connected)
-    readonly property var nearby: (adapter?.devices.values ?? []).filter(d => !d.paired && !d.connected && d.name && d.name !== d.address.replace(/:/g, "-"))
+    readonly property BluetoothAdapter adapter: Bluetooth.adapter
+    readonly property var mine: adapter?.mine ?? []
+    readonly property var nearby: adapter?.nearby ?? []
 
     spacing: 20
-
-    function glyph(d: var): string {
-        const icon = d?.icon ?? "";
-        return icon.includes("headset") || icon.includes("headphone") || icon.includes("audio") ? "headphones"
-             : icon.includes("phone") ? "smartphone"
-             : icon.includes("keyboard") ? "keyboard"
-             : icon.includes("mouse") ? "mouse"
-             : icon.includes("gaming") || icon.includes("joystick") ? "sports_esports"
-             : icon.includes("computer") ? "computer"
-             : "bluetooth";
-    }
 
     // Looking for devices only while the page is open.
     Binding {
@@ -61,7 +50,7 @@ Column {
             DeviceRow {
                 required property var modelData
 
-                glyph: root.glyph(modelData)
+                glyph: modelData.glyph
                 name: modelData.name || modelData.deviceName
                 note: modelData.connected ? "Connected" + (modelData.batteryAvailable ? ` · ${Math.round(modelData.battery * 100)}%` : "") : "Not connected"
                 active: modelData.connected
@@ -93,14 +82,14 @@ Column {
         }
 
         Repeater {
-            model: root.nearby.slice(0, 12)
+            model: root.nearby
 
             DeviceRow {
                 id: device
 
                 required property var modelData
 
-                glyph: root.glyph(modelData)
+                glyph: modelData.glyph
                 name: modelData.name
                 busy: modelData.pairing
 
@@ -108,18 +97,6 @@ Column {
                     text: device.modelData.pairing ? "Cancel" : "Pair"
                     primary: !device.modelData.pairing
                     onClicked: device.modelData.pairing ? device.modelData.cancelPair() : device.modelData.pair()
-                }
-
-                // Paired: trust it, so it reconnects by itself, and connect.
-                Connections {
-                    target: device.modelData
-
-                    function onPairedChanged(): void {
-                        if (!device.modelData.paired)
-                            return;
-                        device.modelData.trusted = true;
-                        device.modelData.connect();
-                    }
                 }
             }
         }

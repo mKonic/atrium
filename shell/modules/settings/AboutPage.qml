@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // About: the machine, as the logo menu's card shows it, on a card here.

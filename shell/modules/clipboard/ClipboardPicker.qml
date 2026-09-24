@@ -2,10 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // Super+V: what you copied, searchable, with the whole thing previewed on
@@ -18,7 +17,7 @@ PanelWindow {
     readonly property var selected: entries[current] ?? null
 
     visible: false
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         bottom: true

@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A list of short texts: chips to remove, a field to add.
 Flow {

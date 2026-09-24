@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A card's heading, with room for buttons on the right.
 Item {

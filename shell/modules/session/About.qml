@@ -2,11 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Wayland
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // About This Computer: the system's logo and name, and what the machine is,
@@ -18,7 +16,7 @@ PanelWindow {
 
     visible: Panels.open === "about"
     onVisibleChanged: if (visible) uptime = SystemInfo.uptime()
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         bottom: true

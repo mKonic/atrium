@@ -1,0 +1,5 @@
+module shell.services
+singleton DockPlace 1.0 DockPlace.qml
+singleton Icons 1.0 Icons.qml
+singleton Panels 1.0 Panels.qml
+singleton Theme 1.0 Theme.qml

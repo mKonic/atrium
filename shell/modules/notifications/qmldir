@@ -1,0 +1,4 @@
+module shell.modules.notifications
+NotificationCard 1.0 NotificationCard.qml
+NotificationCenter 1.0 NotificationCenter.qml
+Notifications 1.0 Notifications.qml

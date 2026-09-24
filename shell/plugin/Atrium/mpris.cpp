@@ -215,6 +215,14 @@ QList<QObject*> Mpris::players() const {
     return {players_.begin(), players_.end()};
 }
 
+void Mpris::setChosen(QObject* p) {
+    auto* player = qobject_cast<MprisPlayer*>(p);
+    if (player == chosen_)
+        return;
+    chosen_ = player;
+    emit activeChanged();
+}
+
 QObject* Mpris::active() const {
     for (MprisPlayer* p : players_)
         if (p->isPlaying())

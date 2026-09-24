@@ -3,8 +3,8 @@ pragma ComponentBehavior: Bound
 import QtCore
 import QtQuick
 import QtQuick.Dialogs
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // Users & Groups: you (picture, name, whether you're an admin) and the

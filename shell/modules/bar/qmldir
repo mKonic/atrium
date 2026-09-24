@@ -1,0 +1,14 @@
+module shell.modules.bar
+ActiveWindow 1.0 ActiveWindow.qml
+Bar 1.0 Bar.qml
+Bell 1.0 Bell.qml
+Clock 1.0 Clock.qml
+ControlButton 1.0 ControlButton.qml
+RecordingIndicator 1.0 RecordingIndicator.qml
+SecretSpaces 1.0 SecretSpaces.qml
+Space 1.0 Space.qml
+Spaces 1.0 Spaces.qml
+Status 1.0 Status.qml
+SystemButton 1.0 SystemButton.qml
+Tray 1.0 Tray.qml
+Volume 1.0 Volume.qml

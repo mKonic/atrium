@@ -1,6 +1,6 @@
 pragma Singleton
 
-import Quickshell
+import Atrium.Shell
 
 // Material Symbols for apps by their desktop-entry categories (map from
 // caelestia's Icons.qml, GPL-3.0).
@@ -55,7 +55,7 @@ Singleton {
     }
 
     function appIcon(appId: string): string {
-        return Quickshell.iconPath(DesktopEntries.heuristicLookup(appId)?.icon ?? appId, "application-x-executable");
+        return Shell.iconPath(DesktopEntries.heuristicLookup(appId)?.icon ?? appId, "application-x-executable");
     }
 
     function appName(appId: string): string {

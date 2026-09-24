@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // Liquid Glass's light on a panel (appearance.liquid_glass): a bright rim
 // where the edge catches the light, strongest along the top, and a soft

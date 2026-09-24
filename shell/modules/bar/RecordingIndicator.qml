@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // While the screen is being recorded: how long, and a click stops it.

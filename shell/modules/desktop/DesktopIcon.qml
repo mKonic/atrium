@@ -2,10 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 
 // One file on the desktop: its icon (a thumbnail for pictures, the app's
 // own icon for launchers) and name. Drag it out to hand the file to an app.
@@ -43,7 +42,7 @@ Item {
         anchors.centerIn: tile
         implicitSize: 54
         visible: !root.isImage
-        source: root.isImage ? "" : Quickshell.iconPath(root.iconName, "text-x-generic")
+        source: root.isImage ? "" : Shell.iconPath(root.iconName, "text-x-generic")
         asynchronous: true
     }
 
@@ -189,6 +188,6 @@ Item {
         Drag.dragType: Drag.Automatic
         Drag.supportedActions: Qt.CopyAction | Qt.MoveAction | Qt.LinkAction
         Drag.mimeData: ({ "text/uri-list": `file://${root.path}\r\n` })
-        Drag.imageSource: root.isImage ? `file://${root.path}` : Quickshell.iconPath(root.iconName, "text-x-generic")
+        Drag.imageSource: root.isImage ? `file://${root.path}` : Shell.iconPath(root.iconName, "text-x-generic")
     }
 }

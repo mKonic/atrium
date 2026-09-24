@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // Rules for what an app's own record can't say: windows matched by title,

@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 Text {
     color: Theme.palette.m3OnSurface

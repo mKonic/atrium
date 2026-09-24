@@ -21,6 +21,7 @@ class WifiNetwork : public QObject {
     Q_PROPERTY(QString name READ name CONSTANT)
     Q_PROPERTY(double signalStrength READ signalStrength NOTIFY changed)  // 0..1
     Q_PROPERTY(int bars READ bars NOTIFY changed)                          // 1..3
+    Q_PROPERTY(QString glyph READ glyph NOTIFY changed)                    // network_wifi, _2_bar, _1_bar
     Q_PROPERTY(int security READ security NOTIFY changed)                  // 0 open, 1 personal, 2 enterprise
     Q_PROPERTY(bool known READ known NOTIFY changed)                      // saved
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
@@ -32,6 +33,10 @@ public:
     QString name() const { return ssid_; }
     double signalStrength() const { return strength_ / 100.0; }
     int bars() const { return strength_ > 66 ? 3 : strength_ > 33 ? 2 : 1; }
+    QString glyph() const {
+        return bars() == 3 ? QStringLiteral("network_wifi") : bars() == 2 ? QStringLiteral("network_wifi_2_bar")
+                                                                          : QStringLiteral("network_wifi_1_bar");
+    }
     int security() const { return security_; }
     bool known() const { return known_; }
     bool connected() const { return connected_; }
@@ -94,9 +99,17 @@ class Network : public QObject {
     Q_PROPERTY(bool wifiEnabled READ wifiEnabled WRITE setWifiEnabled NOTIFY changed)
     Q_PROPERTY(QList<QObject*> networks READ networks NOTIFY networksChanged)
     Q_PROPERTY(atrium::WifiNetwork* current READ current NOTIFY networksChanged)
+    // Known (saved, or the one in use) and the rest, in the same order.
+    Q_PROPERTY(QList<QObject*> saved READ saved NOTIFY networksChanged)
+    Q_PROPERTY(QList<QObject*> unsaved READ unsaved NOTIFY networksChanged)
     Q_PROPERTY(QList<QObject*> wired READ wired NOTIFY changed)
     Q_PROPERTY(atrium::WiredDevice* wiredConnection READ wiredConnection NOTIFY changed)
     Q_PROPERTY(bool limited READ limited NOTIFY changed)
+    // Wired or on Wi-Fi.
+    Q_PROPERTY(bool online READ online NOTIFY networksChanged)
+    // For the menu bar: lan, wifi (by strength), wifi_find (no way out),
+    // wifi_off, or signal_disconnected.
+    Q_PROPERTY(QString glyph READ glyph NOTIFY networksChanged)
     // While true (a Wi-Fi list is open), networks are looked for every so often.
     Q_PROPERTY(bool scanning READ scanning WRITE setScanning NOTIFY scanningChanged)
 
@@ -109,9 +122,13 @@ public:
     void setWifiEnabled(bool on);
     QList<QObject*> networks() const;
     WifiNetwork* current() const;
+    QList<QObject*> saved() const;
+    QList<QObject*> unsaved() const;
     QList<QObject*> wired() const;
     WiredDevice* wiredConnection() const;
     bool limited() const { return connectivity_ == 2 || connectivity_ == 3; }
+    bool online() const { return wiredConnection() || current(); }
+    QString glyph() const;
     bool scanning() const { return scan_.isActive(); }
     void setScanning(bool on);
 

@@ -2,8 +2,8 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // Pick one of many: a button showing the choice, a list under it.
 // `options` is [{ value, label }].

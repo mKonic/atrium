@@ -1,13 +1,12 @@
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // "<App> wants to make changes." with the password field, as macOS asks.
-// `flow` is a polkit AuthFlow.
+// `flow` is PolkitAgent.flow.
 Rectangle {
     id: root
 
@@ -37,8 +36,6 @@ Rectangle {
         if (!flow?.isResponseRequired || !password.text)
             return;
         wrong = false;
-        if (identity)
-            AdminCache.stage(identity.id, password.text);
         flow.submit(password.text);
         password.text = "";
     }
@@ -116,7 +113,7 @@ Rectangle {
 
                 anchors.fill: parent
                 visible: status === Image.Ready
-                source: root.flow?.iconName ? Quickshell.iconPath(root.flow.iconName, true) : ""
+                source: root.flow?.iconName ? Shell.iconPath(root.flow.iconName, true) : ""
             }
 
             Rectangle {
@@ -219,10 +216,7 @@ Rectangle {
             MouseArea {
                 anchors.fill: parent
                 enabled: swap.visible
-                onClicked: {
-                    const ids = root.flow.identities;
-                    root.flow.selectedIdentity = ids[(ids.indexOf(root.identity) + 1) % ids.length];
-                }
+                onClicked: root.flow.selectNextIdentity()
             }
         }
 

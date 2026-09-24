@@ -226,7 +226,7 @@ void Network::reload() {
                 w->deleteLater();
         wired_ = keep;
         emit changed();
-        rebuild();
+        rebuild();  // networksChanged: the glyph too
     };
 
     getAll(kPath, kNM, [this, root, batch, getAll, aps, wired, wifi, activeAp, wifiState](const QVariantMap& props) {
@@ -349,6 +349,33 @@ WifiNetwork* Network::current() const {
         if (n->connected())
             return n;
     return nullptr;
+}
+
+QString Network::glyph() const {
+    if (wiredConnection())
+        return QStringLiteral("lan");
+    if (WifiNetwork* n = current()) {
+        if (limited())
+            return QStringLiteral("wifi_find");
+        return n->bars() == 3 ? QStringLiteral("wifi") : n->bars() == 2 ? QStringLiteral("wifi_2_bar") : QStringLiteral("wifi_1_bar");
+    }
+    return hasWifi() && wifiEnabled_ ? QStringLiteral("wifi_off") : QStringLiteral("signal_disconnected");
+}
+
+QList<QObject*> Network::saved() const {
+    QList<QObject*> out;
+    for (WifiNetwork* n : networks_)
+        if (n->known() || n->connected())
+            out.append(n);
+    return out;
+}
+
+QList<QObject*> Network::unsaved() const {
+    QList<QObject*> out;
+    for (WifiNetwork* n : networks_)
+        if (!n->known() && !n->connected())
+            out.append(n);
+    return out;
 }
 
 QList<QObject*> Network::wired() const {

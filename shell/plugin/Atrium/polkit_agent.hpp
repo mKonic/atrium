@@ -74,6 +74,8 @@ public:
     bool answering() const { return answering_; }
 
     Q_INVOKABLE void submit(const QString& password);
+    // Another admin answers instead (the next in the list).
+    Q_INVOKABLE void selectNextIdentity();
     Q_INVOKABLE void cancelAuthenticationRequest();
     // polkit gave up on it (the app went away).
     void cancelled();

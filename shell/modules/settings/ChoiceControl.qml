@@ -1,8 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // One of a few: side-by-side segments, as macOS shows short choices.
 Rectangle {

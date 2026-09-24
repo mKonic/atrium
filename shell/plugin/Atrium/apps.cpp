@@ -3,6 +3,7 @@
 #include <QDateTime>
 
 #include "compositor.hpp"
+#include "desktop_entries.hpp"
 #include "list_sync.hpp"
 #include "search.hpp"
 
@@ -61,27 +62,12 @@ void execute(QObject* entry) {
 
 // --- EntryIndex --------------------------------------------------------------------
 
-QObject* EntryIndex::call(const char* method, const QString& arg) const {
-    if (!entries_)
-        return nullptr;
-    const QMetaObject* mo = entries_->metaObject();
-    const int i = mo->indexOfMethod(QByteArray(method) + "(QString)");
-    if (i < 0)
-        return nullptr;
-    QObject* out = nullptr;
-    void* args[] = {&out, const_cast<QString*>(&arg)};
-    // The return type is Quickshell's DesktopEntry*, which only its own
-    // metatype matches: call through the meta-object directly.
-    entries_->qt_metacall(QMetaObject::InvokeMetaMethod, i, args);
-    return out;
-}
-
 QObject* EntryIndex::byId(const QString& id) const {
-    return call("byId", id);
+    return shell::DesktopEntries::instance()->byId(id);
 }
 
 QObject* EntryIndex::forApp(const QString& appId) const {
-    return call("heuristicLookup", appId);
+    return shell::DesktopEntries::instance()->heuristicLookup(appId);
 }
 
 QString EntryIndex::idForApp(const QString& appId) const {
@@ -96,10 +82,7 @@ QString EntryIndex::nameForApp(const QString& appId) const {
 }
 
 QList<QObject*> EntryIndex::all() const {
-    if (!entries_)
-        return {};
-    const QObject* apps = entries_->property("applications").value<QObject*>();
-    return apps ? apps->property("values").value<QObjectList>() : QList<QObject*>{};
+    return shell::DesktopEntries::instance()->applications()->values();
 }
 
 // --- LauncherResults ---------------------------------------------------------------

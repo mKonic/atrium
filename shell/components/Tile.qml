@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // A Control Center toggle: icon, title, and a line saying what it is doing.
 Rectangle {

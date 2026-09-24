@@ -1,9 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // One space in the bar: its number, then an icon for each app on it.
@@ -55,14 +55,15 @@ Item {
         Repeater {
             // Keyed by window id, so an icon stays put (and doesn't pop in
             // again) when something else changes.
-            model: ScriptModel {
-                values: root.windows.slice(0, root.maxIcons)
-                objectProp: "id"
+            model: KeyedModel {
+                values: root.windows
+                key: "id"
+                limit: root.maxIcons
             }
 
             MaterialIcon {
                 required property var modelData
-                readonly property var window: root.windows.find(w => w.id === modelData.id) ?? modelData
+                readonly property var window: modelData
 
                 anchors.verticalCenter: parent?.verticalCenter
                 text: Icons.appCategoryIcon(window.app_id)

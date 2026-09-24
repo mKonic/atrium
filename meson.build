@@ -71,6 +71,7 @@ paths = configuration_data()
 paths.set_quoted('ATRIUM_DATADIR', get_option('prefix') / get_option('datadir') / 'atrium')
 paths.set_quoted('ATRIUM_SOURCE_DIR', meson.project_source_root())
 paths.set_quoted('ATRIUM_BUILD_DIR', meson.project_build_root())
+paths.set_quoted('ATRIUM_BINDIR', get_option('prefix') / get_option('bindir'))
 paths.set_quoted('ATRIUM_QML_DIR', get_option('prefix') / get_option('libdir') / 'atrium' / 'qml')
 paths_h = configure_file(output: 'paths.hpp', configuration: paths)
 

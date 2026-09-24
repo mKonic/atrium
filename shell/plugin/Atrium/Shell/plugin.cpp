@@ -6,6 +6,7 @@
 #include "screens.hpp"
 #include "scope.hpp"
 #include "shell_api.hpp"
+#include "shortcut_inhibitor.hpp"
 #include "system_clock.hpp"
 #include "variants.hpp"
 #include "windows.hpp"
@@ -53,6 +54,7 @@ public:
         qmlRegisterType<PanelWindow>(uri, 1, 0, "PanelWindow");
         qmlRegisterType<FloatingWindow>(uri, 1, 0, "FloatingWindow");
         qmlRegisterType<Region>(uri, 1, 0, "Region");
+        qmlRegisterType<ShortcutInhibitor>(uri, 1, 0, "ShortcutInhibitor");
         qmlRegisterUncreatableType<ShellScreen>(uri, 1, 0, "ShellScreen", "one per output, from Shell.screens");
         qmlRegisterUncreatableType<ShellWindow>(uri, 1, 0, "ShellWindow", "PanelWindow or FloatingWindow");
         qmlRegisterUncreatableType<PanelEdges>(uri, 1, 0, "PanelEdges", "a PanelWindow's anchors");

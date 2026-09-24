@@ -1,0 +1,3 @@
+module shell.modules.polkit
+AuthCard 1.0 AuthCard.qml
+Polkit 1.0 Polkit.qml

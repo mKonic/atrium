@@ -28,7 +28,13 @@ public:
     // string `fallback`, that icon when `name` has none; with `true`, "" when
     // the theme has no such icon; otherwise the missing-icon image.
     Q_INVOKABLE QString iconPath(const QString& name, const QVariant& fallback = {}) const;
+    // The screen called `name`, else the first (where a panel goes when the
+    // focused output isn't known yet).
+    Q_INVOKABLE atrium::shell::ShellScreen* screen(const QString& name) const;
     Q_INVOKABLE void execDetached(const QStringList& command) const;
+    // Another of the shell's files as its own app ("settings.qml"), unless
+    // it already runs; `env` is added to its environment.
+    Q_INVOKABLE void launch(const QString& file, const QVariantMap& env = {}) const;
     Q_INVOKABLE QString env(const QString& name) const;
 
 signals:

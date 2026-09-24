@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // A Material Symbols glyph by name ("terminal", "chat").
 StyledText {

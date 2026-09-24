@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // Notifications: a dot while there are unread ones, struck through during

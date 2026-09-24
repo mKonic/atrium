@@ -1,0 +1,12 @@
+module shell.components
+Anim 1.0 Anim.qml
+BigSlider 1.0 BigSlider.qml
+CAnim 1.0 CAnim.qml
+GlassRim 1.0 GlassRim.qml
+MaterialIcon 1.0 MaterialIcon.qml
+Menu 1.0 Menu.qml
+Pill 1.0 Pill.qml
+StyledText 1.0 StyledText.qml
+Switch 1.0 Switch.qml
+SystemFacts 1.0 SystemFacts.qml
+Tile 1.0 Tile.qml

@@ -1,11 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // The notification history, from the bell: grouped by app, newest first,
@@ -16,7 +14,7 @@ PanelWindow {
     readonly property bool dnd: Atrium.settings["notifications.dnd"] ?? false
 
     visible: Panels.open === "notifications"
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         right: true

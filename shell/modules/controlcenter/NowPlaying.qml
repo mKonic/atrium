@@ -1,10 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell.Services.Mpris
-import qs.components
-import qs.services
 import Atrium
+import shell.components
+import shell.services
 
 // The Control Center's Now Playing page: the artwork large, the track, a
 // scrubber, the controls, and the other players to switch to.
@@ -18,14 +17,6 @@ Column {
     spacing: 12
     topPadding: 8
     bottomPadding: 4
-
-    // MPRIS only reports the position when it jumps; keep it moving while shown.
-    Timer {
-        running: root.visible && (root.player?.isPlaying ?? false)
-        interval: 500
-        repeat: true
-        onTriggered: root.player?.positionChanged()
-    }
 
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
@@ -69,7 +60,7 @@ Column {
         StyledText {
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
-            text: [root.player?.trackArtist, root.player?.trackAlbum].filter(s => s).join(" · ")
+            text: root.player?.subtitle ?? ""
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.small
             color: Theme.palette.m3OnSurfaceVariant

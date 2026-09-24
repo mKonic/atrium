@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 ColorAnimation {
     duration: Theme.anim.normal

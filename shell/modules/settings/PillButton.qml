@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A small rounded button: text, optionally an icon; `primary` fills it.
 Rectangle {

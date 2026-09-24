@@ -2,11 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Wayland
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // Spotlight: type to find apps (and open windows), do sums, or ">" to run a
@@ -21,7 +19,7 @@ PanelWindow {
     }
 
     visible: false
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         bottom: true
@@ -218,7 +216,7 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             implicitSize: 32
                             visible: row.icon.length > 0
-                            source: row.icon ? (row.icon.startsWith("file:") ? row.icon : Quickshell.iconPath(row.icon, "application-x-executable")) : ""
+                            source: row.icon ? (row.icon.startsWith("file:") ? row.icon : Shell.iconPath(row.icon, "application-x-executable")) : ""
                             asynchronous: true
                         }
 

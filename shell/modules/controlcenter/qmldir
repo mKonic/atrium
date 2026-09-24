@@ -1,0 +1,3 @@
+module shell.modules.controlcenter
+ControlCenter 1.0 ControlCenter.qml
+NowPlaying 1.0 NowPlaying.qml

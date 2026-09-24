@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // An on/off switch, as the header of an expanded Control Center module has.
 Rectangle {

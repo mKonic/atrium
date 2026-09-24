@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // A line of text, saved on Enter or when the field loses focus.
 Rectangle {

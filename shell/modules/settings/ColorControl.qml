@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // A colour as #rrggbbaa, with a swatch of it (over a checkerboard, so the
 // transparency shows).

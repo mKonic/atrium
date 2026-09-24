@@ -1,7 +1,7 @@
 import QtQuick
-import Quickshell
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 
 Pill {
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2 + Theme.padding.small

@@ -1,9 +1,8 @@
 //@ pragma AppId atrium-settings
-//@ pragma UseQApplication
 
 import QtQuick
-import Quickshell
-import qs.modules.settings
+import Atrium.Shell
+import shell.modules.settings
 
 // System Settings as its own app (its own app id, name and icon in the bar
 // and the Dock), sharing the shell's components. The shell starts it; a
@@ -12,7 +11,7 @@ import qs.modules.settings
 ShellRoot {
     Settings {
         visible: true
-        page: Quickshell.env("ATRIUM_SETTINGS_PAGE") || "Appearance"
+        page: Shell.env("ATRIUM_SETTINGS_PAGE") || "Appearance"
         onVisibleChanged: if (!visible) Qt.quit()
     }
 }

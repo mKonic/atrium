@@ -1,8 +1,7 @@
 import QtQuick
-import Quickshell
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // A window's menu: right-click its title bar (or a GTK header bar). What
@@ -27,7 +26,7 @@ PanelWindow {
 
     visible: Panels.open === "window-menu"
     onVisibleChanged: if (visible) menu.forceActiveFocus()
-    screen: Quickshell.screens.find(s => s.name === root.outputName) ?? Quickshell.screens[0]
+    screen: Shell.screen(root.outputName)
     // The whole screen, clear: a click anywhere but the menu closes it.
     anchors {
         top: true

@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // A thick rounded slider with its icon inside, like macOS's Control Center.
 // `value` is 0..1; `moved` fires while dragging, `released` at the end.

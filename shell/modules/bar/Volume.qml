@@ -1,23 +1,19 @@
 import QtQuick
-import Quickshell.Services.Pipewire
-import qs.components
-import qs.services
 import Atrium
+import shell.components
+import shell.services
 
 // The default output's volume: scroll to change it, click to mute.
 Pill {
     id: root
 
-    readonly property PwNode sink: Pipewire.defaultAudioSink
-    readonly property real volume: sink?.audio?.volume ?? 0
-    readonly property bool muted: sink?.audio?.muted ?? false
+    readonly property AudioNode sink: Audio.sink
+    readonly property real volume: sink?.volume ?? 0
+    readonly property bool muted: sink?.muted ?? false
 
     visible: sink !== null
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2
 
-    PwObjectTracker {
-        objects: [root.sink]
-    }
 
     Row {
         id: row
@@ -43,15 +39,15 @@ Pill {
     MouseArea {
         anchors.fill: parent
         onClicked: {
-            if (root.sink?.audio)
-                root.sink.audio.muted = !root.sink.audio.muted;
+            if (root.sink)
+                root.sink.muted = !root.sink.muted;
         }
         onWheel: event => {
-            if (!root.sink?.audio)
+            if (!root.sink)
                 return;
             // The media keys' steps; a touchpad's small scrolls take the fine ones.
             // Never past 100%: boosting past full gain only clips.
-            root.sink.audio.volume = Levels.step(root.sink.audio.volume, event.angleDelta.y > 0 ? 1 : -1, Math.abs(event.angleDelta.y) < 120);
+            root.sink.volume = Levels.step(root.sink.volume, event.angleDelta.y > 0 ? 1 : -1, Math.abs(event.angleDelta.y) < 120);
         }
     }
 }

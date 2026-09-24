@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 // A text field inside a form: the text is read when the form is sent.
 Rectangle {

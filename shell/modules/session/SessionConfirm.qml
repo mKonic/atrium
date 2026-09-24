@@ -1,9 +1,8 @@
 import QtQuick
 import QtQuick.Effects
-import Quickshell
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // "Are you sure you want to shut down your computer now?" with the minute
@@ -20,7 +19,7 @@ PanelWindow {
     readonly property var w: words[action] ?? words.shutdown
 
     visible: action !== ""
-    screen: Quickshell.screens.find(s => s.name === Atrium.focusedOutput?.name) ?? Quickshell.screens[0]
+    screen: Shell.screen(Atrium.focusedOutput?.name)
     anchors {
         top: true
         bottom: true

@@ -1,0 +1,2 @@
+module shell.modules.windowmenu
+WindowMenu 1.0 WindowMenu.qml

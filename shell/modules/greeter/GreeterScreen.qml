@@ -1,12 +1,10 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Services.Greetd
-import Quickshell.Wayland
-import qs.components
-import qs.services
+import Atrium.Shell
 import Atrium
+import shell.components
+import shell.services
 
 // The login screen, as macOS draws it: the time at the top, the people who
 // can log in along the bottom, a password field under the chosen one, and
@@ -15,7 +13,7 @@ import Atrium
 PanelWindow {
     id: root
 
-    readonly property bool primary: screen === Quickshell.screens[0]
+    readonly property bool primary: screen === Shell.screens[0]
     // With AccountsService, pick from its people; without, type a name.
     readonly property var people: Accounts.others
     // Who logged in last, and into what, preselected (as SDDM does).
@@ -25,23 +23,16 @@ PanelWindow {
     readonly property var sessions: Session.waylandSessions()
     property int sessionIndex: Math.max(0, sessions.findIndex(s => s.id === last.session))
     readonly property var session: sessions[sessionIndex] ?? null
-    property string message: ""
-    property bool busy: false
+    readonly property string message: Greeter.message
+    readonly property bool busy: Greeter.busy
 
     function userName(): string {
         return person ? person.userName : nameField.text.trim();
     }
 
     function submit(): void {
-        if (busy || userName().length === 0)
-            return;
-        if (!Greetd.available) {
-            message = "The login service (greetd) isn't running.";
-            return;
-        }
-        message = "";
-        busy = true;
-        Greetd.createSession(userName());
+        if (!busy && userName().length > 0)
+            Greeter.login(userName(), password.text, session ?? {});
     }
 
     anchors {
@@ -57,32 +48,12 @@ PanelWindow {
     WlrLayershell.keyboardFocus: primary ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     Connections {
-        target: Greetd
+        target: Greeter
         enabled: root.primary
 
-        function onAuthMessage(message: string, error: bool, responseRequired: bool, echoResponse: bool): void {
-            if (responseRequired)
-                Greetd.respond(password.text);
-            else if (error)
-                root.message = message;
-        }
-
-        function onAuthFailure(message: string): void {
-            root.busy = false;
-            root.message = "Incorrect password.";
+        function onFailed(): void {
             password.text = "";
             shake.restart();
-            Greetd.cancelSession();
-        }
-
-        function onReadyToLaunch(): void {
-            Session.rememberLogin(root.userName(), root.session?.id ?? "");
-            Greetd.launch(root.session?.argv ?? ["atrium"], [], true);
-        }
-
-        function onError(error: string): void {
-            root.busy = false;
-            root.message = error;
         }
     }
 
@@ -156,7 +127,7 @@ PanelWindow {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             root.chosen = other.index;
-                            root.message = "";
+                            Greeter.clearMessage();
                             password.text = "";
                             password.forceActiveFocus();
                         }

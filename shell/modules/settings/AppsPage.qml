@@ -1,10 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // Every app atrium keeps something for: where its windows open, whether
@@ -23,7 +22,7 @@ Column {
     }
 
     function iconOf(id: string): string {
-        return Quickshell.iconPath(DesktopEntries.heuristicLookup(id)?.icon ?? id, "application-x-executable");
+        return Shell.iconPath(DesktopEntries.heuristicLookup(id)?.icon ?? id, "application-x-executable");
     }
 
     SectionHeader {
@@ -116,7 +115,7 @@ Column {
                         x: 8
                         anchors.verticalCenter: parent.verticalCenter
                         implicitSize: 26
-                        source: Quickshell.iconPath(hit.icon, "application-x-executable")
+                        source: Shell.iconPath(hit.icon, "application-x-executable")
                     }
 
                     StyledText {

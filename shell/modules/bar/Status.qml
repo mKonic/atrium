@@ -1,9 +1,7 @@
 import QtQuick
-import Quickshell.Bluetooth
-import Quickshell.Networking
-import qs.components
-import qs.services
 import Atrium
+import shell.components
+import shell.services
 
 // Network and Bluetooth at a glance, as the menu bar shows them on a Mac:
 // wired or Wi-Fi strength, and Bluetooth while something is connected.
@@ -11,12 +9,7 @@ import Atrium
 Pill {
     id: root
 
-    readonly property var wired: Networking.devices.values.find(d => d.type === DeviceType.Wired && d.connected) ?? null
-    readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
-    readonly property var network: wifi?.networks.values.find(n => n.connected) ?? null
-    readonly property bool limited: Networking.connectivity === NetworkConnectivity.Limited
-                                    || Networking.connectivity === NetworkConnectivity.Portal
-    readonly property bool bluetooth: (Bluetooth.defaultAdapter?.devices.values ?? []).some(d => d.connected)
+    readonly property bool bluetooth: (Bluetooth.adapter?.connectedNames ?? "") !== ""
 
     readonly property bool showSpeed: Atrium.settings["bar.net_speed"] ?? true
 
@@ -45,12 +38,9 @@ Pill {
 
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.wired ? "lan"
-                : root.network ? (root.limited ? "wifi_find"
-                    : root.network.signalStrength > 0.66 ? "wifi" : root.network.signalStrength > 0.33 ? "wifi_2_bar" : "wifi_1_bar")
-                : root.wifi && Networking.wifiEnabled ? "wifi_off" : "signal_disconnected"
+            text: Network.glyph
             font.pointSize: Theme.font.size.normal
-            color: root.wired || root.network ? Theme.palette.m3OnSurface : Theme.palette.m3Outline
+            color: Network.online ? Theme.palette.m3OnSurface : Theme.palette.m3Outline
         }
 
         Rate {

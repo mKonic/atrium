@@ -1,0 +1,4 @@
+module shell.modules.session
+About 1.0 About.qml
+SessionConfirm 1.0 SessionConfirm.qml
+SystemMenu 1.0 SystemMenu.qml

@@ -1,6 +1,6 @@
 import QtQuick
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 
 // A device or network in a list: a round badge (filled when it is the one
 // in use), its name and a note, and room for buttons at the end.

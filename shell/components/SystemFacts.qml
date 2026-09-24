@@ -1,9 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
-import qs.services
+import Atrium.Shell
+import shell.services
 import Atrium
 
 // The system's logo and name, and what the machine is, read from the
@@ -18,7 +17,7 @@ Column {
     IconImage {
         anchors.horizontalCenter: parent.horizontalCenter
         implicitSize: 96
-        source: Quickshell.iconPath(SystemInfo.logo, "start-here")
+        source: Shell.iconPath(SystemInfo.logo, "start-here")
     }
 
     Item {

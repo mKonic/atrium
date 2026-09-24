@@ -53,17 +53,15 @@ std::string builtin_dir() {
     return {};
 }
 
-// The Atrium QML module: from the build tree when running from it, else the
-// installed copy.
-std::string qml_import_dir() {
+// atrium-shell, which runs the QML: built next to this atrium when it runs
+// from the build tree, else the installed one.
+std::string shell_binary() {
     std::error_code ec;
     const fs::path exe = fs::read_symlink("/proc/self/exe", ec);
-    const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "shell" / "plugin";
-    if (!ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built / "Atrium" / "qmldir"))
+    const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "shell" / "host" / "atrium-shell";
+    if (!ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built))
         return built;
-    if (fs::exists(fs::path(ATRIUM_QML_DIR) / "Atrium" / "qmldir"))
-        return ATRIUM_QML_DIR;
-    return built;
+    return fs::path(ATRIUM_BINDIR) / "atrium-shell";
 }
 
 } // namespace
@@ -113,9 +111,10 @@ std::string ShellProcess::command() const {
     if (dir.empty())
         return {};
     // The login screen is its own shell, next to the desktop's.
+    const std::string shell = quoted(shell_binary());
     if (server_.config.greeter)
-        return "exec qs -p " + quoted(dir + "/greeter.qml");
-    return "exec qs -p " + quoted(dir);
+        return "exec " + shell + " " + quoted(dir + "/greeter.qml");
+    return "exec " + shell + " " + quoted(dir);
 }
 
 void ShellProcess::start() {
@@ -129,12 +128,8 @@ void ShellProcess::start() {
         wlr_log_errno(WLR_ERROR, "shell: fork failed");
         return;
     }
-    const std::string qml = qml_import_dir();
     if (pid == 0) {
         setsid();
-        // Where the shell finds its C++ module (`import Atrium`).
-        if (!qml.empty())
-            setenv("QML_IMPORT_PATH", qml.c_str(), 1);
         struct sigaction sa{};
         sa.sa_handler = SIG_DFL;
         sigemptyset(&sa.sa_mask);

@@ -2,8 +2,8 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Shapes
-import qs.components
-import qs.services
+import shell.components
+import shell.services
 import Atrium
 
 // The accent colour, as macOS picks it: a row of swatches, the rainbow one

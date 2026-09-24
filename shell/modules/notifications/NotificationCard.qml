@@ -1,10 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // One notification: the app's icon (or the picture it sent), who and when,
@@ -19,13 +18,14 @@ Rectangle {
     property string body: ""
     property real time: 0
     property bool critical: false
-    property var actions: []       // [{ text, invoke }]
+    property var actions: []       // [{ id, text }]
     property bool compact: false   // in the notification center
     property bool expanded: false  // full text and buttons; drag down or the chevron
     property bool swipeable: true  // swipe sideways to dismiss
 
     signal dismissed
     signal clicked
+    signal action(string id)
 
     readonly property bool hovered: hover.hovered || swipe.active
     readonly property bool expandable: actions.length > 0 || bodyText.truncated || expanded
@@ -126,9 +126,7 @@ Rectangle {
                 anchors.fill: parent
                 visible: root.image.length === 0
                 source: root.icon
-                // Not async: Quickshell's icon provider crashes when a
-                // loader thread is the first to use it (a saved history
-                // loading at startup). Icons are small; this costs nothing.
+                // Icons are small: loaded at once, no flicker.
                 asynchronous: false
             }
         }
@@ -216,7 +214,7 @@ Rectangle {
 
                             anchors.fill: parent
                             hoverEnabled: true
-                            onClicked: button.modelData.invoke()
+                            onClicked: root.action(button.modelData.id)
                         }
                     }
                 }

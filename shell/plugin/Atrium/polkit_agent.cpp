@@ -143,6 +143,13 @@ void AuthFlow::setSelectedIdentity(QObject* identity) {
         start();
 }
 
+void AuthFlow::selectNextIdentity() {
+    if (identities_.size() < 2)
+        return;
+    const qsizetype i = identities_.indexOf(selected_.data());
+    setSelectedIdentity(identities_.at((i + 1) % identities_.size()));
+}
+
 void AuthFlow::submit(const QString& password) {
     if (!required_ || !session_ || password.isEmpty())
         return;

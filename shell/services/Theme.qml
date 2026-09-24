@@ -1,7 +1,7 @@
 pragma Singleton
 
 import QtQuick
-import Quickshell
+import Atrium.Shell
 import Atrium
 
 // Design tokens: caelestia's sizes, rounding and motion, and the Material 3

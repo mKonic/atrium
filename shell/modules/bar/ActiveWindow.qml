@@ -1,8 +1,7 @@
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
-import qs.components
-import qs.services
+import Atrium.Shell
+import shell.components
+import shell.services
 import Atrium
 
 // The focused app, as a macOS menu bar names it: its icon and title.

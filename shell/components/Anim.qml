@@ -1,5 +1,5 @@
 import QtQuick
-import qs.services
+import shell.services
 
 NumberAnimation {
     duration: Theme.anim.normal
