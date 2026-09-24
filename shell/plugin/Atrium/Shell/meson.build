@@ -13,7 +13,11 @@ foreach xml : [wl_protocol_dir / 'unstable/keyboard-shortcuts-inhibit/keyboard-s
   client_protocols += custom_target(xml.underscorify() + '_client_c', input: xml, output: '@BASENAME@-client-protocol.c',
     command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
 endforeach
-layershellqt = dependency('LayerShellQt', method: 'cmake', modules: ['LayerShellQt::Interface'])
+# LayerShellQt ships CMake files only; without CMake, its library directly.
+layershellqt = dependency('LayerShellQt', method: 'cmake', modules: ['LayerShellQt::Interface'], required: false)
+if not layershellqt.found()
+  layershellqt = meson.get_compiler('cpp').find_library('LayerShellQtInterface')
+endif
 atrium_libdir = get_option('prefix') / get_option('libdir') / 'atrium'
 
 runtime_moc = qt6.compile_moc(headers: ['shortcut_inhibitor.hpp', 'scope.hpp', 'screens.hpp', 'shell_api.hpp', 'variants.hpp', 'system_clock.hpp', 'windows.hpp', 'desktop_entries.hpp'], dependencies: shell_qt)
