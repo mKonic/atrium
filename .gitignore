@@ -6,3 +6,4 @@
 /subprojects/*/
 /subprojects/packagecache/
 /tests/box/
+!/subprojects/packagefiles/

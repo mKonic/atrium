@@ -27,7 +27,10 @@ add_project_arguments(
 
 # scenefx must come before wlroots: it re-exports the wlr_scene_* symbols with
 # effect support, and the first library providing a symbol wins at load time.
-scenefx = dependency('scenefx-0.5')
+# atrium's own scenefx (subprojects/packagefiles/scenefx: refraction for
+# Liquid Glass), built in and linked statically.
+scenefx_proj = subproject('scenefx', default_options: ['examples=false', 'default_library=static'])
+scenefx = scenefx_proj.get_variable('scenefx')
 wlroots = dependency('wlroots-0.20')
 wayland_server = dependency('wayland-server')
 wayland_protos = dependency('wayland-protocols')
