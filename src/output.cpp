@@ -1,6 +1,7 @@
 #include "output.hpp"
 
 #include "layer_surface.hpp"
+#include "night_light.hpp"
 #include "overview.hpp"
 #include "seat.hpp"
 #include "server.hpp"
@@ -94,30 +95,43 @@ Output::~Output() {
 
 void Output::frame() {
     server.animator.tick();
+    // Night light's colour table, when it changed and no app sets this
+    // screen's gamma itself; screens without one (nested) do without.
+    const NightLight* night = server.night_light.get();
+    const bool recolour = night && night_generation_ != night->generation() && wlr_output_get_gamma_size(wlr) > 0 &&
+                          !wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr);
     // Frame callbacks go out even when nothing changed: a client that asked
     // for one without new damage (Qt between animation steps) would
     // otherwise wait forever, frozen mid-animation.
-    if (!wlr_scene_output_needs_frame(scene_output)) {
+    if (!wlr_scene_output_needs_frame(scene_output) && !recolour) {
         timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         wlr_scene_output_send_frame_done(scene_output, &now);
         return;
     }
-    if (tearing_view(server, *this)) {
-        // Show the frame the moment it is ready, torn if need be; fall back
-        // to waiting for vblank when the hardware won't.
-        wlr_output_state state;
-        wlr_output_state_init(&state);
-        if (wlr_scene_output_build_state(scene_output, &state, nullptr)) {
+    wlr_output_state state;
+    wlr_output_state_init(&state);
+    if (wlr_scene_output_build_state(scene_output, &state, nullptr)) {
+        if (recolour)
+            wlr_output_state_set_color_transform(&state, night->transform());
+        if (tearing_view(server, *this)) {
+            // Show the frame the moment it is ready, torn if need be; fall
+            // back to waiting for vblank when the hardware won't.
             state.tearing_page_flip = true;
             if (!wlr_output_test_state(wlr, &state))
                 state.tearing_page_flip = false;
+        }
+        if (!wlr_output_commit_state(wlr, &state) && recolour) {
+            // The screen wouldn't take the table: the frame without it, and
+            // this table not tried again.
+            wlr_log(WLR_ERROR, "%s: night light's colour table was refused", wlr->name);
+            state.committed &= ~WLR_OUTPUT_STATE_COLOR_TRANSFORM;
             wlr_output_commit_state(wlr, &state);
         }
-        wlr_output_state_finish(&state);
-    } else {
-        wlr_scene_output_commit(scene_output, nullptr);
+        if (recolour)
+            night_generation_ = night->generation();
     }
+    wlr_output_state_finish(&state);
     timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     wlr_scene_output_send_frame_done(scene_output, &now);

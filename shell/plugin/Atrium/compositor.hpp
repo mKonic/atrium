@@ -38,6 +38,9 @@ class Compositor : public QObject {
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     // {layouts: [{name: "German", code: "de"}], active: 0}
     Q_PROPERTY(QVariantMap keyboard READ keyboard NOTIFY keyboardChanged)
+    // {available, mode, active, kelvin, until, note}: note says until when
+    // ("On until 7:00 AM").
+    Q_PROPERTY(QVariantMap nightLight READ nightLight NOTIFY nightLightChanged)
 
 public:
     explicit Compositor(QObject* parent = nullptr);
@@ -47,6 +50,7 @@ public:
     QVariantList windows() const { return windows_; }  // most recently focused first
     QVariantList spaces() const { return spaces_; }
     QVariantMap keyboard() const { return keyboard_; }
+    QVariantMap nightLight() const { return nightLight_; }
     QVariantList outputs() const { return outputs_; }
     QVariantMap settings() const { return settings_; }
     QVariantList schema() const { return schema_; }
@@ -87,6 +91,7 @@ public:
     Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
     Q_INVOKABLE void setKeyboardLayout(int index);
+    Q_INVOKABLE void setNightLight(bool on);
     Q_INVOKABLE void setSetting(const QString& key, const QVariant& value);
     Q_INVOKABLE void resetSetting(const QString& key);
 
@@ -114,6 +119,7 @@ signals:
     // An app's global shortcut (bound through the portal) pressed or let go.
     void portalShortcut(const QString& app, const QString& id, bool pressed);
     void keyboardChanged();
+    void nightLightChanged();
     void windowsChanged();
     void spacesChanged();
     void outputsChanged();
@@ -157,6 +163,8 @@ private:
 
     QVariantList windows_, spaces_, outputs_;
     QVariantMap keyboard_;
+    QVariantMap nightLight_;
+    void takeNightLight(const QJsonObject& state);
     QVariantMap settings_;
     QVariantList schema_, apps_, rules_, shortcuts_, devices_;
     QStringList actions_;

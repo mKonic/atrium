@@ -50,6 +50,8 @@ public:
 private:
     void frame();
 
+    uint64_t night_generation_ = 0;  // night light's table this screen shows
+
     Listener<> frame_;
     Listener<wlr_output_event_request_state> request_state_;
     Listener<> destroy_;

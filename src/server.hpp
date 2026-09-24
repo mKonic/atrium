@@ -25,6 +25,7 @@ class InputMethodRelay;
 class BackgroundEffects;
 class ToplevelDrags;
 class SessionManagement;
+class NightLight;
 class SessionLock;
 class Overview;
 class Registry;
@@ -245,6 +246,8 @@ public:
     std::unique_ptr<BackgroundEffects> background_effects;
     std::unique_ptr<ToplevelDrags> toplevel_drags;
     std::unique_ptr<SessionManagement> sessions;
+    std::unique_ptr<NightLight> night_light;
+    wlr_gamma_control_manager_v1* gamma_manager = nullptr;  // apps that set gamma themselves
     uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;

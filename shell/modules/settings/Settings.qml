@@ -322,6 +322,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            NightLightGroup {
+                visible: root.query === "" && root.page === "Displays"
+                width: parent.width
+            }
+
             UsersPage {
                 visible: root.query === "" && root.page === "Users & Groups"
                 width: parent.width

@@ -10,6 +10,7 @@
 #include "registry.hpp"
 
 #include "ipc.hpp"
+#include "night_light.hpp"
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "seat.hpp"
@@ -246,7 +247,8 @@ void Server::setup() {
     activation_request_.connect(&activation->events.request_activate,
         [this](auto* e) { activation_request(e); });
 
-    wlr_scene_set_gamma_control_manager_v1(scene, wlr_gamma_control_manager_v1_create(display));
+    gamma_manager = wlr_gamma_control_manager_v1_create(display);
+    wlr_scene_set_gamma_control_manager_v1(scene, gamma_manager);
 
     power_manager = wlr_output_power_manager_v1_create(display);
     output_power_.connect(&power_manager->events.set_mode, [this](auto* e) { set_output_power(e); });
@@ -478,6 +480,7 @@ void Server::run_startup() {
 }
 
 void Server::teardown() {
+    night_light.reset();
     ipc.reset();
     disconnect_listeners();
 #ifdef ATRIUM_XWAYLAND
@@ -576,6 +579,8 @@ void Server::run(const char* startup_cmd) {
         apply_interface(interface());
     }
     ipc = std::make_unique<Ipc>(*this, socket);
+    if (!config.greeter)
+        night_light = std::make_unique<NightLight>(*this);
 
     if (!wlr_backend_start(backend))
         die("couldn't start backend");
@@ -672,6 +677,8 @@ Output* Server::output_at(double lx, double ly) const {
 // mode or position. Recomputes every box that depends on outputs and publishes
 // the new state to wlr-output-management clients.
 void Server::update_outputs() {
+    if (night_light)
+        night_light->update();  // a screen that can (or can't) show it came or went
     auto* config_out = wlr_output_configuration_v1_create();
 
     // Disabled outputs leave the layout first, so the cursor cannot enter them.
@@ -1319,6 +1326,12 @@ void Server::setting_changed(const std::string& key) {
     }
     if (key == "power.profile")
         apply_power_profile();
+    if (key.starts_with("displays.night_light") && night_light) {
+        if (key == "displays.night_light_warmth")
+            night_light->update();
+        else
+            night_light->schedule_changed();
+    }
     if (key == "session.shell" && shell)
         shell->restart();
     if (key == "windows.fullscreen_space" && !config.fullscreen_space)

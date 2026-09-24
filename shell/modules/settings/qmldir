@@ -23,6 +23,7 @@ ListEditor 1.0 ListEditor.qml
 LoginItemsPage 1.0 LoginItemsPage.qml
 MissingNote 1.0 MissingNote.qml
 NetworkPage 1.0 NetworkPage.qml
+NightLightGroup 1.0 NightLightGroup.qml
 NotificationAppsPage 1.0 NotificationAppsPage.qml
 NumberControl 1.0 NumberControl.qml
 PillButton 1.0 PillButton.qml

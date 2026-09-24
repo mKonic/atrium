@@ -199,12 +199,13 @@ PanelWindow {
                 }
             }
 
-            Row {
+            Grid {
                 width: parent.width
+                columns: 2
                 spacing: 10
 
                 Tile {
-                    width: (parent.width - 20) / 3
+                    width: (parent.width - 10) / 2
                     compact: true
                     icon: cc.dnd ? "do_not_disturb_on" : "do_not_disturb_off"
                     title: "Do Not Disturb"
@@ -214,7 +215,17 @@ PanelWindow {
                 }
 
                 Tile {
-                    width: (parent.width - 20) / 3
+                    width: (parent.width - 10) / 2
+                    compact: true
+                    icon: Atrium.nightLight.active ? "nightlight" : "light_mode"
+                    title: "Night Light"
+                    subtitle: Atrium.nightLight.note || (Atrium.nightLight.active ? "On" : "Off")
+                    on: Atrium.nightLight.active ?? false
+                    onToggled: Atrium.setNightLight(!(Atrium.nightLight.active ?? false))
+                }
+
+                Tile {
+                    width: (parent.width - 10) / 2
                     compact: true
                     icon: cc.profiles[cc.profile]?.icon ?? "bolt"
                     title: "Power"
@@ -224,7 +235,7 @@ PanelWindow {
                 }
 
                 Tile {
-                    width: (parent.width - 20) / 3
+                    width: (parent.width - 10) / 2
                     compact: true
                     icon: Recorder.recording ? "stop_circle" : "screen_record"
                     title: "Record"

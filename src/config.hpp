@@ -159,6 +159,9 @@ struct Config {
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
     bool allow_tearing = false;  // fullscreen games that ask may skip vblank
     int brightness = 100;           // external monitors (DDC/CI), restored at login
+    std::string night_light = "off";  // off, sunset (to sunrise), custom (from/to), always
+    int night_light_warmth = 50;       // 0 a little warmer, 100 a lot
+    std::string night_light_from = "22:00", night_light_to = "07:00";
     std::vector<Keybind> keybinds;
 
     // `nested` = running as a window inside another compositor, which owns

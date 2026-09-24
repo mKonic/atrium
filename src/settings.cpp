@@ -581,6 +581,20 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         {"performance", "balanced", "power-saver"}, d.power_profile,
         [](Config& c, const json& v) { c.power_profile = v.get<std::string>(); }));
     s.back().needs = "power-profiles-daemon";
+    // Night light: its own group on the Displays page.
+    s.push_back(choice("displays.night_light", "Displays", "Night Light",
+        "Warmer colours in the evening, easier on the eyes at night.", {"off", "sunset", "custom", "always"},
+        d.night_light, [](Config& c, const json& v) { c.night_light = v.get<std::string>(); }));
+    s.back().custom = true;
+    s.push_back(number("displays.night_light_warmth", T::Int, "Displays", "Night Light warmth",
+        "How warm, from a little to a lot.", &Config::night_light_warmth, d, 0, 100));
+    s.back().custom = true;
+    s.push_back(text("displays.night_light_from", "Displays", "Night Light from", "When it turns on (\"22:00\").",
+        &Config::night_light_from, d));
+    s.back().custom = true;
+    s.push_back(text("displays.night_light_to", "Displays", "Night Light to", "When it turns off (\"07:00\").",
+        &Config::night_light_to, d));
+    s.back().custom = true;
     s.push_back(boolean("displays.allow_tearing", "Displays", "Allow tearing in games",
         "Fullscreen games that ask for it show each frame the moment it is ready instead of waiting for the "
         "screen's refresh: less input lag, at the cost of a visible tear line.", &Config::allow_tearing, d));

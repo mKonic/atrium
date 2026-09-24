@@ -1,6 +1,7 @@
 #include "ipc.hpp"
 #include "input_method.hpp"
 #include "keyboard_conf.hpp"
+#include "night_light.hpp"
 #include "layer_surface.hpp"
 #include "registry.hpp"
 #include "rules.hpp"
@@ -685,6 +686,16 @@ json Ipc::handle(Client& c, const json& req) {
 
     if (cmd == "keyboard")
         return ok(keyboard_json(server_));
+    if (cmd == "night_light")
+        return server_.night_light ? ok(server_.night_light->state()) : fail("no night light here");
+    if (cmd == "night_light.set") {
+        if (!req.contains("active") || !req["active"].is_boolean())
+            return fail("night_light.set needs \"active\"");
+        if (!server_.night_light)
+            return fail("no night light here");
+        server_.night_light->set_active(req["active"]);
+        return ok(server_.night_light->state());
+    }
 
     if (cmd == "keyboard.layout") {
         if (!req.contains("index") || !req["index"].is_number_unsigned())

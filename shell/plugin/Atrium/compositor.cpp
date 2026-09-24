@@ -4,11 +4,13 @@
 #include "desktop_entries.hpp"
 #include "palette.hpp"
 
+#include <QDateTime>
 #include <QIcon>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QLocale>
 
 #include <algorithm>
-#include <QJsonDocument>
 
 namespace atrium {
 
@@ -56,7 +58,7 @@ Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     });
     connect(&events_, &QLocalSocket::connected, this, [this] {
         const QJsonObject sub{{"cmd", "subscribe"},
-                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard", "portal"}}};
+                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard", "portal", "night_light"}}};
         events_.write(QJsonDocument(sub).toJson(QJsonDocument::Compact) + '\n');
         emit connectedChanged();
     });
@@ -123,6 +125,7 @@ void Compositor::refreshAll() {
         keyboard_ = r.toObject().toVariantMap();
         emit keyboardChanged();
     });
+    request({{"cmd", "night_light"}}, [this](const QJsonValue& r) { takeNightLight(r.toObject()); });
     request({{"cmd", "settings.get"}}, [this](const QJsonValue& r) {
         settings_ = r.toObject().toVariantMap();
         emit settingsChanged();
@@ -176,6 +179,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
         refreshTable(e.value("table").toString());
     } else if (kind == "shortcut.activated" || kind == "shortcut.deactivated") {
         emit portalShortcut(e.value("app").toString(), e.value("id").toString(), kind == "shortcut.activated");
+    } else if (kind == "night_light.changed") {
+        takeNightLight(e.value("night_light").toObject());
     } else if (kind == "keyboard.changed") {
         keyboard_ = e.value("keyboard").toObject().toVariantMap();
         emit keyboardChanged();
@@ -359,6 +364,25 @@ void Compositor::action(const QString& name, const QVariant& arg) {
     if (arg.isValid() && !arg.isNull())
         req["arg"] = arg.toString();
     request(req);
+}
+
+void Compositor::takeNightLight(const QJsonObject& state) {
+    nightLight_ = state.toVariantMap();
+    // "On until 7:00 AM", in the clock's own style.
+    const qint64 until = state.value("until").toInteger();
+    QString note;
+    if (until > 0) {
+        const QTime at = QDateTime::fromSecsSinceEpoch(until).time();
+        const bool h24 = settings_.value("clock.24_hour").toBool();
+        note = QString(state.value("active").toBool() ? "On until " : "Off until ") +
+               QLocale().toString(at, h24 ? QStringLiteral("HH:mm") : QStringLiteral("h:mm AP"));
+    }
+    nightLight_["note"] = note;
+    emit nightLightChanged();
+}
+
+void Compositor::setNightLight(bool on) {
+    request({{"cmd", "night_light.set"}, {"active", on}});
 }
 
 void Compositor::setKeyboardLayout(int index) {
