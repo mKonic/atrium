@@ -230,7 +230,7 @@ void Capture::deliver(const QImage& image) {
     last_ = file;
     pickingMayChange();
     if (forPortal())
-        return answer(QUrl::fromLocalFile(file).toString());
+        return answer(QUrl::fromLocalFile(file).toString(QUrl::FullyEncoded));
     // And on the clipboard, as a picture.
     auto* copy = new QProcess(this);
     connect(copy, &QProcess::finished, copy, &QObject::deleteLater);
