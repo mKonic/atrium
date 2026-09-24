@@ -224,15 +224,26 @@ PanelWindow {
                 anchors.right: parent.right
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.busy ? "progress_activity" : "arrow_forward"
+                visible: !root.busy
+                text: "arrow_forward"
                 color: "white"
-                opacity: password.text.length > 0 || root.busy ? 1 : 0.4
+                opacity: password.text.length > 0 ? 1 : 0.4
 
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6
                     onClicked: root.submit()
                 }
+            }
+
+            // Turning while greetd checks.
+            MaterialIcon {
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.busy
+                text: "progress_activity"
+                color: "white"
 
                 RotationAnimation on rotation {
                     running: root.busy
