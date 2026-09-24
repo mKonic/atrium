@@ -1,7 +1,7 @@
 #pragma once
 // atrium's own xdg-desktop-portal backend (org.freedesktop.impl.portal.
-// desktop.atrium), run as `atrium-shell portal.qml` when the portal first
-// asks for it. GlobalShortcuts: an app's shortcuts are rows of atrium's
+// desktop.atrium), the atrium-portal program (shell/portal), started when
+// the portal first asks for it. GlobalShortcuts: an app's shortcuts are rows of atrium's
 // shortcut list (action "portal", arg "APP/ID"), so they're kept and can
 // be changed in Settings; the compositor says when one is pressed and let go.
 

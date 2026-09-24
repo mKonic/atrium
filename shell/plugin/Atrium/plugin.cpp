@@ -31,7 +31,6 @@
 #include "disks.hpp"
 #include "themes.hpp"
 #include "printers.hpp"
-#include "portal.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -217,12 +216,6 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Themes; });
         qmlRegisterSingletonType<Printers>(uri, 1, 0, "Printers",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Printers; });
-        // The portal backend, for portal.qml.
-        qmlRegisterSingletonType<PortalBackend>(uri, 1, 0, "PortalBackend", [](QQmlEngine*, QJSEngine*) -> QObject* {
-            QObject* o = PortalBackend::instance();
-            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
-            return o;
-        });
         qmlRegisterSingletonType<Autostart>(uri, 1, 0, "Autostart",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Autostart; });
         qmlRegisterSingletonType<Welcome>(uri, 1, 0, "Welcome",
