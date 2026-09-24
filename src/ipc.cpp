@@ -608,6 +608,11 @@ json Ipc::handle(Client& c, const json& req) {
                 {"transform", int(o->wlr->transform)},
                 {"refresh", o->wlr->refresh / 1000.0},
                 {"focused", o == server_.focused_output},
+                // Variable refresh: whether the screen can, what it's set to, and whether it's on now.
+                {"adaptive_sync_supported", o->wlr->adaptive_sync_supported},
+                {"adaptive_sync", o->adaptive_sync},
+                {"adaptive_sync_active", o->wlr->adaptive_sync_supported &&
+                                             o->wlr->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED},
             });
         }
         return ok(list);

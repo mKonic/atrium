@@ -288,6 +288,8 @@ const char* content_type_name(Server& server, const View& view);  // "none", "ph
 // The fullscreen window at the front of `output` when it asked to tear and
 // display.allow_tearing lets it; otherwise null.
 View* tearing_view(Server& server, const Output& output);
+// The fullscreen game in front on `output` (content type game, or asking to tear), if any.
+View* game_view(Server& server, const Output& output);
 
 // Attach the popup machinery for a new xdg_popup (of a view or a layer surface).
 void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup);

@@ -69,6 +69,7 @@ std::string Server::display_id(const wlr_output* o) const {
 void Server::remember_displays() {
     for (Output* o : outputs) {
         DisplayRecord d{.id = display_id(o->wlr), .enabled = o->wlr->enabled};
+        d.adaptive_sync = o->adaptive_sync;
         if (o->wlr->enabled) {
             d.width = o->wlr->width;
             d.height = o->wlr->height;
@@ -80,6 +81,7 @@ void Server::remember_displays() {
         } else if (auto old = registry->display(d.id)) {
             d = *old;  // keep how it was when it comes back on
             d.enabled = false;
+            d.adaptive_sync = o->adaptive_sync;
         }
         registry->put_display(d);
     }
@@ -89,6 +91,7 @@ void Server::restore_display(Output* output) {
     const auto d = registry->display(display_id(output->wlr));
     if (!d)
         return;
+    output->adaptive_sync = d->adaptive_sync;
     wlr_output* w = output->wlr;
     wlr_output_state state;
     wlr_output_state_init(&state);
@@ -127,6 +130,13 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             target = o;
     if (!target)
         return "no output called " + req["output"].get<std::string>();
+    if (req.contains("adaptive_sync")) {
+        const auto& v = req["adaptive_sync"];
+        if (!v.is_string() || (v != "off" && v != "games" && v != "on"))
+            return "adaptive_sync is off, games or on";
+        target->adaptive_sync = v;
+        wlr_output_schedule_frame(target->wlr);
+    }
 
     wlr_output_configuration_v1* config = wlr_output_configuration_v1_create();
     for (Output* o : outputs) {

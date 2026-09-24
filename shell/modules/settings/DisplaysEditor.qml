@@ -242,6 +242,40 @@ Rectangle {
                 onPicked: v => root.configure({ transform: Number(v) })
             }
         }
+
+        // Only screens that can (FreeSync, G-Sync Compatible, Adaptive-Sync).
+        Setting {
+            visible: root.output?.adaptive_sync_supported ?? false
+            label: "Variable refresh"
+
+            Dropdown {
+                fieldWidth: 220
+                value: root.output?.adaptive_sync ?? "games"
+                options: [
+                    { value: "off", label: "Off" },
+                    { value: "games", label: "Games only" },
+                    { value: "on", label: "Always" }
+                ]
+                onPicked: v => root.configure({ adaptive_sync: v })
+            }
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.output?.adaptive_sync_active ?? false
+                text: "On now"
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.m3Primary
+            }
+        }
+
+        StyledText {
+            visible: root.output?.adaptive_sync_supported ?? false
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "The screen waits for each frame instead of refreshing on a fixed beat: smoother games without tearing. Games only turns it on while a fullscreen game is in front, since some screens flicker with it on the desktop."
+            font.pointSize: Theme.font.size.smaller
+            color: Theme.palette.m3OnSurfaceVariant
+        }
     }
 
     component Setting: Row {

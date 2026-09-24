@@ -79,6 +79,7 @@ struct DisplayRecord {
     double scale = 1.0;
     int transform = 0;  // wl_output_transform
     std::optional<int> x, y;  // none: placed automatically
+    std::string adaptive_sync = "games";  // variable refresh: off, games (fullscreen games only), on
 
     bool operator==(const DisplayRecord&) const = default;
 };

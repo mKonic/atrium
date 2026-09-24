@@ -1,5 +1,6 @@
 #include "output.hpp"
 
+#include "ipc.hpp"
 #include "layer_surface.hpp"
 #include "night_light.hpp"
 #include "overview.hpp"
@@ -100,10 +101,18 @@ void Output::frame() {
     const NightLight* night = server.night_light.get();
     const bool recolour = night && night_generation_ != night->generation() && wlr_output_get_gamma_size(wlr) > 0 &&
                           !wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr);
+    // Variable refresh, as set: always, or while a fullscreen game is in front.
+    const bool vrr = wlr->adaptive_sync_supported &&
+                     (adaptive_sync == "on" || (adaptive_sync == "games" && game_view(server, *this)));
+    if (vrr_refused_ && *vrr_refused_ != vrr)
+        vrr_refused_.reset();
+    const bool switch_vrr = wlr->adaptive_sync_supported &&
+                            vrr != (wlr->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED) &&
+                            vrr_refused_ != vrr;
     // Frame callbacks go out even when nothing changed: a client that asked
     // for one without new damage (Qt between animation steps) would
     // otherwise wait forever, frozen mid-animation.
-    if (!wlr_scene_output_needs_frame(scene_output) && !recolour) {
+    if (!wlr_scene_output_needs_frame(scene_output) && !recolour && !switch_vrr) {
         timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         wlr_scene_output_send_frame_done(scene_output, &now);
@@ -114,6 +123,8 @@ void Output::frame() {
     if (wlr_scene_output_build_state(scene_output, &state, nullptr)) {
         if (recolour)
             wlr_output_state_set_color_transform(&state, night->transform());
+        if (switch_vrr)
+            wlr_output_state_set_adaptive_sync_enabled(&state, vrr);
         if (tearing_view(server, *this)) {
             // Show the frame the moment it is ready, torn if need be; fall
             // back to waiting for vblank when the hardware won't.
@@ -121,15 +132,21 @@ void Output::frame() {
             if (!wlr_output_test_state(wlr, &state))
                 state.tearing_page_flip = false;
         }
-        if (!wlr_output_commit_state(wlr, &state) && recolour) {
-            // The screen wouldn't take the table: the frame without it, and
-            // this table not tried again.
-            wlr_log(WLR_ERROR, "%s: night light's colour table was refused", wlr->name);
-            state.committed &= ~WLR_OUTPUT_STATE_COLOR_TRANSFORM;
+        const bool committed = wlr_output_commit_state(wlr, &state);
+        if (!committed && (recolour || switch_vrr)) {
+            // The screen wouldn't take the table or the switch: the frame
+            // without them, and they're not tried again.
+            wlr_log(WLR_ERROR, "%s: refused%s%s", wlr->name, recolour ? " night light's colour table" : "",
+                    switch_vrr ? " variable refresh" : "");
+            state.committed &= ~(WLR_OUTPUT_STATE_COLOR_TRANSFORM | WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED);
             wlr_output_commit_state(wlr, &state);
+            if (switch_vrr)
+                vrr_refused_ = vrr;
         }
         if (recolour)
             night_generation_ = night->generation();
+        if (committed && switch_vrr && server.ipc)
+            server.ipc->broadcast("outputs", {{"event", "outputs.changed"}});
     }
     wlr_output_state_finish(&state);
     timespec now;

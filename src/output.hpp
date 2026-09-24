@@ -1,6 +1,8 @@
 #pragma once
 #include "listener.hpp"
 
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace atrium {
@@ -43,6 +45,8 @@ public:
     Listener<> lock_surface_destroy;
 
     bool asleep = false;  // turned off through wlr-output-power-management
+    // Variable refresh: "off", "games" (while a fullscreen game is in front), "on".
+    std::string adaptive_sync = "games";
 
     Space* active = nullptr;  // the numbered space shown here
     wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;
@@ -51,6 +55,7 @@ private:
     void frame();
 
     uint64_t night_generation_ = 0;  // night light's table this screen shows
+    std::optional<bool> vrr_refused_;  // a switch the screen wouldn't take, not tried again
 
     Listener<> frame_;
     Listener<wlr_output_event_request_state> request_state_;

@@ -139,4 +139,21 @@ View* tearing_view(Server& server, const Output& output) {
     return nullptr;
 }
 
+View* game_view(Server& server, const Output& output) {
+    // The front window, if it is fullscreen here and says it's a game, or
+    // asks to tear (only games do).
+    for (View* v : server.views) {
+        if (v->output != &output || !v->visible())
+            continue;
+        if (!v->fullscreen || !v->surface())
+            return nullptr;
+        const bool game = std::string_view(content_type_name(server, *v)) == "game" ||
+                          (server.tearing_manager &&
+                           wlr_tearing_control_manager_v1_surface_hint_from_surface(server.tearing_manager, v->surface()) ==
+                               WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC);
+        return game ? v : nullptr;
+    }
+    return nullptr;
+}
+
 } // namespace atrium

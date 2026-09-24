@@ -103,11 +103,43 @@ TEST(Registry, RemembersDisplays) {
     EXPECT_EQ(d->width, 3840);
     EXPECT_DOUBLE_EQ(d->scale, 1.5);
     EXPECT_EQ(d->x, 1920);
+    EXPECT_EQ(d->adaptive_sync, "games");  // variable refresh for games unless set
+    d->adaptive_sync = "on";
+    r.put_display(*d);
+    EXPECT_EQ(r.display("Dell U2720Q 123")->adaptive_sync, "on");
     d->enabled = false;
     d->x.reset();
     r.put_display(*d);
     EXPECT_FALSE(r.display("Dell U2720Q 123")->enabled);
     EXPECT_FALSE(r.display("Dell U2720Q 123")->x);
+}
+
+// A displays table from before variable refresh gains it, set for games.
+TEST(Registry, MigratesDisplaysToAdaptiveSync) {
+    const std::string path = ::testing::TempDir() + "atrium-vrr.db";
+    std::remove(path.c_str());
+    {
+        sqlite3* db = nullptr;
+        ASSERT_EQ(sqlite3_open(path.c_str(), &db), SQLITE_OK);
+        sqlite3_exec(db,
+                     "CREATE TABLE displays (id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1,"
+                     " width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, refresh INTEGER NOT NULL DEFAULT 0,"
+                     " scale REAL NOT NULL DEFAULT 1, transform INTEGER NOT NULL DEFAULT 0, x INTEGER, y INTEGER);"
+                     "INSERT INTO displays(id, width, height) VALUES('Old Screen', 1920, 1080);"
+                     "PRAGMA user_version=9;",
+                     nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    {
+        Registry r(path);
+        ASSERT_TRUE(r.ok());
+        auto d = r.display("Old Screen");
+        ASSERT_TRUE(d);
+        EXPECT_EQ(d->width, 1920);
+        EXPECT_EQ(d->adaptive_sync, "games");
+    }
+    std::remove(path.c_str());
+    std::remove((path + ".v9.bak").c_str());
 }
 
 // A registry from before directional keys: its untouched arrow defaults
