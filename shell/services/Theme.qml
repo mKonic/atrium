@@ -84,7 +84,9 @@ Singleton {
     // (atrium blurs behind them then); otherwise they are solid.
     // Liquid Glass (appearance.liquid_glass): panels clearer still, with a
     // lit rim (GlassRim) over a more vivid blur, whatever the windows do.
-    readonly property bool liquid: Atrium.settings["appearance.liquid_glass"] ?? false
+    readonly property bool liquid: !safeMode && (Atrium.settings["appearance.liquid_glass"] ?? false)
+    // The shell kept crashing: atrium restarts it without effects.
+    readonly property bool safeMode: Shell.env("ATRIUM_SAFE_MODE") === "1"
     readonly property bool glass: liquid || (Atrium.settings["appearance.transparency"] ?? false)
 
     function panel(c: color, glassAlpha: real): color {

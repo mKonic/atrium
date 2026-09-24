@@ -173,6 +173,7 @@ private:
     void migrate();
     bool exec(const char* sql) const;
 
+    std::string file_;  // "" for an in-memory one
     sqlite3* db_ = nullptr;
     bool fresh_ = false;
 };

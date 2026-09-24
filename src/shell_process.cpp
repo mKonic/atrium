@@ -135,6 +135,10 @@ void ShellProcess::start() {
         sigemptyset(&sa.sa_mask);
         for (int sig : {SIGCHLD, SIGINT, SIGTERM, SIGPIPE})
             sigaction(sig, &sa, nullptr);
+        // Crashing again and again: without effects (Liquid Glass), a likely
+        // cause, until it lives a while.
+        if (quick_failures_ >= kSafeAfter)
+            setenv("ATRIUM_SAFE_MODE", "1", 1);
         execl("/bin/sh", "/bin/sh", "-c", cmd.c_str(), nullptr);
         _exit(127);
     }
@@ -182,16 +186,15 @@ void ShellProcess::exited(int status) {
         wlr_log(WLR_ERROR, "shell: killed by signal %d after %.1fs", WTERMSIG(status), lived / 1000);
 
     // Came back fine for a while: start over. Keeps dying at once: wait
-    // longer each time, and give up after a handful.
+    // longer each time (half a minute at most), in safe mode after a few.
+    // Never given up on: without the shell there is no desktop to see.
     if (lived > 30000)
         quick_failures_ = 0;
     else
         ++quick_failures_;
-    if (quick_failures_ > 5) {
-        wlr_log(WLR_ERROR, "shell: keeps failing, not restarting (atriumctl action restart-shell to try again)");
-        return;
-    }
-    schedule(quick_failures_ == 0 ? 500 : std::min(30000, 1000 << (quick_failures_ - 1)));
+    if (quick_failures_ == kSafeAfter)
+        wlr_log(WLR_ERROR, "shell: keeps failing; next tries in safe mode (no effects)");
+    schedule(quick_failures_ == 0 ? 500 : std::min(30000, 1000 << std::min(quick_failures_ - 1, 5)));
 }
 
 } // namespace atrium

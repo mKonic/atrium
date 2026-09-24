@@ -287,6 +287,8 @@ private:
     pid_t startup_pid_ = -1;
     std::string startup_cmd_;               // until Xwayland is up
     bool session_target_ = false;  // atrium-session.target may be ours to stop
+    std::filesystem::path session_marker_;  // "running": ours while we run
+    void note_last_session();
     wl_event_source* startup_timer_ = nullptr;
     void run_startup();
 

@@ -121,6 +121,7 @@ bool AppRecord::empty() const {
 
 Registry::Registry(const std::string& path) {
     if (path != ":memory:") {
+        file_ = path;
         std::error_code ec;
         fs::create_directories(fs::path(path).parent_path(), ec);
         fresh_ = !fs::exists(path);
@@ -147,10 +148,19 @@ bool Registry::exec(const char* sql) const {
 }
 
 void Registry::migrate() {
-    Stmt v(db_, "PRAGMA user_version");
-    const int version = v.step() ? int(v.integer(0)) : 0;
+    const int version = [this] {
+        Stmt v(db_, "PRAGMA user_version");  // done with before VACUUM, which needs no statement open
+        return v.step() ? int(v.integer(0)) : 0;
+    }();
     if (version >= kSchemaVersion)
         return;
+    // A copy of the user's settings as they were, before changing its shape.
+    if (version > 0 && !file_.empty()) {
+        const std::string backup = file_ + ".v" + std::to_string(version) + ".bak";
+        std::error_code ec;
+        if (!fs::exists(backup, ec))
+            exec(("VACUUM INTO '" + backup + "'").c_str());
+    }
     exec("BEGIN");
     exec("CREATE TABLE IF NOT EXISTS settings ("
          " key TEXT PRIMARY KEY, value TEXT NOT NULL)");

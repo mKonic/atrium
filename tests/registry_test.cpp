@@ -4,6 +4,7 @@
 #include <sqlite3.h>
 
 #include <cstdio>
+#include <filesystem>
 #include <optional>
 
 using namespace atrium;
@@ -190,4 +191,30 @@ TEST(Registry, SessionsKeepTheirWindows) {
     r.drop_sessions_before(INT64_MAX);
     EXPECT_FALSE(r.has_session("abc"));
     EXPECT_FALSE(r.session_window("abc", "document-1"));
+}
+
+TEST(Registry, BacksUpAnOlderFileBeforeMigrating) {
+    const std::string dir = testing::TempDir() + "atrium-registry-backup";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    const std::string file = dir + "/registry.db";
+    {
+        // A registry from an older atrium: schema 1, one setting.
+        sqlite3* db = nullptr;
+        ASSERT_EQ(sqlite3_open(file.c_str(), &db), SQLITE_OK);
+        sqlite3_exec(db, "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+                         "INSERT INTO settings VALUES ('appearance.corner_radius', '14');"
+                         "PRAGMA user_version=1;", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    {
+        Registry r(file);
+        ASSERT_TRUE(r.ok());
+        EXPECT_EQ(r.settings().at("appearance.corner_radius"), 14);
+    }
+    EXPECT_TRUE(std::filesystem::exists(file + ".v1.bak"));
+    // A fresh one has nothing to keep.
+    Registry fresh(dir + "/fresh.db");
+    EXPECT_FALSE(std::filesystem::exists(dir + "/fresh.db.v0.bak"));
+    std::filesystem::remove_all(dir);
 }

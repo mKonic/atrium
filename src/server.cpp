@@ -153,6 +153,11 @@ void Server::rebuild_from_registry() {
 }
 
 Server::~Server() {
+    // A clean end: the next start has nothing to report.
+    if (!session_marker_.empty()) {
+        std::error_code ec;
+        std::filesystem::remove(session_marker_, ec);
+    }
     // The session's services and autostarted apps go with it.
     if (session_target_)
         spawn("systemctl --user -q is-active atrium-session.target && systemctl --user stop --no-block atrium-session.target");
@@ -574,6 +579,8 @@ void Server::run(const char* startup_cmd) {
         start_clipboard_history();
         restore_power_and_brightness();
     }
+    if (!nested && !config.greeter)
+        note_last_session();
 
     if (startup_cmd && !config.greeter) {
         startup_cmd_ = startup_cmd;
@@ -598,6 +605,30 @@ void Server::run(const char* startup_cmd) {
 
     wlr_log(WLR_INFO, "running on WAYLAND_DISPLAY=%s", socket);
     wl_display_run(display);
+}
+
+// A marker holds our pid while we run. Still there at the next start, with
+// its atrium gone, the last session crashed: say so once the shell is up.
+void Server::note_last_session() {
+    const char* state = std::getenv("XDG_STATE_HOME");
+    const char* home = std::getenv("HOME");
+    std::filesystem::path dir = state && *state ? std::filesystem::path(state) / "atrium"
+                              : home ? std::filesystem::path(home) / ".local/state/atrium" : std::filesystem::path();
+    if (dir.empty())
+        return;
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    session_marker_ = dir / "running";
+    bool crashed = false;
+    if (std::ifstream in(session_marker_); in) {
+        pid_t pid = 0;
+        in >> pid;
+        crashed = pid > 0 && pid != getpid() && kill(pid, 0) != 0 && errno == ESRCH;
+    }
+    std::ofstream(session_marker_) << getpid() << "\n";
+    if (crashed)
+        spawn("sleep 6; notify-send -a atrium -i dialog-warning 'atrium stopped unexpectedly' "
+              "'Your last session ended in a crash. For the details: coredumpctl info atrium'");
 }
 
 void Server::quit() {
