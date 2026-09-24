@@ -1337,9 +1337,12 @@ void Server::setting_changed(const std::string& key) {
     if (key == "windows.fullscreen_space" && !config.fullscreen_space)
         for (View* v : views)
             v->fullscreen_home = 0;
-    if (key == "windows.tiled_titlebars")
+    if (key == "windows.tiled_titlebars") {
         for (View* v : views)
             v->refresh_tiled_titlebar();
+        for (auto& space : spaces)
+            retile(space.get());
+    }
     if (is("keyboard."))
         seat->apply_keyboard_config();
     if (is("pointer.") || is("touchpad."))
