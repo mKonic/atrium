@@ -201,6 +201,10 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
+            BatteryIndicator {
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Volume {
                 anchors.verticalCenter: parent.verticalCenter
             }

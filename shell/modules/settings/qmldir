@@ -24,6 +24,7 @@ MissingNote 1.0 MissingNote.qml
 NetworkPage 1.0 NetworkPage.qml
 NumberControl 1.0 NumberControl.qml
 PillButton 1.0 PillButton.qml
+PowerPage 1.0 PowerPage.qml
 RegionPage 1.0 RegionPage.qml
 RulesEditor 1.0 RulesEditor.qml
 SectionHeader 1.0 SectionHeader.qml

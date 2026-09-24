@@ -272,6 +272,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            PowerPage {
+                visible: root.query === "" && root.page === "Power"
+                width: parent.width
+            }
+
             DefaultAppsPage {
                 visible: root.query === "" && root.page === "Default Apps"
                 width: parent.width
