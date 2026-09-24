@@ -603,6 +603,11 @@ void Server::new_output(wlr_output* wlr) {
     outputs.push_back(output);
     output_added(output);
     restore_display(output);
+    // Joining the layout (in Output's constructor) ran update_outputs()
+    // before this output was in `outputs`: its box, and the bar's and every
+    // panel's room, come from here. (A nested output gets a resize from its
+    // host window soon after, which hid this; a real screen gets nothing.)
+    update_outputs();
 }
 
 Output* Server::output_at(double lx, double ly) const {
