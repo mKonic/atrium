@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "terminal.hpp"
 #include "input_method.hpp"
 #include "background_effect.hpp"
 #include "session_management.hpp"
@@ -1123,7 +1124,7 @@ void Server::run_action(const Keybind& b) {
     View* v = focused_view;
     switch (b.action) {
     case Action::Spawn: spawn(b.arg); break;
-    case Action::SpawnTerminal: spawn(config.terminal); break;
+    case Action::SpawnTerminal: spawn(config.terminal.empty() ? kDefaultTerminal : config.terminal); break;
     case Action::CloseWindow: if (v) v->close(); break;
     case Action::ToggleFullscreen: if (v) v->set_fullscreen(!v->fullscreen); break;
     case Action::ToggleMaximize: if (v && !v->fullscreen) v->set_maximized(!v->maximized); break;

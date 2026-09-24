@@ -3,6 +3,7 @@
 #include "compositor.hpp"
 #include "files.hpp"
 #include "list_sync.hpp"
+#include "terminal.hpp"
 
 #include <QCollator>
 #include <QDir>
@@ -173,10 +174,11 @@ void DesktopFiles::openFolder() {
 }
 
 void DesktopFiles::terminalHere() {
-    QStringList cmd = QProcess::splitCommand(
-        Compositor::instance()->setting("shortcuts.terminal", QStringLiteral("ghostty")).toString());
-    if (cmd.isEmpty())
+    QStringList cmd = QProcess::splitCommand(Compositor::instance()->setting("shortcuts.terminal", QString()).toString());
+    if (cmd.isEmpty()) {
+        run("sh", {"-c", kDefaultTerminal}, folder_);
         return;
+    }
     const QString program = cmd.takeFirst();
     run(program, cmd, folder_);
 }

@@ -544,7 +544,7 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "The key written as Mod in shortcuts.", {"super", "alt", "ctrl"}, modifier_name(d.mod),
         [](Config& c, const json& v) { c.mod = modifier_from_name(v.get<std::string>()); }));
     s.push_back(text("shortcuts.terminal", "Keyboard Shortcuts", "Terminal",
-        "Command the terminal shortcut runs.", &Config::terminal, d));
+        "Command the terminal shortcut runs. Empty: your default terminal, else the first one installed.", &Config::terminal, d));
 
     return s;
 }
