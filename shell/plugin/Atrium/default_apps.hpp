@@ -15,6 +15,9 @@ class DefaultApps : public QObject {
     Q_PROPERTY(QString browser READ browser NOTIFY changed)
     Q_PROPERTY(QVariantList terminals READ terminals NOTIFY changed)
     Q_PROPERTY(QString terminal READ terminal NOTIFY changed)
+    // Every kind of file with its apps: [{kind, title, apps, current}]
+    // (browser, mail, files, text, images, video, music, pdf).
+    Q_PROPERTY(QVariantList kinds READ kinds NOTIFY changed)
 
 public:
     explicit DefaultApps(QObject* parent = nullptr);
@@ -24,7 +27,11 @@ public:
     QVariantList terminals() const;
     QString terminal() const;
 
-    Q_INVOKABLE void setBrowser(const QString& id);
+    QVariantList kinds() const;
+
+    // The app for one of `kinds` (the browser included).
+    Q_INVOKABLE void setDefault(const QString& kind, const QString& id);
+    Q_INVOKABLE void setBrowser(const QString& id) { setDefault("browser", id); }
     Q_INVOKABLE void setTerminal(const QString& id);
 
 signals:

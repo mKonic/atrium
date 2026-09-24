@@ -2,6 +2,7 @@
 
 #include "compositor.hpp"
 #include "desktop_entries.hpp"
+#include "ini_core.hpp"
 #include "mimeapps_core.hpp"
 #include "terminal.hpp"
 
@@ -22,8 +23,29 @@ namespace {
 using shell::DesktopEntries;
 using shell::DesktopEntry;
 
-const QStringList kWebTypes = {"x-scheme-handler/http", "x-scheme-handler/https", "text/html",
-                               "application/xhtml+xml"};
+struct Kind {
+    const char* kind;
+    const char* title;
+    QStringList types;  // the first decides which apps are offered, and which is current
+};
+
+const QList<Kind>& kindList() {
+    static const QList<Kind> list = {
+        {"browser", "Web browser",
+         {"x-scheme-handler/https", "x-scheme-handler/http", "text/html", "application/xhtml+xml"}},
+        {"mail", "Email", {"x-scheme-handler/mailto"}},
+        {"files", "Files", {"inode/directory"}},
+        {"text", "Text editor", {"text/plain"}},
+        {"images", "Images", {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif",
+                              "image/jxl", "image/svg+xml", "image/tiff"}},
+        {"video", "Video", {"video/mp4", "video/x-matroska", "video/webm", "video/quicktime",
+                            "video/x-msvideo", "video/mpeg"}},
+        {"music", "Music", {"audio/mpeg", "audio/flac", "audio/ogg", "audio/x-wav", "audio/aac", "audio/mp4",
+                            "audio/opus"}},
+        {"pdf", "PDF documents", {"application/pdf"}},
+    };
+    return list;
+}
 
 QString userFile(const QString& name) {
     return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + "/" + name;
@@ -90,27 +112,72 @@ QVariantList DefaultApps::browsers() const {
     });
 }
 
-QString DefaultApps::browser() const {
+// The default for the first of `types` that has one, most important file
+// first; with none set, the first app installed for it, as xdg-open picks.
+static QString currentFor(const QStringList& types) {
+    auto first = [](const std::string& list) {
+        QString id = QString::fromStdString(list.substr(0, list.find(';')));
+        id.chop(id.endsWith(".desktop") ? 8 : 0);
+        return id;
+    };
     for (const QString& file : mimeappsFiles()) {
         const std::string text = read(file).toStdString();
-        for (const char* type : {"x-scheme-handler/https", "x-scheme-handler/http", "text/html"}) {
-            QString id = QString::fromStdString(mimeapps::default_for(text, type));
-            if (!id.isEmpty()) {
-                id.chop(id.endsWith(".desktop") ? 8 : 0);
-                return id;
-            }
+        for (const QString& type : types) {
+            const std::string id = mimeapps::default_for(text, type.toStdString());
+            if (!id.empty())
+                return first(id);
         }
+    }
+    for (const QString& dir : QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation)) {
+        const std::string cache = read(dir + "/applications/mimeinfo.cache").toStdString();
+        for (const QString& type : types)
+            if (auto apps = ini::get(cache, "MIME Cache", type.toStdString()); apps && !apps->empty())
+                return first(*apps);
     }
     return {};
 }
 
-void DefaultApps::setBrowser(const QString& id) {
-    const QString file = userFile("mimeapps.list");
-    std::string text = read(file).toStdString();
-    for (const QString& type : kWebTypes)
-        text = mimeapps::set_default(text, type.toStdString(), (id + ".desktop").toStdString());
-    write(file, QByteArray::fromStdString(text));
-    emit changed();
+static QVariantList appsFor(const QString& type) {
+    return entries([&](DesktopEntry* e) { return e->mimeTypes().contains(type); });
+}
+
+QString DefaultApps::browser() const {
+    return currentFor(kindList().first().types);
+}
+
+QVariantList DefaultApps::kinds() const {
+    QVariantList out;
+    for (const Kind& k : kindList()) {
+        QVariantList apps = appsFor(k.types.first());
+        const QString current = currentFor(k.types);
+        // One that isn't offered (hidden, or it opens another of the kind's
+        // types) is still listed by its name, being the one in use.
+        const bool listed = std::ranges::any_of(apps, [&](const QVariant& a) { return a.toMap().value("value") == current; });
+        if (!listed)
+            if (DesktopEntry* e = DesktopEntries::instance()->byId(current))
+                apps.prepend(QVariantMap{{"value", e->id()}, {"label", e->name()}, {"icon", e->icon()}});
+        out.append(QVariantMap{{"kind", k.kind}, {"title", k.title}, {"apps", apps}, {"current", current}});
+    }
+    return out;
+}
+
+void DefaultApps::setDefault(const QString& kind, const QString& id) {
+    for (const Kind& k : kindList()) {
+        if (kind != k.kind)
+            continue;
+        // Every type of the kind the app opens (all of them for a browser,
+        // whose list is the scheme handlers and pages).
+        DesktopEntry* e = DesktopEntries::instance()->byId(id);
+        const QStringList opens = e ? e->mimeTypes() : QStringList();
+        const QString file = userFile("mimeapps.list");
+        std::string text = read(file).toStdString();
+        for (const QString& type : k.types)
+            if (kind == "browser" || opens.contains(type))
+                text = mimeapps::set_default(text, type.toStdString(), (id + ".desktop").toStdString());
+        write(file, QByteArray::fromStdString(text));
+        emit changed();
+        return;
+    }
 }
 
 QVariantList DefaultApps::terminals() const {

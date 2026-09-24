@@ -8,6 +8,7 @@ ChoiceControl 1.0 ChoiceControl.qml
 ColorControl 1.0 ColorControl.qml
 ControlRow 1.0 ControlRow.qml
 DateTimePage 1.0 DateTimePage.qml
+DefaultAppsPage 1.0 DefaultAppsPage.qml
 Destination 1.0 Destination.qml
 DeviceRow 1.0 DeviceRow.qml
 DevicesEditor 1.0 DevicesEditor.qml
@@ -18,6 +19,7 @@ Group 1.0 Group.qml
 KeyCaps 1.0 KeyCaps.qml
 KeyboardPage 1.0 KeyboardPage.qml
 ListEditor 1.0 ListEditor.qml
+LoginItemsPage 1.0 LoginItemsPage.qml
 MissingNote 1.0 MissingNote.qml
 NetworkPage 1.0 NetworkPage.qml
 NumberControl 1.0 NumberControl.qml

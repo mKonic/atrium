@@ -272,6 +272,16 @@ FloatingWindow {
                 width: parent.width
             }
 
+            DefaultAppsPage {
+                visible: root.query === "" && root.page === "Default Apps"
+                width: parent.width
+            }
+
+            LoginItemsPage {
+                visible: root.query === "" && root.page === "Login Items"
+                width: parent.width
+            }
+
             RegionPage {
                 visible: root.query === "" && root.page === "Language & Region"
                 width: parent.width
