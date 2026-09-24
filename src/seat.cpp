@@ -178,6 +178,9 @@ Seat::Seat(Server& srv) : server(srv) {
             wlr_keyboard_set_keymap(&vk->keyboard, g->group->keyboard.keymap);
             g->destroy.connect(&vk->keyboard.base.events.destroy, [this, g](void*) {
                 std::erase_if(virtual_keyboards_, [g](auto& p) { return p.get() == g; });
+                // Gone (the IME quit): the seat's keyboard is the real one again.
+                if (!wlr_seat_get_keyboard(wlr))
+                    wlr_seat_set_keyboard(wlr, physical_keyboard());
             });
             wlr_keyboard_group_add_keyboard(g->group, &vk->keyboard);
             virtual_keyboards_.push_back(std::move(group));
@@ -340,6 +343,9 @@ void Seat::update_capabilities() {
 // --- keyboard ------------------------------------------------------------------
 
 void Seat::keyboard_enter(wlr_surface* surface) {
+    // Never enter with no keyboard (and so no keymap) while a real one exists.
+    if (!wlr_seat_get_keyboard(wlr))
+        wlr_seat_set_keyboard(wlr, physical_keyboard());
     wlr_keyboard* kb = wlr_seat_get_keyboard(wlr);
     if (!kb) {
         wlr_seat_keyboard_notify_enter(wlr, surface, nullptr, 0, nullptr);
@@ -439,6 +445,12 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 
     wlr_seat_set_keyboard(wlr, kb);
     wlr_seat_keyboard_notify_key(wlr, e->time_msec, e->keycode, e->state);
+    // A virtual keyboard (an IME typing) speaks for itself only for its own
+    // keys: the seat goes back to the real one, whose keymap every client
+    // gets. Left on a virtual one, a client connecting later gets no keymap
+    // (or none at all once it is gone), which crashes Chromium on focus.
+    if (g.is_virtual)
+        wlr_seat_set_keyboard(wlr, physical_keyboard());
 }
 
 wlr_keyboard* Seat::physical_keyboard() const {
@@ -449,6 +461,8 @@ void Seat::modifiers(KeyboardGroup& g) {
     if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.is_virtual)) {
         wlr_seat_set_keyboard(wlr, &g.group->keyboard);
         wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
+        if (g.is_virtual)
+            wlr_seat_set_keyboard(wlr, physical_keyboard());
     }
     // Letting go of Alt picks the window the switcher is on.
     server.switcher->modifiers(wlr_keyboard_get_modifiers(&g.group->keyboard));
