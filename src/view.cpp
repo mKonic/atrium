@@ -484,7 +484,7 @@ void View::update_output_from_position() {
 }
 
 void View::set_output(Output* o) {
-    if (!o || o == output)
+    if (!o || o == output || o->dying)
         return;
     if (handle_ && output)
         wlr_foreign_toplevel_handle_v1_output_leave(handle_, output->wlr);

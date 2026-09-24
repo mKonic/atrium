@@ -24,6 +24,9 @@ public:
     void refit_views();
 
     bool enabled() const { return wlr->enabled; }
+    // Being destroyed: out of the layout, and nothing is placed on it or
+    // told it is on it any more (that would hook the dying wlr_output again).
+    bool dying = false;
 
     Server& server;
     wlr_output* const wlr;

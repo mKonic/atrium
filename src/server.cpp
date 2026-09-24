@@ -614,7 +614,7 @@ void Server::update_outputs() {
 
     // Disabled outputs leave the layout first, so the cursor cannot enter them.
     for (Output* o : outputs) {
-        if (o->enabled())
+        if (o->enabled() || o->dying)  // leaving: already out of the layout
             continue;
         auto* head = wlr_output_configuration_head_v1_create(config_out, o->wlr);
         head->state.enabled = false;
@@ -624,7 +624,7 @@ void Server::update_outputs() {
         o->box = o->usable = {};
     }
     for (Output* o : outputs) {
-        if (o->enabled() && !wlr_output_layout_get(output_layout, o->wlr))
+        if (o->enabled() && !o->dying && !wlr_output_layout_get(output_layout, o->wlr))
             wlr_output_layout_add_auto(output_layout, o->wlr);
     }
 
@@ -638,13 +638,14 @@ void Server::update_outputs() {
     wlr_scene_rect_set_size(locked_bg, layout_box.width, layout_box.height);
 
     for (Output* o : outputs) {
-        if (!o->enabled())
+        if (!o->enabled() || o->dying)
             continue;
         auto* head = wlr_output_configuration_head_v1_create(config_out, o->wlr);
 
         wlr_output_layout_get_box(output_layout, o->wlr, &o->box);
         o->usable = o->box;
-        wlr_scene_output_set_position(o->scene_output, o->box.x, o->box.y);
+        if (o->scene_output)
+            wlr_scene_output_set_position(o->scene_output, o->box.x, o->box.y);
         wlr_scene_node_set_position(&o->fullscreen_bg->node, o->box.x, o->box.y);
         wlr_scene_rect_set_size(o->fullscreen_bg, o->box.width, o->box.height);
 

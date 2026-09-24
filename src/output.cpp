@@ -43,6 +43,14 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
 }
 
 Output::~Output() {
+    // Out of the layout and the scene before anything moves off it: a window
+    // passing over it would otherwise be told it entered this output, which
+    // hooks the wlr_output again while it is being destroyed (wlroots then
+    // asserts on the leftover bind listener).
+    dying = true;
+    wlr_output_layout_remove(server.output_layout, wlr);
+    wlr_scene_output_destroy(scene_output);
+    scene_output = nullptr;
     server.animator.cancel_owner(this, true);
     if (server.overview)
         server.overview->output_removed(this);
@@ -78,8 +86,6 @@ Output::~Output() {
     }
 
     wlr->data = nullptr;
-    wlr_output_layout_remove(server.output_layout, wlr);
-    wlr_scene_output_destroy(scene_output);
     wlr_scene_node_destroy(&fullscreen_bg->node);
 
     if (!server.shutting_down)
