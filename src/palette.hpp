@@ -1,7 +1,9 @@
 #pragma once
-// atrium's colours: the default palette (the user's caelestia scheme) in dark
-// and light, with appearance.accent's tones swapped in. The shell draws with
-// it and Qt apps get it as a KDE colour scheme. Plain C++, tested.
+// atrium's colours: macOS's semantic roles, resolved for dark or light and
+// appearance.accent. Callers name what a colour is for (a label, a fill, a
+// separator), never a shade or an opacity, so one palette serves solid and
+// glass surfaces alike. The shell draws with it and Qt apps get it as a KDE
+// colour scheme. Plain C++, tested.
 
 #include <cstdint>
 #include <string>
@@ -9,18 +11,38 @@
 
 namespace atrium::palette {
 
-// Material 3 roles, 0xRRGGBB.
+// Every colour is 0xRRGGBBAA.
 struct Palette {
-    uint32_t primary, on_primary, primary_container, on_primary_container;
-    uint32_t secondary_container, on_secondary_container;
-    uint32_t surface, surface_container, surface_container_high;
-    uint32_t on_surface, on_surface_variant, outline, outline_variant;
+    // Text and symbols, most to least prominent: body text; subtitles and
+    // captions; placeholders and disabled text; watermarks.
+    uint32_t label, secondary_label, tertiary_label, quaternary_label;
+    // Backgrounds of controls and grouped content over any surface, thickest
+    // to thinnest: slider tracks and pressed rows; switches off and hovered
+    // rows; cards and fields; the faintest grouping.
+    uint32_t fill, secondary_fill, tertiary_fill, quaternary_fill;
+    // Hairlines between content, and the border of a panel or card.
+    uint32_t separator;
+    // Opaque surfaces: a window or panel with transparency off; the content
+    // area inside one (lists, text fields); a raised control face (buttons);
+    // the thumb of a slider or switch.
+    uint32_t window_background, control_background, control, thumb;
+    // The accent, the text and symbols drawn on it, a translucent wash of it
+    // for selected rows, and the keyboard focus ring.
+    uint32_t accent, on_accent, accent_fill, focus_ring;
+    // macOS's system colours: status (red, orange, yellow, green) and
+    // anything that needs a colour of its own.
+    uint32_t red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray;
+    // Drop shadows, and the dim behind a modal dialog.
+    uint32_t shadow, scrim;
 };
 
 Palette make(bool light, std::string_view accent);
 
-// "#rrggbb"
-std::string hex(uint32_t rgb);
+// "#rrggbb", or Qt's "#aarrggbb" when translucent.
+std::string hex(uint32_t rgba);
+
+// `top` composited over opaque `bottom`: an opaque 0xRRGGBBAA.
+uint32_t over(uint32_t top, uint32_t bottom);
 
 // A KDE colour scheme (.colors) for Qt apps, from the same palette.
 std::string kde_colors(bool light, std::string_view accent);

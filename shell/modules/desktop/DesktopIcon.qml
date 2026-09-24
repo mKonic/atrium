@@ -35,7 +35,7 @@ Item {
         width: 68
         height: 68
         radius: Theme.rounding.small
-        color: root.selected ? Theme.alpha(Theme.palette.m3OnSurface, 0.16) : "transparent"
+        color: root.selected ? Theme.palette.fill : "transparent"
     }
 
     IconImage {
@@ -53,12 +53,12 @@ Item {
         width: thumb.paintedWidth + 6
         height: thumb.paintedHeight + 6
         radius: 3
-        color: "#f4f4f4"
+        color: Theme.dark.label
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowColor: Theme.dark.shadow
             shadowBlur: 0.4
             shadowVerticalOffset: 1
         }
@@ -87,7 +87,7 @@ Item {
         width: Math.min(label.implicitWidth, label.maxWidth) + 10
         height: label.implicitHeight + 4
         radius: 6
-        color: root.selected ? Theme.palette.m3Primary : "transparent"
+        color: root.selected ? Theme.palette.accent : "transparent"
         visible: !root.renaming
 
         StyledText {
@@ -105,13 +105,13 @@ Item {
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.small
             font.weight: Font.Medium
-            color: root.selected ? Theme.palette.m3OnPrimary : "white"
+            color: root.selected ? Theme.palette.labelOnAccent : Theme.dark.label
 
             // Readable on any wallpaper: a soft shadow, as macOS gives desktop labels.
             layer.enabled: !root.selected
             layer.effect: MultiEffect {
                 shadowEnabled: true
-                shadowColor: Qt.rgba(0, 0, 0, 0.85)
+                shadowColor: Theme.dark.shadow
                 shadowBlur: 0.45
                 shadowVerticalOffset: 1
                 shadowHorizontalOffset: 0
@@ -133,13 +133,13 @@ Item {
 
             anchors.fill: parent
             horizontalAlignment: TextInput.AlignHCenter
-            color: "white"
+            color: Theme.dark.label
             font.family: Theme.font.sans
             font.pointSize: Theme.font.size.small
             font.weight: Font.Medium
             selectByMouse: true
-            selectionColor: Theme.palette.m3Primary
-            selectedTextColor: Theme.palette.m3OnPrimary
+            selectionColor: Theme.palette.accent
+            selectedTextColor: Theme.palette.labelOnAccent
             cursorVisible: true
             clip: true
             onAccepted: root.renamed(text)
@@ -148,7 +148,7 @@ Item {
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true
-                shadowColor: Qt.rgba(0, 0, 0, 0.85)
+                shadowColor: Theme.dark.shadow
                 shadowBlur: 0.45
                 shadowVerticalOffset: 1
             }

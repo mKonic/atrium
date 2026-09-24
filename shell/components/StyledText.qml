@@ -2,7 +2,7 @@ import QtQuick
 import shell.services
 
 Text {
-    color: Theme.palette.m3OnSurface
+    color: Theme.palette.label
     font.family: Theme.font.sans
     font.pointSize: Theme.font.size.normal
     renderType: Text.NativeRendering

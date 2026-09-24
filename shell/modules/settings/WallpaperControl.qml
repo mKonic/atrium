@@ -20,9 +20,9 @@ Row {
         width: 80
         height: 50
         radius: 8
-        color: Atrium.settings["appearance.background"] ?? Theme.palette.m3SurfaceContainerHigh
+        color: Atrium.settings["appearance.background"] ?? Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+        border.color: Theme.palette.separator
         clip: true
 
         Image {

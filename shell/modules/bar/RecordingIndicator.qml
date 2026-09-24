@@ -9,7 +9,7 @@ Pill {
 
     visible: Recorder.recording
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2
-    color: "#93000a"
+    color: Theme.palette.red
 
     Row {
         id: row
@@ -22,7 +22,7 @@ Pill {
             width: 8
             height: 8
             radius: 4
-            color: "#ffb4ab"
+            color: Theme.dark.label
 
             SequentialAnimation on opacity {
                 running: Recorder.recording
@@ -44,7 +44,7 @@ Pill {
             text: `${Math.floor(Recorder.seconds / 60)}:${String(Recorder.seconds % 60).padStart(2, "0")}`
             font.pointSize: Theme.font.size.smaller
             font.weight: Font.DemiBold
-            color: "#ffdad6"
+            color: Theme.dark.label
         }
     }
 

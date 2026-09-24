@@ -26,7 +26,7 @@ FloatingWindow {
     }
 
     title: "Welcome"
-    color: Theme.palette.m3Surface
+    color: Theme.palette.windowBackground
     implicitWidth: 720
     implicitHeight: 560
     minimumSize: Qt.size(720, 560)
@@ -68,7 +68,7 @@ FloatingWindow {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: "A few choices to make it yours. Everything here is also in System Settings, so nothing is final."
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
 
@@ -190,9 +190,9 @@ FloatingWindow {
                 width: 320
                 height: 200
                 radius: 12
-                color: Atrium.settings["appearance.background"] ?? Theme.palette.m3SurfaceContainerHigh
+                color: Atrium.settings["appearance.background"] ?? Theme.palette.tertiaryFill
                 border.width: 1
-                border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+                border.color: Theme.palette.separator
                 clip: true
 
                 Image {
@@ -245,7 +245,7 @@ FloatingWindow {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "check_circle"
                 font.pointSize: 54
-                color: Theme.palette.m3Primary
+                color: Theme.palette.accent
             }
 
             StyledText {
@@ -261,7 +261,7 @@ FloatingWindow {
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: "Super+Space finds apps and files, and System Settings (Super+,) has the rest."
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
     }
@@ -278,7 +278,7 @@ FloatingWindow {
         Rectangle {
             width: parent.width
             height: 1
-            color: Theme.alpha(Theme.palette.m3Outline, 0.15)
+            color: Theme.palette.separator
         }
 
         PillButton {
@@ -332,7 +332,7 @@ FloatingWindow {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
             text: pageColumn.subtitle
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Item {
@@ -348,9 +348,9 @@ FloatingWindow {
         width: parent.width
         height: rowsColumn.implicitHeight
         radius: 14
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+        border.color: Theme.palette.separator
 
         Column {
             id: rowsColumn
@@ -390,7 +390,7 @@ FloatingWindow {
                 text: line.note
                 wrapMode: Text.WordWrap
                 font.pointSize: Theme.font.size.small
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
 

@@ -36,7 +36,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         text: `atrium ${SystemInfo.version}`
         font.pointSize: Theme.font.size.small
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 
     Item {
@@ -98,7 +98,7 @@ Column {
             text: fact.value
             wrapMode: Text.WordWrap
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 }

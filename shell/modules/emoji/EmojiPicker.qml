@@ -87,17 +87,17 @@ PanelWindow {
         width: Math.min(560, picker.width - 64)
         height: Math.min(520, picker.height - y - 48)
         radius: 26
-        color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.8)
+        color: Theme.material.regular
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+        border.color: Theme.palette.separator
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 8
         }
@@ -140,7 +140,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "search"
                 font.pointSize: 16
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             TextInput {
@@ -151,11 +151,11 @@ PanelWindow {
                 anchors.right: parent.right
                 anchors.rightMargin: 20
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.palette.m3OnSurface
+                color: Theme.palette.label
                 font.family: Theme.font.sans
                 font.pointSize: 15
-                selectionColor: Theme.palette.m3Primary
-                selectedTextColor: Theme.palette.m3OnPrimary
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
                 clip: true
                 onTextChanged: {
                     picker.query = text;
@@ -185,7 +185,7 @@ PanelWindow {
                     visible: search.text.length === 0
                     text: "Search emoji"
                     font.pointSize: 15
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                    color: Theme.palette.tertiaryLabel
                 }
             }
         }
@@ -211,13 +211,13 @@ PanelWindow {
                     width: 40
                     height: 32
                     radius: 10
-                    color: here ? Theme.alpha(Theme.palette.m3Primary, 0.18)
-                         : tabArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+                    color: here ? Theme.palette.accentFill
+                         : tabArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         text: picker.groupIcons[tab.modelData] ?? "category"
-                        color: tab.here ? Theme.palette.m3Primary : Theme.palette.m3OnSurfaceVariant
+                        color: tab.here ? Theme.palette.accent : Theme.palette.secondaryLabel
                     }
 
                     MouseArea {
@@ -253,7 +253,7 @@ PanelWindow {
             highlightMoveDuration: 0
             highlight: Rectangle {
                 radius: 10
-                color: Theme.alpha(Theme.palette.m3Primary, 0.2)
+                color: Theme.palette.accentFill
             }
 
             delegate: Item {
@@ -284,7 +284,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 visible: picker.results.length === 0
                 text: "No emoji match"
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
 
@@ -315,7 +315,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 text: picker.hovered?.name ?? ""
                 elide: Text.ElideRight
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
     }

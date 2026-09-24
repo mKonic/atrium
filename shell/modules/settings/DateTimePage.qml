@@ -95,8 +95,8 @@ Column {
                 width: zones.width
                 height: 30
                 radius: 7
-                color: chosen ? Theme.palette.m3Primary
-                     : hover.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+                color: chosen ? Theme.palette.accent
+                     : hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 StyledText {
                     x: 10
@@ -105,7 +105,7 @@ Column {
                     text: zone.modelData.label
                     elide: Text.ElideRight
                     font.pointSize: Theme.font.size.small
-                    color: zone.chosen ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+                    color: zone.chosen ? Theme.palette.labelOnAccent : Theme.palette.label
                 }
 
                 MouseArea {

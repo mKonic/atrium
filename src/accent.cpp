@@ -9,16 +9,16 @@ namespace {
 
 struct Entry {
     std::string_view name, label;
-    uint32_t rgb;
+    uint32_t rgb, light;
     std::string_view gnome;
 };
 
-// macOS's accent colours (as drawn in dark mode) and GNOME's nearest.
+// macOS's accent colours, as drawn in dark and in light mode, and GNOME's nearest.
 constexpr Entry kColors[] = {
-    {"blue", "Blue", 0x0a84ff, "blue"},       {"purple", "Purple", 0xbf5af2, "purple"},
-    {"pink", "Pink", 0xff375f, "pink"},       {"red", "Red", 0xff453a, "red"},
-    {"orange", "Orange", 0xff9f0a, "orange"}, {"yellow", "Yellow", 0xffd60a, "yellow"},
-    {"green", "Green", 0x32d74b, "green"},    {"graphite", "Graphite", 0x8e8e93, "slate"},
+    {"blue", "Blue", 0x0a84ff, 0x007aff, "blue"},         {"purple", "Purple", 0xbf5af2, 0xaf52de, "purple"},
+    {"pink", "Pink", 0xff375f, 0xff2d55, "pink"},         {"red", "Red", 0xff453a, 0xff3b30, "red"},
+    {"orange", "Orange", 0xff9f0a, 0xff9500, "orange"},   {"yellow", "Yellow", 0xffd60a, 0xffcc00, "yellow"},
+    {"green", "Green", 0x32d74b, 0x28cd41, "green"},      {"graphite", "Graphite", 0x98989d, 0x8e8e93, "slate"},
 };
 
 struct Lab {
@@ -98,6 +98,13 @@ std::optional<uint32_t> seed(std::string_view name) {
     return std::nullopt;
 }
 
+uint32_t rgb(std::string_view name, bool light) {
+    for (const Entry& e : kColors)
+        if (e.name == name)
+            return light ? e.light : e.rgb;
+    return light ? 0x007aff : 0x0a84ff;  // multicolour: the system blue
+}
+
 std::string_view label(std::string_view name) {
     for (const Entry& e : kColors)
         if (e.name == name)
@@ -109,7 +116,7 @@ std::string_view gnome_name(std::string_view name) {
     for (const Entry& e : kColors)
         if (e.name == name)
             return e.gnome;
-    return "blue";  // multicolor: the default palette's periwinkle is nearest blue
+    return "blue";
 }
 
 double lightness(uint32_t rgb) {
@@ -130,17 +137,6 @@ uint32_t tone(uint32_t rgb, double l, double max_chroma) {
     else
         lo = hi;
     return pack(at(lo));
-}
-
-Tones tones(uint32_t rgb, bool light) {
-    // Calm enough to fill a sidebar row, as Material caps its primary
-    // palette's chroma; secondary surfaces keep only a hint of the hue.
-    constexpr double kPrimaryChroma = 48, kContainerChroma = 40, kSecondaryChroma = 14;
-    if (light)
-        return {tone(rgb, 40, kPrimaryChroma), 0xffffff, tone(rgb, 90, kContainerChroma),
-                tone(rgb, 10, kContainerChroma), tone(rgb, 90, kSecondaryChroma), tone(rgb, 10, kSecondaryChroma)};
-    return {tone(rgb, 80, kPrimaryChroma), tone(rgb, 20, kPrimaryChroma), tone(rgb, 50, kContainerChroma),
-            tone(rgb, 90, kContainerChroma), tone(rgb, 30, kSecondaryChroma), tone(rgb, 90, kSecondaryChroma)};
 }
 
 } // namespace atrium::accent

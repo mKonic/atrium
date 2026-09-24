@@ -42,19 +42,19 @@ PanelWindow {
         width: 420
         height: column.implicitHeight + 56
         radius: 26
-        color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.9)
+        color: Theme.material.thick
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+        border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: Panels.open = ""
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 8
         }

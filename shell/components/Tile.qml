@@ -2,6 +2,8 @@ import QtQuick
 import shell.services
 
 // A Control Center toggle: icon, title, and a line saying what it is doing.
+// As in macOS, the tile stays glass and its icon's circle takes the accent
+// when on.
 Rectangle {
     id: root
 
@@ -17,33 +19,36 @@ Rectangle {
 
     implicitHeight: compact ? 78 : wide ? 64 : 58
     radius: 18
-    color: on ? Theme.palette.m3Primary : Theme.palette.m3SurfaceContainerHigh
+    color: Theme.palette.tertiaryFill
 
-    Behavior on color {
-        CAnim {
-            duration: Theme.anim.small
-        }
-    }
-
-    Rectangle {
-        id: badge
-
-        visible: !root.compact
-        anchors.left: parent.left
-        anchors.leftMargin: 10
-        anchors.verticalCenter: parent.verticalCenter
+    component Badge: Rectangle {
         width: 36
         height: 36
         radius: 18
-        color: root.on ? Theme.alpha(Theme.palette.m3OnPrimary, 0.14) : Theme.alpha(Theme.palette.m3OnSurface, 0.08)
+        color: root.on ? Theme.palette.accent : Theme.palette.tertiaryFill
+
+        Behavior on color {
+            CAnim {
+                duration: Theme.anim.small
+            }
+        }
 
         MaterialIcon {
             anchors.centerIn: parent
             text: root.icon
             fill: root.on ? 1 : 0
             font.pointSize: Theme.font.size.larger
-            color: root.on ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+            color: Theme.palette.label
         }
+    }
+
+    Badge {
+        id: badge
+
+        visible: !root.compact
+        anchors.left: parent.left
+        anchors.leftMargin: 10
+        anchors.verticalCenter: parent.verticalCenter
     }
 
     // Small tile: icon, then the title and state under it.
@@ -53,12 +58,8 @@ Rectangle {
         width: parent.width - 12
         spacing: 2
 
-        MaterialIcon {
+        Badge {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: root.icon
-            fill: root.on ? 1 : 0
-            font.pointSize: Theme.font.size.larger
-            color: root.on ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
         }
 
         StyledText {
@@ -70,7 +71,7 @@ Rectangle {
             minimumPointSize: 8
             font.pointSize: Theme.font.size.small
             font.weight: Font.DemiBold
-            color: root.on ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+            color: Theme.palette.label
         }
 
         StyledText {
@@ -79,7 +80,7 @@ Rectangle {
             text: root.subtitle
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.small
-            color: root.on ? Theme.alpha(Theme.palette.m3OnPrimary, 0.8) : Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 
@@ -97,7 +98,7 @@ Rectangle {
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.smaller
             font.weight: Font.DemiBold
-            color: root.on ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+            color: Theme.palette.label
         }
 
         StyledText {
@@ -106,7 +107,7 @@ Rectangle {
             text: root.subtitle
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.small
-            color: root.on ? Theme.alpha(Theme.palette.m3OnPrimary, 0.8) : Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 
@@ -126,13 +127,13 @@ Rectangle {
         width: 28
         height: 28
         radius: 14
-        color: chevronArea.containsMouse ? Theme.alpha(root.on ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface, 0.12) : "transparent"
+        color: chevronArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
 
         MaterialIcon {
             anchors.centerIn: parent
             text: "chevron_right"
             font.pointSize: Theme.font.size.normal
-            color: root.on ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         MouseArea {

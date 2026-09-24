@@ -40,9 +40,9 @@ Row {
             width: text.implicitWidth + 12
             height: 22
             radius: 5
-            color: root.recording ? Theme.alpha(Theme.palette.m3Primary, 0.2) : Theme.alpha(Theme.palette.m3OnSurface, 0.1)
+            color: root.recording ? Theme.palette.accentFill : Theme.palette.secondaryFill
             border.width: 1
-            border.color: root.recording ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3OnSurface, 0.12)
+            border.color: root.recording ? Theme.palette.accent : Theme.palette.secondaryFill
 
             StyledText {
                 id: text

@@ -4,28 +4,104 @@ import QtQuick
 import Atrium.Shell
 import Atrium
 
-// Design tokens: caelestia's sizes, rounding and motion, and the Material 3
-// palette (palette.hpp: dark or light, with appearance.accent's tones).
+// Design tokens: caelestia's sizes, rounding and motion, and macOS's colours
+// (palette.hpp): semantic roles for dark or light and appearance.accent.
+// Name what a colour is for (palette.label, palette.separator,
+// material.regular), never a shade or an opacity.
 Singleton {
     id: root
 
     readonly property bool light: Atrium.settings["appearance.style"] === "light"
-    readonly property var colors: Atrium.palette(light, Atrium.settings["appearance.accent"] ?? "multicolor")
+    readonly property string accent: Atrium.settings["appearance.accent"] ?? "multicolor"
+    readonly property var colors: Atrium.palette(light, accent)
+    readonly property var darkColors: Atrium.palette(false, accent)
 
+    // The palette for the current appearance.
     readonly property QtObject palette: QtObject {
-        readonly property color m3Primary: root.colors.m3Primary
-        readonly property color m3OnPrimary: root.colors.m3OnPrimary
-        readonly property color m3PrimaryContainer: root.colors.m3PrimaryContainer
-        readonly property color m3OnPrimaryContainer: root.colors.m3OnPrimaryContainer
-        readonly property color m3SecondaryContainer: root.colors.m3SecondaryContainer
-        readonly property color m3OnSecondaryContainer: root.colors.m3OnSecondaryContainer
-        readonly property color m3Surface: root.colors.m3Surface
-        readonly property color m3SurfaceContainer: root.colors.m3SurfaceContainer
-        readonly property color m3SurfaceContainerHigh: root.colors.m3SurfaceContainerHigh
-        readonly property color m3OnSurface: root.colors.m3OnSurface
-        readonly property color m3OnSurfaceVariant: root.colors.m3OnSurfaceVariant
-        readonly property color m3Outline: root.colors.m3Outline
-        readonly property color m3OutlineVariant: root.colors.m3OutlineVariant
+        readonly property color label: root.colors.label
+        readonly property color secondaryLabel: root.colors.secondaryLabel
+        readonly property color tertiaryLabel: root.colors.tertiaryLabel
+        readonly property color quaternaryLabel: root.colors.quaternaryLabel
+        readonly property color fill: root.colors.fill
+        readonly property color secondaryFill: root.colors.secondaryFill
+        readonly property color tertiaryFill: root.colors.tertiaryFill
+        readonly property color quaternaryFill: root.colors.quaternaryFill
+        readonly property color separator: root.colors.separator
+        readonly property color windowBackground: root.colors.windowBackground
+        readonly property color controlBackground: root.colors.controlBackground
+        readonly property color control: root.colors.control
+        readonly property color thumb: root.colors.thumb
+        readonly property color accent: root.colors.accent
+        readonly property color labelOnAccent: root.colors.labelOnAccent
+        readonly property color accentFill: root.colors.accentFill
+        readonly property color focusRing: root.colors.focusRing
+        readonly property color red: root.colors.red
+        readonly property color orange: root.colors.orange
+        readonly property color yellow: root.colors.yellow
+        readonly property color green: root.colors.green
+        readonly property color mint: root.colors.mint
+        readonly property color teal: root.colors.teal
+        readonly property color cyan: root.colors.cyan
+        readonly property color blue: root.colors.blue
+        readonly property color indigo: root.colors.indigo
+        readonly property color purple: root.colors.purple
+        readonly property color pink: root.colors.pink
+        readonly property color brown: root.colors.brown
+        readonly property color gray: root.colors.gray
+        readonly property color shadow: root.colors.shadow
+        readonly property color scrim: root.colors.scrim
+    }
+
+    // Dark whatever the appearance, as macOS draws HUDs: for what sits over
+    // the wallpaper or a screenshot (desktop labels, the capture overlay).
+    readonly property QtObject dark: QtObject {
+        readonly property color label: root.darkColors.label
+        readonly property color secondaryLabel: root.darkColors.secondaryLabel
+        readonly property color tertiaryLabel: root.darkColors.tertiaryLabel
+        readonly property color quaternaryLabel: root.darkColors.quaternaryLabel
+        readonly property color fill: root.darkColors.fill
+        readonly property color secondaryFill: root.darkColors.secondaryFill
+        readonly property color tertiaryFill: root.darkColors.tertiaryFill
+        readonly property color quaternaryFill: root.darkColors.quaternaryFill
+        readonly property color separator: root.darkColors.separator
+        readonly property color windowBackground: root.darkColors.windowBackground
+        readonly property color controlBackground: root.darkColors.controlBackground
+        readonly property color control: root.darkColors.control
+        readonly property color thumb: root.darkColors.thumb
+        readonly property color accent: root.darkColors.accent
+        readonly property color labelOnAccent: root.darkColors.labelOnAccent
+        readonly property color accentFill: root.darkColors.accentFill
+        readonly property color focusRing: root.darkColors.focusRing
+        readonly property color red: root.darkColors.red
+        readonly property color orange: root.darkColors.orange
+        readonly property color yellow: root.darkColors.yellow
+        readonly property color green: root.darkColors.green
+        readonly property color mint: root.darkColors.mint
+        readonly property color teal: root.darkColors.teal
+        readonly property color cyan: root.darkColors.cyan
+        readonly property color blue: root.darkColors.blue
+        readonly property color indigo: root.darkColors.indigo
+        readonly property color purple: root.darkColors.purple
+        readonly property color pink: root.darkColors.pink
+        readonly property color brown: root.darkColors.brown
+        readonly property color gray: root.darkColors.gray
+        readonly property color shadow: root.darkColors.shadow
+        readonly property color scrim: root.darkColors.scrim
+    }
+
+    // What panels are made of, thinnest to thickest: with transparency off a
+    // solid window background, otherwise frosted glass (atrium blurs behind
+    // it) letting less through the thicker it is. Liquid Glass is clearer
+    // still.
+    readonly property QtObject material: QtObject {
+        // Bar, Dock and bar pills.
+        readonly property color thin: root.glassy(0.7)
+        // Popovers: notifications, Control Center, OSD, pickers.
+        readonly property color regular: root.glassy(0.8)
+        // Dialogs and sheets.
+        readonly property color thick: root.glassy(0.92)
+        // A bar pill: clear glass, or a step off the bar when solid.
+        readonly property color pill: root.liquid ? root.alpha(root.palette.windowBackground, 0.38) : root.glass ? root.glassy(0.7) : Qt.tint(root.palette.windowBackground, root.palette.quaternaryFill)
     }
 
     readonly property QtObject rounding: QtObject {
@@ -80,22 +156,15 @@ Singleton {
         readonly property int inner: 30  // height of the pills inside it
     }
 
-    // Panels turn to frosted glass only with appearance.transparency on
-    // (atrium blurs behind them then); otherwise they are solid.
-    // Liquid Glass (appearance.liquid_glass): panels clearer still, with a
-    // lit rim (GlassRim) over a more vivid blur, whatever the windows do.
+    // Liquid Glass (appearance.liquid_glass): panels clearer still, lensed
+    // and lit by the compositor, whatever the windows do.
     readonly property bool liquid: !safeMode && (Atrium.settings["appearance.liquid_glass"] ?? false)
     // The shell kept crashing: atrium restarts it without effects.
     readonly property bool safeMode: Shell.env("ATRIUM_SAFE_MODE") === "1"
     readonly property bool glass: liquid || (Atrium.settings["appearance.transparency"] ?? false)
 
-    function panel(c: color, glassAlpha: real): color {
-        return liquid ? alpha(c, glassAlpha * 0.6) : glass ? alpha(c, glassAlpha) : c;
-    }
-
-    // A bar pill's fill: clear glass in Liquid Glass, solid otherwise.
-    function pill(c: color): color {
-        return liquid ? alpha(c, 0.38) : c;
+    function glassy(a: real): color {
+        return liquid ? alpha(palette.windowBackground, a * 0.6) : glass ? alpha(palette.windowBackground, a) : palette.windowBackground;
     }
 
     // A color with its alpha replaced.

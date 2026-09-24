@@ -56,7 +56,7 @@ Item {
             width: Math.max(0, Math.min(implicitWidth, 420, root.maxWidth - x))
             elide: Text.ElideRight
             text: root.title
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
             visible: text.length > 0 && width > 40
         }
     }

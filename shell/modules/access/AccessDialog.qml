@@ -1,6 +1,7 @@
 import QtQuick
 import Atrium.Shell
 import Atrium
+import shell.services
 
 // Over everything, the rest dimmed, as the polkit dialog: nothing else until
 // it's answered.
@@ -14,7 +15,7 @@ PanelWindow {
         right: true
     }
     exclusiveZone: -1
-    color: Qt.rgba(0, 0, 0, 0.35)
+    color: Theme.palette.scrim
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "atrium-access"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive

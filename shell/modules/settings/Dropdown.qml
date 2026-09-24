@@ -21,7 +21,7 @@ Rectangle {
     implicitWidth: fieldWidth
     implicitHeight: 30
     radius: 8
-    color: area.containsMouse || popup.visible ? Theme.alpha(Theme.palette.m3OnSurface, 0.12) : Theme.alpha(Theme.palette.m3OnSurface, 0.07)
+    color: area.containsMouse || popup.visible ? Theme.palette.secondaryFill : Theme.palette.tertiaryFill
 
     StyledText {
         anchors.left: parent.left
@@ -29,7 +29,7 @@ Rectangle {
         anchors.right: chevron.left
         anchors.verticalCenter: parent.verticalCenter
         text: root.label
-        color: root.value ? Theme.palette.m3OnSurface : Theme.palette.m3OnSurfaceVariant
+        color: root.value ? Theme.palette.label : Theme.palette.secondaryLabel
         elide: Text.ElideRight
         font.pointSize: Theme.font.size.small
     }
@@ -42,7 +42,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         text: "unfold_more"
         font.pointSize: Theme.font.size.normal
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 
     MouseArea {
@@ -64,9 +64,9 @@ Rectangle {
         onOpened: list.positionViewAtIndex(root.options.findIndex(o => o.value === root.value), ListView.Center)
         background: Rectangle {
             radius: 12
-            color: Theme.palette.m3SurfaceContainerHigh
+            color: Theme.palette.windowBackground
             border.width: 1
-            border.color: Theme.alpha(Theme.palette.m3OutlineVariant, 0.6)
+            border.color: Theme.palette.separator
         }
 
         ListView {
@@ -85,7 +85,7 @@ Rectangle {
                 width: list.width
                 height: 30
                 radius: 7
-                color: optionArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+                color: optionArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 MaterialIcon {
                     id: tick
@@ -95,7 +95,7 @@ Rectangle {
                     text: "check"
                     visible: option.modelData.value === root.value
                     font.pointSize: Theme.font.size.small
-                    color: Theme.palette.m3Primary
+                    color: Theme.palette.accent
                 }
 
                 StyledText {

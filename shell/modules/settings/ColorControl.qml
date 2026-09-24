@@ -38,7 +38,7 @@ Row {
             anchors.fill: parent
             color: root.swatch
             border.width: 1
-            border.color: Theme.alpha(Theme.palette.m3Outline, 0.4)
+            border.color: Theme.palette.separator
             radius: 8
         }
     }

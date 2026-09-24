@@ -18,7 +18,7 @@ FloatingWindow {
     readonly property var sources: tab === "screens" ? ShareChooser.screens : ShareChooser.windows
 
     title: "Share Your Screen"
-    color: Theme.palette.m3Surface
+    color: Theme.palette.windowBackground
     implicitWidth: 760
     implicitHeight: 540
     minimumSize: Qt.size(560, 400)
@@ -93,7 +93,7 @@ FloatingWindow {
             anchors.centerIn: grid
             visible: root.sources.length === 0
             text: "There is nothing to share."
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Item {
@@ -107,7 +107,7 @@ FloatingWindow {
             Rectangle {
                 width: parent.width
                 height: 1
-                color: Theme.alpha(Theme.palette.m3Outline, 0.15)
+                color: Theme.palette.separator
             }
 
             Row {

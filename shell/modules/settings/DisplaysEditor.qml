@@ -47,9 +47,9 @@ Rectangle {
     width: parent?.width ?? 0
     height: column.implicitHeight + 32
     radius: 14
-    color: Theme.palette.m3SurfaceContainer
+    color: Theme.palette.tertiaryFill
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+    border.color: Theme.palette.separator
 
     Column {
         id: column
@@ -68,7 +68,7 @@ Rectangle {
             width: parent.width
             height: 220
             radius: 10
-            color: Theme.alpha(Theme.palette.m3OnSurface, 0.04)
+            color: Theme.palette.quaternaryFill
 
             Repeater {
                 model: Atrium.outputs
@@ -88,9 +88,9 @@ Rectangle {
                     width: modelData.geometry.width * desk.scale
                     height: modelData.geometry.height * desk.scale
                     radius: 6
-                    color: modelData.enabled ? Theme.alpha(Theme.palette.m3Primary, current ? 0.35 : 0.18) : Theme.alpha(Theme.palette.m3OnSurface, 0.08)
+                    color: modelData.enabled ? Theme.palette.accentFill : Theme.palette.tertiaryFill
                     border.width: current ? 2 : 1
-                    border.color: current ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3Outline, 0.5)
+                    border.color: current ? Theme.palette.accent : Theme.palette.separator
 
                     Column {
                         anchors.centerIn: parent
@@ -110,7 +110,7 @@ Rectangle {
                             horizontalAlignment: Text.AlignHCenter
                             text: `${screen.modelData.mode.width} × ${screen.modelData.mode.height}`
                             font.pointSize: Theme.font.size.smaller
-                            color: Theme.palette.m3OnSurfaceVariant
+                            color: Theme.palette.secondaryLabel
                         }
                     }
 
@@ -214,7 +214,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             text: "This display doesn't list any modes (it's a window or a virtual display), so its resolution and refresh rate can't be changed here."
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Setting {
@@ -264,7 +264,7 @@ Rectangle {
                 visible: root.output?.adaptive_sync_active ?? false
                 text: "On now"
                 font.pointSize: Theme.font.size.small
-                color: Theme.palette.m3Primary
+                color: Theme.palette.accent
             }
         }
 
@@ -274,7 +274,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             text: "The screen waits for each frame instead of refreshing on a fixed beat: smoother games without tearing. Games only turns it on while a fullscreen game is in front, since some screens flicker with it on the desktop."
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         // Only screens whose EDID says they take HDR10 (PQ, BT.2020).
@@ -303,7 +303,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: `${Math.round(root.output?.sdr_white_nits ?? 200)} nits`
                 font.pointSize: Theme.font.size.small
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
 
@@ -315,7 +315,7 @@ Rectangle {
                 ? "HDR games and videos show their full brightness and color" + ((root.output?.max_luminance ?? 0) > 0 ? `, up to the ${Math.round(root.output.max_luminance)} nits this screen says it reaches` : "") + ". Everything else looks as it does without HDR, as bright as SDR brightness sets it."
                 : "Sends the screen an HDR10 signal, so HDR games and videos show their full brightness and color. Everything else looks as it does now."
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 
@@ -330,7 +330,7 @@ Rectangle {
             width: 150
             text: parent.label
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Row {

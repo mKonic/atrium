@@ -67,7 +67,7 @@ Column {
             visible: !Network.wifiEnabled || root.networks.length === 0
             padding: 10
             text: Network.wifiEnabled ? "No networks in range." : "Wi-Fi is off."
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Repeater {
@@ -123,9 +123,9 @@ Column {
                         width: 240
                         height: 30
                         radius: 8
-                        color: Theme.alpha(Theme.palette.m3OnSurface, 0.07)
+                        color: Theme.palette.tertiaryFill
                         border.width: 1
-                        border.color: root.error ? "#ffb4ab" : Theme.alpha(Theme.palette.m3Primary, 0.6)
+                        border.color: root.error ? Theme.palette.red : Theme.palette.focusRing
 
                         TextInput {
                             id: password
@@ -135,7 +135,7 @@ Column {
                             anchors.rightMargin: 10
                             verticalAlignment: TextInput.AlignVCenter
                             echoMode: TextInput.Password
-                            color: Theme.palette.m3OnSurface
+                            color: Theme.palette.label
                             font.family: Theme.font.sans
                             clip: true
                             onAccepted: join.clicked()
@@ -144,7 +144,7 @@ Column {
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: !password.text
                                 text: root.error || "Password"
-                                color: root.error ? "#ffb4ab" : Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                                color: root.error ? Theme.palette.red : Theme.palette.tertiaryLabel
                                 font.pointSize: Theme.font.size.small
                             }
                         }

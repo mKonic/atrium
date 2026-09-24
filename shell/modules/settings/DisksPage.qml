@@ -32,7 +32,7 @@ Column {
         width: parent.width
         wrapMode: Text.WordWrap
         text: root.error || "No drives to show. Plug one in and it appears here."
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 
     Group {

@@ -1,6 +1,7 @@
 import QtQuick
 import Atrium.Shell
 import Atrium
+import shell.services
 
 // The session's polkit agent: when an app asks for administrator rights
 // (pkexec, a settings change), this asks for the password. A password that
@@ -19,7 +20,7 @@ Scope {
             right: true
         }
         exclusiveZone: -1
-        color: Qt.rgba(0, 0, 0, 0.35)
+        color: Theme.palette.scrim
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "atrium-polkit"
         WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None

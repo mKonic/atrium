@@ -17,9 +17,9 @@ Rectangle {
     width: parent?.width ?? 0
     height: visible ? body.implicitHeight + 32 : 0
     radius: 14
-    color: Theme.palette.m3SurfaceContainer
+    color: Theme.palette.tertiaryFill
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+    border.color: Theme.palette.separator
 
     MaterialIcon {
         id: icon
@@ -28,7 +28,7 @@ Rectangle {
         y: 16
         text: "info"
         font.pointSize: Theme.font.size.large
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 
     Column {
@@ -54,7 +54,7 @@ Rectangle {
             text: root.explanation
             wrapMode: Text.WordWrap
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 }

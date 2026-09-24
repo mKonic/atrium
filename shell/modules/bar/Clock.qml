@@ -32,7 +32,7 @@ Pill {
             anchors.verticalCenter: parent.verticalCenter
             text: "calendar_month"
             font.pointSize: Theme.font.size.normal
-            color: Theme.palette.m3Primary
+            color: Theme.palette.accent
         }
 
         StyledText {

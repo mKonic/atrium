@@ -21,7 +21,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 10
-        color: area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.05) : "transparent"
+        color: area.containsMouse ? Theme.palette.quaternaryFill : "transparent"
     }
 
     Rectangle {
@@ -32,7 +32,7 @@ Item {
         width: 32
         height: 32
         radius: 16
-        color: root.active ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3OnSurface, 0.1)
+        color: root.active ? Theme.palette.accent : Theme.palette.secondaryFill
         opacity: root.busy ? 0.6 : 1
 
         MaterialIcon {
@@ -40,7 +40,7 @@ Item {
             text: root.glyph
             fill: root.active ? 1 : 0
             font.pointSize: Theme.font.size.normal
-            color: root.active ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+            color: root.active ? Theme.palette.labelOnAccent : Theme.palette.label
         }
 
         SequentialAnimation on opacity {
@@ -86,7 +86,7 @@ Item {
             text: root.note
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 

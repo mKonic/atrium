@@ -37,7 +37,7 @@ Item {
             visible: root.showPage
             text: root.setting.page
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3Primary
+            color: Theme.palette.accent
         }
 
         StyledText {
@@ -53,7 +53,7 @@ Item {
             text: root.setting.description
             wrapMode: Text.WordWrap
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         StyledText {
@@ -63,7 +63,7 @@ Item {
             wrapMode: Text.WordWrap
             font.pointSize: Theme.font.size.small
             font.weight: Font.Medium
-            color: Theme.palette.m3OnSurface
+            color: Theme.palette.label
         }
     }
 
@@ -78,7 +78,7 @@ Item {
         width: visible ? implicitWidth : 0
         text: "restart_alt"
         font.pointSize: Theme.font.size.normal
-        color: resetArea.containsMouse ? Theme.palette.m3OnSurface : Theme.palette.m3OnSurfaceVariant
+        color: resetArea.containsMouse ? Theme.palette.label : Theme.palette.secondaryLabel
 
         MouseArea {
             id: resetArea

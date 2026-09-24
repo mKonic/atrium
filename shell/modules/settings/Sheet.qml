@@ -27,14 +27,14 @@ Popup {
     onOpened: error = ""
 
     Overlay.modal: Rectangle {
-        color: Qt.rgba(0, 0, 0, 0.35)
+        color: Theme.palette.scrim
     }
 
     background: Rectangle {
         radius: 16
-        color: Theme.palette.m3SurfaceContainerHigh
+        color: Theme.palette.windowBackground
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+        border.color: Theme.palette.separator
     }
 
     contentItem: Column {
@@ -59,7 +59,7 @@ Popup {
             wrapMode: Text.WordWrap
             text: root.error
             font.pointSize: Theme.font.size.smaller
-            color: "#ff6961"
+            color: Theme.palette.red
         }
 
         Row {

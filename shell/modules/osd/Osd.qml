@@ -127,12 +127,12 @@ PanelWindow {
 
         anchors.fill: parent
         radius: 22
-        color: Theme.panel(Theme.palette.m3Surface, 0.82)
+        color: Theme.material.regular
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+        border.color: Theme.palette.separator
         opacity: osd.shown ? 1 : 0
         scale: osd.shown ? 1 : 0.94
         transformOrigin: Item.TopRight
@@ -159,13 +159,13 @@ PanelWindow {
             width: 40
             height: 40
             radius: 20
-            color: osd.off ? Theme.alpha(Theme.palette.m3OnSurface, 0.12) : Theme.palette.m3Primary
+            color: osd.off ? Theme.palette.secondaryFill : Theme.palette.accent
 
             MaterialIcon {
                 anchors.centerIn: parent
                 text: osd.glyph
                 fill: 1
-                color: osd.off ? Theme.palette.m3OnSurface : Theme.palette.m3OnPrimary
+                color: osd.off ? Theme.palette.label : Theme.palette.labelOnAccent
             }
         }
 
@@ -191,7 +191,7 @@ PanelWindow {
             anchors.baseline: label.baseline
             text: osd.off ? "" : `${Math.round(osd.level * 100)}%`
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         // The level, with the 16 steps the keys move by marked on it.
@@ -205,14 +205,14 @@ PanelWindow {
             anchors.bottomMargin: 2
             height: 6
             radius: 3
-            color: Theme.alpha(Theme.palette.m3OnSurface, 0.14)
+            color: Theme.palette.fill
 
             Rectangle {
                 width: Math.max(track.height, track.width * (osd.off ? 0 : osd.level))
                 height: parent.height
                 radius: parent.radius
                 visible: !osd.off && osd.level > 0
-                color: Theme.palette.m3Primary
+                color: Theme.palette.accent
 
                 Behavior on width {
                     Anim {
@@ -230,7 +230,7 @@ PanelWindow {
                     x: track.width * (index + 1) / 16 - 0.5
                     width: 1
                     height: track.height
-                    color: Theme.alpha(Theme.palette.m3Surface, 0.45)
+                    color: Theme.palette.separator
                 }
             }
         }

@@ -14,16 +14,16 @@ Rectangle {
     width: row.implicitWidth + 16
     height: 52
     radius: 16
-    color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.94)
+    color: Theme.material.thick
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+    border.color: Theme.palette.separator
 
     GlassRim {}
 
     layer.enabled: true
     layer.effect: MultiEffect {
         shadowEnabled: true
-        shadowColor: Qt.rgba(0, 0, 0, 0.5)
+        shadowColor: Theme.palette.shadow
         shadowBlur: 1
         shadowVerticalOffset: 6
     }
@@ -49,7 +49,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 1
             height: 26
-            color: Theme.alpha(Theme.palette.m3Outline, 0.3)
+            color: Theme.palette.separator
         }
 
         ToolButton {
@@ -78,7 +78,7 @@ Rectangle {
             visible: !Capture.forPortal
             width: 1
             height: 26
-            color: Theme.alpha(Theme.palette.m3Outline, 0.3)
+            color: Theme.palette.separator
         }
 
         ToolButton {
@@ -97,9 +97,9 @@ Rectangle {
         text: Capture.kind === "screen" ? "Click a screen to take it"
             : Capture.kind === "window" ? "Click a window to take it"
             : "Drag across what to take"
-        color: "white"
+        color: Theme.dark.label
         style: Text.Outline
-        styleColor: Qt.rgba(0, 0, 0, 0.5)
+        styleColor: Theme.dark.shadow
         font.pointSize: Theme.font.size.small
     }
 
@@ -115,14 +115,14 @@ Rectangle {
         width: 40
         height: 40
         radius: 10
-        color: chosen ? Theme.alpha(Theme.palette.m3Primary, 0.28)
-             : area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.1) : "transparent"
+        color: chosen ? Theme.palette.accentFill
+             : area.containsMouse ? Theme.palette.secondaryFill : "transparent"
 
         MaterialIcon {
             anchors.centerIn: parent
             text: button.icon
             font.pointSize: Theme.font.size.large
-            color: button.chosen ? Theme.palette.m3Primary : Theme.palette.m3OnSurface
+            color: button.chosen ? Theme.palette.accent : Theme.palette.label
         }
 
         MouseArea {

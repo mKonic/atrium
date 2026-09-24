@@ -50,7 +50,7 @@ PanelWindow {
                 ? Qt.rect(root.hovered.x, root.hovered.y, root.hovered.width, root.hovered.height)
             : Capture.kind === "screen" && root.inside ? Qt.rect(0, 0, root.width, root.height)
             : Qt.rect(0, 0, 0, 0)
-        readonly property color shade: Qt.rgba(0, 0, 0, 0.35)
+        readonly property color shade: Theme.dark.scrim
 
         anchors.fill: parent
 
@@ -92,9 +92,9 @@ PanelWindow {
             y: dim.clear.y
             width: dim.clear.width
             height: dim.clear.height
-            color: Theme.alpha(Theme.palette.m3Primary, 0.22)
+            color: Theme.palette.accentFill
             border.width: 2
-            border.color: Theme.palette.m3Primary
+            border.color: Theme.palette.accent
         }
 
         Rectangle {
@@ -105,7 +105,7 @@ PanelWindow {
             height: dim.clear.height + 2
             color: "transparent"
             border.width: 1
-            border.color: "white"
+            border.color: Theme.dark.label
         }
     }
 
@@ -117,7 +117,7 @@ PanelWindow {
         width: sizeRow.implicitWidth + 16
         height: 26
         radius: 8
-        color: Qt.rgba(0, 0, 0, 0.7)
+        color: Theme.dark.controlBackground
 
         Row {
             id: sizeRow
@@ -133,12 +133,12 @@ PanelWindow {
                 radius: 4
                 color: root.color || "transparent"
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.6)
+                border.color: Theme.dark.separator
             }
 
             StyledText {
                 text: Capture.kind === "color" ? root.color : `${Math.round(dim.clear.width)} × ${Math.round(dim.clear.height)}`
-                color: "white"
+                color: Theme.dark.label
                 font.pointSize: Theme.font.size.small
                 font.family: Theme.font.mono
             }

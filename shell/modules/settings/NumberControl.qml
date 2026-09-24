@@ -39,13 +39,13 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         height: 6
         radius: 3
-        color: Theme.alpha(Theme.palette.m3OnSurface, 0.14)
+        color: Theme.palette.fill
 
         Rectangle {
             width: Math.max(0, Math.min(1, root.fraction)) * parent.width
             height: parent.height
             radius: parent.radius
-            color: Theme.palette.m3Primary
+            color: Theme.palette.accent
         }
 
         Rectangle {
@@ -54,9 +54,9 @@ Item {
             width: 18
             height: 18
             radius: 9
-            color: Theme.palette.m3OnSurface
+            color: Theme.palette.thumb
             border.width: 1
-            border.color: Theme.alpha(Theme.palette.m3Surface, 0.3)
+            border.color: Theme.palette.separator
         }
 
         MouseArea {
@@ -85,6 +85,6 @@ Item {
         horizontalAlignment: Text.AlignRight
         text: root.integer ? String(Math.round(root.shown)) : root.shown.toFixed(2)
         font.features: { "tnum": 1 }
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 }

@@ -31,7 +31,7 @@ Row {
 
             anchors.verticalCenter: parent.verticalCenter
             implicitWidth: row.implicitWidth + Theme.padding.normal * 2
-            color: modelData.shown ? Theme.palette.m3Primary : Theme.pill(Theme.palette.m3SurfaceContainer)
+            color: modelData.shown ? Theme.palette.accent : Theme.material.pill
 
             Behavior on color {
                 CAnim {
@@ -49,7 +49,7 @@ Row {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "visibility_off"
                     font.pointSize: Theme.font.size.normal
-                    color: chip.modelData.shown ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+                    color: chip.modelData.shown ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
                 }
 
                 Repeater {
@@ -61,7 +61,7 @@ Row {
                         anchors.verticalCenter: parent.verticalCenter
                         text: Icons.appCategoryIcon(modelData)
                         font.pointSize: Theme.font.size.larger
-                        color: chip.modelData.shown ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+                        color: chip.modelData.shown ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
                     }
                 }
             }

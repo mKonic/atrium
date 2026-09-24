@@ -143,7 +143,7 @@ Item {
         width: root.focused ? 12 : 4
         height: 4
         radius: 2
-        color: root.focused ? Theme.palette.m3Primary : Theme.palette.m3OnSurfaceVariant
+        color: root.focused ? Theme.palette.accent : Theme.palette.secondaryLabel
         opacity: root.running ? 1 : 0
 
         Behavior on width {
@@ -167,9 +167,9 @@ Item {
         width: label.implicitWidth + Theme.padding.larger * 2
         height: label.implicitHeight + Theme.padding.small * 2
         radius: Theme.rounding.full
-        color: Theme.palette.m3SurfaceContainerHigh
+        color: Theme.material.regular
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3OutlineVariant, 0.6)
+        border.color: Theme.palette.separator
         opacity: mouse.containsMouse && !mouse.pressed && !root.menuOpen ? 1 : 0
         visible: opacity > 0
 

@@ -189,7 +189,7 @@ PanelWindow {
         width: Math.max(0, row.width - 8) + dock.shelfPadding * 2
         height: dock.shelfHeight
         radius: 22
-        color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.62)
+        color: Theme.material.thin
 
         GlassRim {}
 
@@ -198,7 +198,7 @@ PanelWindow {
             CAnim {}
         }
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.18)
+        border.color: Theme.palette.separator
 
         // No animation of its own: it follows the icons, which grow and
         // shrink smoothly as apps come and go.
@@ -271,7 +271,7 @@ PanelWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 1
                         height: dock.iconSize * 0.8
-                        color: Theme.alpha(Theme.palette.m3Outline, 0.35)
+                        color: Theme.palette.separator
                     }
                 }
             }
@@ -310,7 +310,7 @@ PanelWindow {
         width: 3
         height: shelf.height - 20
         radius: 1.5
-        color: Theme.palette.m3Primary
+        color: Theme.palette.accent
     }
 
     // The app under the pointer while it is dragged; a badge says it is
@@ -331,13 +331,13 @@ PanelWindow {
             width: 20
             height: 20
             radius: 10
-            color: "#ffb4ab"
+            color: Theme.palette.red
 
             MaterialIcon {
                 anchors.centerIn: parent
                 text: "remove"
                 font.pointSize: Theme.font.size.small
-                color: "#690005"
+                color: Theme.dark.label
             }
         }
     }

@@ -16,9 +16,9 @@ Rectangle {
     width: 380
     height: column.implicitHeight + 48
     radius: 26
-    color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.92)
+    color: Theme.material.thick
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+    border.color: Theme.palette.separator
     focus: true
     Keys.onEscapePressed: AccessPrompt.answer(false)
 
@@ -27,7 +27,7 @@ Rectangle {
     layer.enabled: true
     layer.effect: MultiEffect {
         shadowEnabled: true
-        shadowColor: Qt.rgba(0, 0, 0, 0.5)
+        shadowColor: Theme.palette.shadow
         shadowBlur: 1
         shadowVerticalOffset: 8
     }
@@ -59,14 +59,14 @@ Rectangle {
                 anchors.fill: parent
                 visible: !appIcon.visible
                 radius: 32
-                color: Theme.palette.m3Primary
+                color: Theme.palette.accent
 
                 MaterialIcon {
                     anchors.centerIn: parent
                     text: "shield"
                     fill: 1
                     font.pointSize: 24
-                    color: Theme.palette.m3OnPrimary
+                    color: Theme.palette.labelOnAccent
                 }
             }
         }
@@ -86,7 +86,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             text: AccessPrompt.subtitle
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         StyledText {
@@ -96,7 +96,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             text: AccessPrompt.body
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         // Choices: a switch for yes-or-no ones, else a menu.

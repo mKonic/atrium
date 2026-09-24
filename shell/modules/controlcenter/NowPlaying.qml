@@ -23,7 +23,7 @@ Column {
         width: Math.min(root.width - 28, 220)
         height: width
         radius: 16
-        color: Theme.palette.m3SurfaceContainerHigh
+        color: Theme.palette.tertiaryFill
         clip: true
 
         Image {
@@ -40,7 +40,7 @@ Column {
             visible: !(root.player?.trackArtUrl)
             text: "music_note"
             font.pointSize: 42
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 
@@ -63,7 +63,7 @@ Column {
             text: root.player?.subtitle ?? ""
             elide: Text.ElideRight
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 
@@ -82,13 +82,13 @@ Column {
             width: parent.width
             height: 4
             radius: 2
-            color: Theme.alpha(Theme.palette.m3OnSurface, 0.15)
+            color: Theme.palette.fill
 
             Rectangle {
                 width: parent.width * (seek.pressed ? seek.fraction : parent.parent.fraction)
                 height: parent.height
                 radius: 2
-                color: Theme.palette.m3OnSurface
+                color: Theme.palette.label
             }
         }
 
@@ -109,7 +109,7 @@ Column {
             anchors.bottom: parent.bottom
             text: SystemInfo.clockTime(seek.pressed ? seek.fraction * (root.player?.length ?? 0) : root.player?.position ?? 0)
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         StyledText {
@@ -117,7 +117,7 @@ Column {
             anchors.bottom: parent.bottom
             text: "-" + SystemInfo.clockTime((root.player?.length ?? 0) - (root.player?.position ?? 0))
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 
@@ -141,7 +141,7 @@ Column {
                 height: width
                 radius: width / 2
                 anchors.verticalCenter: parent?.verticalCenter
-                color: controlArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.1) : "transparent"
+                color: controlArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
                 opacity: modelData.ok ? 1 : 0.35
 
                 MaterialIcon {
@@ -179,14 +179,14 @@ Column {
                 width: root.width
                 height: 40
                 radius: 12
-                color: entry.modelData === root.player ? Theme.alpha(Theme.palette.m3Primary, 0.14)
-                     : entryArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+                color: entry.modelData === root.player ? Theme.palette.accentFill
+                     : entryArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 MaterialIcon {
                     x: 14
                     anchors.verticalCenter: parent.verticalCenter
                     text: entry.modelData.isPlaying ? "graphic_eq" : "music_note"
-                    color: entry.modelData === root.player ? Theme.palette.m3Primary : Theme.palette.m3OnSurfaceVariant
+                    color: entry.modelData === root.player ? Theme.palette.accent : Theme.palette.secondaryLabel
                 }
 
                 StyledText {

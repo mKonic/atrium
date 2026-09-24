@@ -36,7 +36,7 @@ Item {
             text: row.note
             wrapMode: Text.WordWrap
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 

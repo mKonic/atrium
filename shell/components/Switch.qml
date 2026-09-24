@@ -11,7 +11,7 @@ Rectangle {
     implicitWidth: 40
     implicitHeight: 24
     radius: height / 2
-    color: checked ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3OnSurface, 0.16)
+    color: checked ? Theme.palette.accent : Theme.palette.fill
 
     Behavior on color {
         CAnim {
@@ -25,7 +25,7 @@ Rectangle {
         width: root.height - 6
         height: width
         radius: width / 2
-        color: root.checked ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.thumb
 
         Behavior on x {
             Anim {

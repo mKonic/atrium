@@ -1,11 +1,9 @@
 #pragma once
-// The accent colour (appearance.accent), macOS's set, and the tones the shell
-// and apps draw with it. Plain C++: the compositor, the QML plugin and the
-// tests all use it.
+// The accent colour (appearance.accent): macOS's set. Plain C++: the
+// compositor, the QML plugin and the tests all use it.
 //
 // Tones are CIELAB lightness (0 black, 100 white) at the accent's hue, with as
-// much of its chroma as sRGB holds there: the Material 3 idea, at the levels
-// the default (caelestia's) palette uses.
+// much of its chroma as sRGB holds there (GTK's accent shades).
 
 #include <cstdint>
 #include <optional>
@@ -14,11 +12,15 @@
 
 namespace atrium::accent {
 
-// "multicolor" (the default palette, untouched), then macOS's colours.
+// "multicolor" (macOS's default: the system blue), then macOS's colours.
 const std::vector<std::string_view>& names();
 
-// 0xRRGGBB, or none for "multicolor" and unknown names.
+// 0xRRGGBB as drawn in dark mode, or none for "multicolor" and unknown names.
 std::optional<uint32_t> seed(std::string_view name);
+
+// 0xRRGGBB as drawn in `light` or dark mode; multicolour and unknown names
+// are the system blue.
+uint32_t rgb(std::string_view name, bool light);
 
 // `rgb` at lightness `tone`, its chroma capped at `max_chroma` and cut to
 // what sRGB can show there.
@@ -26,12 +28,6 @@ uint32_t tone(uint32_t rgb, double tone, double max_chroma = 1000);
 
 // CIELAB lightness of a colour: its tone.
 double lightness(uint32_t rgb);
-
-struct Tones {
-    uint32_t primary, on_primary, primary_container, on_primary_container;
-    uint32_t secondary_container, on_secondary_container;
-};
-Tones tones(uint32_t rgb, bool light);
 
 // What Settings calls it: "Multicolour", "Blue", ...
 std::string_view label(std::string_view name);

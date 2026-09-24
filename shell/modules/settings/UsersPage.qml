@@ -23,7 +23,7 @@ Column {
         width: size
         height: size
         radius: size / 2
-        color: Theme.palette.m3SecondaryContainer
+        color: Theme.palette.accentFill
         clip: true
 
         StyledText {
@@ -32,7 +32,7 @@ Column {
             text: avatar.user.initials ?? ""
             font.pointSize: avatar.size * 0.3
             font.weight: Font.DemiBold
-            color: Theme.palette.m3OnSecondaryContainer
+            color: Theme.palette.label
         }
 
         Image {
@@ -56,9 +56,9 @@ Column {
         width: parent.width
         height: 150
         radius: 14
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+        border.color: Theme.palette.separator
 
         Avatar {
             id: mine
@@ -82,13 +82,13 @@ Column {
                 width: parent.width
                 height: 26
                 visible: pictureArea.containsMouse
-                color: Qt.rgba(0, 0, 0, 0.55)
+                color: Theme.palette.scrim
 
                 StyledText {
                     anchors.centerIn: parent
                     text: "Edit"
                     font.pointSize: Theme.font.size.smaller
-                    color: "white"
+                    color: Theme.dark.label
                 }
             }
         }
@@ -120,7 +120,7 @@ Column {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     text: Accounts.me.userName ?? ""
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
 
                 Rectangle {
@@ -129,7 +129,7 @@ Column {
                     width: adminLabel.implicitWidth + 14
                     height: 20
                     radius: 10
-                    color: Theme.palette.m3PrimaryContainer
+                    color: Theme.palette.accentFill
 
                     StyledText {
                         id: adminLabel
@@ -137,7 +137,7 @@ Column {
                         anchors.centerIn: parent
                         text: "Admin"
                         font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.m3OnPrimaryContainer
+                        color: Theme.palette.label
                     }
                 }
             }
@@ -161,7 +161,7 @@ Column {
             visible: Accounts.others.length === 0
             padding: 10
             text: "Nobody else has an account on this computer."
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Repeater {
@@ -192,7 +192,7 @@ Column {
                     StyledText {
                         text: row.modelData.userName + (row.modelData.admin ? " · Admin" : "")
                         font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
                 }
             }
@@ -246,7 +246,7 @@ Column {
             visible: verify.text.length > 0 && verify.text !== next.text
             text: "The new passwords don't match."
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 

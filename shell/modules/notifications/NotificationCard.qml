@@ -78,12 +78,12 @@ Rectangle {
 
     implicitHeight: content.implicitHeight + 24
     radius: 18
-    color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.82)
+    color: Theme.material.regular
 
     GlassRim {}
 
     border.width: critical ? 2 : 1
-    border.color: critical ? "#ffb4ab" : Theme.alpha(Theme.palette.m3Outline, 0.2)
+    border.color: critical ? Theme.palette.red : Theme.palette.separator
 
     HoverHandler {
         id: hover
@@ -144,7 +144,7 @@ Rectangle {
                     text: root.app
                     font.pointSize: Theme.font.size.small
                     font.weight: Font.Medium
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                     elide: Text.ElideRight
                     width: Math.min(implicitWidth, parent.width - when.implicitWidth - 30)
                 }
@@ -154,7 +154,7 @@ Rectangle {
 
                     text: root.compact ? NotificationHistory.ago(root.time) : `· ${NotificationHistory.ago(root.time)}`
                     font.pointSize: Theme.font.size.small
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.7)
+                    color: Theme.palette.tertiaryLabel
                 }
             }
 
@@ -175,7 +175,7 @@ Rectangle {
                 wrapMode: Text.Wrap
                 maximumLineCount: root.expanded ? 14 : 1
                 elide: Text.ElideRight
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
                 font.pointSize: Theme.font.size.smaller
                 visible: text.length > 0
             }
@@ -197,7 +197,7 @@ Rectangle {
                         width: label.implicitWidth + 24
                         height: 30
                         radius: 15
-                        color: press.containsMouse ? Theme.alpha(Theme.palette.m3Primary, 0.3) : Theme.alpha(Theme.palette.m3Primary, 0.16)
+                        color: press.containsMouse ? Theme.palette.accentFill : Theme.palette.accentFill
 
                         StyledText {
                             id: label
@@ -206,7 +206,7 @@ Rectangle {
                             text: button.modelData.text
                             font.pointSize: Theme.font.size.smaller
                             font.weight: Font.Medium
-                            color: Theme.palette.m3Primary
+                            color: Theme.palette.accent
                         }
 
                         MouseArea {
@@ -232,13 +232,13 @@ Rectangle {
         height: 22
         radius: 11
         visible: root.expandable
-        color: moreArea.containsMouse ? Theme.palette.m3SurfaceContainerHigh : "transparent"
+        color: moreArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
 
         MaterialIcon {
             anchors.centerIn: parent
             text: root.expanded ? "expand_less" : "expand_more"
             font.pointSize: Theme.font.size.normal
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         // A MouseArea takes the click, so the card's own tap doesn't fire too.
@@ -261,7 +261,7 @@ Rectangle {
         width: 22
         height: 22
         radius: 11
-        color: closeArea.containsMouse ? Theme.palette.m3SurfaceContainerHigh : Theme.alpha(Theme.palette.m3SurfaceContainerHigh, 0.8)
+        color: closeArea.containsMouse ? Theme.material.thick : Theme.material.regular
         opacity: root.hovered ? 1 : 0
         visible: opacity > 0
 

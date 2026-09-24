@@ -138,7 +138,7 @@ Column {
             wrapMode: Text.WordWrap
             text: "For printers that print without a driver (AirPrint, IPP Everywhere): most made since 2015."
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 }

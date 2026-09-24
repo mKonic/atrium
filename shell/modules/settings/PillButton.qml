@@ -15,8 +15,8 @@ Rectangle {
     implicitHeight: 30
     radius: 15
     opacity: enabled ? 1 : 0.5
-    color: primary ? (area.containsMouse ? Qt.lighter(Theme.palette.m3Primary, 1.06) : Theme.palette.m3Primary)
-                   : (area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.14) : Theme.alpha(Theme.palette.m3OnSurface, 0.08))
+    color: primary ? (area.containsMouse ? Qt.lighter(Theme.palette.accent, 1.06) : Theme.palette.accent)
+                   : (area.containsMouse ? Theme.palette.fill : Theme.palette.tertiaryFill)
 
     Row {
         id: row
@@ -29,7 +29,7 @@ Rectangle {
             visible: root.icon.length > 0
             text: root.icon
             font.pointSize: Theme.font.size.normal
-            color: root.primary ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+            color: root.primary ? Theme.palette.labelOnAccent : Theme.palette.label
         }
 
         StyledText {
@@ -37,7 +37,7 @@ Rectangle {
             text: root.text
             font.pointSize: Theme.font.size.small
             font.weight: Font.Medium
-            color: root.primary ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+            color: root.primary ? Theme.palette.labelOnAccent : Theme.palette.label
         }
     }
 

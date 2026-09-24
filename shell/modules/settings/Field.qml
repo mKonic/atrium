@@ -17,9 +17,9 @@ Rectangle {
     implicitWidth: 260
     implicitHeight: 32
     radius: 8
-    color: Theme.alpha(Theme.palette.m3OnSurface, 0.07)
+    color: Theme.palette.tertiaryFill
     border.width: 1
-    border.color: input.activeFocus ? Theme.alpha(Theme.palette.m3Primary, 0.8) : "transparent"
+    border.color: input.activeFocus ? Theme.palette.focusRing : "transparent"
 
     TextInput {
         id: input
@@ -29,7 +29,7 @@ Rectangle {
         anchors.rightMargin: 10
         verticalAlignment: TextInput.AlignVCenter
         echoMode: root.password ? TextInput.Password : TextInput.Normal
-        color: Theme.palette.m3OnSurface
+        color: Theme.palette.label
         font.family: Theme.font.sans
         font.pointSize: Theme.font.size.small
         clip: true
@@ -41,7 +41,7 @@ Rectangle {
             visible: !input.text && root.placeholder
             text: root.placeholder
             font: input.font
-            color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+            color: Theme.palette.tertiaryLabel
         }
     }
 }

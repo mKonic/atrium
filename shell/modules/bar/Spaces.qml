@@ -34,7 +34,7 @@ Pill {
         width: target?.width ?? 0
         height: row.height
         radius: Theme.rounding.full
-        color: Theme.palette.m3Primary
+        color: Theme.palette.accent
         visible: target !== null
         clip: true
         z: 1  // over the row: its copy is what shows where it covers

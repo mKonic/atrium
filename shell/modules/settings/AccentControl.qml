@@ -39,7 +39,7 @@ Column {
                     radius: width / 2
                     color: "transparent"
                     border.width: 2
-                    border.color: Theme.alpha(Theme.palette.m3OnSurface, swatch.current ? 0.7 : 0)
+                    border.color: swatch.current ? Theme.palette.secondaryLabel : "transparent"
                 }
 
                 Rectangle {
@@ -50,7 +50,7 @@ Column {
                     visible: swatch.color !== ""
                     color: swatch.color || "transparent"
                     border.width: 1
-                    border.color: Qt.rgba(0, 0, 0, 0.15)
+                    border.color: Theme.palette.separator
                 }
 
                 Shape {
@@ -66,13 +66,13 @@ Column {
                         fillGradient: ConicalGradient {
                             centerX: 8
                             centerY: 8
-                            GradientStop { position: 0.0; color: "#ff453a" }
+                            GradientStop { position: 0.0; color: Theme.palette.red }
                             GradientStop { position: 0.17; color: "#ff9f0a" }
                             GradientStop { position: 0.33; color: "#ffd60a" }
                             GradientStop { position: 0.5; color: "#32d74b" }
                             GradientStop { position: 0.67; color: "#0a84ff" }
                             GradientStop { position: 0.83; color: "#bf5af2" }
-                            GradientStop { position: 1.0; color: "#ff453a" }
+                            GradientStop { position: 1.0; color: Theme.palette.red }
                         }
                         PathAngleArc {
                             centerX: 8
@@ -98,6 +98,6 @@ Column {
         anchors.right: parent.right
         text: Atrium.accentLabel(root.value)
         font.pointSize: Theme.font.size.smaller
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 }

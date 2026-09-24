@@ -50,7 +50,7 @@ Column {
             visible: root.mine.length === 0
             padding: 10
             text: root.adapter?.enabled ? "No devices yet." : "Bluetooth is off."
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Repeater {
@@ -87,7 +87,7 @@ Column {
             visible: root.nearby.length === 0
             padding: 10
             text: "Nothing found yet. Put the device in pairing mode."
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Repeater {

@@ -374,7 +374,7 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     {
         std::vector<std::string> accents(accent::names().begin(), accent::names().end());
         s.push_back(choice("appearance.accent", "Appearance", "Accent colour",
-            "Highlights, selections and buttons, in the shell and in apps that follow the system. Multicolour keeps atrium's own.",
+            "Highlights, selections and buttons, in the shell and in apps that follow the system. Multicolour is the system blue.",
             std::move(accents), d.accent, [](Config& c, const json& v) { c.accent = v.get<std::string>(); }));
     }
     // The wallpaper (read by the shell): a picture file, and how it meets

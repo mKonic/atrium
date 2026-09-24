@@ -76,7 +76,7 @@ Column {
                 width: parent.width
                 wrapMode: Text.Wrap
                 text: "This device has nothing to adjust here (in a session inside another one, the pointer belongs to the outer one)."
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             Row_ {

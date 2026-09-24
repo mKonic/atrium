@@ -10,9 +10,9 @@ Rectangle {
     width: parent?.width ?? 0
     height: facts.implicitHeight + 56
     radius: 14
-    color: Theme.palette.m3SurfaceContainer
+    color: Theme.palette.tertiaryFill
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+    border.color: Theme.palette.separator
 
     SystemFacts {
         id: facts

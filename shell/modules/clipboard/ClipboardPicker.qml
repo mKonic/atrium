@@ -79,17 +79,17 @@ PanelWindow {
         width: Math.min(860, picker.width - 64)
         height: Math.min(540, picker.height - y - 48)
         radius: 26
-        color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.8)
+        color: Theme.material.regular
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+        border.color: Theme.palette.separator
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 8
         }
@@ -133,7 +133,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "content_paste_search"
                 font.pointSize: 18
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             TextInput {
@@ -144,11 +144,11 @@ PanelWindow {
                 anchors.right: tools.left
                 anchors.rightMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.palette.m3OnSurface
+                color: Theme.palette.label
                 font.family: Theme.font.sans
                 font.pointSize: 16
-                selectionColor: Theme.palette.m3Primary
-                selectedTextColor: Theme.palette.m3OnPrimary
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
                 clip: true
                 onTextChanged: {
                     Clipboard.query = text;
@@ -178,7 +178,7 @@ PanelWindow {
                     visible: search.text.length === 0
                     text: "Search clipboard"
                     font.pointSize: 16
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                    color: Theme.palette.tertiaryLabel
                 }
             }
 
@@ -194,7 +194,7 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: `${picker.entries.length} items`
                     font.pointSize: Theme.font.size.smaller
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
 
                 Rectangle {
@@ -202,7 +202,7 @@ PanelWindow {
                     width: clearLabel.implicitWidth + 20
                     height: 28
                     radius: 14
-                    color: clearArea.containsMouse ? Theme.palette.m3SurfaceContainerHigh : "transparent"
+                    color: clearArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
 
                     StyledText {
                         id: clearLabel
@@ -210,7 +210,7 @@ PanelWindow {
                         anchors.centerIn: parent
                         text: "Clear All"
                         font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.m3Primary
+                        color: Theme.palette.accent
                     }
 
                     MouseArea {
@@ -228,7 +228,7 @@ PanelWindow {
             anchors.top: header.bottom
             width: parent.width
             height: 1
-            color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+            color: Theme.palette.separator
         }
 
         // Left: the history.
@@ -262,8 +262,8 @@ PanelWindow {
                     anchors.leftMargin: 8
                     anchors.rightMargin: 4
                     radius: 12
-                    color: row.selected ? Theme.alpha(Theme.palette.m3Primary, 0.22)
-                         : rowArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.06) : "transparent"
+                    color: row.selected ? Theme.palette.accentFill
+                         : rowArea.containsMouse ? Theme.palette.quaternaryFill : "transparent"
                 }
 
                 MaterialIcon {
@@ -275,7 +275,7 @@ PanelWindow {
                     visible: !row.modelData.image || !row.modelData.thumb
                     text: row.modelData.image ? "image" : "notes"
                     font.pointSize: Theme.font.size.normal
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
 
                 Image {
@@ -303,7 +303,7 @@ PanelWindow {
                     elide: Text.ElideRight
                     maximumLineCount: 1
                     font.pointSize: Theme.font.size.smaller
-                    color: row.modelData.image ? Theme.palette.m3OnSurfaceVariant : Theme.palette.m3OnSurface
+                    color: row.modelData.image ? Theme.palette.secondaryLabel : Theme.palette.label
                 }
 
                 // Hover previews it, a click copies it; arrows and Enter do the same.
@@ -326,7 +326,7 @@ PanelWindow {
             anchors.bottom: parent.bottom
             anchors.left: list.right
             width: 1
-            color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+            color: Theme.palette.separator
         }
 
         // Right: all of it.
@@ -364,7 +364,7 @@ PanelWindow {
                     width: parent.width
                     text: previewPane.p.full ?? previewPane.p.text ?? ""
                     wrapMode: Text.Wrap
-                    color: Theme.palette.m3OnSurface
+                    color: Theme.palette.label
                     font.family: Theme.font.mono
                     font.pointSize: Theme.font.size.smaller
                     textFormat: Text.PlainText
@@ -380,13 +380,13 @@ PanelWindow {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "content_paste_off"
                     font.pointSize: 28
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                    color: Theme.palette.tertiaryLabel
                 }
 
                 StyledText {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: Clipboard.available ? "Nothing copied yet" : "Clipboard history needs cliphist"
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
             }
         }
@@ -413,14 +413,14 @@ PanelWindow {
                     StyledText {
                         text: parent.modelData[0]
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
 
                     Rectangle {
                         width: key.implicitWidth + 10
                         height: key.implicitHeight + 2
                         radius: 5
-                        color: Theme.palette.m3SurfaceContainerHigh
+                        color: Theme.palette.tertiaryFill
 
                         StyledText {
                             id: key

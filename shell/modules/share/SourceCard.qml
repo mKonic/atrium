@@ -24,9 +24,9 @@ Item {
         width: parent.width
         height: 126
         radius: 12
-        color: Theme.palette.m3SurfaceContainerHigh
+        color: Theme.palette.tertiaryFill
         border.width: root.chosen ? 3 : 1
-        border.color: root.chosen ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3Outline, 0.2)
+        border.color: root.chosen ? Theme.palette.accent : Theme.palette.separator
 
         Image {
             id: picture
@@ -45,7 +45,7 @@ Item {
             visible: root.screen && picture.status !== Image.Ready
             text: "desktop_windows"
             font.pointSize: 34
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         IconImage {
@@ -89,7 +89,7 @@ Item {
         elide: Text.ElideRight
         text: root.source.text ?? ""
         font.pointSize: Theme.font.size.small
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 
     MouseArea {

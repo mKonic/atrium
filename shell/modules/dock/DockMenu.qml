@@ -44,9 +44,9 @@ Rectangle {
     width: 200
     height: column.implicitHeight + Theme.padding.small * 2
     radius: Theme.rounding.normal
-    color: Theme.palette.m3SurfaceContainerHigh
+    color: Theme.material.regular
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3OutlineVariant, 0.6)
+    border.color: Theme.palette.separator
 
     Column {
         id: column
@@ -61,7 +61,7 @@ Rectangle {
             bottomPadding: Theme.padding.small
             text: root.item?.name ?? ""
             font.weight: Font.DemiBold
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
             font.pointSize: Theme.font.size.smaller
         }
 
@@ -76,7 +76,7 @@ Rectangle {
                 width: column.width
                 height: 34
                 radius: Theme.rounding.small
-                color: hover.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+                color: hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 Row {
                     anchors.verticalCenter: parent.verticalCenter

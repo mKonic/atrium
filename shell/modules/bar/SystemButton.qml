@@ -18,8 +18,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: root.open ? Theme.palette.m3SecondaryContainer
-             : area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+        color: root.open ? Theme.palette.accentFill
+             : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
     }
 
     IconImage {
@@ -37,7 +37,7 @@ Item {
         source: logo
         brightness: 1
         colorization: 1
-        colorizationColor: Theme.palette.m3OnSurface
+        colorizationColor: Theme.palette.label
     }
 
     MouseArea {

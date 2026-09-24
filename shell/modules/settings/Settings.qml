@@ -34,7 +34,7 @@ FloatingWindow {
 
     title: "System Settings"
     visible: false
-    color: Theme.palette.m3Surface
+    color: Theme.palette.windowBackground
     implicitWidth: 920
     implicitHeight: 660
     minimumSize: Qt.size(720, 480)
@@ -55,7 +55,7 @@ FloatingWindow {
 
         width: 240
         height: parent.height
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.quaternaryFill
 
         Rectangle {
             id: searchBox
@@ -65,7 +65,7 @@ FloatingWindow {
             width: parent.width - 24
             height: 34
             radius: 10
-            color: Theme.alpha(Theme.palette.m3OnSurface, 0.07)
+            color: Theme.palette.tertiaryFill
 
             MaterialIcon {
                 id: glass
@@ -75,7 +75,7 @@ FloatingWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "search"
                 font.pointSize: Theme.font.size.normal
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             TextInput {
@@ -86,7 +86,7 @@ FloatingWindow {
                 anchors.right: parent.right
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                color: Theme.palette.m3OnSurface
+                color: Theme.palette.label
                 font.family: Theme.font.sans
                 font.pointSize: Theme.font.size.normal
                 clip: true
@@ -97,7 +97,7 @@ FloatingWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !search.text
                     text: "Search"
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                    color: Theme.palette.tertiaryLabel
                 }
             }
         }
@@ -124,8 +124,8 @@ FloatingWindow {
                 width: pageList.width
                 height: 36
                 radius: 9
-                color: current ? Theme.palette.m3PrimaryContainer
-                     : area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.06) : "transparent"
+                color: current ? Theme.palette.accentFill
+                     : area.containsMouse ? Theme.palette.quaternaryFill : "transparent"
 
                 Rectangle {
                     id: square
@@ -142,7 +142,7 @@ FloatingWindow {
                         text: entry.modelData.icon
                         fill: 1
                         font.pointSize: Theme.font.size.small
-                        color: "white"
+                        color: Theme.dark.label
                     }
                 }
 
@@ -207,7 +207,7 @@ FloatingWindow {
             StyledText {
                 visible: root.query !== "" && SettingsPages.search(root.query).length === 0
                 text: "No settings match."
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             // Why a change didn't take, for a moment.
@@ -216,9 +216,9 @@ FloatingWindow {
                 width: parent.width
                 height: refusal.implicitHeight + 20
                 radius: 10
-                color: Theme.alpha("#ffb4ab", 0.14)
+                color: Theme.palette.tertiaryFill
                 border.width: 1
-                border.color: Theme.alpha("#ffb4ab", 0.5)
+                border.color: Theme.palette.red
 
                 StyledText {
                     id: refusal
@@ -227,7 +227,7 @@ FloatingWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - 28
                     wrapMode: Text.WordWrap
-                    color: "#ffb4ab"
+                    color: Theme.palette.red
                 }
 
                 Timer {

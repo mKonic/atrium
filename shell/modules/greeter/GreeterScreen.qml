@@ -62,9 +62,9 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.darker(Theme.palette.m3PrimaryContainer, 2.2) }
-            GradientStop { position: 0.55; color: Theme.palette.m3Surface }
-            GradientStop { position: 1.0; color: Qt.darker(Theme.palette.m3SecondaryContainer, 1.6) }
+            GradientStop { position: 0.0; color: Qt.tint(Theme.dark.controlBackground, Theme.dark.accentFill) }
+            GradientStop { position: 0.55; color: Theme.dark.controlBackground }
+            GradientStop { position: 1.0; color: Qt.tint(Theme.dark.controlBackground, Theme.dark.accentFill) }
         }
     }
 
@@ -84,7 +84,7 @@ PanelWindow {
             text: Qt.formatDate(clock.date, "dddd d MMMM")
             font.pointSize: 17
             font.weight: Font.DemiBold
-            color: Qt.rgba(1, 1, 1, 0.85)
+            color: Theme.dark.label
         }
 
         StyledText {
@@ -92,7 +92,7 @@ PanelWindow {
             text: Qt.formatTime(clock.date, "hh:mm")
             font.pointSize: 84
             font.weight: Font.Bold
-            color: Qt.rgba(1, 1, 1, 0.92)
+            color: Theme.dark.label
         }
     }
 
@@ -149,7 +149,7 @@ PanelWindow {
             text: root.person ? (root.person.realName || root.person.userName) : ""
             font.pointSize: 15
             font.weight: Font.DemiBold
-            color: "white"
+            color: Theme.dark.label
         }
 
         Pill_ {
@@ -164,7 +164,7 @@ PanelWindow {
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
                 verticalAlignment: TextInput.AlignVCenter
-                color: "white"
+                color: Theme.dark.label
                 font.pointSize: 12
                 text: root.last.user ?? ""
                 // A name already there (the last one): straight to the password.
@@ -175,7 +175,7 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: nameField.text.length === 0
                     text: "Name"
-                    color: Qt.rgba(1, 1, 1, 0.55)
+                    color: Theme.dark.secondaryLabel
                 }
             }
         }
@@ -190,7 +190,7 @@ PanelWindow {
                 anchors.leftMargin: 16
                 anchors.rightMargin: 40
                 verticalAlignment: TextInput.AlignVCenter
-                color: "white"
+                color: Theme.dark.label
                 font.pointSize: 12
                 echoMode: TextInput.Password
                 passwordCharacter: "●"
@@ -216,7 +216,7 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: password.text.length === 0
                     text: "Enter Password"
-                    color: Qt.rgba(1, 1, 1, 0.55)
+                    color: Theme.dark.secondaryLabel
                 }
             }
 
@@ -226,7 +226,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: !root.busy
                 text: "arrow_forward"
-                color: "white"
+                color: Theme.dark.label
                 opacity: password.text.length > 0 ? 1 : 0.4
 
                 MouseArea {
@@ -243,7 +243,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.busy
                 text: "progress_activity"
-                color: "white"
+                color: Theme.dark.label
 
                 RotationAnimation on rotation {
                     running: root.busy
@@ -270,7 +270,7 @@ PanelWindow {
             height: 18
             text: root.message
             font.pointSize: Theme.font.size.small
-            color: Qt.rgba(1, 1, 1, 0.8)
+            color: Theme.dark.label
         }
     }
 
@@ -304,12 +304,12 @@ PanelWindow {
                     width: 44
                     height: 44
                     radius: 22
-                    color: Qt.rgba(1, 1, 1, powerArea.containsMouse ? 0.28 : 0.16)
+                    color: powerArea.containsMouse ? Theme.dark.fill : Theme.dark.tertiaryFill
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         text: button.modelData.icon
-                        color: "white"
+                        color: Theme.dark.label
                         font.pointSize: 16
                     }
 
@@ -327,7 +327,7 @@ PanelWindow {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: button.modelData.text
                     font.pointSize: Theme.font.size.small
-                    color: Qt.rgba(1, 1, 1, 0.85)
+                    color: Theme.dark.label
                 }
             }
         }
@@ -340,7 +340,7 @@ PanelWindow {
         anchors.margins: 24
         text: (root.session?.name ?? "") + "  ▾"
         font.pointSize: Theme.font.size.small
-        color: Qt.rgba(1, 1, 1, 0.75)
+        color: Theme.dark.label
 
         MouseArea {
             anchors.fill: parent
@@ -360,7 +360,7 @@ PanelWindow {
         width: size
         height: size
         radius: size / 2
-        color: Qt.rgba(1, 1, 1, 0.18)
+        color: Theme.dark.tertiaryFill
         clip: true
 
         StyledText {
@@ -369,7 +369,7 @@ PanelWindow {
             text: avatar.user.initials ?? ""
             font.pointSize: avatar.size * 0.3
             font.weight: Font.DemiBold
-            color: "white"
+            color: Theme.dark.label
         }
 
         Image {
@@ -387,8 +387,8 @@ PanelWindow {
         width: 240
         height: 36
         radius: 18
-        color: Qt.rgba(1, 1, 1, 0.16)
+        color: Theme.dark.tertiaryFill
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.22)
+        border.color: Theme.dark.separator
     }
 }

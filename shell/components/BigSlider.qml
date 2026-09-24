@@ -19,14 +19,14 @@ Item {
 
         anchors.fill: parent
         radius: height / 2
-        color: Theme.palette.m3SurfaceContainerHigh
+        color: Theme.palette.fill
         clip: true
 
         Rectangle {
             width: Math.max(track.height, track.width * Math.max(0, Math.min(1, root.value)))
             height: parent.height
             radius: height / 2
-            color: root.enabled_ ? Theme.palette.m3Primary : Theme.palette.m3Outline
+            color: root.enabled_ ? Theme.palette.accent : Theme.palette.tertiaryLabel
 
             Behavior on width {
                 enabled: !drag.pressed
@@ -43,7 +43,7 @@ Item {
             text: root.icon
             fill: 1
             font.pointSize: Theme.font.size.normal
-            color: root.value > 0.08 ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+            color: root.value > 0.08 ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
         }
     }
 

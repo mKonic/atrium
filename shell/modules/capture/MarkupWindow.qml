@@ -13,7 +13,7 @@ FloatingWindow {
     id: root
 
     title: "Screenshot"
-    color: Theme.palette.m3Surface
+    color: Theme.palette.windowBackground
     visible: false
     implicitWidth: Math.max(640, Math.min(1200, canvas.imageSize.width + 48))
     implicitHeight: Math.max(460, Math.min(860, canvas.imageSize.height + 130))
@@ -74,7 +74,7 @@ FloatingWindow {
                     radius: 11
                     color: modelData
                     border.width: canvas.color === Qt.color(modelData) ? 3 : 1
-                    border.color: canvas.color === Qt.color(modelData) ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3Outline, 0.4)
+                    border.color: canvas.color === Qt.color(modelData) ? Theme.palette.accent : Theme.palette.separator
 
                     MouseArea {
                         anchors.fill: parent
@@ -142,14 +142,14 @@ FloatingWindow {
         width: 36
         height: 36
         radius: 10
-        color: chosen ? Theme.alpha(Theme.palette.m3Primary, 0.25)
-             : area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.1) : "transparent"
+        color: chosen ? Theme.palette.accentFill
+             : area.containsMouse ? Theme.palette.secondaryFill : "transparent"
 
         MaterialIcon {
             anchors.centerIn: parent
             text: button.icon
             font.pointSize: Theme.font.size.large
-            color: button.chosen ? Theme.palette.m3Primary : Theme.palette.m3OnSurface
+            color: button.chosen ? Theme.palette.accent : Theme.palette.label
         }
 
         MouseArea {

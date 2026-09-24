@@ -45,9 +45,9 @@ Rectangle {
     width: parent?.width ?? 0
     height: column.implicitHeight + 32
     radius: 14
-    color: Theme.palette.m3SurfaceContainer
+    color: Theme.palette.tertiaryFill
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+    border.color: Theme.palette.separator
 
     // The keys reach this window, not atrium's own shortcuts, while recording.
     ShortcutInhibitor {
@@ -153,7 +153,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "remove_circle"
                     font.pointSize: Theme.font.size.larger
-                    color: appRemove.containsMouse ? "#ffb4ab" : Theme.palette.m3OnSurfaceVariant
+                    color: appRemove.containsMouse ? Theme.palette.red : Theme.palette.secondaryLabel
 
                     MouseArea {
                         id: appRemove
@@ -169,7 +169,7 @@ Rectangle {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+                    color: Theme.palette.separator
                 }
             }
         }
@@ -193,7 +193,7 @@ Rectangle {
                     visible: row.index > 0
                     width: parent.width
                     height: 1
-                    color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+                    color: Theme.palette.separator
                 }
 
                 Row {
@@ -206,14 +206,14 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "warning"
                         font.pointSize: Theme.font.size.small
-                        color: "#ffb74d"
+                        color: Theme.palette.orange
                     }
 
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
                         text: row.clash ? `Same keys as “${root.labels[row.clash.action] ?? row.clash.action}”. Only one of them will work.` : ""
                         font.pointSize: Theme.font.size.smaller
-                        color: "#ffb74d"
+                        color: Theme.palette.orange
                     }
                 }
 
@@ -269,7 +269,7 @@ Rectangle {
                     y: 22 - height / 2
                     text: "remove_circle"
                     font.pointSize: Theme.font.size.larger
-                    color: removeArea.containsMouse ? "#ffb4ab" : Theme.palette.m3OnSurfaceVariant
+                    color: removeArea.containsMouse ? Theme.palette.red : Theme.palette.secondaryLabel
 
                     MouseArea {
                         id: removeArea

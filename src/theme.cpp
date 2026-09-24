@@ -77,8 +77,8 @@ std::string accent_css(std::string_view accent, bool light) {
     const auto rgb = accent::seed(accent);
     if (!rgb)
         return {};
-    const std::string fill = palette::hex(accent::tone(*rgb, std::min(accent::lightness(*rgb), 58.0)));
-    const std::string text = palette::hex(accent::tone(*rgb, light ? 42 : 75));
+    const std::string fill = palette::hex(accent::tone(*rgb, std::min(accent::lightness(*rgb), 58.0)) << 8 | 0xff);
+    const std::string text = palette::hex(accent::tone(*rgb, light ? 42 : 75) << 8 | 0xff);
     return "\n/* appearance.accent */\n"
            "@define-color accent_bg_color " + fill + ";\n"
            "@define-color accent_fg_color #ffffff;\n"

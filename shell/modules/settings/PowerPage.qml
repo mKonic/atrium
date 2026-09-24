@@ -45,7 +45,7 @@ Column {
 
             StyledText {
                 text: SettingsPages.choiceOptions([Battery.lidAction])[0]?.label ?? ""
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
         }
     }

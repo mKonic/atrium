@@ -24,9 +24,9 @@ Column {
         width: parent.width
         height: head.implicitHeight + 36
         radius: 14
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+        border.color: Theme.palette.separator
 
         Column {
             id: head
@@ -44,14 +44,14 @@ Column {
                     width: 48
                     height: 48
                     radius: 14
-                    color: Updates.count > 0 ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3OnSurface, 0.08)
+                    color: Updates.count > 0 ? Theme.palette.accent : Theme.palette.tertiaryFill
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         text: Updates.installing ? "downloading" : Updates.count > 0 ? "system_update_alt" : "check_circle"
                         fill: 1
                         font.pointSize: Theme.font.size.large + 4
-                        color: Updates.count > 0 ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurfaceVariant
+                        color: Updates.count > 0 ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
                     }
                 }
 
@@ -76,7 +76,7 @@ Column {
                         text: Updates.installing ? (Updates.doing || "Getting ready")
                             : Updates.lastChecked ? `Last checked: ${Updates.lastChecked}` : "Not checked yet"
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                         elide: Text.ElideRight
                     }
                 }
@@ -116,13 +116,13 @@ Column {
                 width: parent.width
                 height: 6
                 radius: 3
-                color: Theme.alpha(Theme.palette.m3OnSurface, 0.1)
+                color: Theme.palette.secondaryFill
 
                 Rectangle {
                     width: parent.width * Updates.progress / 100
                     height: parent.height
                     radius: 3
-                    color: Theme.palette.m3Primary
+                    color: Theme.palette.accent
 
                     Behavior on width {
                         Anim {}
@@ -136,7 +136,7 @@ Column {
                 wrapMode: Text.WordWrap
                 text: Updates.error
                 font.pointSize: Theme.font.size.small
-                color: "#ffb4ab"
+                color: Theme.palette.red
             }
 
             // Some of what was installed only takes effect after a restart.
@@ -190,7 +190,7 @@ Column {
                         width: securityLabel.implicitWidth + 12
                         height: 20
                         radius: 6
-                        color: Theme.alpha("#ff453a", 0.2)
+                        color: Theme.palette.tertiaryFill
 
                         StyledText {
                             id: securityLabel
@@ -198,7 +198,7 @@ Column {
                             anchors.centerIn: parent
                             text: "Security"
                             font.pointSize: Theme.font.size.smaller
-                            color: "#ff6b5f"
+                            color: Theme.palette.red
                         }
                     }
 
@@ -206,7 +206,7 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         text: update.modelData.version
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
                 }
             }

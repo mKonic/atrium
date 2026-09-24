@@ -56,12 +56,12 @@ PanelWindow {
         anchors.fill: parent
         implicitHeight: body.implicitHeight + 16
         radius: 22
-        color: Theme.panel(Theme.palette.m3Surface, 0.8)
+        color: Theme.material.regular
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+        border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: Panels.open = ""
 
@@ -96,7 +96,7 @@ PanelWindow {
                         width: dndRow.implicitWidth + 20
                         height: 30
                         radius: 15
-                        color: center.dnd ? Theme.palette.m3Primary : Theme.palette.m3SurfaceContainerHigh
+                        color: center.dnd ? Theme.palette.accent : Theme.palette.secondaryFill
 
                         Row {
                             id: dndRow
@@ -108,14 +108,14 @@ PanelWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: center.dnd ? "do_not_disturb_on" : "do_not_disturb_off"
                                 font.pointSize: Theme.font.size.normal
-                                color: center.dnd ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+                                color: center.dnd ? Theme.palette.labelOnAccent : Theme.palette.label
                             }
 
                             StyledText {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "Do Not Disturb"
                                 font.pointSize: Theme.font.size.smaller
-                                color: center.dnd ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+                                color: center.dnd ? Theme.palette.labelOnAccent : Theme.palette.label
                             }
                         }
 
@@ -129,7 +129,7 @@ PanelWindow {
                         width: clearLabel.implicitWidth + 20
                         height: 30
                         radius: 15
-                        color: clearHover.hovered ? Theme.palette.m3SurfaceContainerHigh : "transparent"
+                        color: clearHover.hovered ? Theme.palette.secondaryFill : "transparent"
 
                         StyledText {
                             id: clearLabel
@@ -137,7 +137,7 @@ PanelWindow {
                             anchors.centerIn: parent
                             text: "Clear All"
                             font.pointSize: Theme.font.size.smaller
-                            color: Theme.palette.m3Primary
+                            color: Theme.palette.accent
                         }
 
                         HoverHandler {
@@ -163,13 +163,13 @@ PanelWindow {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "notifications_paused"
                     font.pointSize: 30
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                    color: Theme.palette.tertiaryLabel
                 }
 
                 StyledText {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "No notifications"
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
             }
 
@@ -213,7 +213,7 @@ PanelWindow {
                                 text: group.modelData.app
                                 font.weight: Font.Medium
                                 font.pointSize: Theme.font.size.smaller
-                                color: Theme.palette.m3OnSurfaceVariant
+                                color: Theme.palette.secondaryLabel
                             }
                         }
 
@@ -223,7 +223,7 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "close"
                             font.pointSize: Theme.font.size.normal
-                            color: Theme.palette.m3OnSurfaceVariant
+                            color: Theme.palette.secondaryLabel
 
                             TapHandler {
                                 onTapped: NotificationHistory.clearApp(group.modelData.app)

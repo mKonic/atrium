@@ -13,9 +13,9 @@ Rectangle {
     width: parent?.width ?? 0
     height: column.implicitHeight + 32
     radius: 14
-    color: Theme.palette.m3SurfaceContainer
+    color: Theme.palette.tertiaryFill
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+    border.color: Theme.palette.separator
 
     Column {
         id: column
@@ -48,7 +48,7 @@ Rectangle {
             topPadding: 6
             bottomPadding: 6
             text: "No rules."
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Repeater {
@@ -69,7 +69,7 @@ Rectangle {
                     visible: rule.index > 0
                     width: parent.width
                     height: 1
-                    color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+                    color: Theme.palette.separator
                 }
 
                 Row {
@@ -80,7 +80,7 @@ Rectangle {
                         width: 90
                         text: "App id"
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
 
                     TextControl {
@@ -94,7 +94,7 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Title"
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
 
                     TextControl {
@@ -114,7 +114,7 @@ Rectangle {
                         width: 90
                         text: "Opens in"
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
 
                     Destination {

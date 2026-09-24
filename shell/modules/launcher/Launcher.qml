@@ -75,17 +75,17 @@ PanelWindow {
         width: Math.min(680, launcher.width - 64)
         height: column.implicitHeight
         radius: 26
-        color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.78)
+        color: Theme.material.regular
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+        border.color: Theme.palette.separator
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 8
         }
@@ -134,7 +134,7 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "search"
                     font.pointSize: 18
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
 
                 TextInput {
@@ -145,11 +145,11 @@ PanelWindow {
                     anchors.right: parent.right
                     anchors.rightMargin: 20
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.palette.m3OnSurface
+                    color: Theme.palette.label
                     font.family: Theme.font.sans
                     font.pointSize: 18
-                    selectionColor: Theme.palette.m3Primary
-                    selectedTextColor: Theme.palette.m3OnPrimary
+                    selectionColor: Theme.palette.accent
+                    selectedTextColor: Theme.palette.labelOnAccent
                     clip: true
                     onTextChanged: results.query = text
 
@@ -166,7 +166,7 @@ PanelWindow {
                         visible: input.text.length === 0
                         text: "Search"
                         font.pointSize: 18
-                        color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                        color: Theme.palette.tertiaryLabel
                     }
                 }
             }
@@ -175,7 +175,7 @@ PanelWindow {
                 visible: results.count > 0
                 width: parent.width
                 height: 1
-                color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+                color: Theme.palette.separator
             }
 
             Column {
@@ -205,7 +205,7 @@ PanelWindow {
                             anchors.leftMargin: 6
                             anchors.rightMargin: 6
                             radius: 14
-                            color: row.selected ? Theme.alpha(Theme.palette.m3Primary, 0.22) : "transparent"
+                            color: row.selected ? Theme.palette.accentFill : "transparent"
                         }
 
                         IconImage {
@@ -225,7 +225,7 @@ PanelWindow {
                             visible: row.icon.length === 0
                             text: row.glyph
                             font.pointSize: 18
-                            color: Theme.palette.m3Primary
+                            color: Theme.palette.accent
                         }
 
                         Column {
@@ -248,7 +248,7 @@ PanelWindow {
                                 text: row.subtitle
                                 elide: Text.ElideRight
                                 font.pointSize: Theme.font.size.small
-                                color: Theme.palette.m3OnSurfaceVariant
+                                color: Theme.palette.secondaryLabel
                             }
                         }
 

@@ -40,7 +40,7 @@ Pill {
             anchors.verticalCenter: parent.verticalCenter
             text: Network.glyph
             font.pointSize: Theme.font.size.normal
-            color: Network.online ? Theme.palette.m3OnSurface : Theme.palette.m3Outline
+            color: Network.online ? Theme.palette.label : Theme.palette.tertiaryLabel
         }
 
         Rate {
@@ -78,7 +78,7 @@ Pill {
             anchors.verticalCenter: parent.verticalCenter
             text: rate.glyph
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         StyledText {
@@ -87,7 +87,7 @@ Pill {
             text: rate.text
             font.pointSize: Theme.font.size.smaller
             font.features: { "tnum": 1 }
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 }

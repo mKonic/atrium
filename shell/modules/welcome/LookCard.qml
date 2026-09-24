@@ -1,6 +1,7 @@
 import QtQuick
 import shell.components
 import shell.services
+import Atrium
 
 // Light or dark, drawn: a tiny desktop with a bar, a window and a Dock in
 // that look, ringed in the accent when it's the one in use.
@@ -12,6 +13,8 @@ Column {
     signal clicked
 
     readonly property bool light: style === "light"
+    // That look's own colours, whichever is in use.
+    readonly property var colors: Atrium.palette(light, Theme.accent)
 
     spacing: 8
 
@@ -21,7 +24,7 @@ Column {
         radius: 14
         color: "transparent"
         border.width: 3
-        border.color: root.chosen ? Theme.palette.m3Primary : "transparent"
+        border.color: root.chosen ? Theme.palette.accent : "transparent"
 
         Rectangle {
             id: screen
@@ -30,12 +33,12 @@ Column {
             anchors.margins: 5
             radius: 10
             clip: true
-            color: root.light ? "#d9dde6" : "#1d2029"
+            color: Qt.tint(root.colors.windowBackground, root.colors.accentFill)
 
             Rectangle {
                 width: parent.width
                 height: 9
-                color: root.light ? "#f4f5f8" : "#2b2e38"
+                color: root.colors.windowBackground
             }
 
             Rectangle {
@@ -44,9 +47,9 @@ Column {
                 width: 104
                 height: 60
                 radius: 5
-                color: root.light ? "#ffffff" : "#343844"
+                color: root.colors.controlBackground
                 border.width: 1
-                border.color: root.light ? Qt.rgba(0, 0, 0, 0.08) : Qt.rgba(1, 1, 1, 0.08)
+                border.color: root.colors.separator
 
                 Row {
                     x: 6
@@ -54,10 +57,10 @@ Column {
                     spacing: 3
 
                     Repeater {
-                        model: ["#ff5f57", "#febc2e", "#28c840"]
+                        model: [root.colors.red, root.colors.yellow, root.colors.green]
 
                         Rectangle {
-                            required property string modelData
+                            required property color modelData
 
                             width: 5
                             height: 5
@@ -73,7 +76,7 @@ Column {
                     width: 40
                     height: 6
                     radius: 3
-                    color: Theme.palette.m3Primary
+                    color: Theme.palette.accent
                 }
             }
 
@@ -84,7 +87,7 @@ Column {
                 width: 64
                 height: 12
                 radius: 5
-                color: root.light ? Qt.rgba(1, 1, 1, 0.8) : Qt.rgba(0.2, 0.21, 0.26, 0.9)
+                color: root.colors.windowBackground
             }
         }
 

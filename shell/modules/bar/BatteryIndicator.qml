@@ -21,7 +21,7 @@ Pill {
             anchors.verticalCenter: parent.verticalCenter
             text: Battery.glyph
             font.pointSize: Theme.font.size.normal
-            color: Battery.percentage <= 10 && !Battery.plugged ? "#ff6b5f" : Theme.palette.m3OnSurface
+            color: Battery.percentage <= 10 && !Battery.plugged ? Theme.palette.red : Theme.palette.label
         }
 
         StyledText {

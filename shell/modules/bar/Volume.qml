@@ -25,14 +25,14 @@ Pill {
             anchors.verticalCenter: parent.verticalCenter
             text: root.muted ? "volume_off" : root.volume >= 0.5 ? "volume_up" : root.volume > 0 ? "volume_down" : "volume_mute"
             font.pointSize: Theme.font.size.normal
-            color: root.muted ? Theme.palette.m3Outline : Theme.palette.m3OnSurface
+            color: root.muted ? Theme.palette.tertiaryLabel : Theme.palette.label
         }
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
             text: `${Math.round(root.volume * 100)}%`
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
     }
 

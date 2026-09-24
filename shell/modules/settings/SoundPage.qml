@@ -103,7 +103,7 @@ Column {
             x: 14
             anchors.verticalCenter: parent.verticalCenter
             text: level.node?.muted ? "volume_off" : "volume_up"
-            color: level.node?.muted ? Theme.palette.m3Outline : Theme.palette.m3OnSurface
+            color: level.node?.muted ? Theme.palette.tertiaryLabel : Theme.palette.label
 
             MouseArea {
                 anchors.fill: parent

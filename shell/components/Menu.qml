@@ -19,9 +19,9 @@ Rectangle {
     width: 220
     height: column.implicitHeight + Theme.padding.small * 2
     radius: Theme.rounding.normal
-    color: Theme.palette.m3SurfaceContainerHigh
+    color: Theme.material.regular
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3OutlineVariant, 0.6)
+    border.color: Theme.palette.separator
 
     Column {
         id: column
@@ -40,7 +40,7 @@ Rectangle {
             elide: Text.ElideMiddle
             font.weight: Font.DemiBold
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Repeater {
@@ -67,7 +67,7 @@ Rectangle {
                 anchors.centerIn: parent
                 width: parent.width - Theme.padding.normal * 2
                 height: 1
-                color: Theme.alpha(Theme.palette.m3OutlineVariant, 0.7)
+                color: Theme.palette.separator
             }
         }
     }
@@ -84,7 +84,7 @@ Rectangle {
             height: 34
             radius: Theme.rounding.small
             opacity: usable ? 1 : 0.4
-            color: hover.containsMouse && usable ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+            color: hover.containsMouse && usable ? Theme.palette.tertiaryFill : "transparent"
 
             Row {
                 anchors.verticalCenter: parent.verticalCenter
@@ -98,13 +98,13 @@ Rectangle {
                     width: root.iconColumn ? Math.max(implicitWidth, Theme.font.size.normal * 1.6) : 0
                     text: item.action.icon ?? ""
                     font.pointSize: Theme.font.size.normal
-                    color: item.action.danger ? "#ffb4ab" : Theme.palette.m3OnSurface
+                    color: item.action.danger ? Theme.palette.red : Theme.palette.label
                 }
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     text: item.action.text
-                    color: item.action.danger ? "#ffb4ab" : Theme.palette.m3OnSurface
+                    color: item.action.danger ? Theme.palette.red : Theme.palette.label
                 }
             }
 
@@ -116,7 +116,7 @@ Rectangle {
                 visible: text.length > 0
                 text: item.action.trailing ?? ""
                 font.pointSize: Theme.font.size.normal
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             MouseArea {

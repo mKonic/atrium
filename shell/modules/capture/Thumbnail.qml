@@ -47,14 +47,14 @@ PanelWindow {
         width: 216
         height: Math.max(60, Math.min(200, width * (picture.implicitHeight / Math.max(1, picture.implicitWidth))))
         radius: 12
-        color: Theme.palette.m3SurfaceContainerHigh
+        color: Theme.palette.windowBackground
         border.width: 3
-        border.color: "white"
+        border.color: Theme.dark.label
 
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.45)
+            shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 6
         }
@@ -92,9 +92,9 @@ PanelWindow {
             width: 26
             height: 26
             radius: 13
-            color: Theme.palette.m3SurfaceContainerHigh
+            color: Theme.material.thick
             border.width: 1
-            border.color: Theme.alpha(Theme.palette.m3Outline, 0.3)
+            border.color: Theme.palette.separator
 
             MaterialIcon {
                 anchors.centerIn: parent

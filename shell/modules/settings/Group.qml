@@ -28,9 +28,9 @@ Column {
         width: parent.width
         height: body.implicitHeight + 16
         radius: 14
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+        border.color: Theme.palette.separator
 
         Column {
             id: body

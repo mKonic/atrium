@@ -25,7 +25,7 @@ Flow {
             width: row.implicitWidth + 16
             height: 28
             radius: 14
-            color: Theme.alpha(Theme.palette.m3OnSurface, 0.08)
+            color: Theme.palette.tertiaryFill
 
             Row {
                 id: row
@@ -43,7 +43,7 @@ Flow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "close"
                     font.pointSize: Theme.font.size.small
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
 
                     MouseArea {
                         anchors.fill: parent

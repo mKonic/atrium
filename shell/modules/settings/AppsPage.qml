@@ -46,9 +46,9 @@ Column {
         width: parent.width
         height: pickColumn.implicitHeight + 24
         radius: 14
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+        border.color: Theme.palette.separator
 
         LauncherResults {
             id: found
@@ -70,7 +70,7 @@ Column {
                 width: parent.width
                 height: 34
                 radius: 9
-                color: Theme.alpha(Theme.palette.m3OnSurface, 0.07)
+                color: Theme.palette.tertiaryFill
 
                 TextInput {
                     id: search
@@ -79,7 +79,7 @@ Column {
                     anchors.leftMargin: 12
                     anchors.rightMargin: 12
                     verticalAlignment: TextInput.AlignVCenter
-                    color: Theme.palette.m3OnSurface
+                    color: Theme.palette.label
                     font.family: Theme.font.sans
                     font.pointSize: Theme.font.size.normal
                     focus: root.picking
@@ -89,7 +89,7 @@ Column {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: !search.text
                         text: "Search apps"
-                        color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.6)
+                        color: Theme.palette.tertiaryLabel
                     }
                 }
             }
@@ -107,7 +107,7 @@ Column {
                     width: pickColumn.width
                     height: 40
                     radius: 9
-                    color: hitArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+                    color: hitArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                     IconImage {
                         id: hitIcon
@@ -147,9 +147,9 @@ Column {
         width: parent.width
         height: list.implicitHeight
         radius: 14
-        color: Theme.palette.m3SurfaceContainer
+        color: Theme.palette.tertiaryFill
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.12)
+        border.color: Theme.palette.separator
 
         Column {
             id: list
@@ -160,7 +160,7 @@ Column {
                 visible: Atrium.apps.length === 0
                 padding: 16
                 text: "No apps yet."
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             Repeater {
@@ -196,7 +196,7 @@ Column {
                         x: 16
                         width: parent.width - 32
                         height: 1
-                        color: Theme.alpha(Theme.palette.m3Outline, 0.14)
+                        color: Theme.palette.separator
                     }
 
                     // The app, and what it has, at a glance.
@@ -229,7 +229,7 @@ Column {
                                 text: app.summary
                                 elide: Text.ElideRight
                                 font.pointSize: Theme.font.size.small
-                                color: Theme.palette.m3OnSurfaceVariant
+                                color: Theme.palette.secondaryLabel
                             }
                         }
 
@@ -241,7 +241,7 @@ Column {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "chevron_right"
                             rotation: app.open ? 90 : 0
-                            color: Theme.palette.m3OnSurfaceVariant
+                            color: Theme.palette.secondaryLabel
 
                             Behavior on rotation {
                                 Anim {
@@ -347,7 +347,7 @@ Column {
             width: 150
             text: parent.label
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         Row {

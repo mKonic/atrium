@@ -22,7 +22,7 @@ Rectangle {
     implicitWidth: row.implicitWidth + 6
     implicitHeight: 30
     radius: 9
-    color: Theme.alpha(Theme.palette.m3OnSurface, 0.08)
+    color: Theme.palette.tertiaryFill
 
     Row {
         id: row
@@ -42,7 +42,7 @@ Rectangle {
                 width: text.implicitWidth + 22
                 height: 24
                 radius: 7
-                color: current ? Theme.palette.m3Primary : area.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+                color: current ? Theme.palette.accent : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 StyledText {
                     id: text
@@ -51,7 +51,7 @@ Rectangle {
                     text: root.label(segment.modelData)
                     font.pointSize: Theme.font.size.small
                     font.weight: segment.current ? Font.DemiBold : Font.Normal
-                    color: segment.current ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+                    color: segment.current ? Theme.palette.labelOnAccent : Theme.palette.label
                 }
 
                 MouseArea {

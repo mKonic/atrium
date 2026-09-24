@@ -74,7 +74,7 @@ public:
     Q_INVOKABLE bool fullscreenOn(const QString& output) const;
     Q_INVOKABLE QVariant setting(const QString& key, const QVariant& fallback) const;
     // The shell's colours for appearance.style and appearance.accent:
-    // m3Primary, m3Surface, ... as "#rrggbb" (palette.hpp).
+    // label, fill, accent, red, ... as "#rrggbb" or "#aarrggbb" (palette.hpp).
     Q_INVOKABLE QVariantMap palette(bool light, const QString& accent) const;
     // The accent's own colour, for swatches; invalid for multicolour.
     Q_INVOKABLE QString accentColor(const QString& accent) const;

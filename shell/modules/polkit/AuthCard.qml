@@ -17,17 +17,17 @@ Rectangle {
     width: 360
     height: column.implicitHeight + 48
     radius: 26
-    color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.92)
+    color: Theme.material.thick
 
     GlassRim {}
 
     border.width: 1
-    border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+    border.color: Theme.palette.separator
 
     layer.enabled: true
     layer.effect: MultiEffect {
         shadowEnabled: true
-        shadowColor: Qt.rgba(0, 0, 0, 0.5)
+        shadowColor: Theme.palette.shadow
         shadowBlur: 1
         shadowVerticalOffset: 8
     }
@@ -120,14 +120,14 @@ Rectangle {
                 anchors.fill: parent
                 visible: !appIcon.visible
                 radius: 32
-                color: Theme.palette.m3Primary
+                color: Theme.palette.accent
 
                 MaterialIcon {
                     anchors.centerIn: parent
                     text: "admin_panel_settings"
                     fill: 1
                     font.pointSize: 24
-                    color: Theme.palette.m3OnPrimary
+                    color: Theme.palette.labelOnAccent
                 }
             }
 
@@ -139,7 +139,7 @@ Rectangle {
                 width: 26
                 height: 26
                 radius: 13
-                color: Theme.palette.m3SurfaceContainerHigh
+                color: Theme.material.thick
 
                 MaterialIcon {
                     anchors.centerIn: parent
@@ -166,7 +166,7 @@ Rectangle {
                 : root.flow?.supplementaryMessage ? root.flow.supplementaryMessage
                 : "Enter the password to allow this."
             font.pointSize: Theme.font.size.small
-            color: root.wrong || root.flow?.supplementaryIsError ? "#ffb4ab" : Theme.palette.m3OnSurfaceVariant
+            color: root.wrong || root.flow?.supplementaryIsError ? Theme.palette.red : Theme.palette.secondaryLabel
         }
 
         Item {
@@ -179,7 +179,7 @@ Rectangle {
             width: parent.width
             height: 38
             radius: 12
-            color: Theme.alpha(Theme.palette.m3OnSurface, 0.07)
+            color: Theme.palette.tertiaryFill
 
             MaterialIcon {
                 id: person
@@ -189,7 +189,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "person"
                 font.pointSize: Theme.font.size.normal
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             StyledText {
@@ -210,7 +210,7 @@ Rectangle {
                 visible: (root.flow?.identities?.length ?? 0) > 1
                 text: "unfold_more"
                 font.pointSize: Theme.font.size.normal
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             MouseArea {
@@ -224,9 +224,9 @@ Rectangle {
             width: parent.width
             height: 38
             radius: 12
-            color: Theme.palette.m3SurfaceContainerHigh
+            color: Theme.palette.tertiaryFill
             border.width: 1
-            border.color: root.wrong ? "#ffb4ab" : Theme.alpha(Theme.palette.m3Primary, password.activeFocus ? 0.8 : 0.3)
+            border.color: root.wrong ? Theme.palette.red : password.activeFocus ? Theme.palette.focusRing : Theme.palette.separator
 
             TextInput {
                 id: password
@@ -237,7 +237,7 @@ Rectangle {
                 verticalAlignment: TextInput.AlignVCenter
                 echoMode: root.flow?.responseVisible ? TextInput.Normal : TextInput.Password
                 enabled: root.flow?.isResponseRequired ?? false
-                color: Theme.palette.m3OnSurface
+                color: Theme.palette.label
                 font.family: Theme.font.sans
                 font.pointSize: Theme.font.size.normal
                 clip: true
@@ -249,7 +249,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !password.text
                     text: (root.flow?.inputPrompt ?? "").replace(/:\s*$/, "") || "Password"
-                    color: Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.7)
+                    color: Theme.palette.tertiaryLabel
                     font.pointSize: Theme.font.size.small
                 }
             }

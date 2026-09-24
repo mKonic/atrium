@@ -54,44 +54,68 @@ TEST(Accent, KeepsTheHue) {
     EXPECT_GT(channel(red, 16), channel(red, 0));
     EXPECT_GT(channel(blue, 0), channel(blue, 16));
     EXPECT_GT(channel(green, 8), channel(green, 16));
-    // Graphite stays grey, and secondary surfaces are only tinted.
+    // Graphite stays grey.
     const uint32_t grey = tone(0x8e8e93, 80);
     EXPECT_LE(max_channel_gap(grey, (grey & 0xff) * 0x010101u), 8);
-    const Tones t = tones(0xff453a, false);
-    EXPECT_LT(max_channel_gap(t.secondary_container, (t.secondary_container & 0xff) * 0x010101u),
-              max_channel_gap(t.primary_container, (t.primary_container & 0xff) * 0x010101u));
 }
 
-TEST(Accent, TextStandsOutFromItsBackground) {
-    for (bool light : {false, true})
-        for (std::string_view n : names())
-            if (auto s = seed(n)) {
-                const Tones t = tones(*s, light);
-                EXPECT_GE(std::abs(lightness(t.primary) - lightness(t.on_primary)), 50) << n;
-                EXPECT_GE(std::abs(lightness(t.primary_container) - lightness(t.on_primary_container)), 39) << n;
-                EXPECT_GE(std::abs(lightness(t.secondary_container) - lightness(t.on_secondary_container)), 50) << n;
-            }
+TEST(Accent, EachAppearanceHasItsOwnShade) {
+    EXPECT_EQ(rgb("blue", false), 0x0a84ffu);
+    EXPECT_EQ(rgb("blue", true), 0x007affu);
+    EXPECT_EQ(rgb("multicolor", true), rgb("blue", true));
+    EXPECT_EQ(rgb("chartreuse", false), rgb("blue", false));
+    for (std::string_view n : names())
+        if (auto s = seed(n))
+            EXPECT_EQ(rgb(n, false), *s) << n;
 }
 
 #include "palette.hpp"
 
-TEST(Palette, DefaultIsTheCaelestiaScheme) {
-    const atrium::palette::Palette dark = atrium::palette::make(false, "multicolor");
-    EXPECT_EQ(dark.primary, 0xbfc1ffu);
-    EXPECT_EQ(dark.surface, 0x131317u);
-    const atrium::palette::Palette light = atrium::palette::make(true, "no-such-accent");
-    EXPECT_EQ(light.primary, 0x575a92u);
-    EXPECT_EQ(light.on_primary, 0xffffffu);
+TEST(Palette, MacosRoles) {
+    using namespace atrium::palette;
+    const Palette dark = make(false, "multicolor"), light = make(true, "no-such-accent");
+    EXPECT_EQ(dark.label, 0xffffffd8u);
+    EXPECT_EQ(light.label, 0x000000d8u);
+    EXPECT_EQ(dark.accent, 0x0a84ffffu);
+    EXPECT_EQ(light.accent, 0x007affffu);
+    EXPECT_EQ(dark.red, 0xff453affu);
+    EXPECT_EQ(light.red, 0xff3b30ffu);
+    // Labels and fills step down in strength.
+    for (const Palette& p : {dark, light}) {
+        EXPECT_GT(p.label & 0xff, p.secondary_label & 0xff);
+        EXPECT_GT(p.secondary_label & 0xff, p.tertiary_label & 0xff);
+        EXPECT_GT(p.tertiary_label & 0xff, p.quaternary_label & 0xff);
+        EXPECT_GT(p.fill & 0xff, p.secondary_fill & 0xff);
+        EXPECT_GT(p.secondary_fill & 0xff, p.tertiary_fill & 0xff);
+        EXPECT_GT(p.tertiary_fill & 0xff, p.quaternary_fill & 0xff);
+    }
 }
 
 TEST(Palette, AnAccentOnlyChangesTheAccentRoles) {
-    const auto base = atrium::palette::make(false, "multicolor");
-    const auto red = atrium::palette::make(false, "red");
-    EXPECT_NE(red.primary, base.primary);
-    EXPECT_EQ(red.primary, tones(0xff453a, false).primary);
-    EXPECT_EQ(red.surface, base.surface);
-    EXPECT_EQ(red.on_surface, base.on_surface);
-    EXPECT_EQ(red.outline, base.outline);
+    using namespace atrium::palette;
+    const Palette base = make(false, "multicolor"), red = make(false, "red");
+    EXPECT_EQ(red.accent, 0xff453affu);
+    EXPECT_EQ(red.accent_fill >> 8, red.accent >> 8);
+    EXPECT_LT(red.accent_fill & 0xff, 0xffu);
+    EXPECT_EQ(red.label, base.label);
+    EXPECT_EQ(red.window_background, base.window_background);
+    EXPECT_EQ(red.separator, base.separator);
+}
+
+TEST(Palette, TextOnTheAccentReads) {
+    using namespace atrium::palette;
+    EXPECT_EQ(make(false, "blue").on_accent, 0xffffffffu);
+    EXPECT_EQ(make(true, "green").on_accent, 0xffffffffu);
+    EXPECT_EQ(make(true, "yellow").on_accent >> 8, 0u);
+    EXPECT_EQ(make(false, "yellow").on_accent >> 8, 0u);
+}
+
+TEST(Palette, HexAndOver) {
+    using namespace atrium::palette;
+    EXPECT_EQ(hex(0x0a84ffff), "#0a84ff");
+    EXPECT_EQ(hex(0xffffff8c), "#8cffffff");
+    EXPECT_EQ(over(0xffffff80, 0x000000ff), 0x808080ffu);
+    EXPECT_EQ(over(0x123456ff, 0xabcdefff), 0x123456ffu);
 }
 
 TEST(Palette, KdeColorsCarryThePalette) {
@@ -101,7 +125,10 @@ TEST(Palette, KdeColorsCarryThePalette) {
                               "[Colors:Tooltip]", "[Colors:Header]", "[Colors:Complementary]", "[WM]", "[General]"})
         EXPECT_NE(c.find(group), std::string::npos) << group;
     const size_t sel = c.find("[Colors:Selection]");
-    EXPECT_EQ(c.find("BackgroundNormal=" + atrium::palette::hex(p.primary), sel), c.find("BackgroundNormal", sel));
+    EXPECT_EQ(c.find("BackgroundNormal=" + atrium::palette::hex(p.accent), sel), c.find("BackgroundNormal", sel));
     const size_t view = c.find("[Colors:View]");
-    EXPECT_EQ(c.find("BackgroundNormal=" + atrium::palette::hex(p.surface), view), c.find("BackgroundNormal", view));
+    EXPECT_EQ(c.find("BackgroundNormal=" + atrium::palette::hex(p.control_background), view), c.find("BackgroundNormal", view));
+    // KDE only takes opaque colours.
+    for (size_t at = c.find("=#"); at != std::string::npos; at = c.find("=#", at + 1))
+        EXPECT_EQ(c.find('\n', at) - at, 8u) << c.substr(at, 12);
 }

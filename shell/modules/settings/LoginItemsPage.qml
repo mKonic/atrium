@@ -119,8 +119,8 @@ Column {
                 width: apps.width
                 height: 34
                 radius: 7
-                color: chosen ? Theme.palette.m3Primary
-                     : hover.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.08) : "transparent"
+                color: chosen ? Theme.palette.accent
+                     : hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 IconImage {
                     x: 8
@@ -136,7 +136,7 @@ Column {
                     text: app.modelData.name
                     elide: Text.ElideRight
                     font.pointSize: Theme.font.size.small
-                    color: app.chosen ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+                    color: app.chosen ? Theme.palette.labelOnAccent : Theme.palette.label
                 }
 
                 MouseArea {

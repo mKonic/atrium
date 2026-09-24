@@ -142,12 +142,12 @@ PanelWindow {
         width: parent.width
         implicitHeight: main.implicitHeight + (list.implicitHeight - main.implicitHeight) * cc.open + 24
         radius: 24
-        color: Theme.panel(Theme.palette.m3Surface, 0.82)
+        color: Theme.material.regular
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+        border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: cc.page === "" ? Panels.open = "" : cc.collapse()
 
@@ -301,7 +301,7 @@ PanelWindow {
                     text: cc.sink?.label ?? ""
                     elide: Text.ElideRight
                     font.pointSize: Theme.font.size.small
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
             }
 
@@ -313,7 +313,7 @@ PanelWindow {
                 width: parent.width
                 height: 72
                 radius: 18
-                color: Theme.palette.m3SurfaceContainerHigh
+                color: Theme.palette.tertiaryFill
 
                 MouseArea {
                     anchors.fill: parent
@@ -330,7 +330,7 @@ PanelWindow {
                     width: 52
                     height: 52
                     radius: 12
-                    color: Theme.palette.m3SurfaceContainer
+                    color: Theme.palette.tertiaryFill
                     clip: true
 
                     Image {
@@ -346,7 +346,7 @@ PanelWindow {
                         anchors.centerIn: parent
                         visible: !(cc.player?.trackArtUrl)
                         text: "music_note"
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
                 }
 
@@ -370,7 +370,7 @@ PanelWindow {
                         text: cc.player?.trackArtist ?? ""
                         elide: Text.ElideRight
                         font.pointSize: Theme.font.size.small
-                        color: Theme.palette.m3OnSurfaceVariant
+                        color: Theme.palette.secondaryLabel
                     }
                 }
 
@@ -396,7 +396,7 @@ PanelWindow {
                             width: 34
                             height: 34
                             radius: 17
-                            color: mediaArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.1) : "transparent"
+                            color: mediaArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
                             opacity: modelData.ok ? 1 : 0.35
 
                             MaterialIcon {
@@ -427,7 +427,7 @@ PanelWindow {
             // Where the tile sits, when the page starts growing out of it.
             readonly property rect from: cc.pageTile ? cc.pageTile.mapToItem(panel, 0, 0, cc.pageTile.width, cc.pageTile.height)
                                                      : Qt.rect(12, 12, panel.width - 24, 64)
-            readonly property color tileColor: cc.pageTile?.color ?? Theme.palette.m3SurfaceContainerHigh
+            readonly property color tileColor: cc.pageTile?.color ?? Theme.palette.tertiaryFill
 
             visible: cc.open > 0
             x: from.x + (12 - from.x) * cc.open
@@ -550,7 +550,7 @@ PanelWindow {
                     topPadding: 4
                     bottomPadding: 8
                     text: "No devices"
-                    color: Theme.palette.m3OnSurfaceVariant
+                    color: Theme.palette.secondaryLabel
                 }
 
                 Disclosure {
@@ -582,7 +582,7 @@ PanelWindow {
                     width: list.width
                     height: 38
                     radius: 12
-                    color: settingsArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+                    color: settingsArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                     StyledText {
                         x: 14
@@ -655,9 +655,9 @@ PanelWindow {
                         anchors.topMargin: 4
                         anchors.bottomMargin: 8
                         radius: 10
-                        color: Theme.palette.m3SurfaceContainerHigh
+                        color: Theme.palette.tertiaryFill
                         border.width: 1
-                        border.color: cc.joinError ? "#ffb4ab" : Theme.alpha(Theme.palette.m3Primary, password.activeFocus ? 0.8 : 0.3)
+                        border.color: cc.joinError ? Theme.palette.red : password.activeFocus ? Theme.palette.focusRing : Theme.palette.separator
 
                         TextInput {
                             id: password
@@ -667,7 +667,7 @@ PanelWindow {
                             anchors.rightMargin: 36
                             verticalAlignment: TextInput.AlignVCenter
                             echoMode: TextInput.Password
-                            color: Theme.palette.m3OnSurface
+                            color: Theme.palette.label
                             font.family: Theme.font.sans
                             font.pointSize: Theme.font.size.normal
                             clip: true
@@ -683,7 +683,7 @@ PanelWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: !password.text
                                 text: cc.joinError || "Password"
-                                color: cc.joinError ? "#ffb4ab" : Theme.alpha(Theme.palette.m3OnSurfaceVariant, 0.7)
+                                color: cc.joinError ? Theme.palette.red : Theme.palette.tertiaryLabel
                                 font.pointSize: Theme.font.size.small
                             }
                         }
@@ -693,7 +693,7 @@ PanelWindow {
                             anchors.rightMargin: 8
                             anchors.verticalCenter: parent.verticalCenter
                             text: "arrow_forward"
-                            color: password.text ? Theme.palette.m3Primary : Theme.palette.m3OnSurfaceVariant
+                            color: password.text ? Theme.palette.accent : Theme.palette.secondaryLabel
 
                             MouseArea {
                                 anchors.fill: parent
@@ -741,7 +741,7 @@ PanelWindow {
         width: list.width
         height: 44
         radius: 12
-        color: entryArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+        color: entryArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
         Rectangle {
             id: badge
@@ -752,7 +752,7 @@ PanelWindow {
             width: 30
             height: 30
             radius: 15
-            color: entry.connected ? Theme.palette.m3Primary : Theme.alpha(Theme.palette.m3OnSurface, 0.12)
+            color: entry.connected ? Theme.palette.accent : Theme.palette.secondaryFill
 
             Behavior on color {
                 CAnim {
@@ -765,7 +765,7 @@ PanelWindow {
                 text: entry.glyph
                 fill: entry.connected ? 1 : 0
                 font.pointSize: Theme.font.size.normal
-                color: entry.connected ? Theme.palette.m3OnPrimary : Theme.palette.m3OnSurface
+                color: entry.connected ? Theme.palette.labelOnAccent : Theme.palette.label
             }
 
             // Working on it: a ring turning around the badge.
@@ -776,7 +776,7 @@ PanelWindow {
                 radius: width / 2
                 color: "transparent"
                 border.width: 2
-                border.color: Theme.alpha(Theme.palette.m3Primary, 0.6)
+                border.color: Theme.palette.focusRing
                 visible: entry.busy
                 opacity: 0.4
 
@@ -816,7 +816,7 @@ PanelWindow {
             visible: !entry.statusIsGlyph
             text: entry.status
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         MaterialIcon {
@@ -826,7 +826,7 @@ PanelWindow {
             visible: entry.statusIsGlyph && entry.status
             text: entry.status
             font.pointSize: Theme.font.size.normal
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         MouseArea {
@@ -851,7 +851,7 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent
             radius: 12
-            color: disclosureArea.containsMouse ? Theme.alpha(Theme.palette.m3OnSurface, 0.07) : "transparent"
+            color: disclosureArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
         }
 
         StyledText {
@@ -859,7 +859,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             text: disclosure.text
             font.weight: Font.DemiBold
-            color: Theme.palette.m3Primary
+            color: Theme.palette.accent
         }
 
         StyledText {
@@ -868,7 +868,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             text: disclosure.note
             font.pointSize: Theme.font.size.small
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
         }
 
         MaterialIcon {
@@ -879,7 +879,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             text: "chevron_right"
             rotation: cc.showOthers ? 90 : 0
-            color: Theme.palette.m3OnSurfaceVariant
+            color: Theme.palette.secondaryLabel
 
             Behavior on rotation {
                 Anim {
@@ -903,13 +903,13 @@ PanelWindow {
         bottomPadding: 4
         font.pointSize: Theme.font.size.smaller
         font.weight: Font.DemiBold
-        color: Theme.palette.m3OnSurfaceVariant
+        color: Theme.palette.secondaryLabel
     }
 
     component Separator: Rectangle {
         x: 10
         width: list.width - 20
         height: 1
-        color: Theme.alpha(Theme.palette.m3Outline, 0.2)
+        color: Theme.palette.separator
     }
 }

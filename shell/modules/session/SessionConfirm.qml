@@ -27,7 +27,7 @@ PanelWindow {
         right: true
     }
     exclusiveZone: -1
-    color: Qt.rgba(0, 0, 0, 0.35)
+    color: Theme.palette.scrim
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "atrium-session-confirm"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
@@ -45,12 +45,12 @@ PanelWindow {
         width: 340
         height: column.implicitHeight + 48
         radius: 26
-        color: Theme.panel(Theme.palette.m3SurfaceContainer, 0.9)
+        color: Theme.material.thick
 
         GlassRim {}
 
         border.width: 1
-        border.color: Theme.alpha(Theme.palette.m3Outline, 0.22)
+        border.color: Theme.palette.separator
         focus: true
         Keys.onEscapePressed: Session.cancel()
         Keys.onReturnPressed: Session.confirm()
@@ -59,7 +59,7 @@ PanelWindow {
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true
-            shadowColor: Qt.rgba(0, 0, 0, 0.5)
+            shadowColor: Theme.palette.shadow
             shadowBlur: 1
             shadowVerticalOffset: 8
         }
@@ -77,13 +77,13 @@ PanelWindow {
                 width: 56
                 height: 56
                 radius: 28
-                color: Theme.palette.m3Primary
+                color: Theme.palette.accent
 
                 MaterialIcon {
                     anchors.centerIn: parent
                     text: root.w.glyph
                     font.pointSize: 22
-                    color: Theme.palette.m3OnPrimary
+                    color: Theme.palette.labelOnAccent
                 }
             }
 
@@ -103,7 +103,7 @@ PanelWindow {
                 text: root.action === "logout" ? `If you do nothing, you will be logged out automatically in ${Session.secondsLeft} seconds.`
                                                : `If you do nothing, the computer will ${root.w.verb} automatically in ${Session.secondsLeft} seconds.`
                 font.pointSize: Theme.font.size.small
-                color: Theme.palette.m3OnSurfaceVariant
+                color: Theme.palette.secondaryLabel
             }
 
             Item {
