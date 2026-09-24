@@ -1,6 +1,7 @@
 #include "compositor.hpp"
 
 #include "accent.hpp"
+#include "palette.hpp"
 
 #include <QJsonArray>
 
@@ -290,18 +291,22 @@ void Compositor::closeWindow(int id) {
     request({{"cmd", "window.close"}, {"window", id}});
 }
 
-QVariantMap Compositor::accentTones(const QString& name, bool light) const {
-    const auto rgb = accent::seed(name.toStdString());
-    if (!rgb)
-        return {};
-    const accent::Tones t = accent::tones(*rgb, light);
-    auto c = [](uint32_t v) { return QString::asprintf("#%06x", v & 0xffffff); };
-    return {{"primary", c(t.primary)},
-            {"onPrimary", c(t.on_primary)},
-            {"primaryContainer", c(t.primary_container)},
-            {"onPrimaryContainer", c(t.on_primary_container)},
-            {"secondaryContainer", c(t.secondary_container)},
-            {"onSecondaryContainer", c(t.on_secondary_container)}};
+QVariantMap Compositor::palette(bool light, const QString& accent) const {
+    const palette::Palette p = palette::make(light, accent.toStdString());
+    auto c = [](uint32_t v) { return QString::fromStdString(palette::hex(v)); };
+    return {{"m3Primary", c(p.primary)},
+            {"m3OnPrimary", c(p.on_primary)},
+            {"m3PrimaryContainer", c(p.primary_container)},
+            {"m3OnPrimaryContainer", c(p.on_primary_container)},
+            {"m3SecondaryContainer", c(p.secondary_container)},
+            {"m3OnSecondaryContainer", c(p.on_secondary_container)},
+            {"m3Surface", c(p.surface)},
+            {"m3SurfaceContainer", c(p.surface_container)},
+            {"m3SurfaceContainerHigh", c(p.surface_container_high)},
+            {"m3OnSurface", c(p.on_surface)},
+            {"m3OnSurfaceVariant", c(p.on_surface_variant)},
+            {"m3Outline", c(p.outline)},
+            {"m3OutlineVariant", c(p.outline_variant)}};
 }
 
 QString Compositor::accentColor(const QString& name) const {

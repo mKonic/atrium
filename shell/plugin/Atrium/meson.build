@@ -9,7 +9,7 @@ plugin_moc = qt6.compile_moc(sources: 'plugin.cpp', headers: ['compositor.hpp', 
 atrium_qml_dir = get_option('libdir') / 'atrium' / 'qml' / 'Atrium'
 
 shared_module('atriumplugin',
-  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', 'session.cpp', 'sysinfo.cpp', 'sysinfo_core.cpp', 'netspeed.cpp', 'netspeed_core.cpp', 'admin_cache.cpp', 'settings_pages.cpp', 'accounts.cpp', 'passwd_core.cpp', '../../../src/accent.cpp', plugin_moc, version_h,
+  'plugin.cpp', 'search.cpp', 'compositor.cpp', 'views.cpp', 'notifications.cpp', 'clipboard.cpp', 'brightness.cpp', 'recorder.cpp', 'apps.cpp', 'desktop_files.cpp', 'files.cpp', 'levels.cpp', 'session.cpp', 'sysinfo.cpp', 'sysinfo_core.cpp', 'netspeed.cpp', 'netspeed_core.cpp', 'admin_cache.cpp', 'settings_pages.cpp', 'accounts.cpp', 'passwd_core.cpp', '../../../src/accent.cpp', '../../../src/palette.cpp', plugin_moc, version_h,
   dependencies: [qt, dependency('libxcrypt')],
   include_directories: include_directories('../../../src'),
   # GCC 16 trips over Qt's own headers; nothing of ours.

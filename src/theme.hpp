@@ -9,6 +9,11 @@ namespace atrium {
 // apps match atrium's own title bars. Files are rewritten only when they differ.
 // `accent` is an appearance.accent name; "multicolor" keeps the theme's own.
 void install_gtk_theme(bool light, std::string_view accent);
+// Qt apps' colours: a KDE colour scheme from atrium's palette, through the
+// qtengine platform theme (QTENGINE_CONFIG, in $XDG_DATA_HOME/atrium/qt),
+// keeping the user's own qtengine style, icons and fonts. Nothing when
+// qtengine isn't installed or another platform theme was chosen.
+void install_qt_theme(bool light, std::string_view accent);
 // Tell apps through GSettings (read by the settings portal): libadwaita,
 // Firefox, Chromium and Qt follow color-scheme live.
 void apply_color_scheme(bool light);

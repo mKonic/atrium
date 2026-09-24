@@ -72,3 +72,36 @@ TEST(Accent, TextStandsOutFromItsBackground) {
                 EXPECT_GE(std::abs(lightness(t.secondary_container) - lightness(t.on_secondary_container)), 50) << n;
             }
 }
+
+#include "palette.hpp"
+
+TEST(Palette, DefaultIsTheCaelestiaScheme) {
+    const atrium::palette::Palette dark = atrium::palette::make(false, "multicolor");
+    EXPECT_EQ(dark.primary, 0xbfc1ffu);
+    EXPECT_EQ(dark.surface, 0x131317u);
+    const atrium::palette::Palette light = atrium::palette::make(true, "no-such-accent");
+    EXPECT_EQ(light.primary, 0x575a92u);
+    EXPECT_EQ(light.on_primary, 0xffffffu);
+}
+
+TEST(Palette, AnAccentOnlyChangesTheAccentRoles) {
+    const auto base = atrium::palette::make(false, "multicolor");
+    const auto red = atrium::palette::make(false, "red");
+    EXPECT_NE(red.primary, base.primary);
+    EXPECT_EQ(red.primary, tones(0xff453a, false).primary);
+    EXPECT_EQ(red.surface, base.surface);
+    EXPECT_EQ(red.on_surface, base.on_surface);
+    EXPECT_EQ(red.outline, base.outline);
+}
+
+TEST(Palette, KdeColorsCarryThePalette) {
+    const std::string c = atrium::palette::kde_colors(false, "green");
+    const auto p = atrium::palette::make(false, "green");
+    for (const char* group : {"[Colors:Window]", "[Colors:View]", "[Colors:Button]", "[Colors:Selection]",
+                              "[Colors:Tooltip]", "[Colors:Header]", "[Colors:Complementary]", "[WM]", "[General]"})
+        EXPECT_NE(c.find(group), std::string::npos) << group;
+    const size_t sel = c.find("[Colors:Selection]");
+    EXPECT_EQ(c.find("BackgroundNormal=" + atrium::palette::hex(p.primary), sel), c.find("BackgroundNormal", sel));
+    const size_t view = c.find("[Colors:View]");
+    EXPECT_EQ(c.find("BackgroundNormal=" + atrium::palette::hex(p.surface), view), c.find("BackgroundNormal", view));
+}

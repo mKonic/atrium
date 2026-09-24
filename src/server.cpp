@@ -524,10 +524,6 @@ void Server::prepare_session_environment() {
         const std::string ours = std::string(ATRIUM_SOURCE_DIR) + "/data/share";
         setenv("XDG_DATA_DIRS", (ours + ":" + (dirs && *dirs ? dirs : "/usr/local/share:/usr/share")).c_str(), 1);
     }
-    if (nested)
-        return;  // the host session's environment is not ours to change
-    spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
-          "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY");
 }
 
 void Server::run(const char* startup_cmd) {
@@ -539,7 +535,12 @@ void Server::run(const char* startup_cmd) {
     setenv("XDG_SESSION_TYPE", "wayland", 1);
     prepare_session_environment();
     install_gtk_theme(config.light, config.accent);
+    install_qt_theme(config.light, config.accent);
     if (!nested) {
+        // D-Bus-started apps get the session's environment, themes included.
+        // (A nested atrium's environment isn't the host session's.)
+        spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
+              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG");
         apply_gtk_button_layout();
         apply_color_scheme(config.light);
         apply_accent_color(config.accent);
@@ -1147,6 +1148,7 @@ void Server::setting_changed(const std::string& key) {
         background_effects->announce();
     if (key == "appearance.style" || key == "appearance.accent") {
         install_gtk_theme(config.light, config.accent);  // apps opened from now on
+        install_qt_theme(config.light, config.accent);   // Qt apps too, live (qtengine watches it)
         if (!nested) {
             // The rest, live, through the portal.
             apply_color_scheme(config.light);
