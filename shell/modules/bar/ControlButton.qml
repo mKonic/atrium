@@ -11,6 +11,8 @@ Pill {
     implicitWidth: implicitHeight
     color: open ? Theme.palette.accentFill : Theme.material.pill
 
+    Glass {}
+
     MaterialIcon {
         anchors.centerIn: parent
         text: "tune"

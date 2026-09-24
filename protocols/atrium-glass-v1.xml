@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="atrium_glass_v1">
+  <copyright>
+    Copyright © 2026 atrium contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="where a surface's Liquid Glass is">
+    The shell tells atrium the exact shapes of the glass on its surfaces, so
+    the compositor draws the glass (its lens, rim light and shadow) from their
+    geometry rather than guessing it from the surface's pixels.
+  </description>
+
+  <interface name="atrium_glass_manager_v1" version="1">
+    <request name="destroy" type="destructor"/>
+
+    <request name="get_glass">
+      <description summary="the glass of a surface">
+        A surface has at most one glass object at a time.
+      </description>
+      <arg name="id" type="new_id" interface="atrium_glass_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="atrium_glass_v1" version="1">
+    <description summary="a surface's glass shapes">
+      Double-buffered: shapes set take effect on the surface's next commit,
+      with the buffer they belong to. When the surface is destroyed, this
+      object is inert.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="no more glass on the surface, from its next commit"/>
+    </request>
+
+    <request name="set_shapes">
+      <description summary="the glass on the surface">
+        An array of shapes, each six wl_fixed values: x, y, width, height
+        (surface-local), corner radius, and opacity (0 to 1). An empty array
+        is no glass.
+      </description>
+      <arg name="shapes" type="array"/>
+    </request>
+  </interface>
+</protocol>

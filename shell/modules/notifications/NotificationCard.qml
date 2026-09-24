@@ -80,6 +80,8 @@ Rectangle {
     radius: 18
     color: Theme.material.regular
 
+    Glass {}
+
     border.width: critical ? 2 : 1
     border.color: critical ? Theme.palette.red : Theme.palette.separator
 
@@ -260,6 +262,8 @@ Rectangle {
         height: 22
         radius: 11
         color: closeArea.containsMouse ? Theme.material.thick : Theme.material.regular
+
+        Glass {}
         opacity: root.hovered ? 1 : 0
         visible: opacity > 0
 

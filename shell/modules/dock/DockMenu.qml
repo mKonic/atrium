@@ -45,6 +45,8 @@ Rectangle {
     height: column.implicitHeight + Theme.padding.small * 2
     radius: Theme.rounding.normal
     color: Theme.material.regular
+
+    Glass {}
     border.width: Theme.lens ? 0 : 1
     border.color: Theme.palette.separator
 

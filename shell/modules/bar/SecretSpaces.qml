@@ -33,6 +33,8 @@ Row {
             implicitWidth: row.implicitWidth + Theme.padding.normal * 2
             color: modelData.shown ? Theme.palette.accent : Theme.material.pill
 
+            Glass {}
+
             Behavior on color {
                 CAnim {
                     duration: Theme.anim.small

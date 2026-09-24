@@ -116,6 +116,8 @@ PanelWindow {
             anchors.fill: parent
             color: Theme.material.thin
 
+            Glass {}
+
             // Liquid Glass: no bar, each pill its own piece of glass.
             opacity: bar.chrome && !Theme.lens ? 1 : 0
 

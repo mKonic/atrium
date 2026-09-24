@@ -23,6 +23,7 @@ class Titlebar;
 class Seat;
 class InputMethodRelay;
 class BackgroundEffects;
+class GlassShapes;
 class ToplevelDrags;
 class SessionManagement;
 class NightLight;
@@ -244,6 +245,7 @@ public:
     std::unique_ptr<Seat> seat;
     std::unique_ptr<InputMethodRelay> input_method;
     std::unique_ptr<BackgroundEffects> background_effects;
+    std::unique_ptr<GlassShapes> glass_shapes;
     std::unique_ptr<ToplevelDrags> toplevel_drags;
     std::unique_ptr<SessionManagement> sessions;
     std::unique_ptr<NightLight> night_light;

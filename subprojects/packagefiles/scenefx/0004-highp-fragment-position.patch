@@ -1,0 +1,202 @@
+From fd13b3c8be1701e0113def106a2a25872b7954b6 Mon Sep 17 00:00:00 2001
+From: mKonic <mkonic676@gmail.com>
+Date: Fri, 25 Sep 2026 02:10:04 +0300
+Subject: [PATCH 1/2] shaders: highp fragment position; gl_FragCoord is mediump
+ in GLSL ES 1.00
+
+---
+ render/fx_renderer/fx_pass.c                 | 11 +++++++++++
+ render/fx_renderer/shaders.c                 | 20 ++++++++++----------
+ render/fx_renderer/shaders/box_shadow.frag   | 11 ++++++++++-
+ render/fx_renderer/shaders/common.vert       |  4 ++++
+ render/fx_renderer/shaders/corner_alpha.frag | 11 ++++++++++-
+ render/fx_renderer/shaders/gradient.frag     | 11 ++++++++++-
+ 6 files changed, 55 insertions(+), 13 deletions(-)
+
+diff --git a/render/fx_renderer/fx_pass.c b/render/fx_renderer/fx_pass.c
+index 45d9a50..e4280a4 100644
+--- a/render/fx_renderer/fx_pass.c
++++ b/render/fx_renderer/fx_pass.c
+@@ -376,6 +376,17 @@ static void stencil_mask_fini(void) {
+ }
+ 
+ static void render(const struct wlr_box *box, const pixman_region32_t *clip, GLint attrib) {
++	// Where fragments are, in highp (see common.vert's v_frag): the size of
++	// what is drawn into.
++	GLint program = 0;
++	glGetIntegerv(GL_CURRENT_PROGRAM, &program);
++	GLint frag_size = program ? glGetUniformLocation((GLuint)program, "frag_size") : -1;
++	if (frag_size >= 0) {
++		GLint viewport[4];
++		glGetIntegerv(GL_VIEWPORT, viewport);
++		glUniform2f(frag_size, (GLfloat)viewport[2], (GLfloat)viewport[3]);
++	}
++
+ 	pixman_region32_t region;
+ 	pixman_region32_init_rect(&region, box->x, box->y, box->width, box->height);
+ 
+diff --git a/render/fx_renderer/shaders.c b/render/fx_renderer/shaders.c
+index 319d94e..4d1ee88 100644
+--- a/render/fx_renderer/shaders.c
++++ b/render/fx_renderer/shaders.c
+@@ -113,8 +113,8 @@ void uniform_corner_radii_set(const struct shader_corner_radii *uniform,
+ // Shaders
+ 
+ bool link_quad_program(struct quad_shader *shader, bool clip) {
+-	GLchar quad_src_part[2048];
+-	GLchar quad_src[4096];
++	GLchar quad_src_part[4096];
++	GLchar quad_src[16384];
+ 	snprintf(quad_src_part, sizeof(quad_src_part),
+ 		quad_frag_src, clip);
+ 	snprintf(quad_src, sizeof(quad_src),
+@@ -144,8 +144,8 @@ bool link_quad_program(struct quad_shader *shader, bool clip) {
+ }
+ 
+ bool link_quad_grad_program(struct quad_grad_shader *shader, int max_len) {
+-	GLchar quad_src_part[2048];
+-	GLchar quad_src[4096];
++	GLchar quad_src_part[4096];
++	GLchar quad_src[16384];
+ 	snprintf(quad_src_part, sizeof(quad_src_part),
+ 		quad_grad_frag_src, max_len);
+ 	snprintf(quad_src, sizeof(quad_src),
+@@ -174,7 +174,7 @@ bool link_quad_grad_program(struct quad_grad_shader *shader, int max_len) {
+ }
+ 
+ bool link_quad_round_program(struct quad_round_shader *shader) {
+-	GLchar quad_src[4096];
++	GLchar quad_src[8192];
+ 	snprintf(quad_src, sizeof(quad_src), "%s\n%s", quad_round_frag_src,
+ 		corner_alpha_frag_src);
+ 
+@@ -205,8 +205,8 @@ bool link_quad_round_program(struct quad_round_shader *shader) {
+ }
+ 
+ bool link_quad_grad_round_program(struct quad_grad_round_shader *shader, int max_len) {
+-	GLchar quad_src_part[2048];
+-	GLchar quad_src[8192];
++	GLchar quad_src_part[4096];
++	GLchar quad_src[16384];
+ 	snprintf(quad_src_part, sizeof(quad_src_part),
+ 		quad_grad_round_frag_src, max_len);
+ 	snprintf(quad_src, sizeof(quad_src),
+@@ -244,8 +244,8 @@ bool link_quad_grad_round_program(struct quad_grad_round_shader *shader, int max
+ 
+ bool link_tex_program(struct tex_shader *shader, enum fx_tex_shader_source source,
+ 		bool effects) {
+-	GLchar frag_src_part[4096];
+-	GLchar frag_src[8192];
++	GLchar frag_src_part[8192];
++	GLchar frag_src[16384];
+ 	snprintf(frag_src_part, sizeof(frag_src_part),
+ 		tex_frag_src, source, effects);
+ 	snprintf(frag_src, sizeof(frag_src),
+@@ -290,7 +290,7 @@ bool link_tex_program(struct tex_shader *shader, enum fx_tex_shader_source sourc
+ }
+ 
+ bool link_box_shadow_program(struct box_shadow_shader *shader) {
+-	GLchar shadow_src[8192];
++	GLchar shadow_src[16384];
+ 	snprintf(shadow_src, sizeof(shadow_src), "%s\n%s", box_shadow_frag_src,
+ 		corner_alpha_frag_src);
+ 
+diff --git a/render/fx_renderer/shaders/box_shadow.frag b/render/fx_renderer/shaders/box_shadow.frag
+index 1cab7b5..54eccb8 100644
+--- a/render/fx_renderer/shaders/box_shadow.frag
++++ b/render/fx_renderer/shaders/box_shadow.frag
+@@ -7,6 +7,15 @@ precision mediump float;
+ #endif
+ 
+ varying vec4 v_color;
++#ifndef ATRIUM_V_FRAG
++#define ATRIUM_V_FRAG
++// Where this fragment is, in framebuffer pixels: gl_FragCoord, but highp
++// (GLSL ES 1.00's is mediump, which NVIDIA honours: past 1024 pixels it
++// rounds pixel centres in pairs, so every curve there was drawn at half
++// resolution).
++varying vec2 v_frag;
++#endif
++
+ varying vec2 v_texcoord;
+ 
+ uniform vec2 position;
+@@ -73,7 +82,7 @@ void main() {
+     float shadow_alpha = v_color.a * roundedBoxShadow(
+             position + blur_sigma,
+             position + size - blur_sigma,
+-            gl_FragCoord.xy, blur_sigma * 0.5,
++            v_frag, blur_sigma * 0.5,
+             corner_radius);
+ 
+     // Clipping
+diff --git a/render/fx_renderer/shaders/common.vert b/render/fx_renderer/shaders/common.vert
+index 9e7b073..d322220 100644
+--- a/render/fx_renderer/shaders/common.vert
++++ b/render/fx_renderer/shaders/common.vert
+@@ -4,10 +4,14 @@ uniform mat3 tex_proj;
+ attribute vec2 pos;
+ varying vec4 v_color;
+ varying vec2 v_texcoord;
++// The framebuffer's size, and where a fragment is in it (see v_frag).
++uniform vec2 frag_size;
++varying vec2 v_frag;
+ 
+ void main() {
+ 	vec3 pos3 = vec3(pos, 1.0);
+ 	gl_Position = vec4(pos3 * proj, 1.0);
+ 	v_color = color;
+ 	v_texcoord = (pos3 * tex_proj).xy;
++	v_frag = (gl_Position.xy * 0.5 + 0.5) * frag_size;
+ }
+diff --git a/render/fx_renderer/shaders/corner_alpha.frag b/render/fx_renderer/shaders/corner_alpha.frag
+index 8493003..094a277 100644
+--- a/render/fx_renderer/shaders/corner_alpha.frag
++++ b/render/fx_renderer/shaders/corner_alpha.frag
+@@ -1,3 +1,12 @@
++#ifndef ATRIUM_V_FRAG
++#define ATRIUM_V_FRAG
++// Where this fragment is, in framebuffer pixels: gl_FragCoord, but highp
++// (GLSL ES 1.00's is mediump, which NVIDIA honours: past 1024 pixels it
++// rounds pixel centres in pairs, so every curve there was drawn at half
++// resolution).
++varying vec2 v_frag;
++#endif
++
+ float get_dist(vec2 q, float radius) {
+ 	return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - radius;
+ }
+@@ -13,7 +22,7 @@ float corner_alpha(vec2 size, vec2 position, bool is_cutout,
+ 		return 1.0;
+ 	}
+ 
+-	vec2 relative_pos = (gl_FragCoord.xy - position);
++	vec2 relative_pos = (v_frag - position);
+ 
+ 	if (relative_pos.x < 0.0 || relative_pos.y < 0.0
+ 			|| relative_pos.x > size.x || relative_pos.y > size.y) {
+diff --git a/render/fx_renderer/shaders/gradient.frag b/render/fx_renderer/shaders/gradient.frag
+index 407e273..969e5ff 100644
+--- a/render/fx_renderer/shaders/gradient.frag
++++ b/render/fx_renderer/shaders/gradient.frag
+@@ -1,7 +1,16 @@
++#ifndef ATRIUM_V_FRAG
++#define ATRIUM_V_FRAG
++// Where this fragment is, in framebuffer pixels: gl_FragCoord, but highp
++// (GLSL ES 1.00's is mediump, which NVIDIA honours: past 1024 pixels it
++// rounds pixel centres in pairs, so every curve there was drawn at half
++// resolution).
++varying vec2 v_frag;
++#endif
++
+ vec4 gradient(vec4 colors[LEN], int count, vec2 size, vec2 grad_box, vec2 origin, float degree, bool linear, bool blend) {
+ 	float step;
+ 
+-	vec2 normal = (gl_FragCoord.xy - grad_box)/size;
++	vec2 normal = (v_frag - grad_box)/size;
+ 	vec2 uv = normal - origin;
+ 
+ 	float rad = radians(degree);
+-- 
+2.55.0
+

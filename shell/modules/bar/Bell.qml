@@ -14,6 +14,8 @@ Pill {
     implicitWidth: implicitHeight
     color: open ? Theme.palette.accentFill : Theme.material.pill
 
+    Glass {}
+
     MaterialIcon {
         anchors.centerIn: parent
         text: root.dnd ? "notifications_off" : NotificationHistory.unread > 0 ? "notifications_unread" : "notifications"

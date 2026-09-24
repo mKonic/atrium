@@ -19,6 +19,8 @@ Rectangle {
     radius: 26
     color: Theme.material.thick
 
+    Glass {}
+
     border.width: Theme.lens ? 0 : 1
     border.color: Theme.palette.separator
 
@@ -138,6 +140,8 @@ Rectangle {
                 height: 26
                 radius: 13
                 color: Theme.material.thick
+
+                Glass {}
 
                 MaterialIcon {
                     anchors.centerIn: parent

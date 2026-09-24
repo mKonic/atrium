@@ -7,7 +7,8 @@ shell_qt_private = dependency('qt6', version: '>=6.8', modules: ['Gui'], private
 wayland_client = dependency('wayland-client')
 
 client_protocols = []
-foreach xml : [wl_protocol_dir / 'unstable/keyboard-shortcuts-inhibit/keyboard-shortcuts-inhibit-unstable-v1.xml']
+foreach xml : [wl_protocol_dir / 'unstable/keyboard-shortcuts-inhibit/keyboard-shortcuts-inhibit-unstable-v1.xml',
+               meson.project_source_root() / 'protocols/atrium-glass-v1.xml']
   client_protocols += custom_target(xml.underscorify() + '_client_h', input: xml, output: '@BASENAME@-client-protocol.h',
     command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
   client_protocols += custom_target(xml.underscorify() + '_client_c', input: xml, output: '@BASENAME@-client-protocol.c',
@@ -20,10 +21,10 @@ if not layershellqt.found()
 endif
 atrium_libdir = get_option('prefix') / get_option('libdir') / 'atrium'
 
-runtime_moc = qt6.compile_moc(headers: ['shortcut_inhibitor.hpp', 'scope.hpp', 'screens.hpp', 'shell_api.hpp', 'variants.hpp', 'system_clock.hpp', 'windows.hpp', 'desktop_entries.hpp'], dependencies: shell_qt)
+runtime_moc = qt6.compile_moc(headers: ['shortcut_inhibitor.hpp', 'glass_shape.hpp', 'scope.hpp', 'screens.hpp', 'shell_api.hpp', 'variants.hpp', 'system_clock.hpp', 'windows.hpp', 'desktop_entries.hpp'], dependencies: shell_qt)
 
 atrium_runtime = shared_library('atrium-shell-runtime',
-  'screens.cpp', 'shell_api.cpp', 'variants.cpp', 'system_clock.cpp', 'windows.cpp', 'desktop_entries.cpp', 'desktop_entry_core.cpp', 'shortcut_inhibitor.cpp', runtime_moc, client_protocols,
+  'screens.cpp', 'shell_api.cpp', 'variants.cpp', 'system_clock.cpp', 'windows.cpp', 'desktop_entries.cpp', 'desktop_entry_core.cpp', 'shortcut_inhibitor.cpp', 'glass_shape.cpp', runtime_moc, client_protocols,
   dependencies: [shell_qt, shell_qt_private, layershellqt, wayland_client],
   include_directories: include_directories('../../../../src'),
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),

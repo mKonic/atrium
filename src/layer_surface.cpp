@@ -1,5 +1,6 @@
 #include "layer_surface.hpp"
 
+#include "glass.hpp"
 #include "output.hpp"
 #include "palette.hpp"
 #include "seat.hpp"
@@ -228,6 +229,14 @@ void LayerSurface::update_blur() {
     glass.light_dir[1] = 0.7071f;
     glass.shadow = c.light ? 0.16f : 0.3f;
     wlr_scene_blur_set_glass(blur_, &glass);
+
+    // Its exact shapes, when the shell said (atrium-glass-v1), in the glass
+    // node's coordinates: drawn from their geometry, smooth at any size.
+    std::vector<wlr_scene_glass_shape> shapes;
+    if (const auto* given = server.glass_shapes ? server.glass_shapes->shapes_for(wlr->surface) : nullptr)
+        for (const GlassShape& g : *given)
+            shapes.push_back({g.x + float(reach), g.y + float(reach), g.width, g.height, g.radius, g.opacity});
+    wlr_scene_blur_set_glass_shapes(blur_, shapes.data(), int(shapes.size()));
 }
 
 void LayerSurface::unmap() {

@@ -1,24 +1,24 @@
-From c82706005d528a364cdbf4afe4caa3fc1dca25ad Mon Sep 17 00:00:00 2001
+From 291032df9e7c9a7c3a24453e35c4df399a4beb65 Mon Sep 17 00:00:00 2001
 From: mKonic <mkonic676@gmail.com>
-Date: Fri, 25 Sep 2026 00:36:56 +0300
-Subject: [PATCH] glass: Apple's Liquid Glass: squircle lens over a blurred
- shape field, backdrop-lit rim, shadow
+Date: Fri, 25 Sep 2026 02:10:04 +0300
+Subject: [PATCH 2/2] glass: Apple's Liquid Glass: exact shapes, squircle lens,
+ backdrop-lit rim, shadow
 
 ---
  include/render/fx_renderer/fx_renderer.h      |   1 +
- include/render/fx_renderer/shaders.h          |  29 ++++
+ include/render/fx_renderer/shaders.h          |  32 +++
  .../render/fx_renderer/fx_offscreen_buffers.h |   3 +
- include/scenefx/render/pass.h                 |   7 +
- include/scenefx/types/wlr_scene.h             |  17 ++
+ include/scenefx/render/pass.h                 |  11 +
+ include/scenefx/types/wlr_scene.h             |  35 +++
  render/fx_renderer/fx_offscreen_buffers.c     |   8 +
- render/fx_renderer/fx_pass.c                  | 133 ++++++++++++++--
+ render/fx_renderer/fx_pass.c                  | 150 ++++++++++-
  render/fx_renderer/fx_renderer.c              |   5 +
- render/fx_renderer/shaders.c                  |  33 ++++
- render/fx_renderer/shaders/glass.frag         | 145 ++++++++++++++----
- render/fx_renderer/shaders/glass_field.frag   |  58 +++++++
+ render/fx_renderer/shaders.c                  |  40 ++-
+ render/fx_renderer/shaders/glass.frag         | 250 +++++++++++++++---
+ render/fx_renderer/shaders/glass_field.frag   |  67 +++++
  render/fx_renderer/shaders/meson.build        |   1 +
- types/scene/wlr_scene.c                       |  17 ++
- 13 files changed, 414 insertions(+), 43 deletions(-)
+ types/scene/wlr_scene.c                       |  57 ++++
+ 13 files changed, 612 insertions(+), 48 deletions(-)
  create mode 100644 render/fx_renderer/shaders/glass_field.frag
 
 diff --git a/include/render/fx_renderer/fx_renderer.h b/include/render/fx_renderer/fx_renderer.h
@@ -34,10 +34,10 @@ index c4e43fb..50d7949 100644
  	} shaders;
  
 diff --git a/include/render/fx_renderer/shaders.h b/include/render/fx_renderer/shaders.h
-index 3ee04e7..6a903c7 100644
+index 3ee04e7..440be93 100644
 --- a/include/render/fx_renderer/shaders.h
 +++ b/include/render/fx_renderer/shaders.h
-@@ -208,8 +208,37 @@ struct glass_shader {
+@@ -208,8 +208,40 @@ struct glass_shader {
  	GLint refraction;
  	GLint thickness;
  	GLint alpha;
@@ -50,6 +50,9 @@ index 3ee04e7..6a903c7 100644
 +	GLint field;
 +	GLint field_texel;
 +	GLint field_sigma;
++	GLint shape_box;
++	GLint shape_extra;
++	GLint shape_count;
  };
  
  bool link_glass_program(struct glass_shader *shader);
@@ -90,7 +93,7 @@ index f2502a0..c33f517 100644
  
  void fx_offscreen_buffers_destroy(struct fx_offscreen_buffers *fbos);
 diff --git a/include/scenefx/render/pass.h b/include/scenefx/render/pass.h
-index 387091a..b5cece3 100644
+index 387091a..e82cfe8 100644
 --- a/include/scenefx/render/pass.h
 +++ b/include/scenefx/render/pass.h
 @@ -9,6 +9,8 @@
@@ -102,7 +105,7 @@ index 387091a..b5cece3 100644
  struct fx_gles_render_pass {
  	struct wlr_render_pass base;
  	struct fx_framebuffer *buffer;
-@@ -103,6 +105,11 @@ struct fx_render_blur_pass_options {
+@@ -103,6 +105,15 @@ struct fx_render_blur_pass_options {
  	// `refraction_thickness` of the edge. 0 draws it flat, as before.
  	float refraction;
  	float refraction_thickness;
@@ -111,14 +114,18 @@ index 387091a..b5cece3 100644
 +	// Where the mask (the panel's buffer) is, in output buffer pixels: the
 +	// glass node may reach past it (for its shadow).
 +	struct wlr_box mask_box;
++	// The glass's shapes, in output buffer pixels: x, y, width, height,
++	// radius, opacity. None: its shape is the mask's.
++	float glass_shapes[16][6];
++	int glass_shape_count;
  };
  
  struct fx_gles_render_pass *fx_get_render_pass(struct wlr_render_pass *render_pass);
 diff --git a/include/scenefx/types/wlr_scene.h b/include/scenefx/types/wlr_scene.h
-index 75cbd68..f1fcd78 100644
+index 75cbd68..98b0708 100644
 --- a/include/scenefx/types/wlr_scene.h
 +++ b/include/scenefx/types/wlr_scene.h
-@@ -172,6 +172,16 @@ struct wlr_scene_shadow {
+@@ -172,6 +172,24 @@ struct wlr_scene_shadow {
  	struct clipped_region clipped_region;
  };
  
@@ -132,18 +139,28 @@ index 75cbd68..f1fcd78 100644
 +	float shadow;       // the soft shadow outside it, 0 for none
 +};
 +
++/** A piece of Liquid Glass: a rounded rectangle in the blur node's
++ * coordinates, and how opaque it is. */
++struct wlr_scene_glass_shape {
++	float x, y, width, height, radius, opacity;
++};
++
++#define WLR_SCENE_GLASS_MAX_SHAPES 16
++
  struct wlr_scene_blur {
  	struct wlr_scene_node node;
  	int width, height;
-@@ -182,6 +192,7 @@ struct wlr_scene_blur {
+@@ -182,6 +200,9 @@ struct wlr_scene_blur {
  	float strength;
  	float alpha;
  	float refraction, refraction_thickness;
 +	struct wlr_scene_glass glass;
++	struct wlr_scene_glass_shape glass_shapes[WLR_SCENE_GLASS_MAX_SHAPES];
++	int glass_shape_count;
  
  	bool should_only_blur_bottom_layer;
  
-@@ -681,6 +692,12 @@ void wlr_scene_blur_set_alpha(struct wlr_scene_blur *blur, float alpha);
+@@ -681,6 +702,20 @@ void wlr_scene_blur_set_alpha(struct wlr_scene_blur *blur, float alpha);
   */
  void wlr_scene_blur_set_refraction(struct wlr_scene_blur *blur, float refraction, float thickness);
  
@@ -152,6 +169,14 @@ index 75cbd68..f1fcd78 100644
 + * bent background (only when refraction is on).
 + */
 +void wlr_scene_blur_set_glass(struct wlr_scene_blur *blur, const struct wlr_scene_glass *glass);
++
++/**
++ * Where the glass is, exactly (at most WLR_SCENE_GLASS_MAX_SHAPES): drawn from
++ * these shapes' geometry instead of the transparency mask's pixels. None
++ * goes back to the mask.
++ */
++void wlr_scene_blur_set_glass_shapes(struct wlr_scene_blur *blur,
++		const struct wlr_scene_glass_shape *shapes, int count);
 +
  /**
   * Sets the blur strength from 1.0f -> 0.0f. This adjusts how strong the blur is
@@ -176,7 +201,7 @@ index e9f0cf1..8048454 100644
  	wl_list_remove(&fbos->link);
  	wlr_addon_finish(&fbos->addon);
 diff --git a/render/fx_renderer/fx_pass.c b/render/fx_renderer/fx_pass.c
-index 45d9a50..2fa0ae9 100644
+index e4280a4..2753f48 100644
 --- a/render/fx_renderer/fx_pass.c
 +++ b/render/fx_renderer/fx_pass.c
 @@ -20,6 +20,7 @@
@@ -187,7 +212,7 @@ index 45d9a50..2fa0ae9 100644
  #include "util/matrix.h"
  
  #define MAX_QUADS 86 // 4kb
-@@ -1275,6 +1276,75 @@ static struct fx_framebuffer *get_main_buffer_blur(struct fx_gles_render_pass *p
+@@ -1286,6 +1287,75 @@ static struct fx_framebuffer *get_main_buffer_blur(struct fx_gles_render_pass *p
  	return fx_options->current_buffer;
  }
  
@@ -263,7 +288,7 @@ index 45d9a50..2fa0ae9 100644
  // The blurred background, bent at a glass panel's edge (glass.frag).
  static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *blur,
  		const struct fx_render_blur_pass_options *fx_options, struct wlr_texture *mask,
-@@ -1286,6 +1356,21 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
+@@ -1297,6 +1367,23 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
  	struct wlr_box dst_box = { .width = width, .height = height };
  	struct wlr_fbox src_fbox = { .width = 1.0, .height = 1.0 };
  
@@ -279,13 +304,15 @@ index 45d9a50..2fa0ae9 100644
 +		mask ? mask_src.width / mask->width : 1, mask ? mask_src.height / mask->height : 1,
 +	};
 +	const float sigma = fmaxf(fx_options->refraction_thickness / 2.5f, 1.0f);
-+	struct fx_framebuffer *field = render_glass_field(pass, mask_tex, mask_box, mask_norm,
-+		fx_options->tex_options.corners.top_left, *fx_options->tex_options.clip_box, sigma, width, height);
++	// Shapes given: their exact geometry. Otherwise, the mask's blurred.
++	const int shape_count = fx_options->glass_shape_count;
++	struct fx_framebuffer *field = shape_count > 0 ? NULL : render_glass_field(pass, mask_tex, mask_box,
++		mask_norm, fx_options->tex_options.corners.top_left, *fx_options->tex_options.clip_box, sigma, width, height);
 +
  	setup_blending(WLR_RENDER_BLEND_MODE_PREMULTIPLIED);
  
  	pixman_region32_t clip_region;
-@@ -1303,19 +1388,25 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
+@@ -1314,19 +1401,40 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
  	glTexParameteri(blur->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
  	glUniform1i(shader->tex, 0);
  
@@ -316,10 +343,25 @@ index 45d9a50..2fa0ae9 100644
 +	glUniform2f(shader->field_texel, 1.0f / width, 1.0f / height);
 +	glUniform1f(shader->field_sigma, sigma);
 +	glActiveTexture(GL_TEXTURE0);
++	GLfloat boxes[16 * 4], extras[16 * 2];
++	for (int i = 0; i < shape_count; i++) {
++		const float *s = fx_options->glass_shapes[i];
++		boxes[i * 4 + 0] = s[0];
++		boxes[i * 4 + 1] = s[1];
++		boxes[i * 4 + 2] = s[2];
++		boxes[i * 4 + 3] = s[3];
++		extras[i * 2 + 0] = s[4];
++		extras[i * 2 + 1] = s[5];
++	}
++	if (shape_count > 0) {
++		glUniform4fv(shader->shape_box, shape_count, boxes);
++		glUniform2fv(shader->shape_extra, shape_count, extras);
++	}
++	glUniform1i(shader->shape_count, shape_count);
  
  	glUniform2f(shader->texel, 1.0f / width, 1.0f / height);
  	glUniform2f(shader->box_pos, mask_box.x, mask_box.y);
-@@ -1324,6 +1415,17 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
+@@ -1335,6 +1443,17 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
  	glUniform1f(shader->refraction, fx_options->refraction);
  	glUniform1f(shader->thickness, fx_options->refraction_thickness);
  	glUniform1f(shader->alpha, wlr_render_texture_options_get_alpha(options));
@@ -337,7 +379,7 @@ index 45d9a50..2fa0ae9 100644
  
  	set_proj_matrix(shader->proj, pass->projection_matrix, &dst_box);
  	set_tex_matrix(shader->tex_proj, WL_OUTPUT_TRANSFORM_NORMAL, &src_fbox);
-@@ -1333,8 +1435,10 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
+@@ -1344,8 +1463,10 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
  	if (mask_tex) {
  		glActiveTexture(GL_TEXTURE1);
  		glBindTexture(GL_TEXTURE_2D, 0);
@@ -349,7 +391,7 @@ index 45d9a50..2fa0ae9 100644
  	glBindTexture(blur->target, 0);
  }
  
-@@ -1375,8 +1479,11 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
+@@ -1386,8 +1507,11 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
  		fx_texture_from_buffer(&renderer->wlr_renderer, buffer->buffer);
  	struct fx_texture *blur_texture = fx_get_texture(wlr_texture);
  
@@ -363,7 +405,7 @@ index 45d9a50..2fa0ae9 100644
  		stencil_mask_init();
  
  		struct fx_render_texture_options tex_options = fx_options->tex_options;
-@@ -1390,7 +1497,7 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
+@@ -1401,7 +1525,7 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
  	// Draw the blurred texture: bent at the edge for glass, flat otherwise.
  	if (fx_options->refraction > 0) {
  		render_glass(pass, blur_texture, fx_options, fx_options->tex_options.base.texture,
@@ -372,7 +414,7 @@ index 45d9a50..2fa0ae9 100644
  		wlr_texture_destroy(&blur_texture->wlr_texture);
  		goto unstencil;
  	}
-@@ -1416,7 +1523,7 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
+@@ -1427,7 +1551,7 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
  
  unstencil:
  	// Finish stenciling
@@ -405,7 +447,7 @@ index 37a0e58..d0ee627 100644
  		wlr_log(WLR_ERROR, "Could not link output shader");
  		goto error;
 diff --git a/render/fx_renderer/shaders.c b/render/fx_renderer/shaders.c
-index 319d94e..5b82bf2 100644
+index 4d1ee88..517ac55 100644
 --- a/render/fx_renderer/shaders.c
 +++ b/render/fx_renderer/shaders.c
 @@ -21,6 +21,7 @@
@@ -416,7 +458,25 @@ index 319d94e..5b82bf2 100644
  #include "output_frag_src.h"
  
  GLuint compile_shader(GLuint type, const GLchar *src) {
-@@ -366,11 +367,43 @@ bool link_glass_program(struct glass_shader *shader) {
+@@ -114,7 +115,7 @@ void uniform_corner_radii_set(const struct shader_corner_radii *uniform,
+ 
+ bool link_quad_program(struct quad_shader *shader, bool clip) {
+ 	GLchar quad_src_part[4096];
+-	GLchar quad_src[16384];
++	GLchar quad_src[8192];
+ 	snprintf(quad_src_part, sizeof(quad_src_part),
+ 		quad_frag_src, clip);
+ 	snprintf(quad_src, sizeof(quad_src),
+@@ -145,7 +146,7 @@ bool link_quad_program(struct quad_shader *shader, bool clip) {
+ 
+ bool link_quad_grad_program(struct quad_grad_shader *shader, int max_len) {
+ 	GLchar quad_src_part[4096];
+-	GLchar quad_src[16384];
++	GLchar quad_src[8192];
+ 	snprintf(quad_src_part, sizeof(quad_src_part),
+ 		quad_grad_frag_src, max_len);
+ 	snprintf(quad_src, sizeof(quad_src),
+@@ -366,11 +367,46 @@ bool link_glass_program(struct glass_shader *shader) {
  	shader->mask_src = glGetUniformLocation(prog, "mask_src");
  	shader->radius = glGetUniformLocation(prog, "radius");
  	shader->refraction = glGetUniformLocation(prog, "refraction");
@@ -429,6 +489,9 @@ index 319d94e..5b82bf2 100644
 +	shader->field = glGetUniformLocation(prog, "field");
 +	shader->field_texel = glGetUniformLocation(prog, "field_texel");
 +	shader->field_sigma = glGetUniformLocation(prog, "field_sigma");
++	shader->shape_box = glGetUniformLocation(prog, "shape_box");
++	shader->shape_extra = glGetUniformLocation(prog, "shape_extra");
++	shader->shape_count = glGetUniformLocation(prog, "shape_count");
  	shader->thickness = glGetUniformLocation(prog, "thickness");
  	shader->alpha = glGetUniformLocation(prog, "alpha");
  	return true;
@@ -461,7 +524,7 @@ index 319d94e..5b82bf2 100644
  	GLuint prog;
  	shader->program = prog = link_program(blur_effects_frag_src);
 diff --git a/render/fx_renderer/shaders/glass.frag b/render/fx_renderer/shaders/glass.frag
-index 7ae4758..db6004a 100644
+index 7ae4758..813240f 100644
 --- a/render/fx_renderer/shaders/glass.frag
 +++ b/render/fx_renderer/shaders/glass.frag
 @@ -1,7 +1,18 @@
@@ -487,11 +550,20 @@ index 7ae4758..db6004a 100644
  
  #ifdef GL_FRAGMENT_PRECISION_HIGH
  precision highp float;
-@@ -10,54 +21,128 @@ precision mediump float;
+@@ -10,54 +21,227 @@ precision mediump float;
  #endif
  
  varying vec2 v_texcoord;
 -uniform sampler2D tex;   // the blurred background, the whole buffer
++#ifndef ATRIUM_V_FRAG
++#define ATRIUM_V_FRAG
++// Where this fragment is, in framebuffer pixels: gl_FragCoord, but highp
++// (GLSL ES 1.00's is mediump, which NVIDIA honours: past 1024 pixels it
++// rounds pixel centres in pairs, so every curve there was drawn at half
++// resolution).
++varying vec2 v_frag;
++#endif
++
 +uniform sampler2D tex;   // the (lightly) blurred background, the whole buffer
  uniform sampler2D mask;  // the panel's buffer
  uniform bool has_mask;
@@ -517,6 +589,12 @@ index 7ae4758..db6004a 100644
 +uniform float highlight;  // the rim's light
 +uniform vec2 light_dir;   // where the light travels, screen space (y down)
 +uniform float shadow;     // the shadow's darkness under the glass
++
++// The glass's exact shapes (atrium-glass-v1), when given: x, y, width,
++// height; radius, opacity. Otherwise the shape is the mask, through `field`.
++uniform vec4 shape_box[16];
++uniform vec2 shape_extra[16];
++uniform int shape_count;
 +
 +// 1 on glass, 0 off it, antialiased across the edge's pixel.
 +float cover(vec2 p) {
@@ -560,20 +638,57 @@ index 7ae4758..db6004a 100644
 +
 +// How far a ray straight down through the bevel, at x (0 at the rim, 1
 +// where the glass turns flat), lands from where it entered.
-+float bend(float x) {
++float bend(float x, float bevel) {
 +	float e = 0.002;
 +	float x0 = clamp(x, e, 1.0 - e);
 +	float slope = (squircle(x0 + e) - squircle(x0 - e)) / (2.0 * e);
 +	// The surface's tilt: its slope, stretched over the bevel's width.
-+	float tilt = atan(slope * refraction / max(thickness, 1.0));
++	float tilt = atan(slope * refraction / bevel);
 +	float inside = asin(sin(tilt) / 1.5);
 +	// Through the bevel's height here, and the slab's base under it.
 +	float depth = refraction * (0.5 + 0.5 * squircle(x0));
 +	return depth * tan(tilt - inside);
 +}
 +
++// The shape this pixel belongs to: the last (topmost, as the shell paints
++// them) that reaches it, else the nearest, for its shadow. Its signed
++// distance (negative inside, exact for rounded rectangles), outward normal,
++// opacity and bevel width.
++float shapes_sd(vec2 p, out vec2 normal, out float opacity, out float bevel) {
++	float best = 1e5;
++	float chosen = 1e5;
++	bool inside_any = false;
++	normal = vec2(0.0);
++	opacity = 0.0;
++	bevel = 1.0;
++	for (int i = 0; i < 16; i++) {
++		if (i >= shape_count) {
++			break;
++		}
++		vec4 b = shape_box[i];
++		vec2 half_size = 0.5 * b.zw;
++		float r = min(shape_extra[i].x, min(half_size.x, half_size.y));
++		vec2 rel = p - (b.xy + half_size);
++		vec2 q = abs(rel) - half_size + r;
++		float sd = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
++		bool inside = sd < 0.5;
++		if (inside || (!inside_any && sd < best)) {
++			best = min(best, sd);
++			inside_any = inside_any || inside;
++			chosen = sd;
++			vec2 n = (q.x > 0.0 || q.y > 0.0) ? normalize(max(q, 0.0))
++				: (q.x > q.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
++			normal = n * vec2(rel.x < 0.0 ? -1.0 : 1.0, rel.y < 0.0 ? -1.0 : 1.0);
++			opacity = shape_extra[i].y;
++			// A bevel no wider than the corner's curve, so it stays smooth.
++			bevel = max(min(thickness, r), 1.0);
++		}
++	}
++	return chosen;
++}
++
  void main() {
- 	vec2 p = gl_FragCoord.xy;
+-	vec2 p = gl_FragCoord.xy;
 -	vec2 grad = vec2(0.0);
 -	float edge = 0.0;
 -	// Three rings, for a smooth falloff instead of a step at `thickness`.
@@ -585,11 +700,40 @@ index 7ae4758..db6004a 100644
 -		float d = inside(p + vec2(0.0, t));
 -		grad += vec2(r - l, d - u);
 -		edge += 1.0 - min(min(l, r), min(u, d));
-+	float here = cover(p);
-+	float f = shape(p);
-+
-+	// Off the glass: its shadow, the blurred shape itself.
-+	float shade = shadow * pow(clamp(2.0 * f, 0.0, 1.0), 1.5);
++	vec2 p = v_frag;
++	float here;
++	float shade;
++	float d;
++	float bevel = max(thickness, 1.0);
++	vec2 outward;
++	// How much of what's covered is the rim's line, from area (a line a
++	// pixel or two wide must be, or it flickers along curves).
++	float rim_share;
++	const float RIM = 1.3;
++	if (shape_count > 0) {
++		float opacity;
++		float sd = shapes_sd(p, outward, opacity, bevel);
++		// Exact coverage of this pixel, and a soft shadow falling off
++		// over the bevel's width and more.
++		here = clamp(0.5 - sd, 0.0, 1.0) * opacity;
++		float reach = 1.2 * max(thickness, 1.0);
++		shade = shadow * opacity * pow(1.0 - clamp(sd / reach, 0.0, 1.0), 2.0);
++		d = max(-sd, 0.0);
++		float full = clamp(0.5 - sd, 0.0, 1.0);
++		float band = full - clamp(0.5 - (sd + RIM), 0.0, 1.0);
++		rim_share = full > 0.0 ? band / full : 0.0;
++	} else {
++		here = cover(p);
++		float f = shape(p);
++		// Off the glass: its shadow, the blurred shape itself.
++		shade = shadow * pow(clamp(2.0 * f, 0.0, 1.0), 1.5);
++		// The way out, across the field's slope.
++		vec2 grad = vec2(shape(p + vec2(1.0, 0.0)) - shape(p - vec2(1.0, 0.0)),
++			shape(p + vec2(0.0, 1.0)) - shape(p - vec2(0.0, 1.0)));
++		outward = length(grad) > 1e-5 ? -normalize(grad) : vec2(0.0);
++		d = max(depth_in(f), 0.0);
++		rim_share = 1.0 - smoothstep(0.3, 1.8, d);
++	}
 +	if (here <= 0.0) {
 +		gl_FragColor = vec4(0.0, 0.0, 0.0, shade) * alpha;
 +		return;
@@ -597,24 +741,45 @@ index 7ae4758..db6004a 100644
 -	edge /= 3.0;
 -	vec2 inward = length(grad) > 0.0001 ? normalize(grad) : vec2(0.0);
 -	vec2 off = inward * refraction * edge * edge;
- 
+-
 -	// The rim shows what lies further in, each colour bent a little apart.
-+	// The way out, across the field's slope.
-+	vec2 grad = vec2(shape(p + vec2(1.0, 0.0)) - shape(p - vec2(1.0, 0.0)),
-+		shape(p + vec2(0.0, 1.0)) - shape(p - vec2(0.0, 1.0)));
-+	vec2 outward = length(grad) > 1e-5 ? -normalize(grad) : vec2(0.0);
-+	float d = max(depth_in(f), 0.0);
-+	float x = d / max(thickness, 1.0);
-+
-+	// The lens: sample further in, the more the bevel tilts here.
-+	vec2 off = -outward * (x < 1.0 ? bend(x) : 0.0);
- 	vec4 c = texture2D(tex, v_texcoord + off * texel);
+-	vec4 c = texture2D(tex, v_texcoord + off * texel);
 -	c.r = texture2D(tex, v_texcoord + off * 1.12 * texel).r;
 -	c.b = texture2D(tex, v_texcoord + off * 0.88 * texel).b;
 -	gl_FragColor = c * alpha;
-+	c.r = texture2D(tex, v_texcoord + off * 1.04 * texel).r;
-+	c.b = texture2D(tex, v_texcoord + off * 0.96 * texel).b;
-+	vec3 rgb = c.a > 0.0 ? c.rgb / c.a : vec3(0.0);
++	float x = d / bevel;
++
++	// The lens: what lies further in shows here, the more the bevel tilts.
++	// Near the rim it squeezes several pixels of the backdrop into one, so
++	// average over all of them (the pixel's footprint, from its outer edge
++	// to its inner one, mapped through the lens) rather than pick one:
++	// otherwise the rim sparkles and steps.
++	vec3 rgb = vec3(0.0);
++	float coverage_a = 0.0;
++	if (x < 1.0) {
++		float scale = bevel / max(thickness, 1.0);
++		float d0 = max(d - 0.5, 0.0);
++		float d1 = d + 0.5;
++		float u0 = d0 + bend(d0 / bevel, bevel) * scale;
++		float u1 = d1 + bend(d1 / bevel, bevel) * scale;
++		for (int k = 0; k < 6; k++) {
++			float u = mix(u0, u1, (float(k) + 0.5) / 6.0);
++			vec2 off = -outward * (u - d);
++			vec4 c = texture2D(tex, v_texcoord + off * texel);
++			// Each colour bent a little apart.
++			c.r = texture2D(tex, v_texcoord + off * 1.04 * texel).r;
++			c.b = texture2D(tex, v_texcoord + off * 0.96 * texel).b;
++			rgb += c.rgb;
++			coverage_a += c.a;
++		}
++		rgb /= 6.0;
++		coverage_a /= 6.0;
++	} else {
++		vec4 c = texture2D(tex, v_texcoord);
++		rgb = c.rgb;
++		coverage_a = c.a;
++	}
++	rgb = coverage_a > 0.0 ? rgb / coverage_a : vec3(0.0);
 +
 +	// Vibrancy.
 +	float y = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -633,7 +798,7 @@ index 7ae4758..db6004a 100644
 +	// down the bevel.
 +	float facing = dot(outward, -light_dir);
 +	float lit = 0.35 + 0.65 * pow(max(facing, 0.0), 1.5) + 0.5 * pow(max(-facing, 0.0), 1.5);
-+	float line = 1.0 - smoothstep(0.3, 1.8, d);
++	float line = rim_share;
 +	vec3 behind = clamp(mix(vec3(y), backdrop, 4.0), 0.0, 1.0);
 +	vec3 spec = mix(vec3(1.0), behind, 0.55);
 +	rgb = mix(rgb, spec, clamp(highlight * lit * line, 0.0, 1.0));
@@ -644,10 +809,10 @@ index 7ae4758..db6004a 100644
  }
 diff --git a/render/fx_renderer/shaders/glass_field.frag b/render/fx_renderer/shaders/glass_field.frag
 new file mode 100644
-index 0000000..9ea5c35
+index 0000000..63b7582
 --- /dev/null
 +++ b/render/fx_renderer/shaders/glass_field.frag
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,67 @@
 +// Liquid Glass's shape field: the panel's coverage, blurred by a Gaussian
 +// of `sigma` pixels along `dir` (run twice, across then down). Where a
 +// straight edge is, the field is the normal CDF of the distance to it, so
@@ -662,6 +827,15 @@ index 0000000..9ea5c35
 +#endif
 +
 +varying vec2 v_texcoord;
++#ifndef ATRIUM_V_FRAG
++#define ATRIUM_V_FRAG
++// Where this fragment is, in framebuffer pixels: gl_FragCoord, but highp
++// (GLSL ES 1.00's is mediump, which NVIDIA honours: past 1024 pixels it
++// rounds pixel centres in pairs, so every curve there was drawn at half
++// resolution).
++varying vec2 v_frag;
++#endif
++
 +uniform sampler2D mask;
 +uniform bool has_mask;
 +uniform vec2 box_pos;
@@ -690,7 +864,7 @@ index 0000000..9ea5c35
 +}
 +
 +void main() {
-+	vec2 p = gl_FragCoord.xy;
++	vec2 p = v_frag;
 +	float reach = 3.0 * sigma;
 +	float sum = 0.0;
 +	float weights = 0.0;
@@ -719,10 +893,16 @@ index fedab53..562d88a 100644
  ]
  
 diff --git a/types/scene/wlr_scene.c b/types/scene/wlr_scene.c
-index d21385d..a1de2b7 100644
+index d21385d..19b7245 100644
 --- a/types/scene/wlr_scene.c
 +++ b/types/scene/wlr_scene.c
-@@ -1179,6 +1179,14 @@ void wlr_scene_blur_set_alpha(struct wlr_scene_blur *blur, float alpha) {
+@@ -1,4 +1,5 @@
+ #include <assert.h>
++#include <math.h>
+ #include <pixman.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -1179,6 +1180,30 @@ void wlr_scene_blur_set_alpha(struct wlr_scene_blur *blur, float alpha) {
  	scene_node_update(&blur->node, NULL);
  }
  
@@ -734,10 +914,26 @@ index d21385d..a1de2b7 100644
 +	scene_node_update(&blur->node, NULL);
 +}
 +
++void wlr_scene_blur_set_glass_shapes(struct wlr_scene_blur *blur,
++		const struct wlr_scene_glass_shape *shapes, int count) {
++	if (count > WLR_SCENE_GLASS_MAX_SHAPES) {
++		count = WLR_SCENE_GLASS_MAX_SHAPES;
++	}
++	if (count == blur->glass_shape_count &&
++			(count == 0 || memcmp(blur->glass_shapes, shapes, sizeof(*shapes) * count) == 0)) {
++		return;
++	}
++	if (count > 0) {
++		memcpy(blur->glass_shapes, shapes, sizeof(*shapes) * count);
++	}
++	blur->glass_shape_count = count;
++	scene_node_update(&blur->node, NULL);
++}
++
  void wlr_scene_blur_set_refraction(struct wlr_scene_blur *blur, float refraction, float thickness) {
  	if (blur->refraction == refraction && blur->refraction_thickness == thickness) {
  		return;
-@@ -2220,7 +2228,14 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
+@@ -2220,7 +2245,14 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
  		enum wl_output_transform mask_transform = WL_OUTPUT_TRANSFORM_NORMAL;
  
  		struct wlr_fbox mask_src_box = {0};
@@ -752,15 +948,39 @@ index d21385d..a1de2b7 100644
  			tex = scene_buffer_get_texture(mask, data->output->output->renderer);
  			mask_transform = wlr_output_transform_invert(mask->transform);
  			mask_transform = wlr_output_transform_compose(mask_transform, data->transform);
-@@ -2252,6 +2267,8 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
+@@ -2252,7 +2284,32 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
  			.blur_strength = blur->strength,
  			.refraction = blur->refraction * data->scale,
  			.refraction_thickness = blur->refraction_thickness * data->scale,
 +			.glass = &blur->glass,
 +			.mask_box = mask_box,
  		};
++		for (int i = 0; i < blur->glass_shape_count && i < 16; i++) {
++			const struct wlr_scene_glass_shape *s = &blur->glass_shapes[i];
++			float *out = blur_options.glass_shapes[blur_options.glass_shape_count++];
++			if (data->transform == WL_OUTPUT_TRANSFORM_NORMAL) {
++				// Exact, to the subpixel: shapes move smoothly.
++				out[0] = (x + s->x) * data->scale;
++				out[1] = (y + s->y) * data->scale;
++				out[2] = s->width * data->scale;
++				out[3] = s->height * data->scale;
++			} else {
++				struct wlr_box b = {
++					.x = (int)roundf(x + s->x), .y = (int)roundf(y + s->y),
++					.width = (int)roundf(s->width), .height = (int)roundf(s->height),
++				};
++				transform_output_box(&b, data);
++				out[0] = b.x;
++				out[1] = b.y;
++				out[2] = b.width;
++				out[3] = b.height;
++			}
++			out[4] = s->radius * data->scale;
++			out[5] = s->opacity;
++		}
  		fx_render_pass_add_blur(fx_pass, &blur_options);
  		break;
+ 	}
 -- 
 2.55.0
 

@@ -89,6 +89,8 @@ PanelWindow {
         radius: 26
         color: Theme.material.regular
 
+        Glass {}
+
         border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
 

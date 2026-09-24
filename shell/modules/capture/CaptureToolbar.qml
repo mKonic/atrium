@@ -15,6 +15,8 @@ Rectangle {
     height: 52
     radius: 16
     color: Theme.material.thick
+
+    Glass {}
     border.width: Theme.lens ? 0 : 1
     border.color: Theme.palette.separator
 
