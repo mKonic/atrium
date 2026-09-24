@@ -31,6 +31,11 @@ public:
     // The desktops installed (wayland-sessions): [{id, name, exec, argv}],
     // atrium first.
     Q_INVOKABLE QVariantList waylandSessions() const;
+    // The login screen's memory, as SDDM's [Last] in state.conf: who logged
+    // in last and into which desktop (a session id), kept in the greeter
+    // user's state directory.
+    Q_INVOKABLE QVariantMap lastLogin() const;
+    Q_INVOKABLE void rememberLogin(const QString& user, const QString& session);
 
 signals:
     void pendingChanged();

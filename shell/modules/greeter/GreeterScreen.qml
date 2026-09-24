@@ -18,10 +18,12 @@ PanelWindow {
     readonly property bool primary: screen === Quickshell.screens[0]
     // With AccountsService, pick from its people; without, type a name.
     readonly property var people: Accounts.others
-    property int chosen: 0
+    // Who logged in last, and into what, preselected (as SDDM does).
+    readonly property var last: Session.lastLogin()
+    property int chosen: Math.max(0, people.findIndex(p => p.userName === last.user))
     readonly property var person: people[chosen] ?? null
     readonly property var sessions: Session.waylandSessions()
-    property int sessionIndex: 0
+    property int sessionIndex: Math.max(0, sessions.findIndex(s => s.id === last.session))
     readonly property var session: sessions[sessionIndex] ?? null
     property string message: ""
     property bool busy: false
@@ -74,6 +76,7 @@ PanelWindow {
         }
 
         function onReadyToLaunch(): void {
+            Session.rememberLogin(root.userName(), root.session?.id ?? "");
             Greetd.launch(root.session?.argv ?? ["atrium"], [], true);
         }
 
@@ -192,7 +195,9 @@ PanelWindow {
                 verticalAlignment: TextInput.AlignVCenter
                 color: "white"
                 font.pointSize: 12
-                focus: root.primary && root.person === null
+                text: root.last.user ?? ""
+                // A name already there (the last one): straight to the password.
+                focus: root.primary && root.person === null && text.length === 0
                 onAccepted: password.forceActiveFocus()
 
                 StyledText {
@@ -219,7 +224,7 @@ PanelWindow {
                 echoMode: TextInput.Password
                 passwordCharacter: "●"
                 enabled: !root.busy
-                focus: root.primary && root.person !== null
+                focus: root.primary && (root.person !== null || nameField.text.length > 0)
                 onAccepted: root.submit()
                 Keys.onEscapePressed: text = ""
 

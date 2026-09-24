@@ -4,6 +4,7 @@
 
 #include <QDBusConnection>
 #include <QDir>
+#include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSettings>
@@ -102,6 +103,30 @@ QVariantList Session::waylandSessions() const {
         }
     }
     return out;
+}
+
+namespace {
+
+QString login_state_file() {
+    QString base = QString::fromLocal8Bit(qgetenv("XDG_STATE_HOME"));
+    if (base.isEmpty())
+        base = QDir::homePath() + "/.local/state";
+    return base + "/atrium/greeter.conf";
+}
+
+} // namespace
+
+QVariantMap Session::lastLogin() const {
+    QSettings state(login_state_file(), QSettings::IniFormat);
+    return {{"user", state.value("Last/User").toString()}, {"session", state.value("Last/Session").toString()}};
+}
+
+void Session::rememberLogin(const QString& user, const QString& session) {
+    QDir().mkpath(QFileInfo(login_state_file()).path());
+    QSettings state(login_state_file(), QSettings::IniFormat);
+    state.setValue("Last/User", user);
+    state.setValue("Last/Session", session);
+    state.sync();
 }
 
 void Session::setSecondsLeft(int seconds) {
