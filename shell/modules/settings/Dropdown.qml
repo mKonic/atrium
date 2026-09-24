@@ -58,6 +58,8 @@ Rectangle {
         width: Math.max(root.width, 180)
         height: Math.min(list.contentHeight + 12, 320)
         padding: 6
+        // Long lists open at the current choice.
+        onOpened: list.positionViewAtIndex(root.options.findIndex(o => o.value === root.value), ListView.Center)
         background: Rectangle {
             radius: 12
             color: Theme.palette.m3SurfaceContainerHigh

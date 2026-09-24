@@ -82,11 +82,16 @@ ShellRoot {
         target: Atrium
 
         function onShellAction(name: string): void {
+            if (name === "welcome")
+                Shell.launch("welcome.qml", {});
             if (name !== "settings" && !name.startsWith("settings:"))
                 return;
             Shell.launch("settings.qml", { ATRIUM_SETTINGS_PAGE: name.slice(9) });
         }
     }
+
+    // The first login: the welcome, once.
+    Component.onCompleted: if (Welcome.due) Shell.launch("welcome.qml", {})
 
     About {}
 

@@ -21,6 +21,9 @@
 #include "accounts.hpp"
 #include "requirements.hpp"
 #include "wallpaper.hpp"
+#include "default_apps.hpp"
+#include "keyboard_layouts.hpp"
+#include "welcome.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -182,6 +185,12 @@ public:
         });
         qmlRegisterSingletonType<Wallpaper>(uri, 1, 0, "Wallpaper",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Wallpaper; });
+        qmlRegisterSingletonType<DefaultApps>(uri, 1, 0, "DefaultApps",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new DefaultApps; });
+        qmlRegisterSingletonType<KeyboardLayouts>(uri, 1, 0, "KeyboardLayouts",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new KeyboardLayouts; });
+        qmlRegisterSingletonType<Welcome>(uri, 1, 0, "Welcome",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Welcome; });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Accounts; });
         qmlRegisterSingletonType<Emojis>(uri, 1, 0, "Emojis",

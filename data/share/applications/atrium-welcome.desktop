@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome
+GenericName=Welcome to atrium
+Comment=Look, keyboard, apps and wallpaper, the way the first login asks for them
+Icon=atrium-welcome
+Exec=atriumctl action shell welcome
+Terminal=false
+Categories=Settings;System;
+Keywords=setup;first;start;tour;
+StartupWMClass=atrium-welcome
+OnlyShowIn=atrium;

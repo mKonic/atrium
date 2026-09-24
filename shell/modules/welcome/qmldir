@@ -1,0 +1,3 @@
+module shell.modules.welcome
+LookCard 1.0 LookCard.qml
+WelcomeWindow 1.0 WelcomeWindow.qml
