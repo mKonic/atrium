@@ -16,6 +16,8 @@ Item {
     readonly property var value: Atrium.settings[key] ?? setting.default
     readonly property bool changed: JSON.stringify(value) !== JSON.stringify(setting.default)
     readonly property bool wide: type === "list"
+    // Why it can't work here ("cliphist isn't installed."), if it can't.
+    readonly property string missing: Requirements.missing[setting.needs ?? ""] ?? ""
 
     function set(v: var): void {
         Atrium.setSetting(key, v);
@@ -53,6 +55,16 @@ Item {
             font.pointSize: Theme.font.size.small
             color: Theme.palette.m3OnSurfaceVariant
         }
+
+        StyledText {
+            width: parent.width
+            visible: root.missing.length > 0
+            text: root.missing
+            wrapMode: Text.WordWrap
+            font.pointSize: Theme.font.size.small
+            font.weight: Font.Medium
+            color: Theme.palette.m3OnSurface
+        }
     }
 
     // Back to the default, when it isn't.
@@ -85,6 +97,8 @@ Item {
         anchors.rightMargin: 16
         y: (Math.max(56, head.implicitHeight + 24) - height) / 2
         active: !root.wide
+        enabled: root.missing.length === 0
+        opacity: enabled ? 1 : 0.4
         width: item?.implicitWidth ?? 0
         height: item?.implicitHeight ?? 0
         sourceComponent: root.type === "bool" ? boolControl

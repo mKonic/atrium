@@ -17,6 +17,15 @@ Column {
 
     spacing: 20
 
+    MissingNote {
+        needs: "bluez"
+        explanation: "Bluetooth devices are paired and connected through BlueZ (bluetooth.service)."
+    }
+
+    MissingNote {
+        needs: "bluetooth-adapter"
+    }
+
     // Looking for devices only while the page is open.
     Binding {
         when: root.visible && (root.adapter?.enabled ?? false)

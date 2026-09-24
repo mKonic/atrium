@@ -19,6 +19,7 @@
 #include "polkit_agent.hpp"
 #include "settings_pages.hpp"
 #include "accounts.hpp"
+#include "requirements.hpp"
 #include "clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
@@ -172,6 +173,12 @@ public:
         qmlRegisterUncreatableType<PolkitIdentity>(uri, 1, 0, "PolkitIdentity", "from an AuthFlow");
         qmlRegisterSingletonType<SettingsPages>(uri, 1, 0, "SettingsPages",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new SettingsPages; });
+        // What Settings fronts that isn't there: `Requirements.missing[need]`.
+        qmlRegisterSingletonType<Requirements>(uri, 1, 0, "Requirements", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Requirements::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Accounts; });
         qmlRegisterSingletonType<Emojis>(uri, 1, 0, "Emojis",

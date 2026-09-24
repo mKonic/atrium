@@ -14,7 +14,15 @@ Column {
 
     spacing: 20
 
+    MissingNote {
+        id: missing
+
+        needs: "pipewire"
+        explanation: "Sound devices and volumes come from PipeWire (pipewire-pulse and WirePlumber)."
+    }
+
     Group {
+        visible: !missing.visible
         title: "Output"
 
         Repeater {
@@ -38,6 +46,7 @@ Column {
     }
 
     Group {
+        visible: !missing.visible
         title: "Input"
 
         Repeater {
@@ -61,7 +70,7 @@ Column {
     }
 
     Group {
-        visible: Audio.apps.length > 0
+        visible: !missing.visible && Audio.apps.length > 0
         title: "Apps"
         subtitle: "Each app's own volume, on top of the output's."
 

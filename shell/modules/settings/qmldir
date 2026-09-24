@@ -15,6 +15,7 @@ Field 1.0 Field.qml
 Group 1.0 Group.qml
 KeyCaps 1.0 KeyCaps.qml
 ListEditor 1.0 ListEditor.qml
+MissingNote 1.0 MissingNote.qml
 NetworkPage 1.0 NetworkPage.qml
 NumberControl 1.0 NumberControl.qml
 PillButton 1.0 PillButton.qml

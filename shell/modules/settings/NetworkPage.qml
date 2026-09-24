@@ -17,6 +17,15 @@ Column {
 
     spacing: 20
 
+    MissingNote {
+        needs: "networkmanager"
+        explanation: "Wired and Wi-Fi connections are set up through NetworkManager."
+    }
+
+    MissingNote {
+        message: Network.available && !Network.hasWifi && root.wired.length === 0 ? "No network adapters found." : ""
+    }
+
     // Looking for networks only while the page is open.
     Binding {
         when: root.visible && Network.wifiEnabled

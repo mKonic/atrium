@@ -508,17 +508,21 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "How the system balances speed against power use. Applied at login and when changed.",
         {"performance", "balanced", "power-saver"}, d.power_profile,
         [](Config& c, const json& v) { c.power_profile = v.get<std::string>(); }));
+    s.back().needs = "power-profiles-daemon";
     s.push_back(boolean("displays.allow_tearing", "Displays", "Allow tearing in games",
         "Fullscreen games that ask for it show each frame the moment it is ready instead of waiting for the "
         "screen's refresh: less input lag, at the cost of a visible tear line.", &Config::allow_tearing, d));
     s.push_back(number("displays.brightness", T::Int, "Displays", "Brightness",
         "Brightness of external monitors (DDC/CI). They forget it on boot, so atrium sets it again at login.",
         &Config::brightness, d, 0, 100));
+    s.back().needs = "ddcutil";
     s.push_back(make("recording.audio", SettingType::Bool, "Screen Recording", "Record sound",
         "Include what the speakers play in screen recordings.", false, [](Config&, const json&) {}));
+    s.back().needs = "gpu-screen-recorder";
     s.push_back(boolean("session.clipboard_history", "Session", "Clipboard history",
         "Remember what you copy (text and pictures) so Super+V can bring it back.",
         &Config::clipboard_history, d));
+    s.back().needs = "cliphist";
 
     // Dock (read by the shell; the compositor itself has no use for them)
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",

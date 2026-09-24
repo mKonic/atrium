@@ -45,10 +45,9 @@ Column {
         }
     }
 
-    StyledText {
-        visible: !Accounts.available
-        text: "User accounts aren't available (AccountsService isn't running)."
-        color: Theme.palette.m3OnSurfaceVariant
+    MissingNote {
+        message: Accounts.available ? "" : "AccountsService isn't running."
+        explanation: "User accounts are listed and changed through AccountsService."
     }
 
     // You.

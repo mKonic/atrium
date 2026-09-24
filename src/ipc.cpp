@@ -46,6 +46,8 @@ json schema_json(const SettingSchema& s) {
         {"key", s.key}, {"type", type_name(s.type)}, {"title", s.title},
         {"description", s.description}, {"page", s.page}, {"default", s.default_value},
     };
+    if (!s.needs.empty())
+        j["needs"] = s.needs;
     if (s.type == SettingType::Int || s.type == SettingType::Float) {
         j["min"] = s.min;
         j["max"] = s.max;
