@@ -28,6 +28,10 @@ optdepends=(
   'fcitx5: input methods'
   'xdg-terminal-exec: terminal apps started in your terminal'
   'packagekit: software updates in Settings'
+  # The apps around it: atrium recommends these rather than shipping its own.
+  'ghostty: a terminal (or foot, kitty, konsole: the first installed is used)'
+  'dolphin: a file manager (the Dock'"'"'s first app)'
+  'kate: a text editor'
 )
 provides=(atrium)
 conflicts=(atrium)
