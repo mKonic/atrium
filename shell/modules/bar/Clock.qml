@@ -13,6 +13,15 @@ Pill {
         precision: SystemClock.Minutes
     }
 
+    // The time zone changed in Settings: the new time now.
+    Connections {
+        target: DateTime
+
+        function onChanged(): void {
+            clock.refresh();
+        }
+    }
+
     Row {
         id: row
 

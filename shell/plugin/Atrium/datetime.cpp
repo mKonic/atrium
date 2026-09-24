@@ -9,6 +9,7 @@
 #include <QDBusVariant>
 
 #include <algorithm>
+#include <ctime>
 
 namespace atrium {
 
@@ -36,7 +37,15 @@ void DateTime::load() {
         available_ = !r.isError();
         if (available_) {
             const QVariantMap p = r.value();
-            timezone_ = p.value("Timezone").toString();
+            const QString zone = p.value("Timezone").toString();
+            // A new zone: glibc never reads /etc/localtime again by itself
+            // (tzset() sees the same default name), so this process's clocks
+            // are told through TZ, which apps started from here inherit.
+            if (!timezone_.isEmpty() && zone != timezone_) {
+                qputenv("TZ", (":" + zone).toUtf8());
+                tzset();
+            }
+            timezone_ = zone;
             ntp_ = p.value("NTP").toBool();
             canNtp_ = p.value("CanNTP").toBool();
         }
@@ -82,6 +91,8 @@ QVariantList DateTime::findTimezones(const QString& query) {
 void DateTime::call(const QString& method, const QVariantList& args) {
     QDBusMessage m = QDBusMessage::createMethodCall(kService, kPath, kService, method);
     m.setArguments(args);
+    // Or polkit refuses outright instead of asking for a password.
+    m.setInteractiveAuthorizationAllowed(true);
     // Long enough for someone to type a password.
     auto* w = new QDBusPendingCallWatcher(QDBusConnection::systemBus().asyncCall(m, 5 * 60 * 1000), this);
     connect(w, &QDBusPendingCallWatcher::finished, this, [this, w] {

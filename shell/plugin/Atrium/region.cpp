@@ -105,6 +105,8 @@ QString Region::sample() const {
 void Region::setLocale(const QStringList& assignments) {
     QDBusMessage m = QDBusMessage::createMethodCall(kService, kPath, kService, "SetLocale");
     m << assignments << true;
+    // Or polkit refuses outright instead of asking for a password.
+    m.setInteractiveAuthorizationAllowed(true);
     auto* w = new QDBusPendingCallWatcher(QDBusConnection::systemBus().asyncCall(m, 5 * 60 * 1000), this);
     connect(w, &QDBusPendingCallWatcher::finished, this, [this, w] {
         w->deleteLater();

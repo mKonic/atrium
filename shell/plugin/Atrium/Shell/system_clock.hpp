@@ -37,6 +37,10 @@ signals:
     void enabledChanged();
     void dateChanged();
 
+public:
+    // Now, not at the next tick (the time zone changed).
+    Q_INVOKABLE void refresh() { tick(); }
+
 private:
     void tick();
 

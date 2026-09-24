@@ -10,9 +10,20 @@ import shell.services
 Column {
     id: root
 
+    property string error: ""  // why the last change didn't happen
+
     spacing: 20
 
+    Connections {
+        target: DateTime
+
+        function onFailed(why: string): void {
+            root.error = why;
+        }
+    }
+
     Group {
+        subtitle: root.error
 
         ControlRow {
             title: "Set time automatically"
@@ -22,7 +33,10 @@ Column {
                 enabled: DateTime.canNtp
                 opacity: enabled ? 1 : 0.4
                 checked: DateTime.ntp
-                onToggled: DateTime.setNtp(!checked)
+                onToggled: {
+                    root.error = "";
+                    DateTime.setNtp(!checked);
+                }
             }
         }
 
@@ -46,6 +60,7 @@ Column {
         action: "Set"
         ready: picked !== "" && picked !== DateTime.timezone
         onOpened: {
+            root.error = "";
             picked = "";
             search.text = "";
             search.focusField();
