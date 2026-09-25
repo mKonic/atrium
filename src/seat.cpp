@@ -184,6 +184,7 @@ Seat::Seat(Server& srv) : server(srv) {
             // the physical keyboard.
             auto group = std::make_unique<KeyboardGroup>(*this, true);
             KeyboardGroup* g = group.get();
+            g->owner = wl_resource_get_client(vk->resource);
             wlr_keyboard_set_keymap(&vk->keyboard, g->group->keyboard.keymap);
             g->destroy.connect(&vk->keyboard.base.events.destroy, [this, g](void*) {
                 std::erase_if(virtual_keyboards_, [g](auto& p) { return p.get() == g; });
@@ -514,7 +515,7 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     }
 
     // An input method composing text takes the keys first.
-    if (server.input_method && server.input_method->forward_key(kb, g.is_virtual, e))
+    if (server.input_method && server.input_method->forward_key(kb, g.owner, e))
         return;
 
     wlr_seat_set_keyboard(wlr, kb);
@@ -541,7 +542,7 @@ wlr_keyboard* Seat::physical_keyboard() const {
 }
 
 void Seat::modifiers(KeyboardGroup& g) {
-    if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.is_virtual)) {
+    if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.owner)) {
         wlr_seat_set_keyboard(wlr, &g.group->keyboard);
         wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
         if (g.is_virtual)

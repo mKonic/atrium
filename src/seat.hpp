@@ -24,6 +24,7 @@ struct KeyboardGroup {
 
     class Seat& seat;
     const bool is_virtual;
+    wl_client* owner = nullptr;  // a virtual keyboard's client
     wlr_keyboard_group* group = nullptr;
     wl_event_source* repeat_source = nullptr;
     xkb_keysym_t syms[2]{};  // level 0 and level 1 of the last key pressed

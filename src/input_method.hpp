@@ -24,8 +24,8 @@ public:
     InputMethodRelay& operator=(const InputMethodRelay&) = delete;
 
     // A key or modifier change from `keyboard`: true when the IME took it.
-    bool forward_key(wlr_keyboard* keyboard, bool is_virtual, const wlr_keyboard_key_event* event);
-    bool forward_modifiers(wlr_keyboard* keyboard, bool is_virtual);
+    bool forward_key(wlr_keyboard* keyboard, wl_client* virtual_owner, const wlr_keyboard_key_event* event);
+    bool forward_modifiers(wlr_keyboard* keyboard, wl_client* virtual_owner);
     // Type `text` into the focused text field, as an IME would: now, or as
     // soon as a field is active again (a picker had the keyboard). Nothing
     // within a moment: the shell hears "text.not_inserted".
@@ -61,7 +61,7 @@ private:
     void send_state();
     void place(Popup& popup);
     void place_popups();
-    wlr_input_method_keyboard_grab_v2* grab_for(wlr_keyboard* keyboard, bool is_virtual) const;
+    wlr_input_method_keyboard_grab_v2* grab_for(wl_client* virtual_owner) const;
 
     Server& server_;
     wlr_text_input_manager_v3* text_inputs_manager_;

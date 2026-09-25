@@ -59,16 +59,19 @@ InputMethodRelay::~InputMethodRelay() {
 
 // --- keys --------------------------------------------------------------------------
 
-// Only the physical keyboard is grabbed: the IME types back through a
-// virtual keyboard of its own, which must reach the app, not loop.
-wlr_input_method_keyboard_grab_v2* InputMethodRelay::grab_for(wlr_keyboard*, bool is_virtual) const {
-    if (!im_ || !im_->keyboard_grab || is_virtual)
+// Every keyboard is grabbed but the IME's own: it types back through a
+// virtual keyboard of its own, which must reach the app, not loop. Another
+// client's (an on-screen keyboard, wtype) is typing like a real one.
+wlr_input_method_keyboard_grab_v2* InputMethodRelay::grab_for(wl_client* virtual_owner) const {
+    if (!im_ || !im_->keyboard_grab)
+        return nullptr;
+    if (virtual_owner && virtual_owner == wl_resource_get_client(im_->resource))
         return nullptr;
     return im_->keyboard_grab;
 }
 
-bool InputMethodRelay::forward_key(wlr_keyboard* keyboard, bool is_virtual, const wlr_keyboard_key_event* e) {
-    wlr_input_method_keyboard_grab_v2* grab = grab_for(keyboard, is_virtual);
+bool InputMethodRelay::forward_key(wlr_keyboard* keyboard, wl_client* virtual_owner, const wlr_keyboard_key_event* e) {
+    wlr_input_method_keyboard_grab_v2* grab = grab_for(virtual_owner);
     if (!grab)
         return false;
     wlr_input_method_keyboard_grab_v2_set_keyboard(grab, keyboard);
@@ -76,8 +79,8 @@ bool InputMethodRelay::forward_key(wlr_keyboard* keyboard, bool is_virtual, cons
     return true;
 }
 
-bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, bool is_virtual) {
-    wlr_input_method_keyboard_grab_v2* grab = grab_for(keyboard, is_virtual);
+bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, wl_client* virtual_owner) {
+    wlr_input_method_keyboard_grab_v2* grab = grab_for(virtual_owner);
     if (!grab)
         return false;
     wlr_input_method_keyboard_grab_v2_set_keyboard(grab, keyboard);
