@@ -26,6 +26,7 @@ class BackgroundEffects;
 class GlassShapes;
 class ToplevelDrags;
 class SessionManagement;
+class ToplevelIcons;
 class NightLight;
 class SessionLock;
 class Overview;
@@ -248,6 +249,7 @@ public:
     std::unique_ptr<GlassShapes> glass_shapes;
     std::unique_ptr<ToplevelDrags> toplevel_drags;
     std::unique_ptr<SessionManagement> sessions;
+    std::unique_ptr<ToplevelIcons> toplevel_icons;
     std::unique_ptr<NightLight> night_light;
     wlr_gamma_control_manager_v1* gamma_manager = nullptr;  // apps that set gamma themselves
     uint64_t next_view_id = 1;
@@ -322,7 +324,6 @@ private:
     Listener<> gpu_reset_;
     Listener<> backend_destroy_;
     Listener<wlr_ext_workspace_v1_commit_event> workspace_commit_;
-    Listener<wlr_xdg_toplevel_icon_manager_v1_set_icon_event> set_icon_;
     Listener<wlr_xdg_toplevel_tag_manager_v1_set_tag_event> set_tag_;
 #ifdef ATRIUM_XWAYLAND
     Listener<> xwayland_ready_;

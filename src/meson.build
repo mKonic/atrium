@@ -9,6 +9,7 @@ atrium_sources = files(
   'glass.cpp',
   'toplevel_drag.cpp',
   'session_management.cpp',
+  'toplevel_icon.cpp',
   'layer_surface.cpp',
   'main.cpp',
   'overview.cpp',

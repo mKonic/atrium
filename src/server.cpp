@@ -4,6 +4,7 @@
 #include "background_effect.hpp"
 #include "glass.hpp"
 #include "session_management.hpp"
+#include "toplevel_icon.hpp"
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
@@ -422,7 +423,6 @@ void Server::disconnect_listeners() {
     gpu_reset_.disconnect();
     workspace_commit_.disconnect();
     new_shortcuts_inhibitor_.disconnect();
-    set_icon_.disconnect();
     set_tag_.disconnect();
 #ifdef ATRIUM_XWAYLAND
     xwayland_ready_.disconnect();
@@ -537,6 +537,7 @@ void Server::teardown() {
     glass_shapes.reset();
     toplevel_drags.reset();
     sessions.reset();
+    toplevel_icons.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
@@ -882,7 +883,8 @@ Hit Server::hit_test_scene(double lx, double ly) const {
     Hit hit;
     const int lowest = locked ? int(Layer::Lock) : 0;
     for (int l = kLayerCount - 1; l >= lowest && !hit.surface; --l) {
-        if (l == int(Layer::InputPopup))
+        // A secret space still fading away takes no pointer.
+        if (l == int(Layer::InputPopup) || (l == int(Layer::Secret) && !shown_secret))
             continue;
         wlr_scene_node* node = wlr_scene_node_at(&layers_[l]->node, lx, ly, &hit.sx, &hit.sy);
         if (!node || (node->type != WLR_SCENE_NODE_BUFFER && node->type != WLR_SCENE_NODE_RECT))
@@ -890,7 +892,10 @@ Hit Server::hit_test_scene(double lx, double ly) const {
         if (node->type == WLR_SCENE_NODE_RECT) {
             // Only a secret space's backdrop is a rect that carries data.
             if (node->data) {
-                hit.backdrop = static_cast<Space*>(node->data);
+                auto* space = static_cast<Space*>(node->data);
+                if (!space->shown())
+                    continue;
+                hit.backdrop = space;
                 return hit;
             }
             continue;
@@ -901,12 +906,18 @@ Hit Server::hit_test_scene(double lx, double ly) const {
             // The only non-surface buffers carrying data are title bars.
             hit.titlebar = static_cast<Titlebar*>(node->data);
             hit.view = &hit.titlebar->view();
-            return hit;
+            break;
         }
     }
-    Owner owner = owner_of(hit.surface);
-    hit.view = owner.view;
-    hit.layer = owner.layer;
+    if (!hit.titlebar) {
+        Owner owner = owner_of(hit.surface);
+        hit.view = owner.view;
+        hit.layer = owner.layer;
+    }
+    // A space sliding or fading out is still drawn but already gone: its
+    // windows take no pointer (focusing one would bring the space back).
+    if (hit.view && hit.view->space && !hit.view->space->shown())
+        return Hit{};
     return hit;
 }
 
@@ -949,9 +960,10 @@ Placement Server::placement_of(const View* view) const {
 void Server::remember_placement(const View* view) {
     if (sessions)
         sessions->view_unmapping(view);
-    // A secret space's size belongs to the space, not the app.
+    // A secret space's size belongs to the space, not the app; a tile's to
+    // the layout.
     if (!config.remember_placement || !placeable(view) || !view->output || !view->mapped ||
-        (view->space && view->space->secret))
+        (view->space && view->space->secret) || view->tiled())
         return;
     AppRecord a = registry->app(view->app_id()).value_or(AppRecord{.app_id = view->app_id()});
     a.placement = placement_of(view);
