@@ -973,7 +973,16 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
     switch (part) {
     case Part::Close: v.close(); break;
     case Part::Minimize: if (!v.layout_owned()) v.set_minimized(true); break;
-    case Part::Maximize: if (!v.fullscreen && !v.layout_owned()) v.set_maximized(!v.maximized); break;
+    // Green is full screen, as on a Mac: the window takes the whole screen,
+    // menu bar, title bar and Dock gone. With Alt (Option) it zooms instead.
+    case Part::Maximize:
+        if (held_modifiers() & WLR_MODIFIER_ALT) {
+            if (!v.fullscreen && !v.layout_owned())
+                v.set_maximized(!v.maximized);
+        } else {
+            v.set_fullscreen(!v.fullscreen);
+        }
+        break;
     default: break;
     }
     refresh_pointer();
