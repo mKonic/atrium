@@ -1,6 +1,10 @@
 #include "glass.hpp"
 
+#include "config.hpp"
 #include "layer_surface.hpp"
+#include "palette.hpp"
+#include "view.hpp"
+#include "wlr.hpp"
 #include "server.hpp"
 
 #include "atrium-glass-v1-protocol.h"
@@ -34,8 +38,41 @@ const std::vector<GlassShape>* GlassShapes::shapes_for(wlr_surface* surface) con
 }
 
 void GlassShapes::refresh(wlr_surface* surface) {
-    if (Owner o = Server::owner_of(surface); o.layer)
+    Owner o = Server::owner_of(surface);
+    if (o.layer)
         o.layer->refresh_blur();
+    else if (o.view && o.view->mapped)
+        o.view->update_decorations();
+}
+
+void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& given, float dx, float dy, int width,
+                 int height, double lensing, const Config& c) {
+    wlr_scene_blur_set_strength(blur, c.glass_tinted ? 0.45f : 0.12f);
+    // The bevel's width, from the panel's short side (a bar is thin glass,
+    // Control Center thick), and the slab's height, which sets how far light
+    // bends in it: grown in from flat as the glass materializes.
+    const float bevel = std::clamp(0.3f * float(std::min(width, height)), 8.0f, 20.0f);
+    wlr_scene_blur_set_refraction(blur, std::max(0.01f, bevel * float(lensing)), bevel);
+    const uint32_t bg = palette::make(c.light, c.accent).window_background;
+    wlr_scene_glass glass{};
+    glass.tint[0] = float((bg >> 24) & 0xff) / 255;
+    glass.tint[1] = float((bg >> 16) & 0xff) / 255;
+    glass.tint[2] = float((bg >> 8) & 0xff) / 255;
+    glass.tint[3] = c.glass_tinted ? (c.light ? 0.6f : 0.55f) : (c.light ? 0.2f : 0.12f);
+    glass.adapt = c.glass_tinted ? 0.2f : 0.3f;
+    glass.saturation = c.glass_tinted ? 1.2f : 1.35f;
+    glass.highlight = c.light ? 0.6f : 0.5f;
+    glass.light_dir[0] = 0.7071f;
+    glass.light_dir[1] = 0.7071f;
+    glass.shadow = c.light ? 0.16f : 0.3f;
+    wlr_scene_blur_set_glass(blur, &glass);
+
+    // Its exact shapes, in the glass node's coordinates: drawn from their
+    // geometry, smooth at any size.
+    std::vector<wlr_scene_glass_shape> shapes;
+    for (const GlassShape& g : given)
+        shapes.push_back({g.x + dx, g.y + dy, g.width, g.height, g.radius, g.opacity});
+    wlr_scene_blur_set_glass_shapes(blur, shapes.data(), int(shapes.size()));
 }
 
 void GlassShapes::bind(wl_client* client, void* data, uint32_t version, uint32_t id) {

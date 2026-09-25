@@ -3,6 +3,7 @@
 #include "background_effect.hpp"
 
 #include "geometry.hpp"
+#include "glass.hpp"
 #include "output.hpp"
 #include "palette.hpp"
 #include "overview.hpp"
@@ -871,10 +872,17 @@ void View::update_decorations() {
         });
     }
 
+    // atrium's own windows (Settings, the welcome) have Liquid Glass where
+    // they say (atrium-glass-v1), as the shell's panels do; they draw
+    // everything else themselves.
+    const std::vector<GlassShape>* given =
+        server.glass_shapes && c.liquid_glass && c.blur ? server.glass_shapes->shapes_for(surface()) : nullptr;
+    const bool is_glass = given && !given->empty() && !fullscreen;
+
     // Translucent content either shows the desktop, frosted, or sits on a
     // solid fill that makes it look opaque.
-    wlr_scene_node_set_enabled(&backing->node, !c.transparency);
-    if (!c.transparency) {
+    wlr_scene_node_set_enabled(&backing->node, !c.transparency && !is_glass);
+    if (!c.transparency && !is_glass) {
         Color bc = kBacking;
         bc[3] *= alpha_;
         wlr_scene_rect_set_color(backing, premultiplied(bc).data());
@@ -888,9 +896,25 @@ void View::update_decorations() {
     // for (ext-background-effect), or none if it asked for none.
     const std::optional<wlr_box> asked =
         server.background_effects ? server.background_effects->blur_for(surface()) : std::nullopt;
-    const bool show_blur = c.blur && c.transparency && !fullscreen && (!asked || (asked->width > 0 && asked->height > 0));
+    const bool show_blur =
+        is_glass || (c.blur && c.transparency && !fullscreen && (!asked || (asked->width > 0 && asked->height > 0)));
     wlr_scene_node_set_enabled(&blur->node, show_blur);
-    if (show_blur && asked) {
+    // Glass sees the windows under it too; plain blur only the desktop.
+    wlr_scene_blur_set_should_only_blur_bottom_layer(blur, !is_glass);
+    if (!is_glass) {
+        wlr_scene_blur_set_strength(blur, 1.0f);
+        wlr_scene_blur_set_refraction(blur, 0, 0);
+        wlr_scene_blur_set_glass_shapes(blur, nullptr, 0);
+    }
+    if (is_glass) {
+        const int reach = kGlassShadowReach;
+        const int w = geom.width, h = geom.height - top();
+        wlr_scene_node_set_position(&blur->node, -reach, top() - reach);
+        wlr_scene_blur_set_size(blur, w + 2 * reach, h + 2 * reach);
+        wlr_scene_blur_set_corner_radius(blur, 0);
+        wlr_scene_blur_set_alpha(blur, alpha_);
+        apply_glass(blur, *given, float(reach), float(reach), w, h, 1.0, c);
+    } else if (show_blur && asked) {
         // In surface coordinates, from the content's corner under the title bar.
         const wlr_box content_area{0, 0, geom.width, geom.height - top()};
         wlr_box b{};

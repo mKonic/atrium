@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Shapes
 import Atrium.Shell
 import shell.components
 import shell.services
@@ -34,7 +35,10 @@ FloatingWindow {
 
     title: "System Settings"
     visible: false
-    color: Theme.palette.windowBackground
+    // With Liquid Glass the sidebar floats as a pane of glass (macOS 26's
+    // Settings): the window is see-through under it and draws its own
+    // background everywhere else.
+    color: Theme.lens ? "transparent" : Theme.palette.windowBackground
     implicitWidth: 920
     implicitHeight: 660
     minimumSize: Qt.size(720, 480)
@@ -49,13 +53,45 @@ FloatingWindow {
         }
     }
 
+    // The window's background, less a hole for the glass sidebar.
+    Shape {
+        anchors.fill: parent
+        visible: Theme.lens
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            fillColor: Theme.palette.windowBackground
+            fillRule: ShapePath.OddEvenFill
+            strokeWidth: -1
+
+            PathRectangle {
+                width: root.width
+                height: root.height
+            }
+            PathRectangle {
+                x: sidebar.x
+                y: sidebar.y
+                width: sidebar.width
+                height: sidebar.height
+                radius: sidebar.radius
+            }
+        }
+    }
+
     // --- sidebar -----------------------------------------------------------
     Rectangle {
         id: sidebar
 
-        width: 240
-        height: parent.height
-        color: Theme.palette.quaternaryFill
+        readonly property int inset: Theme.lens ? 8 : 0
+
+        x: inset
+        y: inset
+        width: 240 - inset
+        height: parent.height - 2 * inset
+        radius: Theme.lens ? 16 : 0
+        color: Theme.lens ? Theme.material.regular : Theme.palette.quaternaryFill
+
+        Glass {}
 
         Rectangle {
             id: searchBox
@@ -182,6 +218,7 @@ FloatingWindow {
         id: body
 
         anchors.left: sidebar.right
+        anchors.leftMargin: sidebar.inset
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom

@@ -4,15 +4,30 @@
 #include <unordered_map>
 #include <vector>
 
+struct wlr_scene_blur;
+
 namespace atrium {
 
 class Server;
+struct Config;
 
 // One piece of Liquid Glass on a surface: a rounded rectangle in surface
 // coordinates, and how opaque the glass is (it fades with its panel).
 struct GlassShape {
     float x, y, width, height, radius, opacity;
 };
+
+// How far past its shapes glass reaches: its shadow, the shape blurred by a
+// Gaussian of a bevel / 2.5, fades out by three of those.
+constexpr int kGlassShadowReach = 24;
+
+// Make `blur` Liquid Glass in `shapes` (surface coordinates, offset by dx, dy
+// in the blur node's), `width` x `height` being the surface's size. `lensing`
+// (0..1) grows the bending in as the glass appears. The same material on the
+// shell's panels and on atrium's own windows.
+void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& shapes, float dx, float dy, int width,
+                 int height, double lensing, const Config& c);
+
 
 // atrium-glass-v1: the shell says exactly where its glass is, so the glass
 // is drawn from that geometry (an exact distance to its edge: smooth rims,
