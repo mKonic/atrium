@@ -110,12 +110,13 @@ private:
             // the list's edge. atrium cuts it there (no rim along the cut);
             // one that can't gets it shrunk to what shows.
             QRectF shown = whole;
-            bool clipped = false;
             for (QQuickItem* i = s->parentItem(); i; i = i->parentItem())
-                if (i->clip()) {
+                if (i->clip())
                     shown &= i->mapRectToScene(i->clipRect());
-                    clipped = true;
-                }
+            // Cut only where a clip cuts the shape itself: one that holds it
+            // whole (a panel clipping its own content) would cut its shadow
+            // off square at the corners.
+            const bool clipped = shown != whole;
             if (shown.width() <= 0 || shown.height() <= 0)
                 continue;
             const qreal scale = s->width() > 0 ? whole.width() / s->width() : 1;
