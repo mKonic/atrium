@@ -41,21 +41,21 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
             reply();
     });
     request_maximize_.connect(&toplevel->events.request_maximize, [this, reply](void*) {
-        if (mapped && !fullscreen && toplevel->requested.maximized != maximized)
+        if (mapped && !fullscreen && !layout_owned() && toplevel->requested.maximized != maximized)
             set_maximized(toplevel->requested.maximized);
         else
             reply();
     });
     request_minimize_.connect(&toplevel->events.request_minimize, [this](void*) {
-        if (mapped)
+        if (mapped && !layout_owned())
             set_minimized(true);
     });
     request_move_.connect(&toplevel->events.request_move, [this](wlr_xdg_toplevel_move_event* e) {
-        if (mapped && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
+        if (mapped && !layout_owned() && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
             server.seat->begin_move(this);
     });
     request_resize_.connect(&toplevel->events.request_resize, [this](wlr_xdg_toplevel_resize_event* e) {
-        if (mapped && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
+        if (mapped && !layout_owned() && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
             server.seat->begin_resize(this, e->edges);
     });
     // A right-click on a GTK header bar: atrium's window menu.

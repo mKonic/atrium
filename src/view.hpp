@@ -73,6 +73,12 @@ public:
     void tile_to(const wlr_box& box);
     void untile();
     bool tiled() const { return tiled_; }
+    // Its place is the layout's, as in caelestia's tiling: a tile, or a window
+    // in a secret space. Only Mod + drag moves it (and it snaps back), and the
+    // app's own maximize, minimize and title-bar drags are ignored.
+    bool layout_owned() const;
+    // A window whose size the app fixes (min = max).
+    bool fixed_size() const;
     // Its name in ext-foreign-toplevel-list: how screen sharing names it.
     std::string toplevel_identifier() const {
         return ext_handle_ && ext_handle_->identifier ? ext_handle_->identifier : "";

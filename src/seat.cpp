@@ -527,6 +527,15 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         wlr_seat_set_keyboard(wlr, physical_keyboard());
 }
 
+// Held on any keyboard: the seat speaks for the real one between a virtual
+// keyboard's keys, but Super held on an on-screen keyboard still counts.
+uint32_t Seat::held_modifiers() const {
+    uint32_t mods = wlr_keyboard_get_modifiers(physical_keyboard());
+    for (const auto& g : virtual_keyboards_)
+        mods |= wlr_keyboard_get_modifiers(&g->group->keyboard);
+    return mods;
+}
+
 wlr_keyboard* Seat::physical_keyboard() const {
     return &keyboards_->group->keyboard;
 }
@@ -656,7 +665,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
         // Screen edges and corners offer to tile the window.
         Output* o = server.output_at(cursor->x, cursor->y);
-        const bool tiling = grab_view_->space && grab_view_->space->tiled;
+        const bool tiling = (grab_view_->space && grab_view_->space->tiled) || grab_view_->layout_owned();
         const uint32_t zone = (o && server.config.snapping && !tiling && !edge_carried_)
             ? geometry::snap_zone(o->box, cursor->x, cursor->y, 4, 80) : 0;
         if (zone != snap_zone_) {
@@ -811,8 +820,7 @@ void Seat::button(wlr_pointer_button_event* e) {
             server.focus_layer(hit.layer);
 
         // Mod + drag moves (left) or resizes (right) from anywhere in a window.
-        wlr_keyboard* kb = wlr_seat_get_keyboard(wlr);
-        uint32_t mods = kb ? wlr_keyboard_get_modifiers(kb) : 0;
+        const uint32_t mods = held_modifiers();
         if (hit.view && !hit.view->unmanaged() && clean_mods(mods) == server.config.mod) {
             if (e->button == BTN_LEFT) {
                 begin_move(hit.view);
@@ -836,6 +844,8 @@ void Seat::button(wlr_pointer_button_event* e) {
             cancel_grab();
             if (dropped && dropped->tiled())
                 server.tile_drop(dropped, cursor->x, cursor->y);  // trade places, or back to its slot
+            else if (dropped && dropped->layout_owned())
+                dropped->fit_secret(false);  // back to its frame
             else if (dropped && zone)
                 dropped->snap(zone);
             wlr_seat_pointer_clear_focus(wlr);
@@ -869,7 +879,9 @@ Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
         const wlr_box& g = v->geom;
         if (lx >= g.x && lx < g.x + g.width && ly >= g.y && ly < g.y + g.height)
             return {};
-        if (!v->titlebar || v->fullscreen || v->maximized)
+        // Apps drawing their own frame get the band too: Electron's has no
+        // resize edges on Wayland.
+        if (v->fullscreen || v->maximized || v->unmanaged() || v->splash() || v->layout_owned() || v->fixed_size())
             continue;
         if (lx < g.x - kBand || lx >= g.x + g.width + kBand || ly < g.y - kBand || ly >= g.y + g.height + kBand)
             continue;
@@ -912,7 +924,10 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
             const bool twice = last_bar_click_view_ == hit.view && e->time_msec - last_bar_click_ms_ < 400;
             last_bar_click_view_ = twice ? nullptr : hit.view;
             last_bar_click_ms_ = e->time_msec;
-            if (twice && !hit.view->fullscreen)
+            // A tile or a secret window moves only with Mod + drag.
+            if (hit.view->layout_owned())
+                ;
+            else if (twice && !hit.view->fullscreen)
                 hit.view->set_maximized(!hit.view->maximized);
             else
                 begin_move(hit.view);
@@ -941,8 +956,8 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
     View& v = bar->view();
     switch (part) {
     case Part::Close: v.close(); break;
-    case Part::Minimize: v.set_minimized(true); break;
-    case Part::Maximize: if (!v.fullscreen) v.set_maximized(!v.maximized); break;
+    case Part::Minimize: if (!v.layout_owned()) v.set_minimized(true); break;
+    case Part::Maximize: if (!v.fullscreen && !v.layout_owned()) v.set_maximized(!v.maximized); break;
     default: break;
     }
     refresh_pointer();
@@ -966,7 +981,7 @@ void Seat::begin_move(View* view) {
     grab_geom_ = view->geom;
     // A maximized window stays put until the pointer really drags it: a
     // click (or the first half of a double-click) must not restore it.
-    grab_unmaximize_ = (view->maximized || view->snapped) && !view->tiled();
+    grab_unmaximize_ = (view->maximized || view->snapped) && !view->layout_owned();
     snap_zone_ = 0;
     edge_push_ = 0;
     edge_carried_ = false;
@@ -996,7 +1011,7 @@ void Seat::unmaximize_for_drag() {
 void Seat::begin_resize(View* view, uint32_t edges) {
     // Tiles take the size the layout gives them.
     if (mode == Mode::Move || mode == Mode::Resize || view->fullscreen || view->unmanaged() || !edges ||
-        view->tiled())
+        view->layout_owned())
         return;
     if (view->maximized)
         view->set_maximized(false, false);
@@ -1026,7 +1041,7 @@ void Seat::push_edge(double dx) {
     if (dx * dir <= 0)
         return;
     edge_push_ += std::abs(dx);
-    if (edge_push_ < kPush || grab_view_->tiled())
+    if (edge_push_ < kPush || grab_view_->layout_owned())
         return;
     edge_push_ = 0;
     if (server.carry_to_space(grab_view_, dir)) {

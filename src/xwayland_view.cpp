@@ -42,20 +42,22 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
             set_fullscreen(xsurface->fullscreen);
     });
     request_maximize_.connect(&xsurface->events.request_maximize, [this](void*) {
-        if (mapped)
+        if (mapped && layout_owned())
+            send_maximized(maximized);  // stays as it is
+        else if (mapped)
             set_maximized(xsurface->maximized_horz || xsurface->maximized_vert);
     });
     request_minimize_.connect(&xsurface->events.request_minimize, [this](wlr_xwayland_minimize_event* e) {
-        if (mapped)
+        if (mapped && !layout_owned())
             set_minimized(e->minimize);
     });
     request_close_.connect(&xsurface->events.request_close, [this](void*) { close(); });
     request_move_.connect(&xsurface->events.request_move, [this](void*) {
-        if (mapped)
+        if (mapped && !layout_owned())
             server.seat->begin_move(this);
     });
     request_resize_.connect(&xsurface->events.request_resize, [this](wlr_xwayland_resize_event* e) {
-        if (mapped)
+        if (mapped && !layout_owned())
             server.seat->begin_resize(this, e->edges);
     });
     set_geometry_.connect(&xsurface->events.set_geometry, [this](void*) { set_geometry(); });

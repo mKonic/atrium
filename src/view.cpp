@@ -396,11 +396,23 @@ void View::move_to(int x, int y) {
         server.sessions->view_changed(this);
 }
 
+bool View::layout_owned() const {
+    return tiled_ || (space && space->secret && !parent() && !is_dialog() && !unmanaged());
+}
+
+bool View::fixed_size() const {
+    wlr_box min{}, max{};
+    size_hints(min, max);
+    return max.width > 0 && max.height > 0 && min.width == max.width && min.height == max.height;
+}
+
 void View::fit_secret(bool keep_box) {
     if (!space || !space->secret || !output || unmanaged() || parent() || is_dialog() || fullscreen)
         return;
     if (keep_box && !before_secret_)
         before_secret_ = geom;
+    // Like a tile: the title bar goes, unless tiles keep theirs.
+    set_tile_bar_hidden(!server.config.tiled_titlebars);
     const wlr_box frame = geometry::secret_frame(output->box, server.config.secret_margin);
     // As large as its hints allow, centered in the frame.
     wlr_box min{}, max{};
@@ -411,7 +423,12 @@ void View::fit_secret(bool keep_box) {
 }
 
 void View::leave_secret() {
-    if (unmanaged() || parent() || is_dialog() || fullscreen || maximized || snapped)
+    if (unmanaged() || parent() || is_dialog())
+        return;
+    set_tile_bar_hidden(false);
+    if (maximized)
+        set_maximized(false, false);
+    if (fullscreen || snapped)
         return;
     const wlr_box area = usable_area();
     // Born in the secret space: two thirds of the screen, centered.
@@ -615,6 +632,10 @@ void View::unsnap(bool restore_geometry) {
 }
 
 void View::refresh_tiled_titlebar() {
+    if (mapped && space && space->secret) {
+        fit_secret(false);
+        return;
+    }
     if (!snapped || !mapped)
         return;
     set_tile_bar_hidden(!server.config.tiled_titlebars);

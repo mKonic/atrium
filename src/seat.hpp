@@ -46,6 +46,7 @@ public:
 
     // The physical keyboards, as one (what an input method grabs).
     wlr_keyboard* physical_keyboard() const;
+    uint32_t held_modifiers() const;
 
     enum class Mode { Normal, Pressed, Move, Resize };
 
