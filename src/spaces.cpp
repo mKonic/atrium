@@ -99,8 +99,9 @@ void Server::switch_space(Output* output, int number, View* carry) {
             if (std::ranges::find(sticky, v->id) != sticky.end())
                 v->set_anim_offset(-dx, 0);
     };
-    if (old && !old->empty()) {
+    if (old && (!old->empty() || !target->empty())) {
         // Both spaces slide together: toward the left when going to a higher number.
+        // An empty one slides too, so the windows coming or going move.
         old->set_shown(false, true);
         const int dir = target->number > old->number ? 1 : -1;
         const int w = output->box.width;
@@ -110,10 +111,11 @@ void Server::switch_space(Output* output, int number, View* carry) {
             const int dx = int(std::lround(dir * w * (1 - t)));
             target->set_offset(dx, 0);
             hold(dx);
-        }, [old, target, hold] {
+        }, [this, old, target, hold] {
             old->hide_now();
             target->set_offset(0, 0);
             hold(0);
+            prune_space(old);
         });
     } else if (old) {
         old->set_shown(false);
