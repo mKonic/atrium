@@ -1,6 +1,10 @@
-# atrium from this checkout: `makepkg -si` in this directory.
+# atrium from this checkout: `makepkg -si` in this directory (or from a copy
+# of this file with ATRIUM_SRC set to the checkout, so the build leaves the
+# tree untouched). The version is scripts/version.sh's, set by pkgver():
+# 1.0.0 at the tag v1.0.0, 1.0.0.r12.gabc1234 past it, 1.4.0rc.1 for
+# v1.4.0-rc.1, 0.rN.hash before any tag.
 pkgname=atrium-git
-pkgver=r157.2efede5
+pkgver=0
 pkgrel=1
 pkgdesc='A floating-first Wayland desktop'
 arch=('x86_64')
@@ -35,12 +39,19 @@ optdepends=(
 )
 provides=(atrium)
 conflicts=(atrium)
-source=("atrium::git+file://${startdir}/../..")
+source=("atrium::git+file://${ATRIUM_SRC:-${startdir}/../..}")
 sha256sums=('SKIP')
 
 pkgver() {
   cd atrium
-  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  local name
+  name=$(scripts/version.sh name)
+  case "$name" in
+    # Past a tag: .rN.gHASH. A pre-release joins the version (1.4.0rc.1),
+    # which pacman sorts before 1.4.0; any other hyphen becomes a dot.
+    v[0-9]*) echo "${name#v}" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/.r\1.g\2/; s/-//; s/-/./g' ;;
+    *) printf '0.r%s.%s' "$(git rev-list --count HEAD)" "$name" ;;
+  esac
 }
 
 prepare() {
