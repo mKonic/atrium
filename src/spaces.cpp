@@ -99,22 +99,40 @@ void Server::switch_space(Output* output, int number, View* carry) {
             if (std::ranges::find(sticky, v->id) != sticky.end())
                 v->set_anim_offset(-dx, 0);
     };
+    std::function<void(double)> slide_backdrop;
     if (old && (!old->empty() || !target->empty())) {
         // Both spaces slide together: toward the left when going to a higher number.
         // An empty one slides too, so the windows coming or going move.
         old->set_shown(false, true);
         const int dir = target->number > old->number ? 1 : -1;
         const int w = output->box.width;
+        // A fullscreen window's black backdrop is the screen's, not the
+        // space's: it slides with the space whose window is fullscreen, or
+        // it would black out the other space at once.
+        auto has_fullscreen = [this](const Space* s) {
+            return std::ranges::any_of(views, [s](View* v) { return v->space == s && v->fullscreen && !v->minimized; });
+        };
+        const bool in = has_fullscreen(target), out = has_fullscreen(old);
+        if (in || out)
+            slide_backdrop = [output, in, dir, w](double t) {
+                const int x = in ? int(std::lround(dir * w * (1 - t))) : int(std::lround(-dir * w * t));
+                wlr_scene_node_set_enabled(&output->fullscreen_bg->node, true);
+                wlr_scene_node_set_position(&output->fullscreen_bg->node, output->box.x + x, output->box.y);
+            };
         // caelestia's workspace slide: 500 ms on the standard curve.
-        animator.start(output, 500, Ease::Standard, [old, target, dir, w, hold](double t) {
+        animator.start(output, 500, Ease::Standard, [old, target, dir, w, hold, slide_backdrop](double t) {
             old->set_offset(int(std::lround(-dir * w * t)), 0);
             const int dx = int(std::lround(dir * w * (1 - t)));
             target->set_offset(dx, 0);
             hold(dx);
-        }, [this, old, target, hold] {
+            if (slide_backdrop)
+                slide_backdrop(t);
+        }, [this, output, old, target, hold] {
             old->hide_now();
             target->set_offset(0, 0);
             hold(0);
+            wlr_scene_node_set_position(&output->fullscreen_bg->node, output->box.x, output->box.y);
+            output->refit_views();
             prune_space(old);
         });
     } else if (old) {
@@ -123,6 +141,8 @@ void Server::switch_space(Output* output, int number, View* carry) {
     }
 
     output->refit_views();
+    if (slide_backdrop)
+        slide_backdrop(0);  // where it starts, from the first frame
     focus_view(carry ? carry : top_view(output));
     if (!top_view(output))
         focus_view(nullptr);
