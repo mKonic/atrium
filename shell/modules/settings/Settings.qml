@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Shapes
 import Atrium.Shell
 import shell.components
 import shell.services
@@ -38,7 +37,7 @@ FloatingWindow {
     // With Liquid Glass the sidebar floats as a pane of glass (macOS 26's
     // Settings): the window is see-through under it and draws its own
     // background everywhere else.
-    color: Theme.lens ? "transparent" : Theme.palette.windowBackground
+    color: "transparent"
     implicitWidth: 920
     implicitHeight: 660
     minimumSize: Qt.size(720, 480)
@@ -54,28 +53,8 @@ FloatingWindow {
     }
 
     // The window's background, less a hole for the glass sidebar.
-    Shape {
-        anchors.fill: parent
-        visible: Theme.lens
-        preferredRendererType: Shape.CurveRenderer
-
-        ShapePath {
-            fillColor: Theme.palette.windowBackground
-            fillRule: ShapePath.OddEvenFill
-            strokeWidth: -1
-
-            PathRectangle {
-                width: root.width
-                height: root.height
-            }
-            PathRectangle {
-                x: sidebar.x
-                y: sidebar.y
-                width: sidebar.width
-                height: sidebar.height
-                radius: sidebar.radius
-            }
-        }
+    WindowBackground {
+        pane: sidebar
     }
 
     // --- sidebar -----------------------------------------------------------

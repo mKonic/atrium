@@ -12,3 +12,4 @@ SystemFacts 1.0 SystemFacts.qml
 Tile 1.0 Tile.qml
 Glass 1.0 Glass.qml
 Thumb 1.0 Thumb.qml
+WindowBackground 1.0 WindowBackground.qml

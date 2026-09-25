@@ -26,11 +26,27 @@ FloatingWindow {
     }
 
     title: "Welcome"
-    color: Theme.palette.windowBackground
+    // Its pages sit on a pane of Liquid Glass, inset in the window.
+    color: "transparent"
     implicitWidth: 720
     implicitHeight: 560
     minimumSize: Qt.size(720, 560)
     onVisibleChanged: if (!visible) finish()
+
+    WindowBackground {
+        pane: glassPane
+    }
+
+    Rectangle {
+        id: glassPane
+
+        anchors.fill: parent
+        anchors.margins: Theme.lens ? 8 : 0
+        radius: Theme.lens ? 16 : 0
+        color: Theme.lens ? Theme.material.thick : "transparent"
+
+        Glass {}
+    }
 
     StackLayout {
         anchors.left: parent.left

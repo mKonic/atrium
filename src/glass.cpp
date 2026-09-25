@@ -47,7 +47,14 @@ void GlassShapes::refresh(wlr_surface* surface) {
 
 void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& given, float dx, float dy, int width,
                  int height, double lensing, const Config& c) {
-    wlr_scene_blur_set_strength(blur, c.glass_tinted ? 0.45f : 0.12f);
+    // Big panes (a sidebar, a window's page) are frosted more, as Apple's
+    // "regular" glass is next to the "clear" of small controls: text on them
+    // has to stay legible over whatever is behind.
+    float side = 0;
+    for (const GlassShape& g : given)
+        side = std::max(side, std::min(g.width, g.height));
+    const bool pane = side > 240;
+    wlr_scene_blur_set_strength(blur, c.glass_tinted || pane ? 0.45f : 0.12f);
     // The bevel's width, from the panel's short side (a bar is thin glass,
     // Control Center thick), and the slab's height, which sets how far light
     // bends in it: grown in from flat as the glass materializes.
@@ -58,7 +65,7 @@ void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& given, flo
     glass.tint[0] = float((bg >> 24) & 0xff) / 255;
     glass.tint[1] = float((bg >> 16) & 0xff) / 255;
     glass.tint[2] = float((bg >> 8) & 0xff) / 255;
-    glass.tint[3] = c.glass_tinted ? (c.light ? 0.6f : 0.55f) : (c.light ? 0.2f : 0.12f);
+    glass.tint[3] = c.glass_tinted ? (c.light ? 0.6f : 0.55f) : pane ? (c.light ? 0.45f : 0.4f) : (c.light ? 0.2f : 0.12f);
     glass.adapt = c.glass_tinted ? 0.2f : 0.3f;
     glass.saturation = c.glass_tinted ? 1.2f : 1.35f;
     glass.highlight = c.light ? 0.6f : 0.5f;
