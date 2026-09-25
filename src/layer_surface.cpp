@@ -8,6 +8,7 @@
 #include "view.hpp"
 
 #include <algorithm>
+#include <string_view>
 #include <cmath>
 
 namespace atrium {
@@ -128,6 +129,16 @@ void LayerSurface::commit() {
 
     output->arrange_layers();
     update_blur();
+
+    // The menu bar brought over a fullscreen app (the shell lifts it to the
+    // overlay layer): the app's title bar comes out below it, and goes with it.
+    if (wlr->namespace_ && std::string_view(wlr->namespace_) == "atrium-bar") {
+        const bool over = mapped && wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
+        const int bottom = tree->node.y - output->box.y + int(wlr->current.actual_height);
+        for (View* v : server.views)
+            if (v->output == output && v->fullscreen && v->visible())
+                v->reveal_titlebar(over, bottom);
+    }
 
     // Top and overlay surfaces asking for exclusive focus get it in
     // arrange_layers. Below windows that is ours to decide: a desktop asking

@@ -586,7 +586,13 @@ void Seat::reach_edge() {
     const char* edge = nullptr;
     Output* o = server.output_at(cursor->x, cursor->y);
     if (o && !active_constraint_ && o->fullscreen_bg->node.enabled) {
-        if (cursor->y < o->box.y + 1)
+        // On a title bar brought out below the menu bar counts as the top:
+        // both stay while it is used.
+        int revealed = 0;
+        for (View* v : server.views)
+            if (v->output == o && v->visible())
+                revealed = std::max(revealed, v->revealed_titlebar_bottom());
+        if (cursor->y < o->box.y + std::max(1, revealed))
             edge = "top";
         else if (cursor->y >= o->box.y + o->box.height - 1)
             edge = "bottom";

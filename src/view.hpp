@@ -150,6 +150,12 @@ public:
     std::string icon;  // an icon name, or the path of the picture the app sent
     std::string tag;   // the app's own name for this kind of window ("main", "prefs")
 
+    // Fullscreen, the menu bar brought over: the title bar comes out below
+    // it (at `y`, output-local), as a Mac's does, and goes with it.
+    void reveal_titlebar(bool on, int y);
+    // Where a revealed title bar ends (output-local), else 0.
+    int revealed_titlebar_bottom() const;
+
 protected:
     // Backend hooks for the state changes above. `frame` includes the title
     // bar; content_box() is the part the client draws.
@@ -189,6 +195,8 @@ protected:
 
     // Hide the title bar for tiling; the frame shrinks by it, the content stays.
     void set_tile_bar_hidden(bool hidden);
+    double reveal_ = 0;  // the title bar over fullscreen: 0 hidden, 1 out (animated)
+    int reveal_y_ = 0;
     bool tile_bar_hidden_ = false;
 
     // Where the app's last window was, claimed for this one (see Server::placement_for).

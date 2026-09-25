@@ -35,6 +35,7 @@ View::~View() {
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&ring_, false);
     server.animator.cancel_owner(&glide_dx_, false);
+    server.animator.cancel_owner(&reveal_, false);
     destroy_toplevel_handles();
 }
 
@@ -165,6 +166,7 @@ void View::handle_unmap() {
     alpha_ = 1.0f;
     anim_dx_ = anim_dy_ = 0;
     server.animator.cancel_owner(&glide_dx_, false);
+    server.animator.cancel_owner(&reveal_, false);
     glide_dx_ = glide_dy_ = 0;
     opening_ = false;
     server.seat->view_unmapped(this);
@@ -569,9 +571,37 @@ void View::layout_frame() {
     wlr_scene_node_set_position(&content->node, 0, top());
     wlr_scene_node_set_position(&popups->node, 0, top());
     if (titlebar) {
-        wlr_scene_node_set_enabled(&titlebar->node()->node, top() > 0);
+        const bool revealed = fullscreen && reveal_ > 0;
+        wlr_scene_node_set_enabled(&titlebar->node()->node, top() > 0 || revealed);
+        // Over the content, sliding down from under the menu bar.
+        const int y = revealed ? reveal_y_ - int(std::lround((1 - reveal_) * Titlebar::kHeight)) : 0;
+        wlr_scene_node_set_position(&titlebar->node()->node, 0, y);
+        if (revealed)
+            wlr_scene_node_raise_to_top(&titlebar->node()->node);
         titlebar->update();
     }
+}
+
+void View::reveal_titlebar(bool on, int y) {
+    if (!titlebar || (on && !fullscreen))
+        return;
+    reveal_y_ = y;
+    const double from = reveal_;
+    const double to = on ? 1.0 : 0.0;
+    if (from == to)
+        return;
+    server.animator.cancel_owner(&reveal_, false);
+    server.animator.start(&reveal_, 300, on ? Ease::EmphasizedDecel : Ease::EmphasizedAccel, [this, from, to](double t) {
+        reveal_ = from + (to - from) * t;
+        layout_frame();
+    }, [this, to] {
+        reveal_ = to;  // exactly: the curve's end may fall a hair short
+        layout_frame();
+    });
+}
+
+int View::revealed_titlebar_bottom() const {
+    return fullscreen && reveal_ > 0 && titlebar ? reveal_y_ + Titlebar::kHeight : 0;
 }
 
 void View::refresh_decoration_mode() {
@@ -718,6 +748,10 @@ void View::set_fullscreen(bool f) {
     if (f && !maximized)
         restore = geom;  // with its title bar, before it hides
     const int old_top = top();
+    if (!f) {
+        server.animator.cancel_owner(&reveal_, false);
+        reveal_ = 0;
+    }
     fullscreen = f;
     geom.height += top() - old_top;  // the bar hides while fullscreen
     layout_frame();
