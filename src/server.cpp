@@ -485,8 +485,8 @@ void Server::restore_power_and_brightness() {
     if (nested || !drm)
         return;
     apply_power_profile();
-    spawn("sleep 2; for d in $(ddcutil detect --brief 2>/dev/null | awk '/^Display/{print $2}'); do "
-          "ddcutil setvcp 10 " + std::to_string(config.brightness) + " --display \"$d\" --noverify; done");
+    spawn("sleep 2; for b in $(ddcutil detect --brief 2>/dev/null | sed -n 's|.*I2C bus: */dev/i2c-||p'); do "
+          "ddcutil setvcp 10 " + std::to_string(config.brightness) + " --bus \"$b\" --noverify --skip-ddc-checks; done");
 }
 
 void Server::apply_power_profile() {

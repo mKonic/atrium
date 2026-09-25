@@ -372,7 +372,7 @@ PanelWindow {
                     highIcon: "brightness_high"
                     value: Brightness.value / 100
                     onMoved: v => Brightness.set(Math.round(v * 100))
-                    onReleased: v => Atrium.setSetting("displays.brightness", Math.round(v * 100))
+                    onReleased: v => Brightness.commit(Math.round(v * 100))
                 }
 
                 SliderModule {
