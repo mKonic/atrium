@@ -14,8 +14,9 @@ Welcome::Welcome(QObject* parent)
 
 void Welcome::done() {
     QDir().mkpath(QFileInfo(marker_).path());
-    QFile f(marker_);
-    f.open(QIODevice::WriteOnly);
+    // Seen, whether or not the marker could be written: not shown again now.
+    if (QFile f(marker_); !f.open(QIODevice::WriteOnly))
+        qWarning("welcome: couldn't write %s", qPrintable(marker_));
     due_ = false;
     emit dueChanged();
 }

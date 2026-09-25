@@ -35,18 +35,22 @@ TEST(Accent, NamesAndSeeds) {
 }
 
 TEST(Accent, ToneHitsTheLightnessAsked) {
-    for (std::string_view n : names())
-        if (auto s = seed(n))
+    for (std::string_view n : names()) {
+        if (auto s = seed(n)) {
             for (double l : {10.0, 20.0, 40.0, 50.0, 80.0, 90.0})
                 EXPECT_NEAR(lightness(tone(*s, l)), l, 1.0) << n << " at " << l;
+        }
+    }
     EXPECT_LE(max_channel_gap(tone(0xff453a, 100), 0xffffff), 1);
     EXPECT_LE(max_channel_gap(tone(0xff453a, 0), 0x000000), 1);
 }
 
 TEST(Accent, ASeedAtItsOwnToneIsItself) {
-    for (std::string_view n : names())
-        if (auto s = seed(n))
+    for (std::string_view n : names()) {
+        if (auto s = seed(n)) {
             EXPECT_LE(max_channel_gap(tone(*s, lightness(*s)), *s), 2) << n;
+        }
+    }
 }
 
 TEST(Accent, KeepsTheHue) {
@@ -64,9 +68,11 @@ TEST(Accent, EachAppearanceHasItsOwnShade) {
     EXPECT_EQ(rgb("blue", true), 0x007affu);
     EXPECT_EQ(rgb("multicolor", true), rgb("blue", true));
     EXPECT_EQ(rgb("chartreuse", false), rgb("blue", false));
-    for (std::string_view n : names())
-        if (auto s = seed(n))
+    for (std::string_view n : names()) {
+        if (auto s = seed(n)) {
             EXPECT_EQ(rgb(n, false), *s) << n;
+        }
+    }
 }
 
 #include "palette.hpp"
