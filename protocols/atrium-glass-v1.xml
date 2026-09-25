@@ -29,7 +29,7 @@
     geometry rather than guessing it from the surface's pixels.
   </description>
 
-  <interface name="atrium_glass_manager_v1" version="1">
+  <interface name="atrium_glass_manager_v1" version="2">
     <request name="destroy" type="destructor"/>
 
     <request name="get_glass">
@@ -41,7 +41,7 @@
     </request>
   </interface>
 
-  <interface name="atrium_glass_v1" version="1">
+  <interface name="atrium_glass_v1" version="2">
     <description summary="a surface's glass shapes">
       Double-buffered: shapes set take effect on the surface's next commit,
       with the buffer they belong to. When the surface is destroyed, this
@@ -57,6 +57,16 @@
         An array of shapes, each six wl_fixed values: x, y, width, height
         (surface-local), corner radius, and opacity (0 to 1). An empty array
         is no glass.
+      </description>
+      <arg name="shapes" type="array"/>
+    </request>
+
+    <request name="set_clipped_shapes" since="2">
+      <description summary="the glass on the surface, each cut to where it shows">
+        As set_shapes, with four more wl_fixed values a shape: the box it
+        shows in (x, y, width, height, surface-local), such as the list it
+        was scrolled half out of. The glass is cut there, with no rim along
+        the cut. A width of 0 is the whole shape.
       </description>
       <arg name="shapes" type="array"/>
     </request>

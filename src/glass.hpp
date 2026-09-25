@@ -15,6 +15,7 @@ struct Config;
 // coordinates, and how opaque the glass is (it fades with its panel).
 struct GlassShape {
     float x, y, width, height, radius, opacity;
+    float clip_x = 0, clip_y = 0, clip_width = 0, clip_height = 0;  // where it shows; 0 wide: all
 };
 
 // How far past its shapes glass reaches: its shadow, the shape blurred by a
@@ -56,6 +57,8 @@ private:
     static void bind(wl_client* client, void* data, uint32_t version, uint32_t id);
     static void get_glass(wl_client* client, wl_resource* manager, uint32_t id, wl_resource* surface);
     static void set_shapes(wl_client* client, wl_resource* resource, wl_array* shapes);
+    static void set_clipped_shapes(wl_client* client, wl_resource* resource, wl_array* shapes);
+    static void take_shapes(wl_resource* resource, wl_array* shapes, size_t stride);
     static void destroy_resource(wl_client* client, wl_resource* resource);
     static void glass_gone(wl_resource* resource);
     static void manager_gone(wl_resource* resource);

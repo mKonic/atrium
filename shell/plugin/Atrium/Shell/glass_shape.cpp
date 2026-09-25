@@ -28,10 +28,10 @@ atrium_glass_manager_v1* manager() {
         wl_registry* registry = wl_display_get_registry(wrapped);
         atrium_glass_manager_v1* found = nullptr;
         static const wl_registry_listener listener = {
-            .global = [](void* data, wl_registry* r, uint32_t name, const char* iface, uint32_t) {
+            .global = [](void* data, wl_registry* r, uint32_t name, const char* iface, uint32_t version) {
                 if (std::strcmp(iface, atrium_glass_manager_v1_interface.name) == 0)
                     *static_cast<atrium_glass_manager_v1**>(data) = static_cast<atrium_glass_manager_v1*>(
-                        wl_registry_bind(r, name, &atrium_glass_manager_v1_interface, 1));
+                        wl_registry_bind(r, name, &atrium_glass_manager_v1_interface, std::min(version, 2u)));
             },
             .global_remove = [](void*, wl_registry*, uint32_t) {},
         };
@@ -91,6 +91,8 @@ private:
             sent_.clear();
             sent_once_ = false;
         }
+        // Version 2 takes a clip with each shape.
+        const bool clipping = wl_proxy_get_version(reinterpret_cast<wl_proxy*>(glass_)) >= 2;
         std::vector<wl_fixed_t> now;
         for (GlassShape* s : shapes_) {
             if (!s || !s->isVisible())
@@ -105,16 +107,26 @@ private:
             const QRectF whole = s->mapRectToScene(QRectF(0, 0, s->width(), s->height()));
             // Only what shows: a card scrolled out of a clipping list (the
             // Notification Center's) leaves its glass behind otherwise, past
-            // the list's edge.
-            QRectF r = whole;
+            // the list's edge. atrium cuts it there (no rim along the cut);
+            // one that can't gets it shrunk to what shows.
+            QRectF shown = whole;
+            bool clipped = false;
             for (QQuickItem* i = s->parentItem(); i; i = i->parentItem())
-                if (i->clip())
-                    r &= i->mapRectToScene(i->clipRect());
-            if (r.width() <= 0 || r.height() <= 0)
+                if (i->clip()) {
+                    shown &= i->mapRectToScene(i->clipRect());
+                    clipped = true;
+                }
+            if (shown.width() <= 0 || shown.height() <= 0)
                 continue;
             const qreal scale = s->width() > 0 ? whole.width() / s->width() : 1;
+            const QRectF r = clipping ? whole : shown;
             for (qreal v : {r.x(), r.y(), r.width(), r.height(), s->radius() * scale, opacity})
                 now.push_back(wl_fixed_from_double(v));
+            if (clipping) {
+                const QRectF c = clipped ? shown : QRectF();
+                for (qreal v : {c.x(), c.y(), c.width(), c.height()})
+                    now.push_back(wl_fixed_from_double(v));
+            }
         }
         if (sent_once_ && now == sent_)
             return;
@@ -124,7 +136,10 @@ private:
             void* data = wl_array_add(&array, now.size() * sizeof(wl_fixed_t));
             std::memcpy(data, now.data(), now.size() * sizeof(wl_fixed_t));
         }
-        atrium_glass_v1_set_shapes(glass_, &array);
+        if (clipping)
+            atrium_glass_v1_set_clipped_shapes(glass_, &array);
+        else
+            atrium_glass_v1_set_shapes(glass_, &array);
         wl_array_release(&array);
         sent_ = std::move(now);
         sent_once_ = true;

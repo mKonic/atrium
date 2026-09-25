@@ -14,7 +14,7 @@
 namespace atrium {
 
 GlassShapes::GlassShapes(Server& server) : server_(server) {
-    global_ = wl_global_create(server.display, &atrium_glass_manager_v1_interface, 1, this, &bind);
+    global_ = wl_global_create(server.display, &atrium_glass_manager_v1_interface, 2, this, &bind);
 }
 
 GlassShapes::~GlassShapes() {
@@ -78,7 +78,8 @@ void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& given, flo
     // geometry, smooth at any size.
     std::vector<wlr_scene_glass_shape> shapes;
     for (const GlassShape& g : given)
-        shapes.push_back({g.x + dx, g.y + dy, g.width, g.height, g.radius, g.opacity});
+        shapes.push_back({g.x + dx, g.y + dy, g.width, g.height, g.radius, g.opacity,
+                          g.clip_x + dx, g.clip_y + dy, g.clip_width, g.clip_height});
     wlr_scene_blur_set_glass_shapes(blur, shapes.data(), int(shapes.size()));
 }
 
@@ -119,6 +120,7 @@ void GlassShapes::get_glass(wl_client* client, wl_resource* manager, uint32_t id
     static const struct atrium_glass_v1_interface impl = {
         .destroy = &destroy_resource,
         .set_shapes = &set_shapes,
+        .set_clipped_shapes = &set_clipped_shapes,
     };
     // A second glass for a surface replaces the first.
     if (auto it = self->glass_.find(surface); it != self->glass_.end())
@@ -137,17 +139,30 @@ void GlassShapes::get_glass(wl_client* client, wl_resource* manager, uint32_t id
 }
 
 void GlassShapes::set_shapes(wl_client*, wl_resource* resource, wl_array* shapes) {
+    take_shapes(resource, shapes, 6);
+}
+
+void GlassShapes::set_clipped_shapes(wl_client*, wl_resource* resource, wl_array* shapes) {
+    take_shapes(resource, shapes, 10);
+}
+
+void GlassShapes::take_shapes(wl_resource* resource, wl_array* shapes, size_t stride) {
     auto* g = static_cast<Glass*>(wl_resource_get_user_data(resource));
     if (!g || !g->surface)
         return;
-    const size_t n = shapes->size / (6 * sizeof(wl_fixed_t));
+    const size_t n = shapes->size / (stride * sizeof(wl_fixed_t));
     const auto* v = static_cast<const wl_fixed_t*>(shapes->data);
+    auto f = [](wl_fixed_t x) { return float(wl_fixed_to_double(x)); };
     g->pending.clear();
     for (size_t i = 0; i < n; ++i) {
-        const wl_fixed_t* s = v + i * 6;
-        GlassShape shape{float(wl_fixed_to_double(s[0])), float(wl_fixed_to_double(s[1])),
-                         float(wl_fixed_to_double(s[2])), float(wl_fixed_to_double(s[3])),
-                         float(wl_fixed_to_double(s[4])), float(wl_fixed_to_double(s[5]))};
+        const wl_fixed_t* s = v + i * stride;
+        GlassShape shape{f(s[0]), f(s[1]), f(s[2]), f(s[3]), f(s[4]), f(s[5])};
+        if (stride >= 10) {
+            shape.clip_x = f(s[6]);
+            shape.clip_y = f(s[7]);
+            shape.clip_width = f(s[8]);
+            shape.clip_height = f(s[9]);
+        }
         if (shape.width > 0 && shape.height > 0 && shape.opacity > 0)
             g->pending.push_back(shape);
     }

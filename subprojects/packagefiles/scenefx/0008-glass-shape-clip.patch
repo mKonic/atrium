@@ -1,0 +1,151 @@
+From 9ae62abd175839afc930e30f02cf0910676f2303 Mon Sep 17 00:00:00 2001
+From: mKonic <mkonic676@gmail.com>
+Date: Fri, 25 Sep 2026 17:54:00 +0300
+Subject: [PATCH] glass: a shape can be clipped (cut where it stops showing, no
+ rim along the cut)
+
+---
+ include/render/fx_renderer/shaders.h  |  1 +
+ include/scenefx/render/pass.h         |  2 +-
+ include/scenefx/types/wlr_scene.h     |  5 ++++-
+ render/fx_renderer/fx_pass.c          |  5 ++++-
+ render/fx_renderer/shaders.c          |  1 +
+ render/fx_renderer/shaders/glass.frag |  7 +++++++
+ types/scene/wlr_scene.c               | 14 ++++++++++++++
+ 7 files changed, 32 insertions(+), 3 deletions(-)
+
+diff --git a/include/render/fx_renderer/shaders.h b/include/render/fx_renderer/shaders.h
+index 440be93..2ef9b4d 100644
+--- a/include/render/fx_renderer/shaders.h
++++ b/include/render/fx_renderer/shaders.h
+@@ -219,6 +219,7 @@ struct glass_shader {
+ 	GLint field_sigma;
+ 	GLint shape_box;
+ 	GLint shape_extra;
++	GLint shape_clip;
+ 	GLint shape_count;
+ };
+ 
+diff --git a/include/scenefx/render/pass.h b/include/scenefx/render/pass.h
+index e82cfe8..5b82d60 100644
+--- a/include/scenefx/render/pass.h
++++ b/include/scenefx/render/pass.h
+@@ -112,7 +112,7 @@ struct fx_render_blur_pass_options {
+ 	struct wlr_box mask_box;
+ 	// The glass's shapes, in output buffer pixels: x, y, width, height,
+ 	// radius, opacity. None: its shape is the mask's.
+-	float glass_shapes[16][6];
++	float glass_shapes[16][10];  // box, radius, opacity, clip box (width < 0: none)
+ 	int glass_shape_count;
+ };
+ 
+diff --git a/include/scenefx/types/wlr_scene.h b/include/scenefx/types/wlr_scene.h
+index 98b0708..6e80037 100644
+--- a/include/scenefx/types/wlr_scene.h
++++ b/include/scenefx/types/wlr_scene.h
+@@ -183,9 +183,12 @@ struct wlr_scene_glass {
+ };
+ 
+ /** A piece of Liquid Glass: a rounded rectangle in the blur node's
+- * coordinates, and how opaque it is. */
++ * coordinates, and how opaque it is. The clip is where it shows (a card in a
++ * scrolled list): cut there, no rim along the cut; a clip_width of 0 is
++ * all of it. */
+ struct wlr_scene_glass_shape {
+ 	float x, y, width, height, radius, opacity;
++	float clip_x, clip_y, clip_width, clip_height;
+ };
+ 
+ #define WLR_SCENE_GLASS_MAX_SHAPES 16
+diff --git a/render/fx_renderer/fx_pass.c b/render/fx_renderer/fx_pass.c
+index 2753f48..5e788c5 100644
+--- a/render/fx_renderer/fx_pass.c
++++ b/render/fx_renderer/fx_pass.c
+@@ -1420,7 +1420,7 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
+ 	glUniform2f(shader->field_texel, 1.0f / width, 1.0f / height);
+ 	glUniform1f(shader->field_sigma, sigma);
+ 	glActiveTexture(GL_TEXTURE0);
+-	GLfloat boxes[16 * 4], extras[16 * 2];
++	GLfloat boxes[16 * 4], extras[16 * 2], clips[16 * 4];
+ 	for (int i = 0; i < shape_count; i++) {
+ 		const float *s = fx_options->glass_shapes[i];
+ 		boxes[i * 4 + 0] = s[0];
+@@ -1429,10 +1429,13 @@ static void render_glass(struct fx_gles_render_pass *pass, struct fx_texture *bl
+ 		boxes[i * 4 + 3] = s[3];
+ 		extras[i * 2 + 0] = s[4];
+ 		extras[i * 2 + 1] = s[5];
++		for (int k = 0; k < 4; k++)
++			clips[i * 4 + k] = s[6 + k];
+ 	}
+ 	if (shape_count > 0) {
+ 		glUniform4fv(shader->shape_box, shape_count, boxes);
+ 		glUniform2fv(shader->shape_extra, shape_count, extras);
++		glUniform4fv(shader->shape_clip, shape_count, clips);
+ 	}
+ 	glUniform1i(shader->shape_count, shape_count);
+ 
+diff --git a/render/fx_renderer/shaders.c b/render/fx_renderer/shaders.c
+index 517ac55..a7915d8 100644
+--- a/render/fx_renderer/shaders.c
++++ b/render/fx_renderer/shaders.c
+@@ -378,6 +378,7 @@ bool link_glass_program(struct glass_shader *shader) {
+ 	shader->field_sigma = glGetUniformLocation(prog, "field_sigma");
+ 	shader->shape_box = glGetUniformLocation(prog, "shape_box");
+ 	shader->shape_extra = glGetUniformLocation(prog, "shape_extra");
++	shader->shape_clip = glGetUniformLocation(prog, "shape_clip");
+ 	shader->shape_count = glGetUniformLocation(prog, "shape_count");
+ 	shader->thickness = glGetUniformLocation(prog, "thickness");
+ 	shader->alpha = glGetUniformLocation(prog, "alpha");
+diff --git a/render/fx_renderer/shaders/glass.frag b/render/fx_renderer/shaders/glass.frag
+index f1656aa..04dbd9a 100644
+--- a/render/fx_renderer/shaders/glass.frag
++++ b/render/fx_renderer/shaders/glass.frag
+@@ -55,6 +55,9 @@ uniform float shadow;     // the shadow's darkness under the glass
+ // height; radius, opacity. Otherwise the shape is the mask, through `field`.
+ uniform vec4 shape_box[16];
+ uniform vec2 shape_extra[16];
++// Where each shows (x, y, width, height; width < 0: all of it): cut there,
++// with no rim along the cut, as a card scrolled half out of its list.
++uniform vec4 shape_clip[16];
+ uniform int shape_count;
+ 
+ // 1 on glass, 0 off it, antialiased across the edge's pixel.
+@@ -123,6 +126,10 @@ float shapes_sd(vec2 p, out vec2 normal, out float opacity, out float bevel) {
+ 		if (i >= shape_count) {
+ 			break;
+ 		}
++		vec4 c = shape_clip[i];
++		if (c.z >= 0.0 && (p.x < c.x || p.y < c.y || p.x >= c.x + c.z || p.y >= c.y + c.w)) {
++			continue;
++		}
+ 		vec4 b = shape_box[i];
+ 		vec2 half_size = 0.5 * b.zw;
+ 		float r = min(shape_extra[i].x, min(half_size.x, half_size.y));
+diff --git a/types/scene/wlr_scene.c b/types/scene/wlr_scene.c
+index 66e9c78..46dc73d 100644
+--- a/types/scene/wlr_scene.c
++++ b/types/scene/wlr_scene.c
+@@ -2309,6 +2309,20 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
+ 			}
+ 			out[4] = s->radius * data->scale;
+ 			out[5] = s->opacity;
++			if (s->clip_width > 0 && s->clip_height > 0) {
++				struct wlr_box c = {
++					.x = (int)floorf(x + s->clip_x), .y = (int)floorf(y + s->clip_y),
++					.width = (int)ceilf(s->clip_width), .height = (int)ceilf(s->clip_height),
++				};
++				transform_output_box(&c, data);
++				out[6] = c.x;
++				out[7] = c.y;
++				out[8] = c.width;
++				out[9] = c.height;
++			} else {
++				out[6] = out[7] = 0;
++				out[8] = out[9] = -1;
++			}
+ 		}
+ 		fx_render_pass_add_blur(fx_pass, &blur_options);
+ 		break;
+-- 
+2.55.0
+
