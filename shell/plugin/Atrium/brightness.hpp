@@ -34,6 +34,8 @@ private:
     void detect();
     void readCurrent();
     void writeNext();
+    std::optional<int> setting() const;
+    void applySetting();
 
     QString ddcutil_;
     std::vector<QString> ddc_;   // ddcutil display numbers
@@ -41,6 +43,7 @@ private:
     int backlightMax_ = 0;
     int value_ = 100;
     bool busy_ = false;
+    std::optional<int> seen_;  // the setting as last seen
     std::optional<int> pending_;  // the value to send once the current write ends
 };
 

@@ -125,8 +125,14 @@ public:
         qmlRegisterUncreatableType<Notification>(uri, 1, 0, "Notification", "from NotificationServer");
         qmlRegisterSingletonType<ClipboardHistory>(uri, 1, 0, "Clipboard",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ClipboardHistory; });
+        // One for the process: each engine asking for its own would write
+        // the monitors twice.
         qmlRegisterSingletonType<Brightness>(uri, 1, 0, "Brightness",
-            [](QQmlEngine*, QJSEngine*) -> QObject* { return new Brightness; });
+            [](QQmlEngine*, QJSEngine*) -> QObject* {
+                static Brightness* self = new Brightness;
+                QQmlEngine::setObjectOwnership(self, QQmlEngine::CppOwnership);
+                return self;
+            });
         qmlRegisterSingletonType<Recorder>(uri, 1, 0, "Recorder",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Recorder; });
         qmlRegisterSingletonType<LevelsApi>(uri, 1, 0, "Levels", [](QQmlEngine*, QJSEngine*) -> QObject* {

@@ -1,4 +1,5 @@
 #include "brightness.hpp"
+#include "compositor.hpp"
 
 #include <QDBusInterface>
 #include <QDBusConnection>
@@ -27,8 +28,29 @@ Brightness::Brightness(QObject* parent) : QObject(parent) {
         if (backlightMax_ > 0)
             value_ = readInt(backlight_ + "/brightness") * 100 / backlightMax_;
     }
-    ddcutil_ = QStandardPaths::findExecutable("ddcutil");
+    // Test boxes leave the real monitors alone.
+    if (qEnvironmentVariableIsEmpty("ATRIUM_NO_DDC"))
+        ddcutil_ = QStandardPaths::findExecutable("ddcutil");
+    // The Brightness setting changed (in Settings): the screens follow. atrium
+    // itself sets them to it at login.
+    seen_ = setting();
+    connect(Compositor::instance(), &Compositor::settingsChanged, this, [this] { applySetting(); });
     detect();
+}
+
+std::optional<int> Brightness::setting() const {
+    const QVariant v = Compositor::instance()->settings().value("displays.brightness");
+    return v.isValid() ? std::optional<int>(v.toInt()) : std::nullopt;
+}
+
+void Brightness::applySetting() {
+    const auto v = setting();
+    // The first time it arrives is no change; nor is the Control Center's
+    // own slider, let go where the screens already are.
+    const bool changed = v && seen_ && *v != *seen_;
+    seen_ = v;
+    if (changed && available() && *v != value_)
+        set(*v);
 }
 
 // Which monitors answer DDC/CI. Takes a second or two; nothing waits on it.
