@@ -38,6 +38,10 @@ public:
     Q_INVOKABLE QString env(const QString& name) const;
     // A line on standard output (the askpass answers sudo so).
     Q_INVOKABLE void printLine(const QString& text) const;
+    // Who asks the askpass for a password: { command } is what sudo will run
+    // (or ssh's own command line), { app, icon } the first app with a
+    // desktop entry up the process tree (the terminal it was typed in).
+    Q_INVOKABLE QVariantMap askingProcess() const;
 
 signals:
     void screensChanged();

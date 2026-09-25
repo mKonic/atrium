@@ -11,10 +11,13 @@ Rectangle {
     id: root
 
     required property var flow
+    // What will run, when the asker says (sudo's command), in small type.
+    property string command: ""
     readonly property var identity: flow?.selectedIdentity ?? null
+    readonly property bool choosesIdentity: (flow?.identities?.length ?? 0) > 1
     property bool wrong: false
 
-    width: 360
+    width: 320
     height: column.implicitHeight + 48
     radius: 26
     color: Theme.material.thick
@@ -38,6 +41,33 @@ Rectangle {
         wrong = false;
         flow.submit(password.text);
         password.text = "";
+    }
+
+    // It opens as the pickers do: up from a touch smaller, fading in, with
+    // the password field ready.
+    Component.onCompleted: {
+        password.forceActiveFocus();
+        shown.restart();
+    }
+
+    ParallelAnimation {
+        id: shown
+
+        Anim {
+            target: root
+            property: "scale"
+            from: 0.96
+            to: 1
+            duration: Theme.anim.small
+            easing.bezierCurve: Theme.anim.emphasizedDecel
+        }
+        Anim {
+            target: root
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: Theme.anim.small
+        }
     }
 
     onFlowChanged: {
@@ -157,7 +187,8 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
             text: root.flow?.message ?? ""
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
+            font.pointSize: Theme.font.size.larger
         }
 
         StyledText {
@@ -171,16 +202,41 @@ Rectangle {
             color: root.wrong || root.flow?.supplementaryIsError ? Theme.palette.red : Theme.palette.secondaryLabel
         }
 
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: root.command !== ""
+            width: Math.min(parent.width, commandText.implicitWidth + 20)
+            height: 26
+            radius: 8
+            color: Theme.palette.quaternaryFill
+
+            StyledText {
+                id: commandText
+
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignHCenter
+                text: root.command
+                elide: Text.ElideMiddle
+                font.family: Theme.font.mono
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+        }
+
         Item {
             width: 1
-            height: 2
+            height: 4
         }
 
         // Whose password; with more than one administrator, click to switch.
         Rectangle {
+            visible: root.choosesIdentity
             width: parent.width
-            height: 38
-            radius: 12
+            height: 36
+            radius: 10
             color: Theme.palette.tertiaryFill
 
             MaterialIcon {
@@ -224,10 +280,10 @@ Rectangle {
 
         Rectangle {
             width: parent.width
-            height: 38
-            radius: 12
+            height: 36
+            radius: 10
             color: Theme.palette.tertiaryFill
-            border.width: 1
+            border.width: root.wrong || password.activeFocus ? 2 : 1
             border.color: root.wrong ? Theme.palette.red : password.activeFocus ? Theme.palette.focusRing : Theme.palette.separator
 
             TextInput {
@@ -250,9 +306,12 @@ Rectangle {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !password.text
-                    text: (root.flow?.inputPrompt ?? "").replace(/:\s*$/, "") || "Password"
+                    // Whose, when there's only the one.
+                    text: !root.choosesIdentity && root.identity?.displayName
+                        ? `Password for ${root.identity.displayName}`
+                        : (root.flow?.inputPrompt ?? "").replace(/:\s*$/, "") || "Password"
                     color: Theme.palette.tertiaryLabel
-                    font.pointSize: Theme.font.size.small
+                    font.pointSize: Theme.font.size.normal
                 }
             }
         }
@@ -267,12 +326,14 @@ Rectangle {
             spacing: 10
 
             DialogButton {
+                width: (column.width - 10) / 2
                 text: "Cancel"
                 onClicked: root.flow?.cancelAuthenticationRequest()
             }
 
             DialogButton {
-                text: "OK"
+                width: (column.width - 10) / 2
+                text: "Allow"
                 primary: true
                 enabled: (root.flow?.isResponseRequired ?? false) && password.text.length > 0
                 onClicked: root.submit()

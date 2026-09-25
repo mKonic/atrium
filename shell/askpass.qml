@@ -16,6 +16,8 @@ ShellRoot {
     // "[sudo] password for mkonic: " says who; ssh's own prompts say what.
     readonly property string user: (/password for ([^:\s]+)/.exec(prompt) ?? [])[1] ?? Shell.env("USER")
     readonly property bool sudo: prompt.startsWith("[sudo]")
+    // The app it was typed in, and the command asking.
+    readonly property var asker: Shell.askingProcess()
 
     PanelWindow {
         screen: Shell.screen(Atrium.focusedOutput?.name)
@@ -37,14 +39,15 @@ ShellRoot {
 
         AuthCard {
             anchors.centerIn: parent
+            command: root.asker.command ?? ""
 
             // What AuthCard reads from polkit's flow, for sudo.
             flow: QtObject {
-                readonly property string message: root.sudo ? "A command wants administrator rights."
+                readonly property string message: root.sudo ? `${root.asker.app ?? "A command"} wants to make changes.`
                     : root.prompt.replace(/:\s*$/, "") || "A password is needed."
-                readonly property string supplementaryMessage: root.sudo ? "Enter your password to allow it." : ""
+                readonly property string supplementaryMessage: root.sudo ? "Enter your password to allow this." : ""
                 readonly property bool supplementaryIsError: false
-                readonly property string iconName: "utilities-terminal"
+                readonly property string iconName: root.asker.icon ?? "utilities-terminal"
                 readonly property bool isResponseRequired: true
                 readonly property bool responseVisible: false
                 readonly property string inputPrompt: "Password"
