@@ -240,6 +240,12 @@ void Output::frame() {
                 return;
         }
     }
+    // Now, not on the timer: one armed by an earlier frame must not fire
+    // too and commit a second frame while this one's flip is pending.
+    if (render_timer_fd_ >= 0) {
+        const itimerspec off{};
+        timerfd_settime(render_timer_fd_, 0, &off, nullptr);
+    }
     aimed_ns_ = 0;
     render();
 }
@@ -266,6 +272,9 @@ void Output::presented(int64_t when, int refresh) {
 }
 
 void Output::render() {
+    // A flip still pending: the frame event after it renders again.
+    if (wlr->frame_pending)
+        return;
     server.animator.tick();
     // Night light's colour table, when it changed and no app sets this
     // screen's gamma itself; screens without one (nested) do without.
@@ -273,9 +282,13 @@ void Output::render() {
     // In HDR the renderer warms the picture in linear light instead: a table
     // on the PQ signal would bend brightness along with colour.
     const bool hdr_on = hdr_active();
-    const bool recolour = night && night_generation_ != night->generation() &&
-                          (hdr_on || (wlr_output_get_gamma_size(wlr) > 0 &&
-                                      !wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr)));
+    const bool own_gamma = wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr) != nullptr;
+    const bool recolour = night && night_generation_ != night->generation() && (hdr_on || !own_gamma);
+    // On an SDR screen the renderer draws through night light's transform
+    // (every frame; a change repaints the whole screen).
+    wlr_scene_output_state_options options{};
+    if (night && !hdr_on && !own_gamma)
+        options.color_transform = night->transform();
     if (recolour && hdr_on) {
         const night::Rgb w = night->linear_white();
         wlr_scene_output_set_tint(scene_output, float(w.r), float(w.g), float(w.b));
@@ -297,9 +310,7 @@ void Output::render() {
     }
     wlr_output_state state;
     wlr_output_state_init(&state);
-    if (wlr_scene_output_build_state(scene_output, &state, nullptr)) {
-        if (recolour && !hdr_on)
-            wlr_output_state_set_color_transform(&state, night->transform());
+    if (wlr_scene_output_build_state(scene_output, &state, &options)) {
         if (switch_vrr)
             wlr_output_state_set_adaptive_sync_enabled(&state, vrr);
         if (tearing_view(server, *this)) {
@@ -310,15 +321,13 @@ void Output::render() {
                 state.tearing_page_flip = false;
         }
         const bool committed = wlr_output_commit_state(wlr, &state);
-        if (!committed && ((recolour && !hdr_on) || switch_vrr)) {
-            // The screen wouldn't take the table or the switch: the frame
-            // without them, and they're not tried again.
-            wlr_log(WLR_ERROR, "%s: refused%s%s", wlr->name, recolour ? " night light's colour table" : "",
-                    switch_vrr ? " variable refresh" : "");
-            state.committed &= ~(WLR_OUTPUT_STATE_COLOR_TRANSFORM | WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED);
+        if (!committed && switch_vrr) {
+            // The screen wouldn't take the switch: the frame without it, and
+            // it's not tried again.
+            wlr_log(WLR_ERROR, "%s: refused variable refresh", wlr->name);
+            state.committed &= ~WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED;
             wlr_output_commit_state(wlr, &state);
-            if (switch_vrr)
-                vrr_refused_ = vrr;
+            vrr_refused_ = vrr;
         }
         if (recolour)
             night_generation_ = night->generation();

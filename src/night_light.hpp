@@ -1,9 +1,9 @@
 #pragma once
 // Night light: warmer colours on every screen by schedule (sunset to
-// sunrise where the time zone says you are, set hours, or always), through
-// each output's hardware colour table (the renderer's tint on an HDR
-// screen). An app that sets gamma itself
-// (gammastep, wlsunset) keeps its screen. The Control Center turns it on or
+// sunrise where the time zone says you are, set hours, or always), drawn by
+// the renderer (a colour matrix in linear light; on an HDR screen, the tint
+// in its HDR pipeline). An app that sets gamma itself (gammastep, wlsunset)
+// keeps its screen. The Control Center turns it on or
 // off until the schedule next changes, as macOS's Night Shift.
 
 #include "night_light_core.hpp"
@@ -39,8 +39,8 @@ public:
     // screen can show it.
     nlohmann::json state() const;
 
-    // For the outputs: the colour table to show, null for none, and a
-    // number that changes whenever it does.
+    // For the outputs: the colour transform to render through, null for
+    // none, and a number that changes whenever it does.
     wlr_color_transform* transform() const { return transform_; }
     uint64_t generation() const { return generation_; }
     // The same warmth as multipliers in linear light, for HDR screens where

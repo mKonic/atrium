@@ -176,10 +176,8 @@ void NightLight::set_active(bool on) {
 }
 
 nlohmann::json NightLight::state() const {
-    // Whether any screen can show it (a nested one can't).
-    bool available = false;
-    for (const Output* o : server_.outputs)
-        available = available || wlr_output_get_gamma_size(o->wlr) > 0;
+    // The renderer warms the picture, so every screen can show it.
+    const bool available = !server_.outputs.empty();
     return {
         {"available", available},
         {"mode", server_.config.night_light},
@@ -203,17 +201,22 @@ void NightLight::set_transform(double kelvin) {
     linear_white_ = {};
     if (kelvin < 6500) {
         const night::Rgb wp = night::whitepoint(int(std::lround(kelvin)));
-        // The table scales encoded values; the same look in linear light.
+        // The white point scales encoded values; the same look in linear light.
         linear_white_ = {std::pow(wp.r, 2.2), std::pow(wp.g, 2.2), std::pow(wp.b, 2.2)};
-        constexpr size_t n = 256;
-        std::array<uint16_t, n> r, g, b;
-        for (size_t i = 0; i < n; ++i) {
-            const double v = double(i) / (n - 1) * 65535;
-            r[i] = uint16_t(std::lround(v * wp.r));
-            g[i] = uint16_t(std::lround(v * wp.g));
-            b[i] = uint16_t(std::lround(v * wp.b));
-        }
-        next = wlr_color_transform_init_lut_3x1d(n, r.data(), g.data(), b.data());
+        // Drawn by the renderer, as hyprsunset does with a colour matrix, not
+        // the screen's gamma table: NVIDIA's mangles colour and bands. The
+        // frame, blended as always, goes to linear light, is scaled by the
+        // white point, and is encoded again (in half-float precision).
+        const float m[9] = {float(linear_white_.r), 0, 0, 0, float(linear_white_.g), 0, 0, 0, float(linear_white_.b)};
+        wlr_color_transform* parts[] = {
+            wlr_color_transform_init_matrix(m),
+            wlr_color_transform_init_linear_to_inverse_eotf(WLR_COLOR_TRANSFER_FUNCTION_GAMMA22),
+        };
+        if (parts[0] && parts[1])
+            next = wlr_color_transform_init_pipeline(parts, 2);
+        for (wlr_color_transform* t : parts)
+            if (t)
+                wlr_color_transform_unref(t);
     }
     if (transform_)
         wlr_color_transform_unref(transform_);
