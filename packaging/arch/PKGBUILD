@@ -8,6 +8,8 @@ pkgver=0
 pkgrel=1
 pkgdesc='A floating-first Wayland desktop'
 arch=('x86_64')
+# Symbols kept: crash dumps and profiles of a running desktop name functions.
+options=('!strip' '!debug')
 url='https://github.com/mKonic/atrium'
 license=('GPL-3.0-or-later')
 depends=(
