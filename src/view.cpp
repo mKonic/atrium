@@ -57,6 +57,11 @@ bool View::visible() const {
 }
 
 wlr_box View::usable_area() const {
+    // A secret space has no bar or Dock in it: its windows get the whole
+    // screen but a margin, maximized or not, as caelestia's special
+    // workspaces tile.
+    if (space && space->secret && output)
+        return geometry::secret_frame(output->box, server.config.secret_margin);
     if (output)
         return output->usable;
     if (server.focused_output)
@@ -392,8 +397,7 @@ void View::move_to(int x, int y) {
 }
 
 void View::fit_secret(bool keep_box) {
-    if (!space || !space->secret || !output || unmanaged() || parent() || is_dialog() || fullscreen || maximized ||
-        snapped)
+    if (!space || !space->secret || !output || unmanaged() || parent() || is_dialog() || fullscreen)
         return;
     if (keep_box && !before_secret_)
         before_secret_ = geom;
