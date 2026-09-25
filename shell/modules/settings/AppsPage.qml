@@ -191,6 +191,21 @@ Column {
 
                     width: list.width
 
+                    // Opened, its details come into view (they grow below it,
+                    // maybe past the bottom of the page).
+                    function reveal() {
+                        let f = app.parent;
+                        while (f && f.contentY === undefined)
+                            f = f.parent;
+                        if (!f)
+                            return;
+                        const top = app.mapToItem(f.contentItem, 0, 0).y;
+                        const bottom = top + app.height + 12;
+                        if (bottom > f.contentY + f.height)
+                            f.contentY = Math.min(bottom - f.height, top);
+                    }
+                    onHeightChanged: if (open) reveal()
+
                     Rectangle {
                         visible: app.index > 0
                         x: 16

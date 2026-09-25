@@ -60,6 +60,14 @@ Rectangle {
         width: Math.max(root.width, 180)
         height: Math.min(list.contentHeight + 12, 320)
         padding: 6
+        // Never past the window's edges (Qt clamps it inside them)...
+        margins: 8
+        // ...and above the field when there's no room under it, as a Mac's do.
+        onAboutToShow: {
+            const top = root.mapToItem(null, 0, 0).y;
+            const below = (root.Window.height ?? 0) - top - root.height - 12;
+            y = below < height && top - 12 >= height ? -height - 4 : root.height + 4;
+        }
         // Long lists open at the current choice.
         onOpened: list.positionViewAtIndex(root.options.findIndex(o => o.value === root.value), ListView.Center)
         background: Rectangle {
