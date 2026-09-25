@@ -104,7 +104,7 @@ PanelWindow {
         top: 8
         right: 8
     }
-    implicitWidth: 400
+    implicitWidth: 340
     implicitHeight: panel.implicitHeight
     exclusiveZone: 0
     color: "transparent"
@@ -127,179 +127,134 @@ PanelWindow {
 
         width: parent.width
         implicitHeight: main.implicitHeight + (list.implicitHeight - main.implicitHeight) * cc.open + 24
-        radius: 24
-        color: Theme.material.regular
+        radius: 30
+        // No panel behind the main page's pieces of glass; an opened module
+        // brings one in as it grows.
+        color: "transparent"
 
-        Glass {}
+        Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            color: Theme.material.regular
+            border.width: Theme.lens ? 0 : 1
+            border.color: Theme.palette.separator
+            opacity: cc.open
+            visible: opacity > 0.01
 
-        border.width: Theme.lens ? 0 : 1
-        border.color: Theme.palette.separator
+            Glass {}
+        }
         focus: true
         Keys.onEscapePressed: cc.page === "" ? Panels.open = "" : cc.collapse()
 
         // --- the main page --------------------------------------------------
-        Column {
+        // macOS 26's Control Center: each control its own piece of glass on
+        // a four-column grid, floating over the desktop with no panel.
+        Item {
             id: main
+
+            readonly property real gap: 12
+            readonly property real cell: (width - 3 * gap) / 4
+            readonly property real span2: 2 * cell + gap
+            readonly property bool playing: !!cc.player
 
             x: 12
             y: 12
             width: parent.width - 24
-            spacing: 10
+            implicitHeight: sliders.y + sliders.height
             // Recedes as the page grows over it.
             opacity: 1 - Math.min(1, cc.open * 1.8)
             scale: 1 - 0.04 * cc.open
             visible: opacity > 0
             enabled: cc.page === ""
 
-            Row {
-                width: parent.width
-                spacing: 10
+            CapsuleToggle {
+                id: wifiTile
 
-                Tile {
-                    id: wifiTile
-
-                    width: (parent.width - 10) / 2
-                    wide: true
-                    icon: !Network.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
-                    title: "Wi-Fi"
-                    subtitle: !Network.hasWifi ? "No Wi-Fi" : !Network.wifiEnabled ? "Off" : cc.wifiNetwork?.name ?? "Not connected"
-                    on: Network.wifiEnabled && !!cc.wifiNetwork
-                    expandable: Network.hasWifi
-                    onToggled: Network.wifiEnabled = !Network.wifiEnabled
-                    onExpand: cc.expand("wifi", wifiTile)
-                }
-
-                Tile {
-                    id: btTile
-
-                    width: (parent.width - 10) / 2
-                    wide: true
-                    icon: !cc.adapter?.enabled ? "bluetooth_disabled" : cc.adapter.connectedNames ? "bluetooth_connected" : "bluetooth"
-                    title: "Bluetooth"
-                    subtitle: !cc.adapter ? "No Bluetooth" : !cc.adapter.enabled ? "Off"
-                            : cc.adapter.connectedNames || "On"
-                    on: cc.adapter?.enabled ?? false
-                    expandable: !!cc.adapter
-                    onToggled: if (cc.adapter) cc.adapter.enabled = !cc.adapter.enabled
-                    onExpand: cc.expand("bluetooth", btTile)
-                }
+                width: main.span2
+                height: main.cell
+                icon: !Network.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
+                title: "Wi-Fi"
+                subtitle: !Network.hasWifi ? "No Wi-Fi" : !Network.wifiEnabled ? "Off" : cc.wifiNetwork?.name ?? "Not connected"
+                on: Network.wifiEnabled
+                expandable: Network.hasWifi
+                onToggled: Network.wifiEnabled = !Network.wifiEnabled
+                onExpand: cc.expand("wifi", wifiTile)
             }
 
-            Grid {
-                width: parent.width
-                columns: 2
-                spacing: 10
+            CapsuleToggle {
+                id: btTile
 
-                Tile {
-                    width: (parent.width - 10) / 2
-                    compact: true
+                y: main.cell + main.gap
+                width: main.span2
+                height: main.cell
+                icon: !cc.adapter?.enabled ? "bluetooth_disabled" : cc.adapter.connectedNames ? "bluetooth_connected" : "bluetooth"
+                title: "Bluetooth"
+                subtitle: !cc.adapter ? "No Bluetooth" : !cc.adapter.enabled ? "Off" : cc.adapter.connectedNames || "On"
+                on: cc.adapter?.enabled ?? false
+                expandable: !!cc.adapter
+                onToggled: if (cc.adapter) cc.adapter.enabled = !cc.adapter.enabled
+                onExpand: cc.expand("bluetooth", btTile)
+            }
+
+            // Top right: what's playing, a 2x2 square; with nothing playing
+            // four round buttons take its place (and move down a row
+            // otherwise).
+            Grid {
+                id: rounds
+
+                x: main.playing ? 0 : main.span2 + main.gap
+                y: main.playing ? 2 * (main.cell + main.gap) : 0
+                columns: main.playing ? 4 : 2
+                spacing: main.gap
+
+                CircleToggle {
+                    width: main.cell
+                    height: main.cell
                     icon: cc.dnd ? "do_not_disturb_on" : "do_not_disturb_off"
-                    title: "Do Not Disturb"
-                    subtitle: cc.dnd ? "On" : "Off"
+                    title: cc.dnd ? "Do Not Disturb: On" : "Do Not Disturb"
                     on: cc.dnd
                     onToggled: Atrium.setSetting("notifications.dnd", !cc.dnd)
                 }
 
-                Tile {
-                    width: (parent.width - 10) / 2
-                    compact: true
-                    icon: Atrium.nightLight.active ? "nightlight" : "light_mode"
-                    title: "Night Light"
-                    subtitle: Atrium.nightLight.note || (Atrium.nightLight.active ? "On" : "Off")
+                CircleToggle {
+                    width: main.cell
+                    height: main.cell
+                    icon: "nightlight"
+                    title: Atrium.nightLight.note || ((Atrium.nightLight.active ?? false) ? "Night Light: On" : "Night Light")
                     on: Atrium.nightLight.active ?? false
                     onToggled: Atrium.setNightLight(!(Atrium.nightLight.active ?? false))
                 }
 
-                Tile {
-                    width: (parent.width - 10) / 2
-                    compact: true
-                    icon: cc.profiles[cc.profile]?.icon ?? "bolt"
-                    title: "Power"
-                    subtitle: cc.profiles[cc.profile]?.name ?? cc.profile
-                    on: cc.profile === "performance"
-                    onToggled: Atrium.setSetting("power.profile", cc.profiles[cc.profile]?.next ?? "performance")
-                }
-
-                Tile {
-                    width: (parent.width - 10) / 2
-                    compact: true
+                CircleToggle {
+                    width: main.cell
+                    height: main.cell
                     icon: Recorder.recording ? "stop_circle" : "screen_record"
-                    title: "Record"
-                    subtitle: Recorder.recording ? cc.formatTime(Recorder.seconds) : Recorder.available ? "Screen" : "Unavailable"
+                    title: Recorder.recording ? `Recording ${cc.formatTime(Recorder.seconds)}` : Recorder.available ? "Record Screen" : "Recording unavailable"
                     on: Recorder.recording
                     onToggled: {
                         Panels.open = "";
                         Recorder.toggle();
                     }
                 }
-            }
 
-            // Sliders.
-            Column {
-                width: parent.width
-                spacing: 6
-                topPadding: 4
-                visible: Brightness.available
-
-                StyledText {
-                    text: "Display"
-                    font.pointSize: Theme.font.size.smaller
-                    font.weight: Font.DemiBold
-                    leftPadding: 4
-                }
-
-                BigSlider {
-                    width: parent.width
-                    icon: "brightness_6"
-                    value: Brightness.value / 100
-                    onMoved: v => Brightness.set(Math.round(v * 100))
-                    onReleased: v => Atrium.setSetting("displays.brightness", Math.round(v * 100))
+                CircleToggle {
+                    width: main.cell
+                    height: main.cell
+                    icon: cc.profiles[cc.profile]?.icon ?? "bolt"
+                    title: `Power: ${cc.profiles[cc.profile]?.name ?? cc.profile}`
+                    on: cc.profile === "performance"
+                    onToggled: Atrium.setSetting("power.profile", cc.profiles[cc.profile]?.next ?? "performance")
                 }
             }
 
-            Column {
-                width: parent.width
-                spacing: 6
-                visible: !!cc.sink
-
-                StyledText {
-                    text: "Sound"
-                    font.pointSize: Theme.font.size.smaller
-                    font.weight: Font.DemiBold
-                    leftPadding: 4
-                }
-
-                BigSlider {
-                    width: parent.width
-                    icon: cc.sink?.muted ? "volume_off" : "volume_up"
-                    value: cc.sink?.muted ? 0 : cc.sink?.volume ?? 0
-                    onMoved: v => {
-                        if (!cc.sink)
-                            return;
-                        cc.sink.muted = false;
-                        cc.sink.volume = v;
-                    }
-                }
-
-                StyledText {
-                    width: parent.width
-                    leftPadding: 4
-                    text: cc.sink?.label ?? ""
-                    elide: Text.ElideRight
-                    font.pointSize: Theme.font.size.small
-                    color: Theme.palette.secondaryLabel
-                }
-            }
-
-            // Now playing: grows into the Now Playing page when clicked.
-            Rectangle {
+            Module {
                 id: mediaTile
 
-                visible: !!cc.player
-                width: parent.width
-                height: 72
-                radius: 18
-                color: Theme.palette.tertiaryFill
+                visible: main.playing
+                x: main.span2 + main.gap
+                width: main.span2
+                height: main.span2
+                radius: 30
 
                 MouseArea {
                     anchors.fill: parent
@@ -310,12 +265,11 @@ PanelWindow {
                 Rectangle {
                     id: art
 
-                    anchors.left: parent.left
-                    anchors.leftMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 52
-                    height: 52
-                    radius: 12
+                    x: 16
+                    y: 16
+                    width: 46
+                    height: 46
+                    radius: 11
                     color: Theme.palette.tertiaryFill
                     clip: true
 
@@ -324,8 +278,8 @@ PanelWindow {
                         source: cc.player?.trackArtUrl ?? ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
-                        sourceSize.width: 104
-                        sourceSize.height: 104
+                        sourceSize.width: 92
+                        sourceSize.height: 92
                     }
 
                     MaterialIcon {
@@ -337,11 +291,10 @@ PanelWindow {
                 }
 
                 Column {
-                    anchors.left: art.right
-                    anchors.leftMargin: 10
-                    anchors.right: controls.left
-                    anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
+                    x: 16
+                    anchors.top: art.bottom
+                    anchors.topMargin: 8
+                    width: parent.width - 32
 
                     StyledText {
                         width: parent.width
@@ -361,17 +314,16 @@ PanelWindow {
                 }
 
                 Row {
-                    id: controls
-
-                    anchors.right: parent.right
-                    anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 10
+                    spacing: 6
 
                     Repeater {
                         model: [
-                            { icon: "skip_previous", run: () => cc.player?.previous(), ok: cc.player?.canGoPrevious ?? false },
+                            { icon: "fast_rewind", run: () => cc.player?.previous(), ok: cc.player?.canGoPrevious ?? false },
                             { icon: cc.player?.isPlaying ? "pause" : "play_arrow", run: () => cc.player?.togglePlaying(), ok: true },
-                            { icon: "skip_next", run: () => cc.player?.next(), ok: cc.player?.canGoNext ?? false }
+                            { icon: "fast_forward", run: () => cc.player?.next(), ok: cc.player?.canGoNext ?? false }
                         ]
 
                         Rectangle {
@@ -401,6 +353,40 @@ PanelWindow {
                                 onClicked: mediaButton.modelData.run()
                             }
                         }
+                    }
+                }
+            }
+
+            Column {
+                id: sliders
+
+                y: main.playing ? rounds.y + main.cell + main.gap : 2 * (main.cell + main.gap)
+                width: parent.width
+                spacing: main.gap
+
+                SliderModule {
+                    visible: Brightness.available
+                    width: parent.width
+                    title: "Display"
+                    lowIcon: "brightness_low"
+                    highIcon: "brightness_high"
+                    value: Brightness.value / 100
+                    onMoved: v => Brightness.set(Math.round(v * 100))
+                    onReleased: v => Atrium.setSetting("displays.brightness", Math.round(v * 100))
+                }
+
+                SliderModule {
+                    visible: !!cc.sink
+                    width: parent.width
+                    title: cc.sink?.label ? `Sound · ${cc.sink.label}` : "Sound"
+                    lowIcon: cc.sink?.muted ? "volume_off" : "volume_mute"
+                    highIcon: "volume_up"
+                    value: cc.sink?.muted ? 0 : cc.sink?.volume ?? 0
+                    onMoved: v => {
+                        if (!cc.sink)
+                            return;
+                        cc.sink.muted = false;
+                        cc.sink.volume = v;
                     }
                 }
             }

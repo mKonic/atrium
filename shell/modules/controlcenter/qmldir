@@ -1,3 +1,7 @@
 module shell.modules.controlcenter
 ControlCenter 1.0 ControlCenter.qml
 NowPlaying 1.0 NowPlaying.qml
+Module 1.0 Module.qml
+CapsuleToggle 1.0 CapsuleToggle.qml
+CircleToggle 1.0 CircleToggle.qml
+SliderModule 1.0 SliderModule.qml
