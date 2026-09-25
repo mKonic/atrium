@@ -225,6 +225,8 @@ PanelWindow {
             ListView {
                 id: list
 
+                acceptedButtons: Qt.NoButton
+
                 // Kept while its cards leave, so they go one by one, not at once.
                 visible: count > 0 || contentHeight > 0
                 width: parent.width

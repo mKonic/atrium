@@ -80,6 +80,8 @@ Rectangle {
         ListView {
             id: list
 
+            acceptedButtons: Qt.NoButton
+
             anchors.fill: parent
             clip: true
             model: root.options

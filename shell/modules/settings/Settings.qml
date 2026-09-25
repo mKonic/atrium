@@ -130,6 +130,8 @@ FloatingWindow {
         ListView {
             id: pageList
 
+            acceptedButtons: Qt.NoButton  // the wheel scrolls; a mouse drag is for what it lands on
+
             anchors.top: searchBox.bottom
             anchors.topMargin: 12
             anchors.bottom: parent.bottom
@@ -205,6 +207,8 @@ FloatingWindow {
     // --- the page ----------------------------------------------------------
     Flickable {
         id: body
+
+        acceptedButtons: Qt.NoButton  // the wheel scrolls; a mouse drag is for what it lands on
 
         anchors.left: sidebar.right
         anchors.leftMargin: sidebar.inset

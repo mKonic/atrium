@@ -239,6 +239,8 @@ PanelWindow {
         GridView {
             id: grid
 
+            acceptedButtons: Qt.NoButton
+
             anchors.top: tabs.visible ? tabs.bottom : header.bottom
             anchors.topMargin: 8
             anchors.bottom: footer.top

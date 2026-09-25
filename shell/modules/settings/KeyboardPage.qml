@@ -85,6 +85,8 @@ Column {
         ListView {
             id: results
 
+            acceptedButtons: Qt.NoButton
+
             width: parent.width
             height: 280
             clip: true

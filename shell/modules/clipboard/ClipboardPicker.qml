@@ -235,6 +235,8 @@ PanelWindow {
         ListView {
             id: list
 
+            acceptedButtons: Qt.NoButton
+
             anchors.top: header.bottom
             anchors.topMargin: 8
             anchors.bottom: parent.bottom
@@ -353,6 +355,7 @@ PanelWindow {
             }
 
             Flickable {
+                acceptedButtons: Qt.NoButton
                 anchors.fill: parent
                 visible: previewPane.p.image === false
                 contentHeight: full.implicitHeight

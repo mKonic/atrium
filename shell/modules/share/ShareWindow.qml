@@ -59,6 +59,8 @@ FloatingWindow {
         GridView {
             id: grid
 
+            acceptedButtons: Qt.NoButton
+
             readonly property int columns: Math.max(1, Math.floor(width / 230))
 
             anchors.left: parent.left

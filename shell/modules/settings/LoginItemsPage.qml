@@ -104,6 +104,8 @@ Column {
         ListView {
             id: apps
 
+            acceptedButtons: Qt.NoButton
+
             width: parent.width
             height: 280
             clip: true
