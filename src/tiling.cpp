@@ -31,7 +31,7 @@ void Server::toggle_tiling(Space* space) {
     animator.cancel_owner(space, true);
     wlr_scene_node_set_enabled(&space->tile_dim->node, true);
     wlr_scene_node_set_enabled(&space->tile_blur->node, blur);
-    animator.start(space, in ? 220 : 160, in ? Ease::OutQuint : Ease::InCubic,
+    animator.start(space, 600, Ease::Standard,
         [space, dim, in](double t) {
             const double a = in ? t : 1 - t;
             Color c = dim;

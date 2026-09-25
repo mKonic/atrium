@@ -104,7 +104,8 @@ void Server::switch_space(Output* output, int number, View* carry) {
         old->set_shown(false, true);
         const int dir = target->number > old->number ? 1 : -1;
         const int w = output->box.width;
-        animator.start(output, 300, Ease::OutQuint, [old, target, dir, w, hold](double t) {
+        // caelestia's workspace slide: 500 ms on the standard curve.
+        animator.start(output, 500, Ease::Standard, [old, target, dir, w, hold](double t) {
             old->set_offset(int(std::lround(-dir * w * t)), 0);
             const int dx = int(std::lround(dir * w * (1 - t)));
             target->set_offset(dx, 0);
@@ -331,13 +332,16 @@ void Server::fade_secret(Space* s, bool in) {
             if (std::ranges::find(members, v->id) != members.end())
                 fn(v);
     };
-    auto step = [s, dim, each, in](double t) {
+    // caelestia's special workspace: "slidefadevert 15%", the windows
+    // coming down from above by 15% of the screen as they fade in.
+    const int reach = int(0.15 * (s->output ? s->output->box.height : 900));
+    auto step = [s, dim, each, in, reach](double t) {
         const double a = in ? t : 1 - t;
         Color c = dim;
         c[3] = float(dim[3] * a);
         wlr_scene_rect_set_color(s->backdrop, premultiplied(c).data());
         wlr_scene_blur_set_alpha(s->backdrop_blur, float(a));
-        s->set_offset(0, int(std::lround((1 - a) * 16)));
+        s->set_offset(0, -int(std::lround((1 - a) * reach)));
         each([a](View* v) { v->set_alpha(float(a)); });
     };
     auto done = [s, each, in] {
@@ -347,7 +351,7 @@ void Server::fade_secret(Space* s, bool in) {
         else
             s->set_offset(0, 0);
     };
-    animator.start(s, in ? 220 : 160, in ? Ease::OutQuint : Ease::InCubic, step, done);
+    animator.start(s, 400, Ease::EmphasizedDecel, step, done);
 }
 
 void Server::reveal(Space* space) {

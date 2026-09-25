@@ -33,12 +33,13 @@ View::~View() {
     forget_icon(*this);
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&ring_, false);
+    server.animator.cancel_owner(&glide_dx_, false);
     destroy_toplevel_handles();
 }
 
 void View::place_tree() {
     if (tree)
-        wlr_scene_node_set_position(&tree->node, geom.x + anim_dx_, geom.y + anim_dy_);
+        wlr_scene_node_set_position(&tree->node, geom.x + anim_dx_ + glide_dx_, geom.y + anim_dy_ + glide_dy_);
 }
 
 void View::set_anim_offset(int dx, int dy) {
@@ -74,6 +75,7 @@ wlr_box View::usable_area() const {
 // --- map / unmap ---------------------------------------------------------
 
 void View::handle_map() {
+    opening_ = true;  // placed where it opens, not glided there
     tree = wlr_scene_tree_create(server.layer(unmanaged() ? Layer::Unmanaged : Layer::Views));
     content = create_content(tree);
     popups = wlr_scene_tree_create(tree);
@@ -137,11 +139,13 @@ void View::handle_map() {
     else
         server.spaces_changed();
 
-    // Fade in, rising into place.
-    server.animator.start(this, 220, Ease::OutQuint, [this](double t) {
+    // Fade in, rising into place (caelestia's windowsIn: 500 ms, emphasized
+    // decelerate).
+    opening_ = true;
+    server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
         set_alpha(float(t));
         set_anim_offset(0, int(std::lround((1 - t) * 14)));
-    });
+    }, [this] { opening_ = false; });
     server.overview->view_mapped(this);
 }
 
@@ -157,6 +161,9 @@ void View::handle_unmap() {
         animate_close();
     alpha_ = 1.0f;
     anim_dx_ = anim_dy_ = 0;
+    server.animator.cancel_owner(&glide_dx_, false);
+    glide_dx_ = glide_dy_ = 0;
+    opening_ = false;
     server.seat->view_unmapped(this);
     const bool was_focused = server.focused_view == this;
     if (was_focused)
@@ -360,7 +367,7 @@ void View::animate_close() {
     g->origin_y = tree->node.y;
     wlr_scene_node_for_each_buffer(&tree->node, copy_into_ghost, g);
 
-    server.animator.start(g, 160, Ease::InCubic, [g](double t) {
+    server.animator.start(g, 300, Ease::EmphasizedAccel, [g](double t) {
         const float a = float(1 - t);
         for (size_t i = 0; i < g->buffers.size(); ++i)
             wlr_scene_buffer_set_opacity(g->buffers[i], g->opacity[i] * a);
@@ -404,6 +411,24 @@ void View::move_to(int x, int y) {
     update_output_from_position();
     if (server.sessions)
         server.sessions->view_changed(this);
+}
+
+// Placed by atrium (a tile, a snap, full screen, back into a secret frame),
+// a window glides there rather than jumps: caelestia's windowsMove, 600 ms
+// on the standard curve. Its size lands when the app draws it.
+void View::glide_from(int from_x, int from_y) {
+    const Seat::Mode m = server.seat->mode;
+    if (!mapped || !tree || opening_ || minimized || m == Seat::Mode::Move || m == Seat::Mode::Resize ||
+        (from_x == geom.x && from_y == geom.y) || !visible())
+        return;
+    // From where it is on screen now, a glide in flight included.
+    const int dx = from_x + glide_dx_ - geom.x, dy = from_y + glide_dy_ - geom.y;
+    server.animator.cancel_owner(&glide_dx_, false);
+    server.animator.start(&glide_dx_, 600, Ease::Standard, [this, dx, dy](double t) {
+        glide_dx_ = int(std::lround(dx * (1 - t)));
+        glide_dy_ = int(std::lround(dy * (1 - t)));
+        place_tree();
+    });
 }
 
 bool View::layout_owned() const {
@@ -459,8 +484,10 @@ void View::request_geometry(wlr_box box) {
     // During an interactive resize the position follows the committed size
     // (see handle_size); moving now would make the window jump ahead of it.
     if (!anchored()) {
+        const int from_x = geom.x, from_y = geom.y;
         geom.x = box.x;
         geom.y = box.y = below_bar(box.y);
+        glide_from(from_x, from_y);
         place_tree();
         update_output_from_position();
     }
@@ -715,7 +742,7 @@ void View::set_minimized(bool m) {
     server.animator.cancel_owner(this, false);
     wlr_scene_node_set_enabled(&tree->node, true);
     if (m) {
-        server.animator.start(this, 200, Ease::InCubic, [this](double t) {
+        server.animator.start(this, 300, Ease::EmphasizedAccel, [this](double t) {
             set_alpha(float(1 - t));
             set_anim_offset(0, int(std::lround(t * 40)));
         }, [this] {
@@ -725,7 +752,7 @@ void View::set_minimized(bool m) {
             set_anim_offset(0, 0);
         });
     } else {
-        server.animator.start(this, 240, Ease::OutQuint, [this](double t) {
+        server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
             set_alpha(float(t));
             set_anim_offset(0, int(std::lround((1 - t) * 40)));
         });

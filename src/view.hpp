@@ -202,6 +202,9 @@ protected:
     bool resize_settling_ = false;
     float alpha_ = 1.0f;
     int anim_dx_ = 0, anim_dy_ = 0;
+    int glide_dx_ = 0, glide_dy_ = 0;  // on its way to where atrium put it
+    bool opening_ = false;             // its open animation is running
+    void glide_from(int from_x, int from_y);
     int anchor_right_ = 0, anchor_bottom_ = 0;
 
 private:

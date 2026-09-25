@@ -110,7 +110,7 @@ void LayerSurface::commit() {
     if (mapped && !was_mapped && server.config.liquid_glass) {
         lensing_ = 0;
         server.animator.cancel_owner(this, false);
-        server.animator.start(this, 280, Ease::OutCubic, [this](double t) {
+        server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
             lensing_ = t;
             update_blur();
         });
