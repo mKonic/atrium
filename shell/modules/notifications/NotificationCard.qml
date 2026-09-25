@@ -34,8 +34,14 @@ Rectangle {
     // (clipped), rather than drawn first and the card catching up.
     clip: true
 
+    // Growing or shrinking right now: whatever holds it follows frame by
+    // frame rather than animating after it.
+    readonly property bool resizing: heightAnim.running
+
     Behavior on implicitHeight {
         Anim {
+            id: heightAnim
+
             duration: Theme.anim.normal
             easing.bezierCurve: Theme.anim.standard
         }

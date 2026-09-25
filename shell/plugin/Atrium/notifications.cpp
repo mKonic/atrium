@@ -138,8 +138,11 @@ int NotificationHistory::add(const QVariantMap& entry) {
             e[key] = QString();
     }
     items_.prepend(e);
+    QList<int> gone;
     while (items_.size() > kMaxItems)
-        items_.removeLast();
+        gone.append(items_.takeLast().toMap().value("uid").toInt());
+    if (!gone.isEmpty())
+        emit removed(gone);
     ++unread_;
     emit changed();
     scheduleSave();
@@ -151,13 +154,23 @@ void NotificationHistory::remove(int uid) {
     items_.removeIf([uid](const QVariant& v) { return v.toMap().value("uid").toInt() == uid; });
     if (items_.size() == before)
         return;
+    emit removed({uid});
     unread_ = std::min<int>(unread_, int(items_.size()));
     emit changed();
     scheduleSave();
 }
 
 void NotificationHistory::clearApp(const QString& app) {
-    items_.removeIf([&app](const QVariant& v) { return v.toMap().value("app").toString() == app; });
+    QList<int> gone;
+    items_.removeIf([&](const QVariant& v) {
+        const QVariantMap m = v.toMap();
+        if (m.value("app").toString() != app)
+            return false;
+        gone.append(m.value("uid").toInt());
+        return true;
+    });
+    if (!gone.isEmpty())
+        emit removed(gone);
     unread_ = std::min<int>(unread_, int(items_.size()));
     emit changed();
     scheduleSave();
@@ -166,8 +179,13 @@ void NotificationHistory::clearApp(const QString& app) {
 void NotificationHistory::clear() {
     if (items_.isEmpty() && !unread_)
         return;
+    QList<int> gone;
+    for (const QVariant& v : std::as_const(items_))
+        gone.append(v.toMap().value("uid").toInt());
     items_.clear();
     unread_ = 0;
+    if (!gone.isEmpty())
+        emit removed(gone);
     emit changed();
     scheduleSave();
 }

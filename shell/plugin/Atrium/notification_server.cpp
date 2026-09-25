@@ -108,6 +108,12 @@ NotificationServer::NotificationServer() {
         QDBusConnectionInterface::ReplaceExistingService, QDBusConnectionInterface::AllowReplacement);
     if (!reply.isValid() || reply.value() != QDBusConnectionInterface::ServiceRegistered)
         qWarning("notifications: another server keeps org.freedesktop.Notifications");
+    // Cleared from the Notification Center: done with, for the app too.
+    connect(NotificationHistory::instance(), &NotificationHistory::removed, this, [this](const QList<int>& uids) {
+        for (int uid : uids)
+            if (Notification* n = byUid(uid); n && !popups_.contains(n))
+                close(n->id(), 2);
+    });
 }
 
 QList<QObject*> NotificationServer::popups() const {
@@ -133,6 +139,7 @@ Notification::Data NotificationServer::resolve(const QString& app_name, const QS
     if (!hints.contains("urgency"))
         d.urgency = 1;
     d.resident = hint(hints, {"resident"}).toBool();
+    d.transient = hint(hints, {"transient"}).toBool();
     d.timeout = expire_timeout > 0 ? expire_timeout : 5000;
 
     // The picture: pixels, or a file. image-path may instead name an icon.
@@ -196,9 +203,10 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
     if (mode == "off")
         return id;
 
-    NotificationHistory::instance()->add({
+    d.uid = NotificationHistory::instance()->add({
         {"app", d.app}, {"icon", d.icon}, {"summary", summary}, {"body", body},
         {"image", d.image}, {"urgency", d.urgency}, {"desktopEntry", d.desktopEntry},
+        {"actions", d.actions}, {"hasDefault", d.hasDefault},
     });
 
     if (Notification* n = live_.value(id)) {
@@ -217,9 +225,8 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
                 close(old->id(), 1);
         }
         emit popupsChanged();
-    } else {
-        // Not shown: it lives in the history only.
-        close(id, 1);
+    } else if (n->data().transient) {
+        close(id, 1);  // not shown, and not kept
     }
     return id;
 }
@@ -254,8 +261,26 @@ QString NotificationServer::GetServerInformation(QString& vendor, QString& versi
 }
 
 void NotificationServer::expire(Notification* n) {
-    if (n)
+    if (!n)
+        return;
+    // A transient one is done with. The rest leave the screen but stay the
+    // app's to answer from the Notification Center, as GNOME keeps them,
+    // until they're cleared from there.
+    if (n->data().transient) {
         close(n->id(), 1);
+        return;
+    }
+    const qsizetype before = popups_.size();
+    popups_.removeIf([n](const QPointer<Notification>& p) { return !p || p == n; });
+    if (popups_.size() != before)
+        emit popupsChanged();
+}
+
+Notification* NotificationServer::byUid(int uid) const {
+    for (Notification* n : live_)
+        if (n->data().uid == uid)
+            return n;
+    return nullptr;
 }
 
 void NotificationServer::dismiss(Notification* n) {
@@ -292,6 +317,24 @@ void NotificationServer::activate(Notification* n) {
         raise_sender(n->data());
         close(n->id(), 2);
     }
+}
+
+void NotificationServer::activateEntry(const QVariantMap& entry) {
+    if (Notification* n = byUid(entry.value("uid").toInt())) {
+        activate(n);
+        return;
+    }
+    Notification::Data d;
+    d.app = entry.value("app").toString();
+    d.desktopEntry = entry.value("desktopEntry").toString();
+    raise_sender(d);
+}
+
+void NotificationServer::invokeEntry(const QVariantMap& entry, const QString& action) {
+    if (Notification* n = byUid(entry.value("uid").toInt()))
+        invoke(n, action);
+    else
+        activateEntry(entry);
 }
 
 void NotificationServer::invoke(Notification* n, const QString& action) {

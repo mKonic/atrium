@@ -24,6 +24,8 @@ PanelWindow {
         right: 8
     }
     implicitWidth: 400
+    // Cards growing or shrinking this moment.
+    property int resizingCards: 0
     // Fixed at its tallest: the panel inside grows and shrinks smoothly, and
     // the window doesn't resize with every frame of it (see Notifications).
     implicitHeight: (screen?.height ?? 900) * 0.75
@@ -51,7 +53,10 @@ PanelWindow {
         clip: true
         radius: 22
 
+        // Its own animation for entries coming and going; a card that
+        // grows or shrinks is followed as it goes, or the panel would trail it.
         Behavior on height {
+            enabled: center.resizingCards === 0
             Anim {
                 duration: Theme.anim.normal
                 easing.bezierCurve: Theme.anim.standard
@@ -320,7 +325,19 @@ PanelWindow {
                             summary: modelData.summary
                             body: modelData.body
                             time: modelData.time
+                            actions: modelData.actions ?? []
+                            onResizingChanged: center.resizingCards += resizing ? 1 : -1
+                            Component.onDestruction: if (resizing) center.resizingCards -= 1
                             onDismissed: NotificationHistory.remove(modelData.uid)
+                            // Answered, it leaves the list, as on a Mac.
+                            onClicked: {
+                                NotificationServer.activateEntry(modelData);
+                                NotificationHistory.remove(modelData.uid);
+                            }
+                            onAction: id => {
+                                NotificationServer.invokeEntry(modelData, id);
+                                NotificationHistory.remove(modelData.uid);
+                            }
                         }
                     }
                 }

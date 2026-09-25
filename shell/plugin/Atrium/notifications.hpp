@@ -46,6 +46,8 @@ public:
 
 signals:
     void changed();
+    // Entries gone (removed, cleared or past the limit), by uid.
+    void removed(const QList<int>& uids);
     void appsChanged();
 
 private:

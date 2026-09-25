@@ -35,6 +35,8 @@ public:
         bool resident = false;
         QVariantList actions;
         bool hasDefault = false;
+        bool transient = false;
+        int uid = 0;  // its entry in the history
     };
 
     Notification(uint id, Data d, QObject* parent) : QObject(parent), id_(id), d_(std::move(d)) {}
@@ -91,6 +93,10 @@ public:
     // Clicked: its default action, if it has one.
     Q_INVOKABLE void activate(atrium::Notification* n);
     Q_INVOKABLE void invoke(atrium::Notification* n, const QString& action);
+    // The same, from its entry in the Notification Center: the app still
+    // hears of it while it keeps the notification, else it is brought forward.
+    Q_INVOKABLE void activateEntry(const QVariantMap& entry);
+    Q_INVOKABLE void invokeEntry(const QVariantMap& entry, const QString& action);
 
     // --- D-Bus -------------------------------------------------------------
 public slots:
@@ -111,6 +117,7 @@ private:
     Notification::Data resolve(const QString& app_name, const QString& app_icon, const QStringList& actions,
                                const QVariantMap& hints, int expire_timeout, uint id);
     void close(uint id, uint reason);
+    Notification* byUid(int uid) const;
 
     QHash<uint, Notification*> live_;
     QList<QPointer<Notification>> popups_;
