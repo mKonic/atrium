@@ -213,9 +213,9 @@ FloatingWindow {
         anchors.left: sidebar.right
         anchors.leftMargin: sidebar.inset
         anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.top: toolbar.bottom
         anchors.bottom: parent.bottom
-        contentHeight: content.implicitHeight + 48
+        contentHeight: content.implicitHeight + 32
         clip: true
         boundsBehavior: Flickable.StopAtBounds
 
@@ -223,15 +223,9 @@ FloatingWindow {
             id: content
 
             x: 32
-            y: 24
+            y: 8
             width: body.width - 64
             spacing: 16
-
-            StyledText {
-                text: root.query ? "Search Results" : root.page
-                font.pointSize: 20
-                font.weight: Font.Bold
-            }
 
             // Search: matching settings from every page, each with its page.
             Card {
@@ -408,21 +402,57 @@ FloatingWindow {
         }
     }
 
-    // The top of the page moves the window too (macOS's toolbar area), and
-    // holds the traffic lights, on the right as atrium's title bars have them.
-    MouseArea {
+    // The page's toolbar, as macOS's: its title level with the traffic
+    // lights (on the right, as atrium's title bars have them). The page
+    // scrolls under its edge, which shows a fine line once it has.
+    Item {
+        id: toolbar
+
         anchors.left: sidebar.right
+        anchors.leftMargin: sidebar.inset
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 16
-        onPressed: root.startMove()
-        onDoubleClicked: root.toggleZoom()
+        height: 56
+
+        // It moves the window, as a title bar would.
+        MouseArea {
+            anchors.fill: parent
+            onPressed: root.startMove()
+            onDoubleClicked: root.toggleZoom()
+        }
+
+        StyledText {
+            x: 32
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: 2
+            width: parent.width - 32 - 96
+            elide: Text.ElideRight
+            text: root.query ? "Search Results" : root.page
+            font.pointSize: Theme.font.size.large
+            font.weight: Font.Bold
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: Theme.palette.separator
+            opacity: body.contentY > 0 ? 1 : 0
+
+            Behavior on opacity {
+                Anim {
+                    duration: Theme.anim.small
+                }
+            }
+        }
     }
 
     TrafficLights {
         anchors.right: parent.right
         anchors.rightMargin: 16
-        y: 16
+        anchors.verticalCenter: toolbar.verticalCenter
+        anchors.verticalCenterOffset: 2
         window: root
         onCloseRequested: root.visible = false
     }
