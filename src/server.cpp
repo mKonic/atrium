@@ -477,7 +477,12 @@ void Server::start_clipboard_history() {
 // Things the hardware forgets between boots. The monitor's brightness only
 // takes a moment after login (DDC answers late), hence the pause.
 void Server::restore_power_and_brightness() {
-    if (nested)
+    // Only on a real screen: not nested, not headless (a test).
+    bool drm = false;
+    wlr_multi_for_each_backend(backend, [](wlr_backend* b, void* data) {
+        *static_cast<bool*>(data) |= wlr_backend_is_drm(b);
+    }, &drm);
+    if (nested || !drm)
         return;
     apply_power_profile();
     spawn("sleep 2; for d in $(ddcutil detect --brief 2>/dev/null | awk '/^Display/{print $2}'); do "
