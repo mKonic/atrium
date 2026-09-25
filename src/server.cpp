@@ -595,6 +595,12 @@ void Server::run(const char* startup_cmd) {
         // (A nested atrium's environment isn't the host session's.)
         // Then the session's services and autostart apps, unless something
         // else (uwsm) already runs the graphical session.
+        // The login password opens the KDE wallet (Chrome's and Spotify's
+        // keys): pam_kwallet left a socket for it in our environment only,
+        // and Plasma's own service for it (or the autostart entry, which
+        // systemd skips) can't see it. Before anything asks for a secret.
+        if (std::getenv("PAM_KWALLET5_LOGIN") && access("/usr/lib/pam_kwallet_init", X_OK) == 0)
+            spawn("/usr/lib/pam_kwallet_init");
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
               "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS "
               "SUDO_ASKPASS SSH_ASKPASS; "
