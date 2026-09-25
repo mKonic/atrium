@@ -104,8 +104,9 @@ install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir')
 # The login screen: an example greetd config (atrium --greeter), and where
 # it remembers the last login.
 install_data('data/lib/systemd/user/atrium-session.target', install_dir: get_option('prefix') / 'lib' / 'systemd' / 'user')
-install_data('data/lib/tmpfiles.d/atrium-greeter.conf', install_dir: get_option('prefix') / 'lib' / 'tmpfiles.d')
-install_data('data/share/atrium/greetd-config.toml', install_dir: get_option('datadir') / 'atrium')
+# The greeter's memory is only for machines using greetd (its `greeter` user
+# comes with greetd): the config's comments say to install it.
+install_data('data/share/atrium/greetd-config.toml', 'data/share/atrium/greeter-tmpfiles.conf', install_dir: get_option('datadir') / 'atrium')
 subdir('shell/plugin/Atrium')
 subdir('shell/host')
 subdir('shell/portal')

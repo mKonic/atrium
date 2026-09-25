@@ -1,6 +1,6 @@
 # atrium from this checkout: `makepkg -si` in this directory.
 pkgname=atrium-git
-pkgver=r131.04bf544
+pkgver=r157.2efede5
 pkgrel=1
 pkgdesc='A floating-first Wayland desktop'
 arch=('x86_64')

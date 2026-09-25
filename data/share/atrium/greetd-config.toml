@@ -1,5 +1,8 @@
 # atrium's login screen under greetd: copy to /etc/greetd/config.toml and
-# enable greetd instead of the current display manager.
+# enable greetd instead of the current display manager. So it remembers who
+# logged in last, give its user a directory too:
+#   install -Dm644 /usr/share/atrium/greeter-tmpfiles.conf /etc/tmpfiles.d/atrium-greeter.conf
+#   systemd-tmpfiles --create /etc/tmpfiles.d/atrium-greeter.conf
 [terminal]
 vt = 1
 
