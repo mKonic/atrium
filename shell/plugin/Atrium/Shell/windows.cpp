@@ -284,7 +284,16 @@ void PanelWindow::apply() {
 
 // --- FloatingWindow ----------------------------------------------------------
 
-FloatingWindow::FloatingWindow(QWindow* parent) : ShellWindow(parent) {}
+FloatingWindow::FloatingWindow(QWindow* parent) : ShellWindow(parent) {
+    connect(this, &QWindow::windowStateChanged, this, &FloatingWindow::fullScreenChanged);
+}
+
+void FloatingWindow::setTitleBar(bool on) {
+    if (on == titleBar())
+        return;
+    setFlag(Qt::FramelessWindowHint, !on);
+    emit titleBarChanged();
+}
 
 void FloatingWindow::prepare() {
     if (implicitSize().width() > 0 && implicitSize().height() > 0 && !isVisible())

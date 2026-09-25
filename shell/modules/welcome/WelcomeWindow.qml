@@ -26,26 +26,26 @@ FloatingWindow {
     }
 
     title: "Welcome"
-    // Its pages sit on a pane of Liquid Glass, inset in the window.
-    color: "transparent"
+    titleBar: false  // its own traffic lights, as macOS 26's windows
+    color: Theme.palette.windowBackground
     implicitWidth: 720
     implicitHeight: 560
     minimumSize: Qt.size(720, 560)
     onVisibleChanged: if (!visible) finish()
 
-    WindowBackground {
-        pane: glassPane
+    // Empty background moves the window, as a title bar would.
+    MouseArea {
+        anchors.fill: parent
+        onPressed: root.startMove()
     }
 
-    Rectangle {
-        id: glassPane
-
-        anchors.fill: parent
-        anchors.margins: Theme.lens ? 8 : 0
-        radius: Theme.lens ? 16 : 0
-        color: Theme.lens ? Theme.material.thick : "transparent"
-
-        Glass {}
+    TrafficLights {
+        anchors.right: parent.right
+        anchors.rightMargin: 18
+        y: 18
+        z: 1
+        window: root
+        onCloseRequested: root.visible = false
     }
 
     StackLayout {

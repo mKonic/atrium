@@ -34,10 +34,10 @@ FloatingWindow {
 
     title: "System Settings"
     visible: false
-    // With Liquid Glass the sidebar floats as a pane of glass (macOS 26's
-    // Settings): the window is see-through under it and draws its own
-    // background everywhere else.
-    color: "transparent"
+    // As macOS 26's Settings: no title bar; the traffic lights sit in the
+    // sidebar, a pane inset in the window with a fine light rim.
+    titleBar: false
+    color: Theme.palette.windowBackground
     implicitWidth: 920
     implicitHeight: 660
     minimumSize: Qt.size(720, 480)
@@ -52,25 +52,35 @@ FloatingWindow {
         }
     }
 
-    // The window's background, less a hole for the glass sidebar.
-    WindowBackground {
-        pane: sidebar
+    // Empty window background moves the window, as a title bar would.
+    MouseArea {
+        anchors.fill: parent
+        onPressed: root.startMove()
+        onDoubleClicked: root.toggleZoom()
     }
 
     // --- sidebar -----------------------------------------------------------
     Rectangle {
         id: sidebar
 
-        readonly property int inset: Theme.lens ? 8 : 0
+        readonly property int inset: 8
 
         x: inset
         y: inset
         width: 240 - inset
         height: parent.height - 2 * inset
-        radius: Theme.lens ? 16 : 0
-        color: Theme.lens ? Theme.material.regular : Theme.palette.quaternaryFill
+        radius: 16
+        // A shade off the window, nearly opaque (Finder's is a few steps
+        // darker in dark mode), and a rim that catches the light.
+        color: Theme.light ? Qt.darker(Theme.palette.windowBackground, 1.035) : Qt.darker(Theme.palette.windowBackground, 1.16)
+        border.width: 1
+        border.color: Theme.light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.14)
 
-        Glass {}
+        MouseArea {
+            anchors.fill: parent
+            onPressed: root.startMove()
+            onDoubleClicked: root.toggleZoom()
+        }
 
         Rectangle {
             id: searchBox
@@ -392,5 +402,24 @@ FloatingWindow {
                 width: parent.width
             }
         }
+    }
+
+    // The top of the page moves the window too (macOS's toolbar area), and
+    // holds the traffic lights, on the right as atrium's title bars have them.
+    MouseArea {
+        anchors.left: sidebar.right
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 16
+        onPressed: root.startMove()
+        onDoubleClicked: root.toggleZoom()
+    }
+
+    TrafficLights {
+        anchors.right: parent.right
+        anchors.rightMargin: 16
+        y: 16
+        window: root
+        onCloseRequested: root.visible = false
     }
 }

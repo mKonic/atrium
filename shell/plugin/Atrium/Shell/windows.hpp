@@ -233,12 +233,28 @@ private:
 class FloatingWindow : public ShellWindow {
     Q_OBJECT
     Q_PROPERTY(QSize minimumSize READ minimumSize WRITE setMinimumSize NOTIFY minimumSizeChanged)
+    // False: no title bar from atrium; the window draws its own traffic
+    // lights (in its sidebar, as macOS 26's apps do) and drag areas.
+    Q_PROPERTY(bool titleBar READ titleBar WRITE setTitleBar NOTIFY titleBarChanged)
+    Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
 
 public:
     explicit FloatingWindow(QWindow* parent = nullptr);
 
+    bool titleBar() const { return !(flags() & Qt::FramelessWindowHint); }
+    void setTitleBar(bool on);
+    bool fullScreen() const { return windowStates() & Qt::WindowFullScreen; }
+
+    // For a window's own title-bar controls.
+    Q_INVOKABLE void startMove() { startSystemMove(); }
+    Q_INVOKABLE void minimize() { showMinimized(); }
+    Q_INVOKABLE void toggleZoom() { windowStates() & Qt::WindowMaximized ? showNormal() : showMaximized(); }
+    Q_INVOKABLE void toggleFullScreen() { fullScreen() ? showNormal() : showFullScreen(); }
+
 signals:
     void minimumSizeChanged();
+    void titleBarChanged();
+    void fullScreenChanged();
 
 protected:
     void prepare() override;
