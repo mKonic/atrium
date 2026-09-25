@@ -61,14 +61,11 @@ public:
     // Signal and compositing as set; false when the screen refused HDR.
     bool apply_hdr();
     // SDR brightness 0-100 as the nits white is shown at in HDR: 80 (what
-    // SDR is mastered for) up to what the screen holds over a whole frame. A
-    // white page fills the screen; past that the screen dims all of it.
+    // SDR is mastered for) up to the screen's peak, never past it. Content
+    // that says what it is (Chromium, HDR video) has its reference white
+    // here too.
     double sdr_white_nits() const {
-        double top = 480.0;
-        if (hdr_caps && hdr_caps->max_frame_avg_nits > 80)
-            top = hdr_caps->max_frame_avg_nits;
-        else if (hdr_caps && hdr_caps->max_nits > 80)
-            top = hdr_caps->max_nits;
+        const double top = hdr_caps && hdr_caps->max_nits > 80 ? hdr_caps->max_nits : 480.0;
         return 80.0 + (top - 80.0) * sdr_brightness / 100.0;
     }
 
