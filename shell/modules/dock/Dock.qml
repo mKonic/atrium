@@ -24,7 +24,8 @@ PanelWindow {
         entries: DesktopEntries
     }
 
-    property real pointerX: -1  // over the shelf, for magnification
+    // Over the shelf, for magnification; -1 when away.
+    readonly property real pointerX: shelfHover.hovered ? shelfHover.point.position.x : -1
 
     // Dragging an app to a new place among the pins, or off the Dock.
     property Item dragItem: null
@@ -209,12 +210,10 @@ PanelWindow {
             }
         }
 
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton
-            onPositionChanged: event => dock.pointerX = event.x
-            onExited: dock.pointerX = -1
+        // A handler, not a MouseArea: it sees the pointer over the icons too
+        // (their own MouseAreas take the hover from anything under them).
+        HoverHandler {
+            id: shelfHover
         }
 
         Row {
