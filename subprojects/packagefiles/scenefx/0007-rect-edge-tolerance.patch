@@ -1,0 +1,32 @@
+From 5672ef7d0aeca6b44edc170505f18e79a2c8629d Mon Sep 17 00:00:00 2001
+From: mKonic <mkonic676@gmail.com>
+Date: Fri, 25 Sep 2026 16:29:44 +0300
+Subject: [PATCH] shaders: half a pixel's tolerance at a rounded rect's bounds
+ (edge pixels sat exactly on them)
+
+---
+ render/fx_renderer/shaders/corner_alpha.frag | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/render/fx_renderer/shaders/corner_alpha.frag b/render/fx_renderer/shaders/corner_alpha.frag
+index 094a277..0efbd94 100644
+--- a/render/fx_renderer/shaders/corner_alpha.frag
++++ b/render/fx_renderer/shaders/corner_alpha.frag
+@@ -24,8 +24,12 @@ float corner_alpha(vec2 size, vec2 position, bool is_cutout,
+ 
+ 	vec2 relative_pos = (v_frag - position);
+ 
+-	if (relative_pos.x < 0.0 || relative_pos.y < 0.0
+-			|| relative_pos.x > size.x || relative_pos.y > size.y) {
++	// Pixel centres fall on whole numbers here; the edge pixels exactly on
++	// 0.0 and size, give or take interpolation error. Half a pixel's
++	// tolerance keeps them from flickering in and out with position (a
++	// window's outline lost its left edge at some x).
++	if (relative_pos.x < -0.5 || relative_pos.y < -0.5
++			|| relative_pos.x > size.x + 0.5 || relative_pos.y > size.y + 0.5) {
+ 		if (is_cutout) {
+ 			return 1.0;
+ 		}
+-- 
+2.55.0
+
