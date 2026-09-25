@@ -991,6 +991,27 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
 
 void Seat::axis(wlr_pointer_axis_event* e) {
     wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    // Mod + scroll steps through spaces, with Alt taking the focused window
+    // along, as caelestia's Super + wheel does. A wheel steps once a notch; a
+    // touchpad once per stretch of scrolling.
+    const uint32_t mods = clean_mods(held_modifiers());
+    if (!server.locked && e->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL &&
+        (mods == server.config.mod || mods == (server.config.mod | WLR_MODIFIER_ALT))) {
+        const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->delta_discrete != 0;
+        space_scroll_ += wheel ? e->delta_discrete / 120.0 : e->delta / 40.0;
+        while (std::abs(space_scroll_) >= 1) {
+            const int step = space_scroll_ > 0 ? 1 : -1;
+            space_scroll_ -= step;
+            // Down goes back, as caelestia binds it (mouse_down: workspace -1).
+            const bool forward = step < 0;
+            if (mods & WLR_MODIFIER_ALT)
+                server.run_action({.mods = 0, .sym = 0, .action = forward ? Action::MoveToSpaceNext : Action::MoveToSpacePrev});
+            else
+                server.step_space(forward ? 1 : -1);
+        }
+        return;
+    }
+    space_scroll_ = 0;
     wlr_seat_pointer_notify_axis(wlr, e->time_msec, e->orientation, e->delta, e->delta_discrete,
                                  e->source, e->relative_direction);
 }

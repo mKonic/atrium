@@ -100,6 +100,7 @@ private:
                 double dx_unaccel, double dy_unaccel);
     void button(wlr_pointer_button_event* event);
     void axis(wlr_pointer_axis_event* event);
+    double space_scroll_ = 0;  // Mod + scroll, toward the next space step
     void pointer_focus(View* view, wlr_surface* surface, double sx, double sy, uint32_t time);
 
     void new_constraint(wlr_pointer_constraint_v1* constraint);

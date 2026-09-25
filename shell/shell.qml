@@ -13,6 +13,7 @@ import shell.modules.osd
 import shell.modules.polkit
 import shell.modules.session
 import shell.modules.windowmenu
+import shell.services
 
 // atrium's desktop shell.
 ShellRoot {
@@ -86,6 +87,11 @@ ShellRoot {
                 Shell.launch("welcome.qml", {});
             if (name === "record")
                 Recorder.toggle();
+            // The bar's panels, from a key (caelestia's Super+N and Super+K).
+            if (name === "notifications" || name === "control")
+                Panels.toggle(name);
+            if (name === "notifications-clear")
+                NotificationHistory.clear();
             // "session:restart" and the rest, asked for from another app (Settings).
             if (name.startsWith("session:"))
                 Session.request(name.slice(8));
