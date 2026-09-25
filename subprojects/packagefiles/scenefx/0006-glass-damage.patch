@@ -1,0 +1,35 @@
+From d31806e1cdf18bceb7d6d88f504bd4b1c1d8383f Mon Sep 17 00:00:00 2001
+From: mKonic <mkonic676@gmail.com>
+Date: Fri, 25 Sep 2026 11:54:49 +0300
+Subject: [PATCH] scene: glass redraws whole when damage reaches it (its lens
+ samples past the blur kernel)
+
+---
+ types/scene/wlr_scene.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/types/scene/wlr_scene.c b/types/scene/wlr_scene.c
+index 19b7245..66e9c78 100644
+--- a/types/scene/wlr_scene.c
++++ b/types/scene/wlr_scene.c
+@@ -3018,6 +3018,17 @@ static bool apply_blur_region(struct wlr_scene_node *node, struct blur_data *blu
+ 	if (pixman_region32_intersect(&intersection, &expanded_damage, &node_visible_region)) {
+ 		should_compensate_blur = true;
+ 
++		// Liquid Glass reads the backdrop much further off than the blur's
++		// kernel: its lens shows what lies deeper in, and a partial redraw
++		// would bend in last frame's finished pixels, glass and all (stale
++		// patches along the rim). Glass redraws whole; its nodes are small.
++		if (node->type == WLR_SCENE_NODE_BLUR) {
++			struct wlr_scene_blur *blur = wlr_scene_blur_from_node(node);
++			if (blur->glass_shape_count > 0 || blur->refraction > 0) {
++				pixman_region32_copy(&intersection, &node_visible_region);
++			}
++		}
++
+ 		// Expand the render damage to re-render surrounding blur nodes
+ 		pixman_region32_union(&render_data->damage, &render_data->damage, &intersection);
+ 		// Also make sure that the backend also knows about the new
+-- 
+2.55.0
+

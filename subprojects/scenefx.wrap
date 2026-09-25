@@ -7,4 +7,5 @@ depth = 1
 # 0003 HDR output: a half-float blend buffer and PQ encoding, SDR white level.
 # 0004 Shaders in highp throughout (NVIDIA GLES mediump is fp16: textures and curves past 1024 px drew at half resolution).
 # 0005 Liquid Glass material: exact shapes, squircle lens, adaptive tint, backdrop-lit rim, shadow.
-diff_files = scenefx/0001-liquid-glass-refraction.patch, scenefx/0002-optimized-blur-visibility.patch, scenefx/0003-hdr-output.patch, scenefx/0004-highp-fragment-position.patch, scenefx/0005-glass-material.patch
+# 0006 Glass redrawn whole when damage reaches it (its lens samples past the blur kernel).
+diff_files = scenefx/0001-liquid-glass-refraction.patch, scenefx/0002-optimized-blur-visibility.patch, scenefx/0003-hdr-output.patch, scenefx/0004-highp-fragment-position.patch, scenefx/0005-glass-material.patch, scenefx/0006-glass-damage.patch
