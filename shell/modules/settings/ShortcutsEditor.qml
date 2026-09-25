@@ -45,7 +45,7 @@ Rectangle {
     width: parent?.width ?? 0
     height: column.implicitHeight + 32
     radius: 14
-    color: Theme.palette.tertiaryFill
+    color: Theme.palette.groupedBackground
     border.width: 1
     border.color: Theme.palette.separator
 

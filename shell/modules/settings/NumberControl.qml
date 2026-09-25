@@ -48,15 +48,11 @@ Item {
             color: Theme.palette.accent
         }
 
-        Rectangle {
+        Thumb {
             x: Math.max(0, Math.min(1, root.fraction)) * parent.width - width / 2
             anchors.verticalCenter: parent.verticalCenter
             width: 18
             height: 18
-            radius: 9
-            color: Theme.palette.thumb
-            border.width: 1
-            border.color: Theme.palette.separator
         }
 
         MouseArea {

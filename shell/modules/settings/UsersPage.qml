@@ -56,7 +56,7 @@ Column {
         width: parent.width
         height: 150
         radius: 14
-        color: Theme.palette.tertiaryFill
+        color: Theme.palette.groupedBackground
         border.width: 1
         border.color: Theme.palette.separator
 

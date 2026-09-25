@@ -24,8 +24,9 @@ struct Palette {
     uint32_t separator;
     // Opaque surfaces: a window or panel with transparency off; the content
     // area inside one (lists, text fields); a raised control face (buttons);
-    // the thumb of a slider or switch.
-    uint32_t window_background, control_background, control, thumb;
+    // the thumb of a slider or switch; grouped content (Settings' cards),
+    // a step lighter than the window in both appearances.
+    uint32_t window_background, control_background, control, thumb, grouped_background;
     // The accent, the text and symbols drawn on it, a translucent wash of it
     // for selected rows, and the keyboard focus ring.
     uint32_t accent, on_accent, accent_fill, focus_ring;

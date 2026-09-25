@@ -349,6 +349,7 @@ QVariantMap Compositor::palette(bool light, const QString& accent) const {
             {"controlBackground", c(p.control_background)},
             {"control", c(p.control)},
             {"thumb", c(p.thumb)},
+            {"groupedBackground", c(p.grouped_background)},
             {"accent", c(p.accent)},
             {"labelOnAccent", c(p.on_accent)},
             {"accentFill", c(p.accent_fill)},

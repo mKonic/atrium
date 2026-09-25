@@ -28,7 +28,7 @@ Column {
         width: parent.width
         height: body.implicitHeight + 16
         radius: 14
-        color: Theme.palette.tertiaryFill
+        color: Theme.palette.groupedBackground
         border.width: 1
         border.color: Theme.palette.separator
 

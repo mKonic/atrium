@@ -46,7 +46,7 @@ Column {
         width: parent.width
         height: pickColumn.implicitHeight + 24
         radius: 14
-        color: Theme.palette.tertiaryFill
+        color: Theme.palette.groupedBackground
         border.width: 1
         border.color: Theme.palette.separator
 
@@ -147,7 +147,7 @@ Column {
         width: parent.width
         height: list.implicitHeight
         radius: 14
-        color: Theme.palette.tertiaryFill
+        color: Theme.palette.groupedBackground
         border.width: 1
         border.color: Theme.palette.separator
 

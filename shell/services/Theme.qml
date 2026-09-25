@@ -31,6 +31,7 @@ Singleton {
         readonly property color controlBackground: root.colors.controlBackground
         readonly property color control: root.colors.control
         readonly property color thumb: root.colors.thumb
+        readonly property color groupedBackground: root.colors.groupedBackground
         readonly property color accent: root.colors.accent
         readonly property color labelOnAccent: root.colors.labelOnAccent
         readonly property color accentFill: root.colors.accentFill
@@ -68,6 +69,7 @@ Singleton {
         readonly property color controlBackground: root.darkColors.controlBackground
         readonly property color control: root.darkColors.control
         readonly property color thumb: root.darkColors.thumb
+        readonly property color groupedBackground: root.darkColors.groupedBackground
         readonly property color accent: root.darkColors.accent
         readonly property color labelOnAccent: root.darkColors.labelOnAccent
         readonly property color accentFill: root.darkColors.accentFill

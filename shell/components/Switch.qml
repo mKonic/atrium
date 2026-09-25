@@ -19,13 +19,11 @@ Rectangle {
         }
     }
 
-    Rectangle {
+    Thumb {
         x: root.checked ? root.width - width - 3 : 3
         anchors.verticalCenter: parent.verticalCenter
         width: root.height - 6
         height: width
-        radius: width / 2
-        color: Theme.palette.thumb
 
         Behavior on x {
             Anim {
