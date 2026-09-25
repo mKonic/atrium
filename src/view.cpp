@@ -128,9 +128,11 @@ void View::handle_map() {
         set_maximized(true);
     else if (const SessionWindow* w = server.sessions ? server.sessions->restoring(this) : nullptr; w && w->fullscreen)
         set_fullscreen(true);
-    else if (remembered_ && remembered_->maximized)
+    // A tiled space lays its windows out itself: how the app's window was
+    // last left when floating doesn't take it out of the layout.
+    else if (remembered_ && remembered_->maximized && !(space && space->tiled))
         set_maximized(true);
-    else if (remembered_ && remembered_->snapped)
+    else if (remembered_ && remembered_->snapped && !(space && space->tiled))
         snap(remembered_->snapped);
     remembered_.reset();
     // A window a rule sent to a space you aren't looking at opens quietly;
