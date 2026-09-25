@@ -67,6 +67,8 @@ ShellRoot {
 
     NotificationCenter {}
 
+    CalendarPanel {}
+
     ControlCenter {}
 
     Osd {}

@@ -4,7 +4,13 @@ import Atrium
 import shell.components
 import shell.services
 
+// The date and time; opens the month (CalendarPanel).
 Pill {
+    id: root
+
+    readonly property bool open: Panels.open === "calendar"
+
+    color: open ? Theme.palette.accentFill : Theme.material.pill
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2 + Theme.padding.small
 
     SystemClock {
@@ -40,5 +46,9 @@ Pill {
             text: Qt.formatDateTime(clock.date, (Atrium.settings["clock.24_hour"] ?? false) ? "ddd d MMM   H:mm" : "ddd d MMM   h:mm AP")
             font.weight: Font.Medium
         }
+    }
+
+    TapHandler {
+        onTapped: Panels.toggle("calendar")
     }
 }

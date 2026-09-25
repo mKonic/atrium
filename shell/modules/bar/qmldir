@@ -3,6 +3,7 @@ ActiveWindow 1.0 ActiveWindow.qml
 Bar 1.0 Bar.qml
 Bell 1.0 Bell.qml
 Clock 1.0 Clock.qml
+CalendarPanel 1.0 CalendarPanel.qml
 ControlButton 1.0 ControlButton.qml
 RecordingIndicator 1.0 RecordingIndicator.qml
 SecretSpaces 1.0 SecretSpaces.qml

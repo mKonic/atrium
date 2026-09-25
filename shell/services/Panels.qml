@@ -17,6 +17,7 @@ Singleton {
     // macOS Control Center does.
     // The layer surface each panel is drawn on.
     readonly property var namespaces: ({
+        "calendar": "atrium-calendar",
         "control": "atrium-control-center",
         "notifications": "atrium-notification-center",
         "system": "atrium-system-menu"
