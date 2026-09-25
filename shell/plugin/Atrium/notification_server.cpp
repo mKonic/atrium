@@ -108,6 +108,20 @@ NotificationServer::NotificationServer() {
         QDBusConnectionInterface::ReplaceExistingService, QDBusConnectionInterface::AllowReplacement);
     if (!reply.isValid() || reply.value() != QDBusConnectionInterface::ServiceRegistered)
         qWarning("notifications: another server keeps org.freedesktop.Notifications");
+    senders_ = new QDBusServiceWatcher(this);
+    senders_->setConnection(bus);
+    senders_->setWatchMode(QDBusServiceWatcher::WatchForUnregistration);
+    connect(senders_, &QDBusServiceWatcher::serviceUnregistered, this, [this](const QString& name) {
+        senders_->removeWatchedService(name);
+        // On screen, it finishes showing (notify-send is gone the moment it
+        // sent one); the rest go now.
+        QList<uint> gone;
+        for (Notification* n : std::as_const(live_))
+            if (n->data().sender == name && !popups_->contains(n))
+                gone.append(n->id());
+        for (uint id : gone)
+            close(id, 4);
+    });
     // Cleared from the Notification Center: done with, for the app too.
     connect(NotificationHistory::instance(), &NotificationHistory::removed, this, [this](const QList<int>& uids) {
         for (int uid : uids)
@@ -230,6 +244,11 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
     Notification::Data d = resolve(app_name, app_icon, actions, hints, expire_timeout, id);
     d.summary = summary;
     d.body = body;
+    if (calledFromDBus()) {
+        d.sender = message().service();
+        if (!senders_->watchedServices().contains(d.sender))
+            senders_->addWatchedService(d.sender);
+    }
     // Turned off in Settings: not kept, not shown.
     const QString mode = NotificationHistory::modeOf(d.app);
     if (mode == "off")
@@ -295,12 +314,17 @@ void NotificationServer::expire(Notification* n) {
     // A transient one is done with. The rest leave the screen but stay the
     // app's to answer from the Notification Center, as GNOME keeps them,
     // until they're cleared from there.
-    if (n->data().transient) {
+    if (n->data().transient || senderGone(n)) {
         close(n->id(), 1);
         return;
     }
     if (popups_->remove(n))
         emit popupsChanged();
+}
+
+bool NotificationServer::senderGone(const Notification* n) const {
+    const QString& s = n->data().sender;
+    return !s.isEmpty() && !senders_->watchedServices().contains(s);
 }
 
 Notification* NotificationServer::byUid(int uid) const {

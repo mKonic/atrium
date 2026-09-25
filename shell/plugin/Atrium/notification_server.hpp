@@ -6,6 +6,7 @@
 
 #include <QAbstractListModel>
 #include <QDBusContext>
+#include <QDBusServiceWatcher>
 #include <QHash>
 #include <QImage>
 #include <QObject>
@@ -38,6 +39,7 @@ public:
         bool hasDefault = false;
         bool transient = false;
         int uid = 0;  // its entry in the history
+        QString sender;  // the app's connection to the bus
     };
 
     Notification(uint id, Data d, QObject* parent) : QObject(parent), id_(id), d_(std::move(d)) {}
@@ -144,9 +146,12 @@ private:
                                const QVariantMap& hints, int expire_timeout, uint id);
     void close(uint id, uint reason);
     Notification* byUid(int uid) const;
+    bool senderGone(const Notification* n) const;
 
     QHash<uint, Notification*> live_;
     PopupModel* popups_ = new PopupModel(this);
+    // An app's notifications end with it: the history keeps them as records.
+    QDBusServiceWatcher* senders_ = nullptr;
     uint next_ = 1;
 };
 
