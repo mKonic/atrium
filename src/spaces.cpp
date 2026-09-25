@@ -44,11 +44,18 @@ Space* Server::ensure_secret(const std::string& name) {
 }
 
 void Server::prune_space(Space* space) {
-    if (!space || space->shown() || !space->empty())
+    if (!space || space->shown() || space->sliding || !space->empty())
         return;
     if (!space->secret && space->output && space->output->active == space)
         return;
-    std::erase_if(spaces, [space](const auto& s) { return s.get() == space; });
+    // Out of the list first, gone after: going runs a slide's end, which may
+    // prune another space from this same list.
+    auto it = std::ranges::find_if(spaces, [space](const auto& s) { return s.get() == space; });
+    if (it == spaces.end())
+        return;
+    std::unique_ptr<Space> doomed = std::move(*it);
+    spaces.erase(it);
+    doomed.reset();
 }
 
 void Server::spaces_changed() {
@@ -120,6 +127,7 @@ void Server::switch_space(Output* output, int number, View* carry) {
                 wlr_scene_node_set_position(&output->fullscreen_bg->node, output->box.x + x, output->box.y);
             };
         // caelestia's workspace slide: 500 ms on the standard curve.
+        old->sliding = target->sliding = true;
         animator.start(output, 500, Ease::Standard, [old, target, dir, w, hold, slide_backdrop](double t) {
             old->set_offset(int(std::lround(-dir * w * t)), 0);
             const int dx = int(std::lround(dir * w * (1 - t)));
@@ -128,6 +136,7 @@ void Server::switch_space(Output* output, int number, View* carry) {
             if (slide_backdrop)
                 slide_backdrop(t);
         }, [this, output, old, target, hold] {
+            old->sliding = target->sliding = false;
             old->hide_now();
             target->set_offset(0, 0);
             hold(0);

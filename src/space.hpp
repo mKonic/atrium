@@ -52,6 +52,9 @@ public:
     // Tiling (Mod+\): windows share the screen instead of floating, in this
     // order (window ids, oldest first); see Server::retile().
     bool tiled = false;
+    // Sliding in or out (switch_space): its slide holds it, so it stays until
+    // the slide ends, which prunes it if it is left empty.
+    bool sliding = false;
     std::vector<uint64_t> tile_order;
     // The dimmed, frosted desktop behind a tiled space's windows, made on
     // first use. Unlike a secret space's backdrop it takes no clicks.
