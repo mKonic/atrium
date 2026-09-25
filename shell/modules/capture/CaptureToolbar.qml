@@ -7,22 +7,21 @@ import shell.services
 import Atrium
 
 // Print's bar, as macOS's Shift-Command-5: take the whole screen, a window
-// or a selection; record the screen; or close.
+// or a selection; record the screen; or close. Solid, not glass: it sits on
+// the overlay's own frozen picture of the screen, which would hide the glass.
 Rectangle {
     id: root
 
     width: row.implicitWidth + 16
     height: 52
     radius: 16
-    color: Theme.material.thick
-
-    Glass {}
-    border.width: Theme.lens ? 0 : 1
+    color: Theme.palette.windowBackground
+    border.width: 1
     border.color: Theme.palette.separator
 
     layer.enabled: true
     layer.effect: MultiEffect {
-        shadowEnabled: !Theme.lens
+        shadowEnabled: true
         shadowColor: Theme.palette.shadow
         shadowBlur: 1
         shadowVerticalOffset: 6

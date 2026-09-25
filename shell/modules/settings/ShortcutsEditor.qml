@@ -213,7 +213,7 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         text: row.clash ? `Same keys as “${root.labels[row.clash.action] ?? row.clash.action}”. Only one of them will work.` : ""
                         font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.orange
+                        color: Theme.palette.secondaryLabel
                     }
                 }
 

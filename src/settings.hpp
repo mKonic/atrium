@@ -33,6 +33,8 @@ struct SettingSchema {
     std::string needs;
     // Edited by a page's own view rather than a row of its own.
     bool custom = false;
+    // What an empty String setting means, greyed in its field ("Default terminal").
+    std::string placeholder;
 
     // Copies a validated value into the in-memory config.
     std::function<void(Config&, const json&)> apply;

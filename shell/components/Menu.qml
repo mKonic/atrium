@@ -16,7 +16,8 @@ Rectangle {
     readonly property bool iconColumn: actions.some(a => a !== "-" && (a.icon ?? "") !== "")
     signal picked
 
-    width: 220
+    // At least 220, wider for a long row.
+    width: Math.max(220, column.widest + Theme.padding.small * 2)
     height: column.implicitHeight + Theme.padding.small * 2
     radius: Theme.rounding.normal
     color: Theme.material.regular
@@ -27,6 +28,9 @@ Rectangle {
 
     Column {
         id: column
+
+        // The widest row's own width (a Loader's implicitWidth is its row's).
+        readonly property real widest: Math.max(0, ...children.map(c => c.implicitWidth ?? 0))
 
         anchors.fill: parent
         anchors.margins: Theme.padding.small
@@ -83,12 +87,15 @@ Rectangle {
             readonly property var action: (parent as Loader).modelData
             readonly property bool usable: action.enabled ?? true
 
+            implicitWidth: content.implicitWidth + Theme.padding.normal * 2 + (trailingIcon.visible ? trailingIcon.implicitWidth + Theme.spacing.normal : 0)
             height: 34
             radius: Theme.rounding.small
             opacity: usable ? 1 : 0.4
             color: hover.containsMouse && usable ? Theme.palette.tertiaryFill : "transparent"
 
             Row {
+                id: content
+
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.padding.normal
@@ -97,7 +104,8 @@ Rectangle {
                 MaterialIcon {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.iconColumn
-                    width: root.iconColumn ? Math.max(implicitWidth, Theme.font.size.normal * 1.6) : 0
+                    width: root.iconColumn ? Theme.font.size.normal * 1.6 : 0
+                    horizontalAlignment: Text.AlignHCenter
                     text: item.action.icon ?? ""
                     font.pointSize: Theme.font.size.normal
                     color: item.action.danger ? Theme.palette.red : Theme.palette.label
@@ -112,6 +120,8 @@ Rectangle {
 
             // A submenu's chevron, at the end.
             MaterialIcon {
+                id: trailingIcon
+
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.padding.normal

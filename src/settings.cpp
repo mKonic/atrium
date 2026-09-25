@@ -493,7 +493,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         &Config::layout_per_window, d));
     s.push_back(text("keyboard.options", "Keyboard", "Options",
         "XKB options, e.g. caps:escape.", &Config::xkb_options, d));
+    s.back().placeholder = "None";
     s.push_back(text("keyboard.model", "Keyboard", "Model", "Keyboard model.", &Config::xkb_model, d));
+    s.back().placeholder = "Default";
 
     // Mouse and touchpad
     s.push_back(number("pointer.speed", T::Float, "Mouse & Touchpad", "Pointer speed",
@@ -525,12 +527,16 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Cursor
     s.push_back(text("cursor.theme", "Appearance", "Cursor theme",
         "The pointer's look, in atrium and in apps.", &Config::cursor_theme, d));
+    s.back().placeholder = "Default";
     s.push_back(text("appearance.icon_theme", "Appearance", "Icons",
         "The icon theme apps and the shell draw with.", &Config::icon_theme, d));
+    s.back().placeholder = "Default";
     s.push_back(text("appearance.font", "Appearance", "Font",
         "The font apps write their menus, buttons and text in.", &Config::font, d));
+    s.back().placeholder = "Default";
     s.push_back(text("appearance.monospace_font", "Appearance", "Monospace font",
         "For terminals and code.", &Config::mono_font, d));
+    s.back().placeholder = "Default";
     s.push_back(number("appearance.font_size", T::Int, "Appearance", "Font size",
         "In points, for both fonts.", &Config::font_size, d, 6, 24));
     s.push_back(number("cursor.size", T::Int, "Appearance", "Cursor size", "Cursor size in pixels.",
@@ -629,6 +635,7 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         [](Config& c, const json& v) { c.mod = modifier_from_name(v.get<std::string>()); }));
     s.push_back(text("shortcuts.terminal", "Keyboard Shortcuts", "Terminal",
         "Command the terminal shortcut runs. Empty: your default terminal, else the first one installed.", &Config::terminal, d));
+    s.back().placeholder = "Default terminal";
 
     return s;
 }

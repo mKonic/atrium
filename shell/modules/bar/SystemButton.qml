@@ -12,8 +12,19 @@ Item {
 
     readonly property bool open: Panels.open === "system"
 
-    implicitWidth: 30
-    implicitHeight: 28
+    implicitWidth: Theme.lens ? Theme.bar.inner : 30
+    implicitHeight: Theme.lens ? Theme.bar.inner : 28
+
+    // Liquid Glass: on a glass disc of its own, like the bar's pills, so it
+    // reads over any wallpaper (the bar itself is clear then).
+    Rectangle {
+        anchors.fill: parent
+        radius: height / 2
+        visible: Theme.lens
+        color: Theme.material.pill
+
+        Glass {}
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -29,15 +40,21 @@ Item {
         implicitSize: 18
         source: Shell.iconPath(SystemInfo.logo, "start-here")
         visible: false
+        layer.enabled: true
     }
 
-    // One colour, like the bar's other glyphs.
-    MultiEffect {
+    // One colour, like the bar's other glyphs: the label colour, cut out by
+    // the logo's own alpha (edges and all).
+    Rectangle {
         anchors.fill: logo
-        source: logo
-        brightness: 1
-        colorization: 1
-        colorizationColor: Theme.palette.label
+        color: Theme.palette.label
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: logo
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1
+        }
     }
 
     MouseArea {

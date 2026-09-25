@@ -1,4 +1,4 @@
-From 291032df9e7c9a7c3a24453e35c4df399a4beb65 Mon Sep 17 00:00:00 2001
+From db66895f45737c602694fb92fda8e5c9d3c034bb Mon Sep 17 00:00:00 2001
 From: mKonic <mkonic676@gmail.com>
 Date: Fri, 25 Sep 2026 02:10:04 +0300
 Subject: [PATCH 2/2] glass: Apple's Liquid Glass: exact shapes, squircle lens,
@@ -11,14 +11,14 @@ Subject: [PATCH 2/2] glass: Apple's Liquid Glass: exact shapes, squircle lens,
  include/scenefx/render/pass.h                 |  11 +
  include/scenefx/types/wlr_scene.h             |  35 +++
  render/fx_renderer/fx_offscreen_buffers.c     |   8 +
- render/fx_renderer/fx_pass.c                  | 150 ++++++++++-
+ render/fx_renderer/fx_pass.c                  | 150 +++++++++-
  render/fx_renderer/fx_renderer.c              |   5 +
  render/fx_renderer/shaders.c                  |  40 ++-
- render/fx_renderer/shaders/glass.frag         | 250 +++++++++++++++---
- render/fx_renderer/shaders/glass_field.frag   |  67 +++++
+ render/fx_renderer/shaders/glass.frag         | 257 +++++++++++++++---
+ render/fx_renderer/shaders/glass_field.frag   |  66 +++++
  render/fx_renderer/shaders/meson.build        |   1 +
  types/scene/wlr_scene.c                       |  57 ++++
- 13 files changed, 612 insertions(+), 48 deletions(-)
+ 13 files changed, 614 insertions(+), 52 deletions(-)
  create mode 100644 render/fx_renderer/shaders/glass_field.frag
 
 diff --git a/include/render/fx_renderer/fx_renderer.h b/include/render/fx_renderer/fx_renderer.h
@@ -524,10 +524,10 @@ index 4d1ee88..517ac55 100644
  	GLuint prog;
  	shader->program = prog = link_program(blur_effects_frag_src);
 diff --git a/render/fx_renderer/shaders/glass.frag b/render/fx_renderer/shaders/glass.frag
-index 7ae4758..813240f 100644
+index 7ae4758..f1656aa 100644
 --- a/render/fx_renderer/shaders/glass.frag
 +++ b/render/fx_renderer/shaders/glass.frag
-@@ -1,7 +1,18 @@
+@@ -1,63 +1,246 @@
 -// Liquid Glass: the blurred background behind a glass panel, bent near the
 -// panel's edge the way a thick lens bends it, with a little colour fringe.
 -// The panel's shape comes from its own buffer's alpha (the mask) when there
@@ -548,10 +548,14 @@ index 7ae4758..813240f 100644
 +// edge it is the normal CDF of the distance to it, which gives a smooth
 +// distance, the edge's direction (its gradient) and the shadow.
  
- #ifdef GL_FRAGMENT_PRECISION_HIGH
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
  precision highp float;
-@@ -10,54 +21,227 @@ precision mediump float;
- #endif
+-#else
+-precision mediump float;
+-#endif
  
  varying vec2 v_texcoord;
 -uniform sampler2D tex;   // the blurred background, the whole buffer
@@ -809,10 +813,10 @@ index 7ae4758..813240f 100644
  }
 diff --git a/render/fx_renderer/shaders/glass_field.frag b/render/fx_renderer/shaders/glass_field.frag
 new file mode 100644
-index 0000000..63b7582
+index 0000000..2bbee3f
 --- /dev/null
 +++ b/render/fx_renderer/shaders/glass_field.frag
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,66 @@
 +// Liquid Glass's shape field: the panel's coverage, blurred by a Gaussian
 +// of `sigma` pixels along `dir` (run twice, across then down). Where a
 +// straight edge is, the field is the normal CDF of the distance to it, so
@@ -820,11 +824,10 @@ index 0000000..63b7582
 +// shadow straight off it. The first pass reads the panel's buffer, the second
 +// the first's output.
 +
-+#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
 +precision highp float;
-+#else
-+precision mediump float;
-+#endif
 +
 +varying vec2 v_texcoord;
 +#ifndef ATRIUM_V_FRAG

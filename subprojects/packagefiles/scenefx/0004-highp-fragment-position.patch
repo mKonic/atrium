@@ -1,17 +1,25 @@
-From fd13b3c8be1701e0113def106a2a25872b7954b6 Mon Sep 17 00:00:00 2001
+From bf93a0854db3b137f468d27aff6cbcbd42e1c254 Mon Sep 17 00:00:00 2001
 From: mKonic <mkonic676@gmail.com>
 Date: Fri, 25 Sep 2026 02:10:04 +0300
-Subject: [PATCH 1/2] shaders: highp fragment position; gl_FragCoord is mediump
- in GLSL ES 1.00
+Subject: [PATCH 1/2] shaders: highp throughout; NVIDIA GLES has no
+ GL_FRAGMENT_PRECISION_HIGH and real fp16 mediump
 
 ---
- render/fx_renderer/fx_pass.c                 | 11 +++++++++++
- render/fx_renderer/shaders.c                 | 20 ++++++++++----------
- render/fx_renderer/shaders/box_shadow.frag   | 11 ++++++++++-
- render/fx_renderer/shaders/common.vert       |  4 ++++
- render/fx_renderer/shaders/corner_alpha.frag | 11 ++++++++++-
- render/fx_renderer/shaders/gradient.frag     | 11 ++++++++++-
- 6 files changed, 55 insertions(+), 13 deletions(-)
+ render/fx_renderer/fx_pass.c                  | 11 ++++++++++
+ render/fx_renderer/shaders.c                  | 20 +++++++++----------
+ render/fx_renderer/shaders/blur1.frag         |  7 +++++--
+ render/fx_renderer/shaders/blur2.frag         |  7 +++++--
+ render/fx_renderer/shaders/blur_effects.frag  |  7 +++----
+ render/fx_renderer/shaders/box_shadow.frag    | 18 ++++++++++++-----
+ render/fx_renderer/shaders/common.vert        |  4 ++++
+ render/fx_renderer/shaders/corner_alpha.frag  | 11 +++++++++-
+ render/fx_renderer/shaders/gradient.frag      | 11 +++++++++-
+ render/fx_renderer/shaders/quad.frag          |  7 +++----
+ render/fx_renderer/shaders/quad_grad.frag     |  7 +++----
+ .../fx_renderer/shaders/quad_grad_round.frag  |  7 +++----
+ render/fx_renderer/shaders/quad_round.frag    |  7 +++----
+ render/fx_renderer/shaders/tex.frag           |  7 +++----
+ 14 files changed, 86 insertions(+), 45 deletions(-)
 
 diff --git a/render/fx_renderer/fx_pass.c b/render/fx_renderer/fx_pass.c
 index 45d9a50..e4280a4 100644
@@ -101,12 +109,69 @@ index 319d94e..4d1ee88 100644
  	snprintf(shadow_src, sizeof(shadow_src), "%s\n%s", box_shadow_frag_src,
  		corner_alpha_frag_src);
  
+diff --git a/render/fx_renderer/shaders/blur1.frag b/render/fx_renderer/shaders/blur1.frag
+index bb27600..4c46428 100644
+--- a/render/fx_renderer/shaders/blur1.frag
++++ b/render/fx_renderer/shaders/blur1.frag
+@@ -1,6 +1,9 @@
+-precision mediump float;
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
++precision highp float;
+ 
+-varying mediump vec2 v_texcoord;
++varying highp vec2 v_texcoord;
+ uniform sampler2D tex;
+ 
+ uniform float radius;
+diff --git a/render/fx_renderer/shaders/blur2.frag b/render/fx_renderer/shaders/blur2.frag
+index 2c947f2..0c31357 100644
+--- a/render/fx_renderer/shaders/blur2.frag
++++ b/render/fx_renderer/shaders/blur2.frag
+@@ -1,6 +1,9 @@
+-precision mediump float;
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
++precision highp float;
+ 
+-varying mediump vec2 v_texcoord;
++varying highp vec2 v_texcoord;
+ uniform sampler2D tex;
+ 
+ uniform float radius;
+diff --git a/render/fx_renderer/shaders/blur_effects.frag b/render/fx_renderer/shaders/blur_effects.frag
+index c3d3246..32d8c16 100644
+--- a/render/fx_renderer/shaders/blur_effects.frag
++++ b/render/fx_renderer/shaders/blur_effects.frag
+@@ -1,8 +1,7 @@
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
+ 
+ varying vec2 v_texcoord;
+ uniform sampler2D tex;
 diff --git a/render/fx_renderer/shaders/box_shadow.frag b/render/fx_renderer/shaders/box_shadow.frag
-index 1cab7b5..54eccb8 100644
+index 1cab7b5..d0a7921 100644
 --- a/render/fx_renderer/shaders/box_shadow.frag
 +++ b/render/fx_renderer/shaders/box_shadow.frag
-@@ -7,6 +7,15 @@ precision mediump float;
- #endif
+@@ -1,12 +1,20 @@
+ // Writeup: https://madebyevan.com/shaders/fast-rounded-rectangle-shadows/
+ 
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
  
  varying vec4 v_color;
 +#ifndef ATRIUM_V_FRAG
@@ -121,7 +186,7 @@ index 1cab7b5..54eccb8 100644
  varying vec2 v_texcoord;
  
  uniform vec2 position;
-@@ -73,7 +82,7 @@ void main() {
+@@ -73,7 +81,7 @@ void main() {
      float shadow_alpha = v_color.a * roundedBoxShadow(
              position + blur_sigma,
              position + size - blur_sigma,
@@ -197,6 +262,96 @@ index 407e273..969e5ff 100644
  	vec2 uv = normal - origin;
  
  	float rad = radians(degree);
+diff --git a/render/fx_renderer/shaders/quad.frag b/render/fx_renderer/shaders/quad.frag
+index 93c9fe6..7bc1d6f 100644
+--- a/render/fx_renderer/shaders/quad.frag
++++ b/render/fx_renderer/shaders/quad.frag
+@@ -4,11 +4,10 @@
+ #error "Missing shader preamble"
+ #endif
+ 
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
+ 
+ varying vec4 v_color;
+ varying vec2 v_texcoord;
+diff --git a/render/fx_renderer/shaders/quad_grad.frag b/render/fx_renderer/shaders/quad_grad.frag
+index fed138c..427573f 100644
+--- a/render/fx_renderer/shaders/quad_grad.frag
++++ b/render/fx_renderer/shaders/quad_grad.frag
+@@ -1,10 +1,9 @@
+ #define LEN %d
+ 
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
+ 
+ varying vec4 v_color;
+ varying vec2 v_texcoord;
+diff --git a/render/fx_renderer/shaders/quad_grad_round.frag b/render/fx_renderer/shaders/quad_grad_round.frag
+index 87d48d7..0f3350b 100644
+--- a/render/fx_renderer/shaders/quad_grad_round.frag
++++ b/render/fx_renderer/shaders/quad_grad_round.frag
+@@ -1,10 +1,9 @@
+ #define LEN %d
+ 
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
+ 
+ varying vec4 v_color;
+ varying vec2 v_texcoord;
+diff --git a/render/fx_renderer/shaders/quad_round.frag b/render/fx_renderer/shaders/quad_round.frag
+index b059ee8..e83b998 100644
+--- a/render/fx_renderer/shaders/quad_round.frag
++++ b/render/fx_renderer/shaders/quad_round.frag
+@@ -1,8 +1,7 @@
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
+ 
+ varying vec4 v_color;
+ varying vec2 v_texcoord;
+diff --git a/render/fx_renderer/shaders/tex.frag b/render/fx_renderer/shaders/tex.frag
+index b91b960..f921dc4 100644
+--- a/render/fx_renderer/shaders/tex.frag
++++ b/render/fx_renderer/shaders/tex.frag
+@@ -13,11 +13,10 @@
+ #extension GL_OES_EGL_image_external : require
+ #endif
+ 
+-#ifdef GL_FRAGMENT_PRECISION_HIGH
++// highp: NVIDIA's GLES doesn't define GL_FRAGMENT_PRECISION_HIGH, and its
++// mediump is real fp16: texture coordinates and positions past 1024 pixels
++// snap to whole or half pixels (see v_frag).
+ precision highp float;
+-#else
+-precision mediump float;
+-#endif
+ 
+ varying vec2 v_texcoord;
+ 
 -- 
 2.55.0
 

@@ -182,7 +182,11 @@ constexpr int kGlassShadowReach = 24;
 
 void LayerSurface::update_blur() {
     const Config& c = server.config;
-    const bool want = mapped && c.blur && (c.transparency || c.liquid_glass) && wlr->namespace_ &&
+    // Liquid Glass only where the shell said it is (atrium-glass-v1): a
+    // surface without shapes (the desktop, the wallpaper) is no glass.
+    const auto* given = server.glass_shapes ? server.glass_shapes->shapes_for(wlr->surface) : nullptr;
+    const bool is_glass = c.liquid_glass && given && !given->empty();
+    const bool want = mapped && c.blur && (c.transparency || is_glass) && wlr->namespace_ &&
                       namespace_matches(wlr->namespace_, c.blurred_panels);
     if (!want) {
         if (blur_)
@@ -200,14 +204,15 @@ void LayerSurface::update_blur() {
     wlr_scene_node_lower_to_bottom(&blur_->node);
     wlr_scene_node_set_enabled(&blur_->node, true);
     // Liquid Glass casts a soft shadow past the panel's edge: room for it.
-    const int reach = c.liquid_glass ? kGlassShadowReach : 0;
+    const int reach = is_glass ? kGlassShadowReach : 0;
     wlr_scene_node_set_position(&blur_->node, mask->node.x - reach, mask->node.y - reach);
     wlr_scene_blur_set_size(blur_, width + 2 * reach, height + 2 * reach);
     // Only where the panel actually draws: a dock's window is mostly empty.
     wlr_scene_blur_set_transparency_mask_source(blur_, mask);
-    if (!c.liquid_glass) {
+    if (!is_glass) {
         wlr_scene_blur_set_strength(blur_, 1.0f);
         wlr_scene_blur_set_refraction(blur_, 0, 0);
+        wlr_scene_blur_set_glass_shapes(blur_, nullptr, 0);
         return;
     }
     wlr_scene_blur_set_strength(blur_, c.glass_tinted ? 0.45f : 0.12f);
@@ -230,12 +235,11 @@ void LayerSurface::update_blur() {
     glass.shadow = c.light ? 0.16f : 0.3f;
     wlr_scene_blur_set_glass(blur_, &glass);
 
-    // Its exact shapes, when the shell said (atrium-glass-v1), in the glass
-    // node's coordinates: drawn from their geometry, smooth at any size.
+    // Its exact shapes, in the glass node's coordinates: drawn from their
+    // geometry, smooth at any size.
     std::vector<wlr_scene_glass_shape> shapes;
-    if (const auto* given = server.glass_shapes ? server.glass_shapes->shapes_for(wlr->surface) : nullptr)
-        for (const GlassShape& g : *given)
-            shapes.push_back({g.x + float(reach), g.y + float(reach), g.width, g.height, g.radius, g.opacity});
+    for (const GlassShape& g : *given)
+        shapes.push_back({g.x + float(reach), g.y + float(reach), g.width, g.height, g.radius, g.opacity});
     wlr_scene_blur_set_glass_shapes(blur_, shapes.data(), int(shapes.size()));
 }
 

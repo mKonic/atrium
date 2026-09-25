@@ -114,6 +114,12 @@ FloatingWindow {
             spacing: 2
             model: SettingsPages.pages
             boundsBehavior: Flickable.StopAtBounds
+            // The open page, kept in view (opened from elsewhere, it may be
+            // below the fold).
+            currentIndex: root.query === "" ? SettingsPages.pages.findIndex(p => p.name === root.page) : -1
+            highlightFollowsCurrentItem: false
+            onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+            Component.onCompleted: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
 
             delegate: Rectangle {
                 id: entry

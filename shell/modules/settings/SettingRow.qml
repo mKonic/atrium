@@ -75,7 +75,8 @@ Item {
         anchors.rightMargin: root.wide ? 16 : 10
         y: root.wide ? 14 : (Math.max(56, head.implicitHeight + 24) - height) / 2
         visible: root.changed
-        width: visible ? implicitWidth : 0
+        width: visible ? Theme.font.size.normal * 1.6 : 0
+        horizontalAlignment: Text.AlignHCenter
         text: "restart_alt"
         font.pointSize: Theme.font.size.normal
         color: resetArea.containsMouse ? Theme.palette.label : Theme.palette.secondaryLabel
@@ -212,6 +213,7 @@ Item {
 
         TextControl {
             value: String(root.value ?? "")
+            placeholder: root.setting.placeholder ?? ""
             onCommitted: v => root.set(v)
         }
     }

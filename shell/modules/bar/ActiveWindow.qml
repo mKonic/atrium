@@ -23,8 +23,18 @@ Item {
     property real maxWidth: 10000
 
     implicitHeight: Theme.bar.inner
-    implicitWidth: row.implicitWidth
+    implicitWidth: row.implicitWidth + (Theme.lens ? Theme.padding.normal * 2 : 0)
     opacity: window ? 1 : 0
+
+    // Liquid Glass: in a glass pill, so it reads over any wallpaper.
+    Rectangle {
+        anchors.fill: parent
+        radius: height / 2
+        visible: Theme.lens
+        color: Theme.material.pill
+
+        Glass {}
+    }
 
     Behavior on opacity {
         Anim {}
@@ -33,6 +43,7 @@ Item {
     Row {
         id: row
 
+        x: Theme.lens ? Theme.padding.normal : 0
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.spacing.small
 
@@ -53,7 +64,7 @@ Item {
             id: titleText
 
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(0, Math.min(implicitWidth, 420, root.maxWidth - x))
+            width: Math.max(0, Math.min(implicitWidth, 420, root.maxWidth - x - (Theme.lens ? Theme.padding.normal * 2 : 0)))
             elide: Text.ElideRight
             text: root.title
             color: Theme.palette.secondaryLabel
