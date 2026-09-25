@@ -2,6 +2,7 @@
 #include "registry.hpp"
 #include "server.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace atrium {
@@ -163,6 +164,15 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         target->apply_hdr();
         remember_displays();
         return std::string(target->wlr->name) + " didn't take the HDR signal";
+    }
+
+    // Brightness, HDR and adaptive sync need no new mode for the screens.
+    static constexpr const char* kLayout[] = {"enabled", "width", "height", "refresh", "scale", "transform", "x", "y"};
+    if (std::ranges::none_of(kLayout, [&](const char* k) { return req.contains(k); })) {
+        wlr_output_schedule_frame(target->wlr);
+        remember_displays();
+        update_outputs();
+        return std::nullopt;
     }
 
     wlr_output_configuration_v1* config = wlr_output_configuration_v1_create();

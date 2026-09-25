@@ -135,6 +135,9 @@ Registry::Registry(const std::string& path) {
     }
     sqlite3_busy_timeout(db_, 2000);
     exec("PRAGMA journal_mode=WAL");
+    // No fsync on every write (it stalled the compositor while a slider was
+    // dragged); in WAL mode a crash still leaves the database whole.
+    exec("PRAGMA synchronous=NORMAL");
     exec("PRAGMA foreign_keys=ON");
     migrate();
 }
