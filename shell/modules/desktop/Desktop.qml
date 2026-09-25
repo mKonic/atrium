@@ -121,13 +121,10 @@ PanelWindow {
     Connections {
         target: Atrium
 
-        // Something else took focus: the menu is stale.
-        function onFocusedWindowChanged(): void {
-            // A window taking focus means a click elsewhere; the panel taking the
-            // keyboard itself leaves no window focused and must not close it.
-            if (!Atrium.focusedWindow)
-                return;
-            desktop.menu = null;
+        // A press anywhere else closes the menu (see Dock.qml).
+        function onPointerPressed(layerNamespace: string): void {
+            if (layerNamespace !== "atrium-desktop")
+                desktop.menu = null;
         }
     }
 }

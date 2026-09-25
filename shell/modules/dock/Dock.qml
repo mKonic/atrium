@@ -402,16 +402,14 @@ PanelWindow {
         onClosed: dock.menuItem = null
     }
 
-    // Clicking somewhere else focuses something else: the menu goes away.
+    // A press anywhere else closes the menu. (Not focus: the focused window's
+    // record changes with its title, which some apps change all the time.)
     Connections {
         target: Atrium
 
-        function onFocusedWindowChanged(): void {
-            // A window taking focus means a click elsewhere; the panel taking the
-            // keyboard itself leaves no window focused and must not close it.
-            if (!Atrium.focusedWindow)
-                return;
-            dock.menuItem = null;
+        function onPointerPressed(layerNamespace: string): void {
+            if (layerNamespace !== "atrium-dock")
+                dock.menuItem = null;
         }
     }
 }

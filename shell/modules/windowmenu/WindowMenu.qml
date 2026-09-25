@@ -48,10 +48,9 @@ PanelWindow {
             root.open(window, output, x, y);
         }
 
-        function onFocusedWindowChanged(): void {
-            // Another window taking focus means a click elsewhere. (None at
-            // all is the menu itself taking the keyboard.)
-            if (Panels.open === "window-menu" && Atrium.focusedWindow && Atrium.focusedWindow.id !== root.windowId)
+        // A press anywhere else closes it (see Dock.qml).
+        function onPointerPressed(layerNamespace: string): void {
+            if (Panels.open === "window-menu" && layerNamespace !== "atrium-window-menu")
                 Panels.open = "";
         }
     }
