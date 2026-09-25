@@ -17,10 +17,13 @@ PanelWindow {
     readonly property real shelfHeight: iconSize + shelfPadding * 2 + 6
     readonly property real gap: 8  // under the shelf
     // The icon under the pointer: its name shows in the shelf, under it,
-    // which grows a line taller to hold it.
+    // which grows a line taller to hold it. The line stays while the pointer
+    // is anywhere on the shelf, and the name with it: between two icons, or
+    // on the name itself, nothing moves (the shelf shrinking back pulled the
+    // icons down under the pointer, which grew it again: a flicker).
     property Item hoverItem: null
     property string hoverName
-    property real labelHeight: hoverItem ? 20 : 0
+    property real labelHeight: shelfHover.hovered && hoverItem ? 20 : 0
 
     Behavior on labelHeight {
         Anim {
@@ -232,6 +235,8 @@ PanelWindow {
         // (their own MouseAreas take the hover from anything under them).
         HoverHandler {
             id: shelfHover
+
+            onHoveredChanged: if (!hovered) dock.hoverItem = null
         }
 
         StyledText {
@@ -290,7 +295,7 @@ PanelWindow {
                         if (hovered) {
                             dock.hoverItem = item;
                             dock.hoverName = item.name;
-                        } else if (dock.hoverItem === item) {
+                        } else if (dock.hoverItem === item && !shelfHover.hovered) {
                             dock.hoverItem = null;
                         }
                     }
