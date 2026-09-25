@@ -240,12 +240,16 @@ Notification::Data NotificationServer::resolve(const QString& app_name, const QS
 uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const QString& app_icon,
                                 const QString& summary, const QString& body, const QStringList& actions,
                                 const QVariantMap& hints, int expire_timeout) {
-    const uint id = replaces_id && live_.contains(replaces_id) ? replaces_id : next_++;
+    // Only the app that sent one may replace it (Electron derives the id it
+    // asks to replace from a tag, and could land on another app's).
+    const QString sender = calledFromDBus() ? message().service() : QString();
+    const Notification* old = replaces_id ? live_.value(replaces_id) : nullptr;
+    const uint id = old && old->data().sender == sender ? replaces_id : next_++;
     Notification::Data d = resolve(app_name, app_icon, actions, hints, expire_timeout, id);
     d.summary = summary;
     d.body = body;
-    if (calledFromDBus()) {
-        d.sender = message().service();
+    if (!sender.isEmpty()) {
+        d.sender = sender;
         if (!senders_->watchedServices().contains(d.sender))
             senders_->addWatchedService(d.sender);
     }
