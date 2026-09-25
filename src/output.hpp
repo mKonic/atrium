@@ -60,7 +60,17 @@ public:
     bool hdr_active() const;
     // Signal and compositing as set; false when the screen refused HDR.
     bool apply_hdr();
-    static double sdr_white_nits(int brightness) { return 80.0 + 4.0 * brightness; }
+    // SDR brightness 0-100 as the nits white is shown at in HDR: 80 (what
+    // SDR is mastered for) up to what the screen holds over a whole frame. A
+    // white page fills the screen; past that the screen dims all of it.
+    double sdr_white_nits() const {
+        double top = 480.0;
+        if (hdr_caps && hdr_caps->max_frame_avg_nits > 80)
+            top = hdr_caps->max_frame_avg_nits;
+        else if (hdr_caps && hdr_caps->max_nits > 80)
+            top = hdr_caps->max_nits;
+        return 80.0 + (top - 80.0) * sdr_brightness / 100.0;
+    }
 
     Space* active = nullptr;  // the numbered space shown here
     wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;

@@ -200,12 +200,7 @@ bool Output::apply_hdr() {
             wlr_log(WLR_ERROR, "%s: refused %s HDR", wlr->name, want ? "turning on" : "turning off");
         wlr_output_state_finish(&state);
     }
-    // Never past what the screen can show at all (an HDR400 panel peaks at
-    // 400): brighter only makes it squeeze the whole picture to fit.
-    double white = sdr_white_nits(sdr_brightness);
-    if (hdr_caps && hdr_caps->max_nits > 0)
-        white = std::min(white, hdr_caps->max_nits);
-    wlr_scene_output_set_sdr_white_nits(scene_output, hdr_active() ? float(white) : 0.0f);
+    wlr_scene_output_set_sdr_white_nits(scene_output, hdr_active() ? float(sdr_white_nits()) : 0.0f);
     if (!hdr_active())
         wlr_scene_output_set_tint(scene_output, 1, 1, 1);
     night_generation_ = 0;  // night light shown the way this mode shows it

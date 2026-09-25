@@ -622,9 +622,7 @@ json Ipc::handle(Client& c, const json& req) {
                 {"hdr", o->hdr},
                 {"hdr_active", o->hdr_active()},
                 {"sdr_brightness", o->sdr_brightness},
-                {"sdr_white_nits", o->hdr_caps && o->hdr_caps->max_nits > 0
-                                       ? std::min(Output::sdr_white_nits(o->sdr_brightness), o->hdr_caps->max_nits)
-                                       : Output::sdr_white_nits(o->sdr_brightness)},
+                {"sdr_white_nits", o->sdr_white_nits()},
                 {"max_luminance", o->hdr_caps ? o->hdr_caps->max_nits : 0.0},
             });
         }
