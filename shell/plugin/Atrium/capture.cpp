@@ -195,18 +195,25 @@ void Capture::takeScreen(const QString& screen) {
     deliver(out);
 }
 
-void Capture::takeWindow(const QString& identifier) {
+void Capture::takeWindow(const QString& identifier, const QString& screen, int x, int y, int width, int height) {
     const QString file = dir_.filePath("window.png");
     auto* grim = new QProcess(this);
     busy_ = true;
     pickingMayChange();
-    connect(grim, &QProcess::finished, this, [this, grim, file](int code) {
+    connect(grim, &QProcess::finished, this, [=, this](int code) {
         grim->deleteLater();
         busy_ = false;
-        if (code == 0)
-            deliver(QImage(file));
-        else
-            emit failed("The window couldn't be captured.");
+        const QImage image = code == 0 ? QImage(file) : QImage();
+        if (!image.isNull()) {
+            deliver(image);
+        } else {
+            qWarning("capture: grim couldn't copy window %s: %s", qPrintable(identifier),
+                     grim->readAllStandardError().trimmed().constData());
+            if (!screen.isEmpty() && width > 1 && height > 1)
+                takeRegion(screen, x, y, x + width, y + height);
+            else
+                emit failed("The window couldn't be captured.");
+        }
         pickingMayChange();
     });
     grim->start("grim", {"-l", "0", "-T", identifier, file});

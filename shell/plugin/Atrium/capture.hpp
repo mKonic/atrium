@@ -56,7 +56,10 @@ public:
 
     Q_INVOKABLE void takeRegion(const QString& screen, int x0, int y0, int x1, int y1);
     Q_INVOKABLE void takeScreen(const QString& screen);  // "" all of them, side by side
-    Q_INVOKABLE void takeWindow(const QString& identifier);
+    // The window by itself; where the app's buffer can't be copied (a format
+    // grim doesn't read), cut from the frozen screen at x, y, width, height.
+    Q_INVOKABLE void takeWindow(const QString& identifier, const QString& screen = {}, int x = 0, int y = 0,
+                                int width = 0, int height = 0);
     Q_INVOKABLE void pickColor(const QString& screen, int x, int y);
     Q_INVOKABLE void cancel();
     // Screen recording, which the desktop shell does.

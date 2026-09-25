@@ -175,7 +175,8 @@ PanelWindow {
         }
         onClicked: mouse => {
             if (Capture.kind === "window" && root.hovered.identifier)
-                Capture.takeWindow(root.hovered.identifier);
+                Capture.takeWindow(root.hovered.identifier, root.name, root.hovered.x, root.hovered.y,
+                                   root.hovered.width, root.hovered.height);
             else if (Capture.kind === "screen")
                 Capture.takeScreen(root.name);
             else if (Capture.kind === "color")
