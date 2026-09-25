@@ -81,15 +81,13 @@ Brightness::Brightness(QObject* parent) : QObject(parent) {
     // Test boxes leave the real monitors alone.
     if (qEnvironmentVariableIsEmpty("ATRIUM_NO_DDC"))
         ddcutil_ = QStandardPaths::findExecutable("ddcutil");
-    // The Brightness setting changed (in Settings): the screens follow. atrium
-    // itself sets them to it at login.
+    // The Brightness setting changed (in Settings): the screens follow.
     seen_ = setting();
     connect(Compositor::instance(), &Compositor::settingsChanged, this, [this] { applySetting(); });
+    // HDR on or off, or its SDR brightness moved (Settings): what the slider shows.
     connect(Compositor::instance(), &Compositor::outputsChanged, this, [this] {
-        if (hdr() != hdr_) {
-            hdr_ = hdr();
-            emit changed();
-        }
+        hdr_ = hdr();
+        emit changed();
     });
     hdr_ = hdr();
     detect();
@@ -143,7 +141,18 @@ void Brightness::detect() {
         while (it.hasNext())
             buses_.push_back(it.next().captured(1).toInt());
         emit changed();
-        readCurrent();
+        // Monitors don't all keep what DDC set across a power cycle: the
+        // setting's, once they answer (again a moment later, for one still
+        // waking). Without one, where they are.
+        if (const auto v = setting()) {
+            setBacklight(*v);
+            QTimer::singleShot(1500, this, [this] {
+                if (const auto v = setting())
+                    setBacklight(*v);
+            });
+        } else {
+            readCurrent();
+        }
         p->deleteLater();
     });
     p->start(ddcutil_, {"detect", "--brief"});

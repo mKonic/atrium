@@ -474,8 +474,8 @@ void Server::start_clipboard_history() {
     spawn("exec wl-paste --type image --watch cliphist store");
 }
 
-// Things the hardware forgets between boots. The monitor's brightness only
-// takes a moment after login (DDC answers late), hence the pause.
+// Things the hardware forgets between boots (the monitors' brightness is the
+// shell's: it talks to them anyway, and two talking at once collide).
 void Server::restore_power_and_brightness() {
     // Only on a real screen: not nested, not headless (a test).
     bool drm = false;
@@ -485,8 +485,6 @@ void Server::restore_power_and_brightness() {
     if (nested || !drm)
         return;
     apply_power_profile();
-    spawn("sleep 2; for b in $(ddcutil detect --brief 2>/dev/null | sed -n 's|.*I2C bus: */dev/i2c-||p'); do "
-          "ddcutil setvcp 10 " + std::to_string(config.brightness) + " --bus \"$b\" --noverify --skip-ddc-checks; done");
 }
 
 void Server::apply_power_profile() {
