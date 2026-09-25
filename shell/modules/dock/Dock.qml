@@ -16,6 +16,18 @@ PanelWindow {
     readonly property real shelfPadding: 8
     readonly property real shelfHeight: iconSize + shelfPadding * 2 + 6
     readonly property real gap: 8  // under the shelf
+    // The icon under the pointer: its name shows in the shelf, under it,
+    // which grows a line taller to hold it.
+    property Item hoverItem: null
+    property string hoverName
+    property real labelHeight: hoverItem ? 20 : 0
+
+    Behavior on labelHeight {
+        Anim {
+            duration: Theme.anim.small
+            easing.bezierCurve: Theme.anim.standard
+        }
+    }
     readonly property bool magnify: Atrium.settings["dock.magnify"] ?? false
 
     DockApps {
@@ -161,7 +173,7 @@ PanelWindow {
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         width: shelf.width
-        height: dock.shelfHeight + dock.gap
+        height: shelf.height + dock.gap
     }
 
     anchors.bottom: true
@@ -188,7 +200,7 @@ PanelWindow {
         anchors.bottomMargin: dock.revealed ? dock.gap : -(dock.shelfHeight + 4)
         // The icons' own gaps reach 4px past each end; the padding covers the rest.
         width: Math.max(0, row.width - 8) + dock.shelfPadding * 2
-        height: dock.shelfHeight
+        height: dock.shelfHeight + dock.labelHeight
         radius: 22
         color: Theme.material.thin
 
@@ -216,12 +228,39 @@ PanelWindow {
             id: shelfHover
         }
 
+        StyledText {
+            id: hoverLabel
+
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: dock.shelfPadding - 2
+            text: dock.hoverName
+            opacity: dock.hoverItem ? 1 : 0
+            font.pointSize: Theme.font.size.smaller
+            font.weight: Font.Medium
+
+            Behavior on opacity {
+                Anim {
+                    duration: Theme.anim.small
+                }
+            }
+
+            // Under the icon, inside the shelf; left where it was while it fades.
+            Binding on x {
+                when: dock.hoverItem !== null
+                restoreMode: Binding.RestoreNone
+                value: {
+                    const center = (dock.hoverItem?.x ?? 0) + (dock.hoverItem?.width ?? 0) / 2 + row.x;
+                    return Math.max(dock.shelfPadding, Math.min(shelf.width - hoverLabel.width - dock.shelfPadding, center - hoverLabel.width / 2));
+                }
+            }
+        }
+
         Row {
             id: row
 
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: dock.shelfPadding + 6
+            anchors.bottomMargin: dock.shelfPadding + 6 + dock.labelHeight
             spacing: 0  // each icon carries its own gap (DockItem.gap)
             // No move transition: neighbours glide because the icons beside
             // them grow and shrink; a transition here would restart on every
@@ -241,6 +280,14 @@ PanelWindow {
                     apps: dockApps
                     iconSize: dock.iconSize
                     menuOpen: dock.menuItem === item
+                    onHoveredChanged: {
+                        if (hovered) {
+                            dock.hoverItem = item;
+                            dock.hoverName = item.name;
+                        } else if (dock.hoverItem === item) {
+                            dock.hoverItem = null;
+                        }
+                    }
                     magnification: {
                         if (!dock.magnify || dock.pointerX < 0)
                             return 1;

@@ -22,6 +22,8 @@ Item {
     required property bool leaving  // just closed: shrinking away
     required property DockApps apps
     required property real magnification  // 1 at rest; the dock grows neighbours
+    // Under the pointer (not pressed, no menu): the Dock shows its name.
+    readonly property bool hovered: mouse.containsMouse && !mouse.pressed && !menuOpen
     required property real iconSize
 
     property bool launching: false
@@ -156,38 +158,6 @@ Item {
             Anim {
                 duration: Theme.anim.small
             }
-        }
-    }
-
-    // Name above the icon while hovered.
-    Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: icon.top
-        anchors.bottomMargin: 10
-        width: label.implicitWidth + Theme.padding.larger * 2
-        height: label.implicitHeight + Theme.padding.small * 2
-        radius: Theme.rounding.full
-        color: Theme.material.regular
-
-        Glass {}
-        border.width: Theme.lens ? 0 : 1
-        border.color: Theme.palette.separator
-        opacity: mouse.containsMouse && !mouse.pressed && !root.menuOpen ? 1 : 0
-        visible: opacity > 0
-
-        Behavior on opacity {
-            Anim {
-                duration: Theme.anim.small
-            }
-        }
-
-        StyledText {
-            id: label
-
-            anchors.centerIn: parent
-            text: root.name
-            font.pointSize: Theme.font.size.smaller
-            font.weight: Font.Medium
         }
     }
 
