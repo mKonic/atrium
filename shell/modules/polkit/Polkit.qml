@@ -20,7 +20,9 @@ Scope {
             right: true
         }
         exclusiveZone: -1
-        color: Theme.palette.scrim
+        // No dimmed screen: the card's glass sees the desktop behind it, as a
+        // Mac's password prompt floats on its own.
+        color: "transparent"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "atrium-polkit"
         WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
