@@ -63,7 +63,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 11;
+constexpr int kSchemaVersion = 12;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -186,7 +186,7 @@ void Registry::migrate() {
          " width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, refresh INTEGER NOT NULL DEFAULT 0,"
          " scale REAL NOT NULL DEFAULT 1, transform INTEGER NOT NULL DEFAULT 0, x INTEGER, y INTEGER,"
          " adaptive_sync TEXT NOT NULL DEFAULT 'games', hdr INTEGER NOT NULL DEFAULT 0,"
-         " sdr_brightness INTEGER NOT NULL DEFAULT 30)");
+         " sdr_brightness INTEGER NOT NULL DEFAULT 30, sdr_color INTEGER NOT NULL DEFAULT 100)");
     exec("CREATE TABLE IF NOT EXISTS devices ("
          " name TEXT PRIMARY KEY, speed REAL, acceleration TEXT, natural_scroll INTEGER, left_handed INTEGER)");
     exec("CREATE TABLE IF NOT EXISTS sessions ("
@@ -257,6 +257,9 @@ void Registry::migrate() {
         exec("ALTER TABLE displays ADD COLUMN hdr INTEGER NOT NULL DEFAULT 0");
         exec("ALTER TABLE displays ADD COLUMN sdr_brightness INTEGER NOT NULL DEFAULT 30");
     }
+    // 12: SDR color intensity in HDR per display.
+    if (version > 0 && version < 12)
+        exec("ALTER TABLE displays ADD COLUMN sdr_color INTEGER NOT NULL DEFAULT 100");
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }
@@ -434,25 +437,26 @@ void Registry::replace_shortcuts(const std::vector<ShortcutRecord>& list) {
 
 std::optional<DisplayRecord> Registry::display(const std::string& id) const {
     Stmt s(db_, "SELECT id, enabled, width, height, refresh, scale, transform, x, y, adaptive_sync, hdr,"
-                " sdr_brightness FROM displays WHERE id = ?1");
+                " sdr_brightness, sdr_color FROM displays WHERE id = ?1");
     s.bind(1, id);
     if (!s.step())
         return std::nullopt;
     DisplayRecord d{s.text(0), s.integer(1) != 0, int(s.integer(2)), int(s.integer(3)), int(s.integer(4)),
                     s.real(5), int(s.integer(6)), s.opt_int(7), s.opt_int(8), s.text(9), s.integer(10) != 0,
-                    int(s.integer(11))};
+                    int(s.integer(11)), int(s.integer(12))};
     return d;
 }
 
 void Registry::put_display(const DisplayRecord& d) {
     Stmt s(db_,
            "INSERT INTO displays(id, enabled, width, height, refresh, scale, transform, x, y, adaptive_sync, hdr,"
-           " sdr_brightness) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT(id) DO UPDATE"
+           " sdr_brightness, sdr_color) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
+           " ON CONFLICT(id) DO UPDATE"
            " SET enabled = ?2, width = ?3, height = ?4, refresh = ?5, scale = ?6, transform = ?7, x = ?8, y = ?9,"
-           " adaptive_sync = ?10, hdr = ?11, sdr_brightness = ?12");
+           " adaptive_sync = ?10, hdr = ?11, sdr_brightness = ?12, sdr_color = ?13");
     s.bind(1, d.id).bind(2, d.enabled).bind(3, d.width).bind(4, d.height).bind(5, d.refresh).bind(6, d.scale)
         .bind(7, d.transform).bind(8, d.x).bind(9, d.y).bind(10, d.adaptive_sync).bind(11, d.hdr)
-        .bind(12, d.sdr_brightness);
+        .bind(12, d.sdr_brightness).bind(13, d.sdr_color);
     s.run();
 }
 

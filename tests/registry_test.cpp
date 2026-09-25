@@ -111,9 +111,11 @@ TEST(Registry, RemembersDisplays) {
     EXPECT_EQ(d->sdr_brightness, 30);
     d->hdr = true;
     d->sdr_brightness = 60;
+    d->sdr_color = 40;
     r.put_display(*d);
     EXPECT_TRUE(r.display("Dell U2720Q 123")->hdr);
     EXPECT_EQ(r.display("Dell U2720Q 123")->sdr_brightness, 60);
+    EXPECT_EQ(r.display("Dell U2720Q 123")->sdr_color, 40);
     d->enabled = false;
     d->x.reset();
     r.put_display(*d);
@@ -146,6 +148,7 @@ TEST(Registry, MigratesDisplaysToAdaptiveSync) {
         EXPECT_EQ(d->adaptive_sync, "games");
         EXPECT_FALSE(d->hdr);
         EXPECT_EQ(d->sdr_brightness, 30);
+        EXPECT_EQ(d->sdr_color, 100);
     }
     std::remove(path.c_str());
     std::remove((path + ".v9.bak").c_str());

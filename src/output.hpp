@@ -55,6 +55,9 @@ public:
     // nits); HDR apps keep their absolute brightness.
     bool hdr = false;
     int sdr_brightness = 30;
+    // 0-100: SDR content in HDR from plain sRGB (0) to the screen's own gamut
+    // (100), as the screen itself stretches it outside HDR.
+    int sdr_color = 100;
     std::optional<HdrCaps> hdr_caps;  // from the screen's EDID (real screens only)
     bool hdr_supported() const;
     bool hdr_active() const;

@@ -307,12 +307,23 @@ Rectangle {
             }
         }
 
+        Setting {
+            visible: (root.output?.hdr_supported ?? false) && (root.output?.hdr ?? false)
+            label: "SDR color intensity"
+
+            NumberControl {
+                value: root.output?.sdr_color ?? 100
+                onMoved: v => root.configure({ sdr_color: v })
+                onCommitted: v => root.configure({ sdr_color: v })
+            }
+        }
+
         StyledText {
             visible: root.output?.hdr_supported ?? false
             width: parent.width
             wrapMode: Text.WordWrap
             text: (root.output?.hdr ?? false)
-                ? "HDR games and videos show their full brightness and color" + ((root.output?.max_luminance ?? 0) > 0 ? `, up to the ${Math.round(root.output.max_luminance)} nits this screen says it reaches` : "") + ". Everything else looks as it does without HDR, as bright as SDR brightness sets it."
+                ? "HDR games and videos show their full brightness and color" + ((root.output?.max_luminance ?? 0) > 0 ? `, up to the ${Math.round(root.output.max_luminance)} nits this screen says it reaches` : "") + ". Everything else looks as it does without HDR, as bright as SDR brightness sets it and as vivid as SDR color intensity (100: the screen's full colors, as outside HDR; 0: exact sRGB)."
                 : "Sends the screen an HDR10 signal, so HDR games and videos show their full brightness and color. Everything else looks as it does now."
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel

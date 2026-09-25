@@ -73,6 +73,7 @@ void Server::remember_displays() {
         d.adaptive_sync = o->adaptive_sync;
         d.hdr = o->hdr;
         d.sdr_brightness = o->sdr_brightness;
+        d.sdr_color = o->sdr_color;
         if (o->wlr->enabled) {
             d.width = o->wlr->width;
             d.height = o->wlr->height;
@@ -87,6 +88,7 @@ void Server::remember_displays() {
             d.adaptive_sync = o->adaptive_sync;
             d.hdr = o->hdr;
             d.sdr_brightness = o->sdr_brightness;
+            d.sdr_color = o->sdr_color;
         }
         registry->put_display(d);
     }
@@ -99,6 +101,7 @@ void Server::restore_display(Output* output) {
     output->adaptive_sync = d->adaptive_sync;
     output->hdr = d->hdr;
     output->sdr_brightness = d->sdr_brightness;
+    output->sdr_color = d->sdr_color;
     wlr_output* w = output->wlr;
     wlr_output_state state;
     wlr_output_state_init(&state);
@@ -152,6 +155,12 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             return "sdr_brightness goes from 0 to 100";
         target->sdr_brightness = int(std::lround(v.get<double>()));
     }
+    if (req.contains("sdr_color")) {
+        const auto& v = req["sdr_color"];
+        if (!v.is_number() || v.get<double>() < 0 || v.get<double>() > 100)
+            return "sdr_color goes from 0 to 100";
+        target->sdr_color = int(std::lround(v.get<double>()));
+    }
     if (req.contains("hdr")) {
         if (!req["hdr"].is_boolean())
             return "hdr is true or false";
@@ -159,7 +168,8 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             return std::string(target->wlr->name) + " doesn't take HDR";
         target->hdr = req["hdr"];
     }
-    if ((req.contains("hdr") || req.contains("sdr_brightness")) && target->enabled() && !target->apply_hdr()) {
+    if ((req.contains("hdr") || req.contains("sdr_brightness") || req.contains("sdr_color")) && target->enabled() &&
+        !target->apply_hdr()) {
         target->hdr = false;
         target->apply_hdr();
         remember_displays();

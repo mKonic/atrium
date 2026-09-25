@@ -201,6 +201,23 @@ bool Output::apply_hdr() {
         wlr_output_state_finish(&state);
     }
     wlr_scene_output_set_sdr_white_nits(scene_output, hdr_active() ? float(sdr_white_nits()) : 0.0f);
+    // Out of HDR the screen spreads sRGB over its whole gamut; in HDR atrium
+    // does, as far as SDR color intensity says.
+    if (hdr_active() && wlr->default_primaries && sdr_color > 0) {
+        wlr_color_primaries srgb{}, spread{};
+        wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
+        const float t = float(sdr_color) / 100.0f;
+        const auto mix = [t](wlr_color_cie1931_xy a, wlr_color_cie1931_xy b) {
+            return wlr_color_cie1931_xy{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t};
+        };
+        spread.red = mix(srgb.red, wlr->default_primaries->red);
+        spread.green = mix(srgb.green, wlr->default_primaries->green);
+        spread.blue = mix(srgb.blue, wlr->default_primaries->blue);
+        spread.white = srgb.white;  // the same white: greys stay grey
+        wlr_scene_output_set_sdr_primaries(scene_output, &spread);
+    } else {
+        wlr_scene_output_set_sdr_primaries(scene_output, nullptr);
+    }
     if (!hdr_active())
         wlr_scene_output_set_tint(scene_output, 1, 1, 1);
     night_generation_ = 0;  // night light shown the way this mode shows it
