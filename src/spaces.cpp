@@ -298,6 +298,9 @@ void Server::toggle_secret(const std::string& name) {
         drop_focus();
         seat->clear_keyboard_focus();
     }
+    // A fullscreen window in it shows its black backdrop again.
+    for (Output* out : outputs)
+        out->refit_views();
     seat->refresh_pointer();
     spaces_changed();
 }
@@ -316,6 +319,9 @@ void Server::hide_secret() {
     focus_top();
     if (!focused_view)
         seat->clear_keyboard_focus();
+    // A fullscreen window in it no longer blacks out the screen behind.
+    for (Output* out : outputs)
+        out->refit_views();
     seat->refresh_pointer();
     spaces_changed();
 }
