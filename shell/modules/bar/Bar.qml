@@ -42,7 +42,12 @@ PanelWindow {
     // Over a fullscreen app it waits under the app while hidden (so the app
     // keeps its whole screen, pointer and direct scanout) and comes over when
     // the pointer reaches the top edge.
-    readonly property bool over: fullscreen && (revealed || content.y > -content.height)
+    // Lifted over it only once brought over; going fullscreen it slides away
+    // under the app, never flashing over it.
+    property bool lifted: false
+    onRevealedChanged: if (revealed && fullscreen) lifted = true
+    readonly property bool over: fullscreen && lifted && (revealed || content.y > -content.height)
+    onOverChanged: if (!over) lifted = false
     WlrLayershell.layer: over ? WlrLayer.Overlay : WlrLayer.Top
 
     Connections {

@@ -71,15 +71,15 @@ void Server::switch_space(Output* output, int number, View* carry) {
     if (!output || locked)
         return;
     overview->close_now();
+    // Finish any switch still in flight on this output first: its end
+    // prunes the space it left, which may be the one asked for now.
+    animator.cancel_owner(output, true);
     Space* target = ensure_space(output, number);
     Space* old = output->active;
     if (target == old)
         return;
     if (shown_secret && shown_secret->output == output)
         hide_secret();
-
-    // Finish any switch still in flight on this output first.
-    animator.cancel_owner(output, true);
 
     output->active = target;
     target->set_shown(true);

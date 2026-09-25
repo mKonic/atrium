@@ -103,7 +103,13 @@ PanelWindow {
     // when the pointer reaches the bottom edge (see Bar.qml).
     // Still sliding out counts as shown: it drops under the app once gone.
     readonly property bool shelfShown: shelf.anchors.bottomMargin > -(shelfHeight + 4)
-    WlrLayershell.layer: fullscreen && (revealed || shelfShown) ? WlrLayer.Overlay : WlrLayer.Top
+    // Lifted over it only once brought over; going fullscreen it slides away
+    // under the app, never flashing over it.
+    property bool lifted: false
+    onRevealedChanged: if (revealed && fullscreen) lifted = true
+    readonly property bool over: fullscreen && lifted && (revealed || shelfShown)
+    onOverChanged: if (!over) lifted = false
+    WlrLayershell.layer: over ? WlrLayer.Overlay : WlrLayer.Top
 
     Connections {
         target: output
