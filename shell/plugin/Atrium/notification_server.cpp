@@ -111,17 +111,49 @@ NotificationServer::NotificationServer() {
     // Cleared from the Notification Center: done with, for the app too.
     connect(NotificationHistory::instance(), &NotificationHistory::removed, this, [this](const QList<int>& uids) {
         for (int uid : uids)
-            if (Notification* n = byUid(uid); n && !popups_.contains(n))
+            if (Notification* n = byUid(uid); n && !popups_->contains(n))
                 close(n->id(), 2);
     });
 }
 
-QList<QObject*> NotificationServer::popups() const {
-    QList<QObject*> out;
-    for (const QPointer<Notification>& n : popups_)
-        if (n)
-            out.append(n);
-    return out;
+int PopupModel::rowCount(const QModelIndex& parent) const {
+    return parent.isValid() ? 0 : int(items_.size());
+}
+
+QVariant PopupModel::data(const QModelIndex& index, int role) const {
+    if (role != Qt::UserRole || index.row() < 0 || index.row() >= items_.size())
+        return {};
+    return QVariant::fromValue<QObject*>(items_[index.row()].data());
+}
+
+QHash<int, QByteArray> PopupModel::roleNames() const {
+    return {{Qt::UserRole, "notification"}};
+}
+
+void PopupModel::prepend(Notification* n) {
+    beginInsertRows({}, 0, 0);
+    items_.prepend(n);
+    endInsertRows();
+}
+
+bool PopupModel::remove(Notification* n) {
+    bool removed = false;
+    for (qsizetype i = items_.size() - 1; i >= 0; --i)
+        if (!items_[i] || items_[i] == n) {
+            beginRemoveRows({}, int(i), int(i));
+            items_.removeAt(i);
+            endRemoveRows();
+            removed = true;
+        }
+    return removed;
+}
+
+Notification* PopupModel::last() const {
+    return items_.isEmpty() ? nullptr : items_.last().data();
+}
+
+bool PopupModel::contains(Notification* n) const {
+    return items_.contains(n);
 }
 
 Notification::Data NotificationServer::resolve(const QString& app_name, const QString& app_icon,
@@ -217,13 +249,11 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
     live_.insert(id, n);
     const bool dnd = Compositor::instance()->settings().value("notifications.dnd").toBool();
     if ((!dnd && mode != "quiet") || n->critical()) {
-        popups_.prepend(n);
-        // The oldest beyond the limit leave the screen.
-        while (popups_.size() > kMaxPopups) {
-            QPointer<Notification> old = popups_.takeLast();
-            if (old)
-                close(old->id(), 1);
-        }
+        popups_->prepend(n);
+        // The oldest beyond the limit leave the screen, as if their time
+        // were up: still in the Notification Center.
+        while (popups_->size() > kMaxPopups)
+            expire(popups_->last());
         emit popupsChanged();
     } else if (n->data().transient) {
         close(id, 1);  // not shown, and not kept
@@ -235,12 +265,11 @@ void NotificationServer::close(uint id, uint reason) {
     Notification* n = live_.take(id);
     if (!n)
         return;
-    const qsizetype before = popups_.size();
-    popups_.removeIf([n](const QPointer<Notification>& p) { return !p || p == n; });
+    const bool shown = popups_->remove(n);
     NotificationImages::drop(n->image().section('/', -1));
     emit NotificationClosed(id, reason);
     emit n->closed();
-    if (popups_.size() != before)
+    if (shown)
         emit popupsChanged();
     n->deleteLater();
 }
@@ -270,9 +299,7 @@ void NotificationServer::expire(Notification* n) {
         close(n->id(), 1);
         return;
     }
-    const qsizetype before = popups_.size();
-    popups_.removeIf([n](const QPointer<Notification>& p) { return !p || p == n; });
-    if (popups_.size() != before)
+    if (popups_->remove(n))
         emit popupsChanged();
 }
 

@@ -4,6 +4,7 @@
 // Disturb is on (critical ones always do). Icons and pictures are resolved
 // here, so the shell's cards only show them.
 
+#include <QAbstractListModel>
 #include <QDBusContext>
 #include <QHash>
 #include <QImage>
@@ -76,15 +77,40 @@ public:
     static void drop(const QString& key);
 };
 
+// The popups on screen, newest first, as a model that says which one came or
+// went: a list property would rebuild every card, and all of them would
+// slide in again together.
+class PopupModel : public QAbstractListModel {
+    Q_OBJECT
+
+public:
+    using QAbstractListModel::QAbstractListModel;
+
+    int rowCount(const QModelIndex& parent = {}) const override;
+    QVariant data(const QModelIndex& index, int role) const override;
+    QHash<int, QByteArray> roleNames() const override;
+
+    void prepend(Notification* n);
+    bool remove(Notification* n);
+    Notification* last() const;
+    bool contains(Notification* n) const;
+    int size() const { return int(items_.size()); }
+
+private:
+    QList<QPointer<Notification>> items_;
+};
+
 class NotificationServer : public QObject, protected QDBusContext {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.Notifications")
-    Q_PROPERTY(QList<QObject*> popups READ popups NOTIFY popupsChanged)  // newest first, at most 5
+    Q_PROPERTY(QAbstractItemModel* popups READ popups CONSTANT)  // newest first, at most 5
+    Q_PROPERTY(int popupCount READ popupCount NOTIFY popupsChanged)
 
 public:
     static NotificationServer* instance();
 
-    QList<QObject*> popups() const;
+    QAbstractItemModel* popups() const { return popups_; }
+    int popupCount() const { return popups_->size(); }
 
     // The popup's time is up: it leaves the screen (and the history keeps it).
     Q_INVOKABLE void expire(atrium::Notification* n);
@@ -120,7 +146,7 @@ private:
     Notification* byUid(int uid) const;
 
     QHash<uint, Notification*> live_;
-    QList<QPointer<Notification>> popups_;
+    PopupModel* popups_ = new PopupModel(this);
     uint next_ = 1;
 };
 

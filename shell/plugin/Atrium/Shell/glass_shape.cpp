@@ -102,10 +102,17 @@ private:
             // at a hair above nothing.
             if (opacity < 0.01)
                 continue;
-            const QRectF r = s->mapRectToScene(QRectF(0, 0, s->width(), s->height()));
+            const QRectF whole = s->mapRectToScene(QRectF(0, 0, s->width(), s->height()));
+            // Only what shows: a card scrolled out of a clipping list (the
+            // Notification Center's) leaves its glass behind otherwise, past
+            // the list's edge.
+            QRectF r = whole;
+            for (QQuickItem* i = s->parentItem(); i; i = i->parentItem())
+                if (i->clip())
+                    r &= i->mapRectToScene(i->clipRect());
             if (r.width() <= 0 || r.height() <= 0)
                 continue;
-            const qreal scale = s->width() > 0 ? r.width() / s->width() : 1;
+            const qreal scale = s->width() > 0 ? whole.width() / s->width() : 1;
             for (qreal v : {r.x(), r.y(), r.width(), r.height(), s->radius() * scale, opacity})
                 now.push_back(wl_fixed_from_double(v));
         }

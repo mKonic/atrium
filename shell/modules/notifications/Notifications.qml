@@ -32,88 +32,95 @@ Scope {
         exclusiveZone: 0
         color: "transparent"
         // The notification center, when open, already shows them all.
-        visible: NotificationServer.popups.length > 0 && Panels.open !== "notifications"
+        visible: NotificationServer.popupCount > 0 && Panels.open !== "notifications"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "atrium-notifications"
 
         mask: Region {
-            item: column
+            item: list
         }
 
-        Column {
-            id: column
+        // A new one slides in at the top from the right and the others move
+        // down to make room; one leaving slides back out, and the rest close up.
+        ListView {
+            id: list
 
             width: parent.width
+            height: contentHeight
             spacing: 8
+            interactive: false
+            model: NotificationServer.popups
 
-            // The others glide into place when one comes or goes.
-            move: Transition {
+            add: Transition {
+                ParallelAnimation {
+                    Anim {
+                        property: "x"
+                        from: 400
+                        to: 0
+                        duration: Theme.anim.normal
+                        easing.bezierCurve: Theme.anim.emphasizedDecel
+                    }
+                    Anim {
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        duration: Theme.anim.small
+                    }
+                }
+            }
+            remove: Transition {
+                ParallelAnimation {
+                    Anim {
+                        property: "x"
+                        to: 400
+                        duration: Theme.anim.small
+                        easing.bezierCurve: Theme.anim.emphasizedAccel
+                    }
+                    Anim {
+                        property: "opacity"
+                        to: 0
+                        duration: Theme.anim.small
+                    }
+                }
+            }
+            displaced: Transition {
                 Anim {
-                    properties: "y"
+                    properties: "x,y"
                     duration: Theme.anim.normal
                     easing.bezierCurve: Theme.anim.standard
                 }
             }
 
-            Repeater {
-                model: NotificationServer.popups
+            delegate: NotificationCard {
+                id: card
 
-                NotificationCard {
-                    id: card
+                required property Notification notification
+                required property int index
+                readonly property Notification n: notification
 
-                    required property Notification modelData
-                    readonly property Notification n: modelData
+                z: -index  // the newest over the ones moving down past it
 
-                    width: column.width
-                    app: n.app
-                    icon: n.icon
-                    image: n.image
-                    summary: n.summary
-                    body: n.body
-                    time: Date.now()
-                    critical: n.critical
-                    actions: n.actions
+                width: list.width
+                app: n.app
+                icon: n.icon
+                image: n.image
+                summary: n.summary
+                body: n.body
+                time: Date.now()
+                critical: n.critical
+                actions: n.actions
 
-                    // Slides in from the right edge.
-                    transform: Translate {
-                        id: slide
-
-                        x: 0
-                    }
-                    Component.onCompleted: enter.start()
-
-                    ParallelAnimation {
-                        id: enter
-
-                        Anim {
-                            target: slide
-                            property: "x"
-                            from: 400
-                            to: 0
-                            duration: Theme.anim.normal
-                            easing.bezierCurve: Theme.anim.emphasizedDecel
-                        }
-                        Anim {
-                            target: card
-                            property: "opacity"
-                            from: 0
-                            to: 1
-                            duration: Theme.anim.small
-                        }
-                    }
-
-                    // Goes on its own after a while, unless it matters or the
-                    // pointer is on it.
-                    Timer {
-                        running: !card.critical && !card.hovered && !card.expanded
-                        interval: card.n.timeout
-                        onTriggered: NotificationServer.expire(card.n)
-                    }
-
-                    onDismissed: NotificationServer.dismiss(n)
-                    onClicked: NotificationServer.activate(n)
-                    onAction: id => NotificationServer.invoke(n, id)
+                // Goes on its own after a while, unless it matters or the
+                // pointer is on it.
+                Timer {
+                    running: !card.critical && !card.hovered && !card.expanded
+                    interval: card.n.timeout
+                    onTriggered: NotificationServer.expire(card.n)
                 }
+
+                onDismissed: NotificationServer.dismiss(n)
+                onClicked: NotificationServer.activate(n)
+                onAction: id => NotificationServer.invoke(n, id)
             }
         }
     }
