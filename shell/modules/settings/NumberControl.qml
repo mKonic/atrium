@@ -48,13 +48,6 @@ Item {
             color: Theme.palette.accent
         }
 
-        Thumb {
-            x: Math.max(0, Math.min(1, root.fraction)) * parent.width - width / 2
-            anchors.verticalCenter: parent.verticalCenter
-            width: 18
-            height: 18
-        }
-
         MouseArea {
             id: drag
 
@@ -70,6 +63,16 @@ Item {
                     root.committed(root.shown);
             }
         }
+    }
+
+    // Beside the track, not in it: held, it's a lens over the track.
+    Thumb {
+        x: track.x + Math.max(0, Math.min(1, root.fraction)) * track.width - width / 2
+        anchors.verticalCenter: track.verticalCenter
+        width: 22
+        height: 17
+        pressed: drag.pressed
+        backdrop: track
     }
 
     StyledText {

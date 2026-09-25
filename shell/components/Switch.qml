@@ -1,8 +1,9 @@
 import QtQuick
 import shell.services
 
-// An on/off switch, as the header of an expanded Control Center module has.
-Rectangle {
+// An on/off switch, as macOS 26 has it: held, its knob turns to glass over
+// the track (and slides when let go).
+Item {
     id: root
 
     property bool checked: false
@@ -10,20 +11,29 @@ Rectangle {
 
     implicitWidth: 40
     implicitHeight: 24
-    radius: height / 2
-    color: checked ? Theme.palette.accent : Theme.palette.fill
 
-    Behavior on color {
-        CAnim {
-            duration: Theme.anim.small
+    Rectangle {
+        id: track
+
+        anchors.fill: parent
+        radius: height / 2
+        color: root.checked ? Theme.palette.accent : Theme.palette.fill
+
+        Behavior on color {
+            CAnim {
+                duration: Theme.anim.small
+            }
         }
     }
 
+    // Beside the track, not in it, so it can be a lens over it.
     Thumb {
-        x: root.checked ? root.width - width - 3 : 3
+        x: root.checked ? root.width - width - 2 : 2
         anchors.verticalCenter: parent.verticalCenter
-        width: root.height - 6
-        height: width
+        width: root.height - 4 + 4
+        height: root.height - 4
+        pressed: area.pressed
+        backdrop: track
 
         Behavior on x {
             Anim {
@@ -34,6 +44,8 @@ Rectangle {
     }
 
     MouseArea {
+        id: area
+
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: root.toggled()
