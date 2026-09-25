@@ -47,6 +47,10 @@ void Server::toggle_tiling(Space* space) {
         });
 
     if (space->tiled) {
+        // Maximized windows already here join the tiles too.
+        for (View* v : views)
+            if (v->space == space && v->mapped && v->maximized && !v->fullscreen)
+                v->join_tiles();
         retile(space);
     } else {
         for (View* v : views)
@@ -164,6 +168,13 @@ void View::tile_to(const wlr_box& box) {
     }
     set_tile_bar_hidden(!server.config.tiled_titlebars);
     request_geometry(box);
+}
+
+void View::join_tiles() {
+    const wlr_box was = restore;  // back there when tiling ends, not maximized
+    set_maximized(false, false);  // retiles
+    if (tiled_)
+        before_tile_ = was;
 }
 
 void View::untile() {

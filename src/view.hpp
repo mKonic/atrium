@@ -71,6 +71,7 @@ public:
     void leave_secret();
     // Tiling: take `box` (remembering the floating one), or float again.
     void tile_to(const wlr_box& box);
+    void join_tiles();  // a maximized window, when its space starts tiling
     void untile();
     bool tiled() const { return tiled_; }
     // Its place is the layout's, as in caelestia's tiling: a tile, or a window
