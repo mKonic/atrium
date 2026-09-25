@@ -79,6 +79,8 @@ public:
     bool layout_owned() const;
     // A window whose size the app fixes (min = max).
     bool fixed_size() const;
+    // y, or lower: a floating window's top can't go above the menu bar.
+    int below_bar(int y) const;
     // Its name in ext-foreign-toplevel-list: how screen sharing names it.
     std::string toplevel_identifier() const {
         return ext_handle_ && ext_handle_->identifier ? ext_handle_->identifier : "";

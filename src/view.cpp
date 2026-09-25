@@ -386,9 +386,17 @@ void View::animate_close() {
 
 // --- geometry ------------------------------------------------------------------
 
+// The menu bar is a wall: a floating window's top (its title bar) stays
+// below it, however the window got there, as on a Mac.
+int View::below_bar(int y) const {
+    if (fullscreen || unmanaged() || layout_owned() || !output)
+        return y;
+    return std::max(y, output->usable.y);
+}
+
 void View::move_to(int x, int y) {
     geom.x = x;
-    geom.y = y;
+    geom.y = below_bar(y);
     place_tree();
     notify_position();
     update_output_from_position();
@@ -450,7 +458,7 @@ void View::request_geometry(wlr_box box) {
     // (see handle_size); moving now would make the window jump ahead of it.
     if (!anchored()) {
         geom.x = box.x;
-        geom.y = box.y;
+        geom.y = box.y = below_bar(box.y);
         place_tree();
         update_output_from_position();
     }

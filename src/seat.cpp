@@ -679,8 +679,14 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         return;
     }
     if (mode == Mode::Resize && grab_view_) {
-        grab_view_->request_geometry(geometry::resize(grab_geom_, grab_edges_,
-            int(std::lround(cursor->x - grab_x_)), int(std::lround(cursor->y - grab_y_))));
+        wlr_box box = geometry::resize(grab_geom_, grab_edges_,
+            int(std::lround(cursor->x - grab_x_)), int(std::lround(cursor->y - grab_y_)));
+        // Pulled up past the menu bar, the top edge stops at it.
+        if (const int top = grab_view_->below_bar(box.y); top > box.y && (grab_edges_ & WLR_EDGE_TOP)) {
+            box.height -= top - box.y;
+            box.y = top;
+        }
+        grab_view_->request_geometry(box);
         return;
     }
 
