@@ -105,11 +105,21 @@ DefaultApps::DefaultApps(QObject* parent) : QObject(parent) {
     connect(Compositor::instance(), &Compositor::settingsChanged, this, &DefaultApps::changed);
 }
 
+static QString currentFor(const QStringList& types);
+
 QVariantList DefaultApps::browsers() const {
-    return entries([](DesktopEntry* e) {
+    QVariantList apps = entries([](DesktopEntry* e) {
         const QStringList types = e->mimeTypes();
         return types.contains("x-scheme-handler/https") || types.contains("x-scheme-handler/http");
     });
+    // The one in use, even when it isn't offered (by another desktop id),
+    // is listed by its name, not shown as a raw id.
+    const QString current = browser();
+    const bool listed = std::ranges::any_of(apps, [&](const QVariant& a) { return a.toMap().value("value") == current; });
+    if (!listed && !current.isEmpty())
+        if (DesktopEntry* e = DesktopEntries::instance()->byId(current))
+            apps.prepend(QVariantMap{{"value", e->id()}, {"label", e->name()}, {"icon", e->icon()}});
+    return apps;
 }
 
 // The default for the first of `types` that has one, most important file

@@ -112,7 +112,7 @@ FloatingWindow {
 
                 Line {
                     title: "Liquid Glass"
-                    note: "The bar, Dock and panels as clear glass over a vivid blur."
+                    note: "The bar, Dock and panels as glass that bends what is behind it, as in macOS."
 
                     Switch {
                         checked: Atrium.settings["appearance.liquid_glass"] ?? false

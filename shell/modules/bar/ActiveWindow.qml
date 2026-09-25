@@ -22,22 +22,26 @@ Item {
     // The room there is before the bar's right side; the title gives way first.
     property real maxWidth: 10000
 
+    // Nothing focused (or no app): nothing shown, not an empty pill. (The
+    // bar sets this item's own opacity, so the content fades instead.)
+    readonly property bool shown: !!window && appName !== ""
+
     implicitHeight: Theme.bar.inner
-    implicitWidth: row.implicitWidth + (Theme.lens ? Theme.padding.normal * 2 : 0)
-    opacity: window ? 1 : 0
+    implicitWidth: shown ? row.implicitWidth + (Theme.lens ? Theme.padding.normal * 2 : 0) : 0
 
     // Liquid Glass: in a glass pill, so it reads over any wallpaper.
     Rectangle {
         anchors.fill: parent
         radius: height / 2
         visible: Theme.lens
+        opacity: root.shown ? 1 : 0
         color: Theme.material.pill
 
         Glass {}
-    }
 
-    Behavior on opacity {
-        Anim {}
+        Behavior on opacity {
+            Anim {}
+        }
     }
 
     Row {
@@ -45,7 +49,12 @@ Item {
 
         x: Theme.lens ? Theme.padding.normal : 0
         anchors.verticalCenter: parent.verticalCenter
+        opacity: root.shown ? 1 : 0
         spacing: Theme.spacing.small
+
+        Behavior on opacity {
+            Anim {}
+        }
 
         IconImage {
             anchors.verticalCenter: parent.verticalCenter
