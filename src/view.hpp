@@ -196,6 +196,7 @@ protected:
     std::optional<wlr_box> before_secret_;  // its floating box before a secret space took it
     std::optional<wlr_box> before_tile_;    // ... before tiling took it
     bool tiled_ = false;
+    double ring_ = 0;  // the focus ring on a tile: 0 faint, 1 lit (animated)
 
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;

@@ -8,7 +8,10 @@ namespace atrium {
 
 class Server;
 
-enum class Ease { Linear, OutCubic, OutQuint, InCubic, InOutCubic };
+// The last three are caelestia's curves (Material 3's): standard
+// (0.2, 0, 0, 1), emphasized decelerate (0.05, 0.7, 0.1, 1) and emphasized
+// accelerate (0.3, 0, 0.8, 0.15).
+enum class Ease { Linear, OutCubic, OutQuint, InCubic, InOutCubic, Standard, EmphasizedDecel, EmphasizedAccel };
 
 double ease(Ease e, double t);
 

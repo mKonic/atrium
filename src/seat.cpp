@@ -702,6 +702,16 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     }
     Hit hit = server.hit_test(cursor->x, cursor->y, riding);
 
+    // Among tiles (and in a secret space) focus follows the pointer, as in
+    // caelestia; floating windows keep click to focus. Not while a panel or
+    // menu has the keyboard.
+    if (time && mode == Mode::Normal && !server.locked && hit.view && !hit.layer && hit.view->layout_owned() &&
+        hit.view != server.focused_view) {
+        wlr_surface* kf = wlr->keyboard_state.focused_surface;
+        if (!kf || (server.focused_view && kf == server.focused_view->surface()))
+            server.focus_view(hit.view, false);
+    }
+
     // A title-bar button held down: it shows pressed only while the pointer
     // stays on it, and nothing else gets the pointer meanwhile.
     if (press_bar_) {

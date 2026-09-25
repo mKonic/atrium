@@ -9,6 +9,23 @@
 
 namespace atrium {
 
+namespace {
+
+// A CSS cubic-bezier(x1, y1, x2, y2) at time t: solve x(s) = t for s, then y(s).
+double bezier(double x1, double y1, double x2, double y2, double t) {
+    auto at = [](double a, double b, double s) {
+        return 3 * a * s * (1 - s) * (1 - s) + 3 * b * s * s * (1 - s) + s * s * s;
+    };
+    double lo = 0, hi = 1, s = t;
+    for (int i = 0; i < 40; i++) {
+        s = (lo + hi) / 2;
+        (at(x1, x2, s) < t ? lo : hi) = s;
+    }
+    return at(y1, y2, s);
+}
+
+} // namespace
+
 double ease(Ease e, double t) {
     t = std::clamp(t, 0.0, 1.0);
     switch (e) {
@@ -17,6 +34,9 @@ double ease(Ease e, double t) {
     case Ease::OutQuint: return 1 - std::pow(1 - t, 5);
     case Ease::InCubic: return t * t * t;
     case Ease::InOutCubic: return t < 0.5 ? 4 * t * t * t : 1 - std::pow(-2 * t + 2, 3) / 2;
+    case Ease::Standard: return bezier(0.2, 0, 0, 1, t);
+    case Ease::EmphasizedDecel: return bezier(0.05, 0.7, 0.1, 1, t);
+    case Ease::EmphasizedAccel: return bezier(0.3, 0, 0.8, 0.15, t);
     }
     return t;
 }

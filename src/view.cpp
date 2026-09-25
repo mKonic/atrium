@@ -4,6 +4,7 @@
 
 #include "geometry.hpp"
 #include "output.hpp"
+#include "palette.hpp"
 #include "overview.hpp"
 #include "switcher.hpp"
 #include "seat.hpp"
@@ -31,6 +32,7 @@ View::View(Server& srv, Kind k) : server(srv), kind(k), id(srv.next_view_id++) {
 View::~View() {
     forget_icon(*this);
     server.animator.cancel_owner(this, false);
+    server.animator.cancel_owner(&ring_, false);
     destroy_toplevel_handles();
 }
 
@@ -583,10 +585,23 @@ void View::raise() {
 }
 
 void View::set_activated(bool a) {
+    const bool was = activated;
     activated = a;
     send_activated(a);
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_activated(handle_, a);
+    // The focus ring fades from one tile to the next, as caelestia's border
+    // does (600 ms, standard curve).
+    server.animator.cancel_owner(&ring_, false);
+    if (was != a && layout_owned() && tree) {
+        const double from = ring_, to = a ? 1 : 0;
+        server.animator.start(&ring_, 600, Ease::Standard, [this, from, to](double t) {
+            ring_ = from + (to - from) * t;
+            update_decorations();
+        });
+    } else {
+        ring_ = a ? 1 : 0;
+    }
     update_decorations();
 }
 
@@ -805,9 +820,19 @@ void View::update_decorations() {
 
     // A faint light hairline keeps dark windows distinct on a dark desktop,
     // where a shadow alone disappears.
-    wlr_scene_node_set_enabled(&outline->node, !fullscreen && c.outline_color[3] > 0);
+    wlr_scene_node_set_enabled(&outline->node, !fullscreen && (c.outline_color[3] > 0 || layout_owned()));
     if (!fullscreen) {
         Color oc = activated ? c.outline_color : c.outline_color_inactive;
+        // Tiles and secret windows show which has focus: an accent ring,
+        // caelestia's (its primary at 90%, the others faint).
+        if (layout_owned()) {
+            const uint32_t a = palette::make(c.light, c.accent).accent;
+            const Color ring{((a >> 24) & 0xff) / 255.0f, ((a >> 16) & 0xff) / 255.0f, ((a >> 8) & 0xff) / 255.0f, 0.9f};
+            const Color faint = c.outline_color_inactive;
+            const float t = float(ring_);
+            for (int i = 0; i < 4; i++)
+                oc[i] = faint[i] + (ring[i] - faint[i]) * t;
+        }
         oc[3] *= alpha_;
         wlr_scene_rect_set_color(outline, premultiplied(oc).data());
         wlr_scene_rect_set_size(outline, geom.width + 2, geom.height + 2);
