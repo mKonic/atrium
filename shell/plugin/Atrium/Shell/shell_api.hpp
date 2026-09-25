@@ -36,6 +36,8 @@ public:
     // it already runs; `env` is added to its environment.
     Q_INVOKABLE void launch(const QString& file, const QVariantMap& env = {}) const;
     Q_INVOKABLE QString env(const QString& name) const;
+    // A line on standard output (the askpass answers sudo so).
+    Q_INVOKABLE void printLine(const QString& text) const;
 
 signals:
     void screensChanged();

@@ -578,6 +578,11 @@ void Server::run(const char* startup_cmd) {
     setenv("WAYLAND_DISPLAY", socket, 1);
     setenv("XDG_CURRENT_DESKTOP", "atrium", 1);
     setenv("XDG_SESSION_TYPE", "wayland", 1);
+    // sudo -A and ssh ask through the shell, unless the user chose otherwise.
+    if (const std::string askpass = ATRIUM_BINDIR "/atrium-askpass"; access(askpass.c_str(), X_OK) == 0) {
+        setenv("SUDO_ASKPASS", askpass.c_str(), 0);
+        setenv("SSH_ASKPASS", askpass.c_str(), 0);
+    }
     prepare_session_environment();
     if (!config.greeter) {  // the greeter's user has no home to theme
         install_gtk_theme(config.light, config.accent);
@@ -590,7 +595,8 @@ void Server::run(const char* startup_cmd) {
         // Then the session's services and autostart apps, unless something
         // else (uwsm) already runs the graphical session.
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
-              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS; "
+              "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS "
+              "SUDO_ASKPASS SSH_ASKPASS; "
               // Ours still up is a crashed atrium's: over from the start, so
               // login apps start again. Another's (uwsm's) is left alone.
               "if systemctl --user -q is-active atrium-session.target; then "

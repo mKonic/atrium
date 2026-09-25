@@ -2,6 +2,7 @@
 
 #include "screens.hpp"
 
+#include <cstdio>
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QIcon>
@@ -73,6 +74,12 @@ void ShellApi::launch(const QString& file, const QVariantMap& env) const {
 
 QString ShellApi::env(const QString& name) const {
     return qEnvironmentVariable(name.toUtf8().constData());
+}
+
+void ShellApi::printLine(const QString& text) const {
+    const QByteArray line = text.toUtf8() + '\n';
+    std::fwrite(line.constData(), 1, size_t(line.size()), stdout);
+    std::fflush(stdout);
 }
 
 } // namespace atrium::shell

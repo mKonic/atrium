@@ -1,0 +1,4 @@
+#!/bin/sh
+# atrium-askpass: SUDO_ASKPASS and SSH_ASKPASS for atrium. Asks in the shell's
+# own style and prints the password; exits 1 when cancelled.
+ATRIUM_ASKPASS_PROMPT="$*" exec atrium-shell "${ATRIUM_SHELL_DIR:-/usr/share/atrium/shell}/askpass.qml"
