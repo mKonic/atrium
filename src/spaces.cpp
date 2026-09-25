@@ -10,6 +10,8 @@
 #include "view.hpp"
 
 #include <algorithm>
+#include <cstdlib>
+#include <unistd.h>
 
 namespace atrium {
 
@@ -159,47 +161,42 @@ void Server::fullscreen_space(View* view) {
     switch_space(o, n, view);
 }
 
-// Previous/next space on the focused output. "Next" past the last one that
-// has windows opens a fresh, empty space, as long as the current one isn't
-// already empty.
+// Previous/next space by number, empty or not, as Hyprland's workspace
+// -1/+1 (what caelestia binds to Super+Tab and Super+Page Up/Down): past the
+// last one opens the next, and there is none before 1.
+namespace {
+
+// The command's program is on PATH (or a path that runs).
+bool command_exists(const std::string& command) {
+    const std::string program = command.substr(0, command.find_first_of(" \t"));
+    if (program.empty())
+        return false;
+    if (program.find('/') != std::string::npos)
+        return access(program.c_str(), X_OK) == 0;
+    const char* path = std::getenv("PATH");
+    std::string dirs = path ? path : "/usr/local/bin:/usr/bin:/bin";
+    for (size_t start = 0; start <= dirs.size();) {
+        const size_t end = std::min(dirs.find(':', start), dirs.size());
+        if (end > start && access((dirs.substr(start, end - start) + "/" + program).c_str(), X_OK) == 0)
+            return true;
+        start = end + 1;
+    }
+    return false;
+}
+
+} // namespace
+
 void Server::cycle_space(int direction) {
-    Output* o = focused_output;
-    if (!o || !o->active)
-        return;
-    std::vector<int> numbers;
-    for (const auto& s : spaces)
-        if (!s->secret && s->output == o)
-            numbers.push_back(s->number);
-    std::ranges::sort(numbers);
-    if (numbers.size() < 2)
-        return;
-    const auto it = std::ranges::find(numbers, o->active->number);
-    const int i = int(it - numbers.begin()), n = int(numbers.size());
-    switch_space(o, numbers[((i + direction) % n + n) % n]);
+    step_space(direction);
 }
 
 void Server::step_space(int direction) {
     Output* o = focused_output;
     if (!o || !o->active)
         return;
-    const int current = o->active->number;
-    if (direction < 0) {
-        int best = 0;
-        for (const auto& s : spaces)
-            if (!s->secret && s->output == o && s->number < current)
-                best = std::max(best, s->number);
-        if (best)
-            switch_space(o, best);
-        return;
-    }
-    int best = 0;
-    for (const auto& s : spaces)
-        if (!s->secret && s->output == o && s->number > current && (!best || s->number < best))
-            best = s->number;
-    if (!best && !o->active->empty())
-        best = current + 1;
-    if (best)
-        switch_space(o, best);
+    const int n = o->active->number + direction;
+    if (n >= 1)
+        switch_space(o, n);
 }
 
 void Server::move_to_space(View* view, Space* space) {
@@ -270,7 +267,8 @@ void Server::toggle_secret(const std::string& name) {
             if (v->space != s)
                 move_to_space(v, s);
         }
-        if (!running && !rule.launch.empty())
+        // Only what is installed: a default names apps some never have.
+        if (!running && !rule.launch.empty() && command_exists(rule.launch))
             spawn(rule.launch);
     }
     // Windows come along to the output the space is shown on.

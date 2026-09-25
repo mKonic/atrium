@@ -112,19 +112,6 @@ PanelWindow {
     WlrLayershell.namespace: "atrium-control-center"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-    Connections {
-        target: Atrium
-
-        function onFocusedWindowChanged(): void {
-            // A window taking focus means a click elsewhere; the panel taking the
-            // keyboard itself leaves no window focused and must not close it.
-            if (!Atrium.focusedWindow)
-                return;
-            if (Panels.open === "control")
-                Panels.open = "";
-        }
-    }
-
     function formatTime(s: int): string {
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }

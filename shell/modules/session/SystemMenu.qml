@@ -26,18 +26,6 @@ PanelWindow {
     WlrLayershell.namespace: "atrium-system-menu"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    Connections {
-        target: Atrium
-
-        function onFocusedWindowChanged(): void {
-            // A window taking focus means a click elsewhere.
-            if (!Atrium.focusedWindow)
-                return;
-            if (Panels.open === "system")
-                Panels.open = "";
-        }
-    }
-
     Menu {
         id: menu
 

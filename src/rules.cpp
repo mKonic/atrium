@@ -95,9 +95,11 @@ std::vector<WindowRule> parse_rules(const json& rules, std::vector<std::string>*
 }
 
 json default_rules() {
-    // Chat apps live in their own secret space, called up with one key.
+    // Chat apps live in their own secret space, called up with one key, and
+    // Discord starts when it isn't running, as caelestia's toggle does.
     return json::array({
-        {{"app_id", "discord|equibop|vesktop|whatsapp|zapzap"}, {"secret", "communication"}},
+        {{"app_id", "discord"}, {"secret", "communication"}, {"launch", "discord"}},
+        {{"app_id", "equibop|vesktop|whatsapp|zapzap"}, {"secret", "communication"}},
     });
 }
 

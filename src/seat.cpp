@@ -781,6 +781,14 @@ void Seat::button(wlr_pointer_button_event* e) {
 
         Hit hit = server.hit_test(cursor->x, cursor->y);
 
+        // Where the press landed, for the shell: its panels close on a press
+        // anywhere else, as macOS's do (focus isn't a reliable sign of that:
+        // a click on the window already focused changes nothing).
+        if (server.ipc) {
+            const char* ns = hit.layer && hit.layer->wlr->namespace_ ? hit.layer->wlr->namespace_ : "";
+            server.ipc->broadcast("shell", {{"event", "pointer.pressed"}, {"namespace", ns}});
+        }
+
         // Frame edges and title bars belong to atrium, not the client.
         if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
             server.focus_view(zone.view);

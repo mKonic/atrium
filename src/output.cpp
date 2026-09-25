@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <drm_fourcc.h>
+#include <xf86drm.h>
 #include <ctime>
 
 #include <sys/timerfd.h>
@@ -129,6 +130,26 @@ bool Output::hdr_active() const {
     return wlr->image_description && wlr->image_description->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
 }
 
+namespace {
+
+std::string format_name(uint32_t format) {
+    char* n = drmGetFormatName(format);
+    std::string out = n ? n : "?";
+    free(n);
+    return out;
+}
+
+// Why no 10-bit format was taken: what the screen's plane offers.
+void log_formats(wlr_output* output) {
+    const wlr_drm_format_set* formats = wlr_output_get_primary_formats(output, WLR_BUFFER_CAP_DMABUF);
+    std::string list;
+    for (size_t i = 0; formats && i < formats->len; ++i)
+        list += format_name(formats->formats[i].format) + " ";
+    wlr_log(WLR_ERROR, "%s: no 10-bit format for HDR; the plane offers: %s", output->name, list.c_str());
+}
+
+} // namespace
+
 bool Output::apply_hdr() {
     const bool want = hdr && hdr_supported();
     bool ok = true;
@@ -152,15 +173,29 @@ bool Output::apply_hdr() {
             desc.max_cll = max;
             desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? hdr_caps->max_frame_avg_nits : max;
             wlr_output_state_set_image_description(&state, &desc);
-            wlr_output_state_set_render_format(&state, DRM_FORMAT_XRGB2101010);
             // Night light moves from the gamma table into the renderer.
             if (wlr_output_get_gamma_size(wlr) > 0)
                 wlr_output_state_set_color_transform(&state, nullptr);
+            // At least 10 bits a channel, in whichever layout this screen's
+            // plane and the renderer share (NVIDIA's may not be XRGB).
+            ok = false;
+            for (uint32_t format : {DRM_FORMAT_XRGB2101010, DRM_FORMAT_XBGR2101010, DRM_FORMAT_ARGB2101010,
+                                    DRM_FORMAT_ABGR2101010, DRM_FORMAT_XBGR16161616F, DRM_FORMAT_ABGR16161616F}) {
+                wlr_output_state_set_render_format(&state, format);
+                if (wlr_output_test_state(wlr, &state)) {
+                    wlr_log(WLR_INFO, "%s: HDR in %s", wlr->name, format_name(format).c_str());
+                    ok = true;
+                    break;
+                }
+            }
+            if (!ok)
+                log_formats(wlr);
         } else {
             wlr_output_state_set_image_description(&state, nullptr);
             wlr_output_state_set_render_format(&state, DRM_FORMAT_XRGB8888);
+            ok = wlr_output_test_state(wlr, &state);
         }
-        ok = wlr_output_test_state(wlr, &state) && wlr_output_commit_state(wlr, &state);
+        ok = ok && wlr_output_commit_state(wlr, &state);
         if (!ok)
             wlr_log(WLR_ERROR, "%s: refused %s HDR", wlr->name, want ? "turning on" : "turning off");
         wlr_output_state_finish(&state);

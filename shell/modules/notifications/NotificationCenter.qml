@@ -36,20 +36,6 @@ PanelWindow {
             NotificationHistory.markRead();
     }
 
-    // Clicking a window closes it, like a menu.
-    Connections {
-        target: Atrium
-
-        function onFocusedWindowChanged(): void {
-            // A window taking focus means a click elsewhere; the panel taking the
-            // keyboard itself leaves no window focused and must not close it.
-            if (!Atrium.focusedWindow)
-                return;
-            if (Panels.open === "notifications")
-                Panels.open = "";
-        }
-    }
-
     Rectangle {
         id: panel
 
