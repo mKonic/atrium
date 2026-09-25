@@ -643,6 +643,12 @@ void View::set_maximized(bool m, bool restore_geometry) {
     server.notify_window(*this, "changed");
     if (fullscreen)
         return;  // takes effect when fullscreen ends
+    // In a secret space the frame is the window's place either way, as in
+    // caelestia's special workspaces: no title bar, a margin all round.
+    if (space && space->secret && !parent() && !is_dialog()) {
+        fit_secret(false);
+        return;
+    }
     if (m) {
         if (!snapped)
             restore = geom;  // a snapped window already remembers where it was
@@ -656,7 +662,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
 }
 
 void View::snap(uint32_t zone) {
-    if (!zone || unmanaged() || fullscreen || !mapped)
+    if (!zone || unmanaged() || fullscreen || !mapped || (space && space->secret))
         return;
     if (zone == WLR_EDGE_TOP) {
         set_maximized(true);
