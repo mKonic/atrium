@@ -263,19 +263,42 @@ void NotificationServer::dismiss(Notification* n) {
         close(n->id(), 2);
 }
 
+namespace {
+
+// A click brings the app that sent it forward, as on a Mac: the action it
+// answers (an updater, a chat) is in its window, maybe in a hidden space.
+void raise_sender(const Notification::Data& d) {
+    const QString wanted = (d.desktopEntry.isEmpty() ? d.app : d.desktopEntry).toLower();
+    if (wanted.isEmpty())
+        return;
+    for (const QVariant& w : Compositor::instance()->windows()) {
+        const QVariantMap m = w.toMap();
+        const QString id = m.value("app_id").toString().toLower();
+        if (id == wanted || id.endsWith("." + wanted)) {
+            Compositor::instance()->focusWindow(m.value("id").toInt());
+            return;
+        }
+    }
+}
+
+} // namespace
+
 void NotificationServer::activate(Notification* n) {
     if (!n)
         return;
-    if (n->hasDefault())
+    if (n->hasDefault()) {
         invoke(n, "default");
-    else
+    } else {
+        raise_sender(n->data());
         close(n->id(), 2);
+    }
 }
 
 void NotificationServer::invoke(Notification* n, const QString& action) {
     if (!n)
         return;
     emit ActionInvoked(n->id(), action);
+    raise_sender(n->data());
     // Done with, unless it stays by design.
     if (!n->data().resident)
         close(n->id(), 2);

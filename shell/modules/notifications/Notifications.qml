@@ -25,7 +25,10 @@ Scope {
             right: 8
         }
         implicitWidth: 380
-        implicitHeight: Math.max(1, column.implicitHeight)
+        // As tall as it may ever need, not as its cards: resizing the window
+        // with every frame of a card growing makes it flicker (each size is a
+        // round trip to the compositor). Only the cards take input and glass.
+        implicitHeight: (screen?.height ?? 900) - 16
         exclusiveZone: 0
         color: "transparent"
         // The notification center, when open, already shows them all.
@@ -42,6 +45,15 @@ Scope {
 
             width: parent.width
             spacing: 8
+
+            // The others glide into place when one comes or goes.
+            move: Transition {
+                Anim {
+                    properties: "y"
+                    duration: Theme.anim.normal
+                    easing.bezierCurve: Theme.anim.standard
+                }
+            }
 
             Repeater {
                 model: NotificationServer.popups

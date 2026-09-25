@@ -24,7 +24,12 @@ PanelWindow {
         right: 8
     }
     implicitWidth: 400
-    implicitHeight: Math.min(panel.implicitHeight, (screen?.height ?? 900) * 0.75)
+    // Fixed at its tallest: the panel inside grows and shrinks smoothly, and
+    // the window doesn't resize with every frame of it (see Notifications).
+    implicitHeight: (screen?.height ?? 900) * 0.75
+    mask: Region {
+        item: panel
+    }
     exclusiveZone: 0
     color: "transparent"
     WlrLayershell.layer: WlrLayer.Top
@@ -39,9 +44,19 @@ PanelWindow {
     Rectangle {
         id: panel
 
-        anchors.fill: parent
-        implicitHeight: body.implicitHeight + 16
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: Math.min(body.implicitHeight + 16, center.height)
+        clip: true
         radius: 22
+
+        Behavior on height {
+            Anim {
+                duration: Theme.anim.normal
+                easing.bezierCurve: Theme.anim.standard
+            }
+        }
         color: Theme.material.regular
 
         Glass {}
@@ -131,7 +146,7 @@ PanelWindow {
                         }
 
                         TapHandler {
-                            onTapped: NotificationHistory.clear()
+                            onTapped: clearing.start()
                         }
                     }
                 }
@@ -139,8 +154,16 @@ PanelWindow {
 
             // Nothing yet.
             Column {
-                visible: NotificationHistory.items.length === 0
+                // Fades in as the last ones leave (and out as one comes).
+                opacity: NotificationHistory.items.length === 0 ? 1 : 0
+                visible: opacity > 0
                 width: parent.width
+
+                Behavior on opacity {
+                    Anim {
+                        duration: Theme.anim.normal
+                    }
+                }
                 topPadding: 28
                 bottomPadding: 36
                 spacing: 8
@@ -159,16 +182,82 @@ PanelWindow {
                 }
             }
 
+            // Clear All: the cards slide and fade away first, then go, and
+            // the panel closes up after them.
+            SequentialAnimation {
+                id: clearing
+
+                ParallelAnimation {
+                    Anim {
+                        target: list
+                        property: "opacity"
+                        to: 0
+                        duration: Theme.anim.small
+                    }
+                    Anim {
+                        target: list
+                        property: "x"
+                        to: 60
+                        duration: Theme.anim.small
+                        easing.bezierCurve: Theme.anim.emphasizedAccel
+                    }
+                }
+                ScriptAction {
+                    script: NotificationHistory.clear()
+                }
+                PropertyAction {
+                    target: list
+                    properties: "opacity,x"
+                    value: 0
+                }
+                PropertyAction {
+                    target: list
+                    property: "opacity"
+                    value: 1
+                }
+            }
+
             ListView {
                 id: list
 
-                visible: NotificationHistory.items.length > 0
+                // Kept while its cards leave, so they go one by one, not at once.
+                visible: count > 0 || contentHeight > 0
                 width: parent.width
                 height: Math.min(contentHeight, (center.screen?.height ?? 900) * 0.75 - 72)
                 clip: true
                 spacing: 12
                 boundsBehavior: Flickable.StopAtBounds
                 model: NotificationHistory.groups
+
+                // Cleared, a group fades and slides away; the rest close up.
+                remove: Transition {
+                    Anim {
+                        property: "opacity"
+                        to: 0
+                        duration: Theme.anim.small
+                    }
+                    Anim {
+                        property: "x"
+                        to: 60
+                        duration: Theme.anim.small
+                        easing.bezierCurve: Theme.anim.emphasizedAccel
+                    }
+                }
+                displaced: Transition {
+                    Anim {
+                        properties: "y"
+                        duration: Theme.anim.normal
+                        easing.bezierCurve: Theme.anim.standard
+                    }
+                }
+                add: Transition {
+                    Anim {
+                        property: "opacity"
+                        from: 0
+                        to: 1
+                        duration: Theme.anim.small
+                    }
+                }
 
                 delegate: Column {
                     id: group

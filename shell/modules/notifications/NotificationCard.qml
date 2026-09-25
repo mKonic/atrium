@@ -30,9 +30,14 @@ Rectangle {
     readonly property bool hovered: hover.hovered || swipe.active
     readonly property bool expandable: actions.length > 0 || bodyText.truncated || expanded
 
+    // Expanding, it grows and the text is uncovered from under its edge
+    // (clipped), rather than drawn first and the card catching up.
+    clip: true
+
     Behavior on implicitHeight {
         Anim {
-            duration: Theme.anim.small
+            duration: Theme.anim.normal
+            easing.bezierCurve: Theme.anim.standard
         }
     }
 
