@@ -474,6 +474,23 @@ void Server::start_clipboard_history() {
     spawn("exec wl-paste --type image --watch cliphist store");
 }
 
+// atrium-clipsync, the clipboard shared with a phone: always started, it
+// idles while bluetooth.phone_clipboard is off. BlueZ is the machine's, so
+// a nested atrium leaves it to the host session.
+void Server::start_clipboard_sync() {
+    namespace fs = std::filesystem;
+    if (nested && !std::getenv("ATRIUM_CLIPSYNC"))
+        return;
+    std::error_code ec;
+    const fs::path exe = fs::read_symlink("/proc/self/exe", ec);
+    fs::path bin = fs::path(ATRIUM_BINDIR) / "atrium-clipsync";
+    if (const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "shell" / "clipsync" / "atrium-clipsync";
+        !ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built))
+        bin = built;
+    if (fs::exists(bin))
+        spawn("exec '" + bin.string() + "'");
+}
+
 // Things the hardware forgets between boots (the monitors' brightness is the
 // shell's: it talks to them anyway, and two talking at once collide).
 void Server::restore_power_and_brightness() {
@@ -632,6 +649,7 @@ void Server::run(const char* startup_cmd) {
     shell->start();
     if (!config.greeter) {
         start_clipboard_history();
+        start_clipboard_sync();
         restore_power_and_brightness();
     }
     if (!nested && !config.greeter)

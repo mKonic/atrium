@@ -83,7 +83,7 @@ paths.set_quoted('ATRIUM_BINDIR', get_option('prefix') / get_option('bindir'))
 paths.set_quoted('ATRIUM_QML_DIR', get_option('prefix') / get_option('libdir') / 'atrium' / 'qml')
 paths_h = configure_file(output: 'paths.hpp', configuration: paths)
 
-install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin', 'host', 'portal'])
+install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin', 'host', 'portal', 'clipsync'])
 # System Settings' desktop entry and icon.
 install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
 install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
@@ -112,6 +112,7 @@ install_data('data/share/atrium/greetd-config.toml', 'data/share/atrium/greeter-
 subdir('shell/plugin/Atrium')
 subdir('shell/host')
 subdir('shell/portal')
+subdir('shell/clipsync')
 
 subdir('src')
 subdir('tests')

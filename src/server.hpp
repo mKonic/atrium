@@ -275,6 +275,7 @@ private:
     void teardown();
     void prepare_session_environment();
     void start_clipboard_history();
+    void start_clipboard_sync();
     void restore_power_and_brightness();
     void apply_power_profile();
     Interface interface() const;

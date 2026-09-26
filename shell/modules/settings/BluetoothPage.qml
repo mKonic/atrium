@@ -6,8 +6,8 @@ import Atrium
 import shell.components
 import shell.services
 
-// Bluetooth: your devices (connect, disconnect, forget) and, while this page
-// is open, the ones nearby to pair.
+// Bluetooth: your devices (connect, disconnect, forget), the clipboard
+// shared with a phone and, while this page is open, the ones nearby to pair.
 Column {
     id: root
 
@@ -75,6 +75,56 @@ Column {
                     onClicked: modelData.forget()
                 }
             }
+        }
+    }
+
+    Group {
+        id: phoneClipboard
+
+        readonly property bool on: Atrium.settings["bluetooth.phone_clipboard"] ?? false
+        readonly property string state: PhoneClipboard.state
+        readonly property string phone: PhoneClipboard.phone
+
+        visible: root.adapter !== null
+        title: "Phone Clipboard"
+        subtitle: "Share the clipboard with your phone while it is connected: the last few copies when it connects, then every copy on either side."
+        headerActions: [
+            Switch {
+                checked: phoneClipboard.on
+                onToggled: Atrium.setSetting("bluetooth.phone_clipboard", !phoneClipboard.on)
+            }
+        ]
+
+        DeviceRow {
+            visible: phoneClipboard.on
+            glyph: "smartphone"
+            name: phoneClipboard.phone || "No phone connected"
+            active: phoneClipboard.state === "connected"
+            busy: phoneClipboard.state === "connecting"
+            note: ({
+                    connected: "Sharing the clipboard",
+                    connecting: "Connecting…",
+                    missing: "Connected, but its clipboard module isn't answering",
+                    waiting: "Connect your phone to share its clipboard",
+                    unavailable: "Bluetooth is off",
+                })[phoneClipboard.state] ?? "Not running"
+        }
+
+        DeviceRow {
+            glyph: "download"
+            name: "Clipboard module for rooted phones"
+            note: "Install it with KernelSU, then connect the phone."
+
+            PillButton {
+                text: "Download"
+                onClicked: Qt.openUrlExternally(PhoneClipboard.moduleUrl)
+            }
+        }
+
+        StyledText {
+            padding: 10
+            text: "Phones without root: coming soon."
+            color: Theme.palette.secondaryLabel
         }
     }
 

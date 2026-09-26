@@ -613,6 +613,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Remember what you copy (text and pictures) so Super+V can bring it back.",
         &Config::clipboard_history, d));
     s.back().needs = "cliphist";
+    // Read by atrium-clipsync; the Bluetooth page draws it.
+    s.push_back(make("bluetooth.phone_clipboard", SettingType::Bool, "Bluetooth", "Phone clipboard",
+        "Share the clipboard with a paired phone while it is connected: the last few copies when it connects, then "
+        "every copy on either side. The phone needs the atrium clipboard module.", false, [](Config&, const json&) {}));
+    s.back().custom = true;
 
     // Dock (read by the shell; the compositor itself has no use for them)
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",

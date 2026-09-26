@@ -37,6 +37,7 @@
 #include "themes.hpp"
 #include "printers.hpp"
 #include "clipboard.hpp"
+#include "phone_clipboard.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
@@ -125,6 +126,8 @@ public:
         qmlRegisterUncreatableType<Notification>(uri, 1, 0, "Notification", "from NotificationServer");
         qmlRegisterSingletonType<ClipboardHistory>(uri, 1, 0, "Clipboard",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ClipboardHistory; });
+        qmlRegisterSingletonType<PhoneClipboard>(uri, 1, 0, "PhoneClipboard",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new PhoneClipboard; });
         // One for the process: each engine asking for its own would write
         // the monitors twice.
         qmlRegisterSingletonType<Brightness>(uri, 1, 0, "Brightness",
