@@ -1,6 +1,6 @@
 # atrium-clipsync: the clipboard shared with a phone over Bluetooth (see
 # sync.hpp). The phone's side is the atrium-clipsync-ksu module.
-clipsync_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'DBus', 'Network'])
+clipsync_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'DBus', 'Network'])
 clipsync_moc = qt6.compile_moc(headers: ['sync.hpp', 'wayland_clipboard.hpp', '../plugin/Atrium/bluetooth.hpp',
   '../plugin/Atrium/compositor.hpp'], dependencies: clipsync_qt)
 

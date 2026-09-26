@@ -2,7 +2,9 @@
 
 #include "ext-data-control-v1-client-protocol.h"
 
+#include <QBuffer>
 #include <QCoreApplication>
+#include <QImage>
 #include <QDateTime>
 #include <QLoggingCategory>
 
@@ -20,6 +22,7 @@ namespace {
 Q_LOGGING_CATEGORY(lc, "atrium.clipsync")
 
 constexpr std::string_view kPasswordHint = "x-kde-passwordManagerHint";
+constexpr std::string_view kPng = "image/png";
 // What text goes by, best first. Setting text offers all of them.
 constexpr std::string_view kTextMimes[] = {"text/plain;charset=utf-8", "text/plain", "UTF8_STRING", "STRING", "TEXT"};
 
@@ -109,10 +112,11 @@ const ext_data_control_device_v1_listener WaylandClipboard::deviceListener = {
 };
 
 const ext_data_control_source_v1_listener WaylandClipboard::sourceListener = {
-    .send = [](void* data, ext_data_control_source_v1*, const char*, int32_t fd) {
+    .send = [](void* data, ext_data_control_source_v1*, const char* mime, int32_t fd) {
         auto* self = static_cast<WaylandClipboard*>(data);
         fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-        auto* w = new Write(fd, self->sourceClip_.data);
+        const bool png = std::string_view(mime) == kPng && self->sourceClip_.mime != kPng;
+        auto* w = new Write(fd, png ? self->sourcePng() : self->sourceClip_.data);
         w->setParent(self);
         w->pump();
     },
@@ -264,6 +268,19 @@ void WaylandClipboard::selection(ext_data_control_offer_v1* offer) {
     read_ = std::move(r);
 }
 
+const std::string& WaylandClipboard::sourcePng() {
+    if (!sourcePng_) {
+        QByteArray out;
+        QBuffer buffer(&out);
+        buffer.open(QIODevice::WriteOnly);
+        const QImage image = QImage::fromData(QByteArrayView(sourceClip_.data.data(), qsizetype(sourceClip_.data.size())));
+        if (image.isNull() || !image.save(&buffer, "PNG"))
+            qCWarning(lc) << "couldn't turn a" << sourceClip_.mime.c_str() << "picture into PNG";
+        sourcePng_ = out.toStdString();
+    }
+    return *sourcePng_;
+}
+
 void WaylandClipboard::set(const Clip& clip) {
     if (!device_)
         return;
@@ -274,10 +291,15 @@ void WaylandClipboard::set(const Clip& clip) {
             ext_data_control_source_v1_offer(source, std::string(m).c_str());
     } else {
         ext_data_control_source_v1_offer(source, clip.mime.c_str());
+        // Most apps paste pictures as PNG only (a phone's screenshots are
+        // JPEG): converted when one asks.
+        if (clip.mime != kPng)
+            ext_data_control_source_v1_offer(source, std::string(kPng).c_str());
     }
     // The old source (ours too) is cancelled by this.
     source_ = source;
     sourceClip_ = clip;
+    sourcePng_.reset();
     last_ = clip;
     ext_data_control_device_v1_set_selection(device_, source);
     flush();

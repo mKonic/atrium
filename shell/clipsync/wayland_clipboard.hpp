@@ -58,6 +58,7 @@ private:
     static const ::ext_data_control_source_v1_listener sourceListener;
     static const ::wl_registry_listener registryListener;
 
+    const std::string& sourcePng();
     void dispatch();
     void flush();
     void selection(ext_data_control_offer_v1* offer);
@@ -74,6 +75,7 @@ private:
     // The clipboard is ours (set()) until the source is cancelled.
     ext_data_control_source_v1* source_ = nullptr;
     Clip sourceClip_;
+    std::optional<std::string> sourcePng_;  // sourceClip_ as PNG, once asked for
     std::optional<Clip> last_;
     bool first_ = true;  // the selection already there when we connected
     std::unique_ptr<Read> read_;  // one at a time; a newer copy replaces it
