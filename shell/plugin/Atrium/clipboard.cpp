@@ -1,6 +1,8 @@
 #include "clipboard.hpp"
 
+#include <QBuffer>
 #include <QDir>
+#include <QImage>
 #include <QFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -171,6 +173,27 @@ void ClipboardHistory::copy(const QString& id) {
     const Entry* e = find(id);
     if (!e || wlcopy_.isEmpty())
         return;
+    // Most apps paste pictures as PNG only (a phone's screenshots are JPEG):
+    // other pictures go back as PNG.
+    if (e->image && e->format != "png") {
+        auto* decode = new QProcess(this);
+        connect(decode, &QProcess::finished, this, [this, decode] {
+            QByteArray png;
+            QBuffer buffer(&png);
+            buffer.open(QIODevice::WriteOnly);
+            const QImage image = QImage::fromData(decode->readAllStandardOutput());
+            decode->deleteLater();
+            if (image.isNull() || !image.save(&buffer, "PNG"))
+                return;
+            auto* copy = new QProcess(this);
+            connect(copy, &QProcess::finished, copy, &QObject::deleteLater);
+            copy->start(wlcopy_, {"--type", "image/png"});
+            copy->write(png);
+            copy->closeWriteChannel();
+        });
+        decode->start(cliphist_, {"decode", id});
+        return;
+    }
     // cliphist decode | wl-copy, with the picture's type for images.
     auto* decode = new QProcess(this);
     auto* copy = new QProcess(this);
