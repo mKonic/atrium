@@ -170,7 +170,8 @@ std::optional<Entry> parse(std::string_view text, std::string_view locale) {
 }
 
 std::vector<std::string> exec_argv(std::string_view exec, std::string_view name, std::string_view icon,
-                                   std::string_view file) {
+                                   std::string_view file, const std::vector<std::string>& targets) {
+    bool handed = false;
     std::vector<std::string> argv;
     std::string cur;
     bool in_arg = false, quoted = false;
@@ -214,8 +215,14 @@ std::vector<std::string> exec_argv(std::string_view exec, std::string_view name,
             } else if (code == 'k') {
                 cur += file;
                 in_arg = true;
+            } else if ((code == 'f' || code == 'u') && !targets.empty() && !handed) {
+                cur += targets.front();
+                in_arg = handed = true;
+            } else if ((code == 'F' || code == 'U') && !targets.empty() && !handed && !in_arg) {
+                argv.insert(argv.end(), targets.begin(), targets.end());
+                handed = true;
             }
-            continue;  // %f %F %u %U %d %D %n %N %v %m: nothing to hand over
+            continue;  // %d %D %n %N %v %m, and targets when none were given: nothing to hand over
         }
         cur += c;
         in_arg = true;
@@ -224,6 +231,9 @@ std::vector<std::string> exec_argv(std::string_view exec, std::string_view name,
         return {};
     if (in_arg)
         argv.push_back(std::move(cur));
+    // No field code for them: they go last, as launchers hand them over.
+    if (!targets.empty() && !handed && !argv.empty())
+        argv.insert(argv.end(), targets.begin(), targets.end());
     return argv;
 }
 

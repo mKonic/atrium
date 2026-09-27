@@ -75,8 +75,10 @@ public:
     QList<QObject*> actions() const { return actions_; }
 
     Q_INVOKABLE void execute() const;
+    // Opened with these files or addresses (its Exec's %f %u %F %U).
+    Q_INVOKABLE void open(const QStringList& targets) const;
 
-    QStringList argv(const std::string& exec) const;
+    QStringList argv(const std::string& exec, const QStringList& targets = {}) const;
     void launch(QStringList argv) const;
 
 private:
@@ -118,6 +120,9 @@ class DesktopEntries : public QObject {
 
 public:
     static DesktopEntries* instance();
+    // `argv` run in the terminal (xdg-terminal-exec, the chosen one, or the
+    // first installed); empty when there is none.
+    static QStringList inTerminal(const QStringList& argv);
 
     EntryList* applications() { return &list_; }
     QString terminal() const { return terminal_; }

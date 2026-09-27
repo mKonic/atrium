@@ -49,10 +49,13 @@ std::string unescape(std::string_view value);
 std::vector<std::string> split_list(std::string_view value);
 
 // Exec as argv: quoted arguments unquoted, field codes expanded (%i to
-// --icon ICON, %c to the name, %k to the file) or dropped (%f %F %u %U and
-// the deprecated ones), %% to %. Empty when the line is malformed.
+// --icon ICON, %c to the name, %k to the file, %f %u to the first of
+// `targets`, %F %U to all of them) or dropped (the deprecated ones), %% to %.
+// Targets with no field code to take them go last. Empty when the line is
+// malformed.
 std::vector<std::string> exec_argv(std::string_view exec, std::string_view name = {},
-                                   std::string_view icon = {}, std::string_view file = {});
+                                   std::string_view icon = {}, std::string_view file = {},
+                                   const std::vector<std::string>& targets = {});
 
 // The systemd scope an app is started in, so the portal (and systemd) know
 // it by its id: app-atrium-<id, systemd-escaped>-<random>.scope.

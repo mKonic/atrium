@@ -73,33 +73,28 @@ QStringList DesktopEntry::mimeTypes() const {
     return strings(e_.mime_types);
 }
 
-QStringList DesktopEntry::argv(const std::string& exec) const {
-    return strings(desktop_entry::exec_argv(exec, e_.name, e_.icon, file_.toStdString()));
+QStringList DesktopEntry::argv(const std::string& exec, const QStringList& targets) const {
+    std::vector<std::string> t;
+    for (const QString& s : targets)
+        t.push_back(s.toStdString());
+    return strings(desktop_entry::exec_argv(exec, e_.name, e_.icon, file_.toStdString(), t));
 }
 
 void DesktopEntry::execute() const {
     launch(command());
 }
 
+void DesktopEntry::open(const QStringList& targets) const {
+    launch(argv(e_.exec, targets));
+}
+
 void DesktopEntry::launch(QStringList argv) const {
     if (argv.isEmpty())
         return;
     if (e_.terminal) {
-        if (!QStandardPaths::findExecutable("xdg-terminal-exec").isEmpty()) {
-            argv.prepend("xdg-terminal-exec");
-        } else {
-            QStringList term = QProcess::splitCommand(DesktopEntries::instance()->terminal());
-            if (term.isEmpty())
-                for (const Terminal& t : kTerminals)
-                    if (!QStandardPaths::findExecutable(t.program).isEmpty()) {
-                        term = {QString::fromUtf8(t.program)};
-                        break;
-                    }
-            if (term.isEmpty())
-                return;
-            term += QProcess::splitCommand(QString::fromStdString(terminal_run_args(term.first().toStdString())));
-            argv = term + argv;
-        }
+        argv = DesktopEntries::inTerminal(argv);
+        if (argv.isEmpty())
+            return;
     }
     // In a systemd scope of its own named for the app, as GNOME and Plasma
     // start apps: portals know it by its id from that (and systemd can tell
@@ -123,6 +118,22 @@ void DesktopEntry::launch(QStringList argv) const {
 }
 
 // --- DesktopEntries ----------------------------------------------------------
+
+QStringList DesktopEntries::inTerminal(const QStringList& argv) {
+    if (!QStandardPaths::findExecutable("xdg-terminal-exec").isEmpty())
+        return QStringList{"xdg-terminal-exec"} + argv;
+    QStringList term = QProcess::splitCommand(instance()->terminal());
+    if (term.isEmpty())
+        for (const Terminal& t : kTerminals)
+            if (!QStandardPaths::findExecutable(t.program).isEmpty()) {
+                term = {QString::fromUtf8(t.program)};
+                break;
+            }
+    if (term.isEmpty())
+        return {};
+    term += QProcess::splitCommand(QString::fromStdString(terminal_run_args(term.first().toStdString())));
+    return term + argv;
+}
 
 DesktopEntries* DesktopEntries::instance() {
     static auto* self = new DesktopEntries;

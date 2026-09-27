@@ -117,3 +117,13 @@ TEST(DesktopEntry, ScopeNames) {
     EXPECT_EQ(scope_name("google-chrome", "9"), "app-atrium-google\\x2dchrome-9.scope");
     EXPECT_EQ(scope_name(".x y", "1"), "app-atrium-\\x2ex\\x20y-1.scope");
 }
+
+TEST(DesktopEntry, ExecTakesTargets) {
+    using atrium::desktop_entry::exec_argv;
+    const std::vector<std::string> one{"https://a"}, two{"a", "b"};
+    EXPECT_EQ(exec_argv("firefox %u", {}, {}, {}, one), (std::vector<std::string>{"firefox", "https://a"}));
+    EXPECT_EQ(exec_argv("dolphin %U", {}, {}, {}, two), (std::vector<std::string>{"dolphin", "a", "b"}));
+    EXPECT_EQ(exec_argv("app --open=%f", {}, {}, {}, one), (std::vector<std::string>{"app", "--open=https://a"}));
+    EXPECT_EQ(exec_argv("foot", {}, {}, {}, one), (std::vector<std::string>{"foot", "https://a"}));
+    EXPECT_EQ(exec_argv("firefox %u"), (std::vector<std::string>{"firefox"}));
+}
