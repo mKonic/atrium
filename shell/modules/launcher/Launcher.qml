@@ -21,6 +21,9 @@ PanelWindow {
     property bool menuOpen: false
     property int menuCurrent: 0
     property var menuActions: []
+    // Whose menu: the row's actions (a list screen's, or another screen's
+    // own), or a screen's type filter.
+    property string menuSource: "actions"
     property var confirming: null  // { title, detail, glyph, token }
 
     readonly property var placeholders: ({
@@ -108,12 +111,26 @@ PanelWindow {
         lm.activate(row, args);
     }
 
-    function openMenu(): void {
-        if (!listScreen || lm.count === 0)
-            return;
+    function menuItems(query: string): var {
+        if (menuSource === "filter") {
+            const q = query.toLowerCase();
+            return (body.item?.filters ?? []).filter(f => f.label.toLowerCase().includes(q)).map(f => ({
+                id: f.value, title: f.label, glyph: f.value === body.item.filter ? "check" : "", keys: "", group: false
+            }));
+        }
+        if (listScreen)
+            return lm.count > 0 ? lm.actions(-1, query) : [];
+        return body.item?.actions ? body.item.actions(query) : [];
+    }
+
+    function openMenu(source: string): void {
+        menuSource = source;
         menuSearch.text = "";
-        menuActions = lm.actions(-1, "");
-        menuCurrent = 0;
+        menuActions = menuItems("");
+        if (menuActions.length === 0)
+            return;
+        // A pop-up opens on what it already holds.
+        menuCurrent = Math.max(0, menuActions.findIndex(a => a.glyph === "check"));
         menuOpen = true;
         menuSearch.forceActiveFocus();
     }
@@ -126,8 +143,14 @@ PanelWindow {
     function runMenu(index: int): void {
         const a = menuActions[index];
         closeMenu();
-        if (a)
+        if (!a)
+            return;
+        if (menuSource === "filter")
+            body.item.setFilter(a.id);
+        else if (listScreen)
             lm.runAction(-1, a.id);
+        else
+            body.item.runAction(a.id);
     }
 
     Connections {
@@ -243,7 +266,7 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 // Sized to what's typed while arguments follow it, as Raycast does.
                 width: argRow.visible ? Math.min(Math.max(contentWidth + 4, 40), header.width * 0.45)
-                                      : header.width - x - 20
+                                      : header.width - x - 20 - (filterPill.visible ? filterPill.width + 12 : 0)
                 color: Theme.palette.label
                 font.family: Theme.font.sans
                 font.pointSize: 16
@@ -291,7 +314,7 @@ PanelWindow {
                         return;
                     }
                     if (ctrl && event.key === Qt.Key_K) {
-                        launcher.openMenu();
+                        launcher.openMenu("actions");
                         return;
                     }
                     if (event.key === Qt.Key_Tab && launcher.listScreen && lm.arguments.length > 0) {
@@ -318,6 +341,50 @@ PanelWindow {
                     elide: Text.ElideRight
                     font.pointSize: 16
                     color: lm.screen === "output" ? Theme.palette.label : Theme.palette.tertiaryLabel
+                }
+            }
+
+            // A screen's type filter (Search Files), as a pop-up at the header's end.
+            Rectangle {
+                id: filterPill
+
+                readonly property string label: (body.item?.filters ?? []).find(f => f.value === body.item?.filter)?.label ?? ""
+
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                visible: label.length > 0
+                width: filterRow.implicitWidth + 20
+                height: 30
+                radius: 8
+                color: filterArea.containsMouse || (launcher.menuOpen && launcher.menuSource === "filter")
+                       ? Theme.palette.tertiaryFill : Theme.palette.quaternaryFill
+
+                Row {
+                    id: filterRow
+
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: filterPill.label
+                        font.pointSize: Theme.font.size.smaller
+                    }
+
+                    MaterialIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "expand_more"
+                        color: Theme.palette.secondaryLabel
+                    }
+                }
+
+                MouseArea {
+                    id: filterArea
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: launcher.menuOpen ? launcher.closeMenu() : launcher.openMenu("filter")
                 }
             }
 
@@ -441,6 +508,7 @@ PanelWindow {
                            : lm.screen === "clipboard" ? clipboardScreen
                            : lm.screen === "emoji" ? emojiScreen
                            : lm.screen === "output" ? outputScreen
+                           : lm.screen === "files" ? filesScreen
                            : notYet
         }
 
@@ -468,6 +536,15 @@ PanelWindow {
             id: emojiScreen
 
             EmojiScreen {
+                launcherModel: lm
+                onDone: launcher.close()
+            }
+        }
+
+        Component {
+            id: filesScreen
+
+            FilesScreen {
                 launcherModel: lm
                 onDone: launcher.close()
             }
@@ -571,11 +648,9 @@ PanelWindow {
         Rectangle {
             id: menu
 
-            anchors.right: parent.right
-            anchors.rightMargin: 10
-            anchors.bottom: footer.top
-            anchors.bottomMargin: 6
-            width: 330
+            x: parent.width - width - 10
+            y: launcher.menuSource === "filter" ? header.height + 4 : footer.y - height - 6
+            width: launcher.menuSource === "filter" ? 220 : 330
             height: Math.min(menuColumn.implicitHeight, panel.height - header.height - footer.height - 20)
             radius: 14
             visible: launcher.menuOpen
@@ -705,7 +780,7 @@ PanelWindow {
                     font.pointSize: Theme.font.size.normal
                     clip: true
                     onTextChanged: {
-                        launcher.menuActions = lm.actions(-1, text);
+                        launcher.menuActions = launcher.menuItems(text);
                         launcher.menuCurrent = 0;
                     }
 
@@ -735,7 +810,7 @@ PanelWindow {
                         leftPadding: 16
                         verticalAlignment: Text.AlignVCenter
                         visible: menuSearch.text.length === 0
-                        text: "Search for actions…"
+                        text: launcher.menuSource === "filter" ? "Search types…" : "Search for actions…"
                         color: Theme.palette.tertiaryLabel
                     }
                 }

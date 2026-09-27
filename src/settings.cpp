@@ -644,6 +644,13 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "With nothing typed, list what you open most above everything else.", true, [](Config&, const json&) {}));
     s.push_back(boolean("launcher.snippet_expansion", "Launcher", "Expand snippet keywords",
         "Typing a snippet's keyword in any app replaces it with the snippet.", &Config::snippet_expansion, d));
+    s.push_back(make("files.folders", SettingType::StringList, "Launcher", "Search Files looks in",
+        "Folders Search Files finds files and folders in (~ is your home). Hidden ones are left out.",
+        json::array({"~"}), [](Config&, const json&) {}));
+    s.push_back(make("files.ignore", SettingType::StringList, "Launcher", "Search Files leaves out",
+        "Names (node_modules), globs (*.log) or path globs (**/target/**) to leave out of Search Files, besides "
+        "node_modules, __pycache__, *.pyc, *.o, *.tmp and *~.",
+        json::array(), [](Config&, const json&) {}));
 
     // Shortcuts (the modifier must apply before the bindings that use it)
     s.push_back(choice("shortcuts.modifier", "Keyboard Shortcuts", "Shortcut key",

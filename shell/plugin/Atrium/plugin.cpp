@@ -2,6 +2,7 @@
 // layout and bindings. `import Atrium` in the shell.
 
 #include "apps.hpp"
+#include "file_search.hpp"
 #include "launcher_model.hpp"
 #include "brightness.hpp"
 #include "desktop_files.hpp"
@@ -254,6 +255,7 @@ public:
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
         qmlRegisterType<LauncherModel>(uri, 1, 0, "LauncherModel");
+        qmlRegisterType<FileSearch>(uri, 1, 0, "FileSearch");
         qmlRegisterType<DockApps>(uri, 1, 0, "DockApps");
         qmlRegisterType<DesktopFiles>(uri, 1, 0, "DesktopFiles");
         qmlRegisterType<FolderModel>(uri, 1, 0, "FolderModel");
