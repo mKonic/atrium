@@ -11,6 +11,12 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Added
+- A screen shader setting: a GLSL file drawn over every screen.
+
+### Changed
+- atrium draws with its own renderer: a full redraw with blur and Liquid Glass takes about half the time.
+
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
 - A window launched or switched to over a fullscreen app staying hidden behind it.
