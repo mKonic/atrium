@@ -88,8 +88,10 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
     };
     // Where windows go, as an app record or a rule says it; checked the same
     // way the compositor will read it.
-    auto placement_fields = [&](const json& j, std::string& secret, int& space, std::string& launch,
-                                std::optional<bool>& maximized, std::optional<bool>& fullscreen) -> std::optional<std::string> {
+    auto placement_fields = [&](const json& j, auto& rec) -> std::optional<std::string> {
+        std::string& secret = rec.secret;
+        int& space = rec.space;
+        std::string& launch = rec.launch;
         if (j.contains("secret")) {
             if (!j["secret"].is_string())
                 return "secret is the name of a secret space";
@@ -109,8 +111,11 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
             return "an app opens in a numbered space or a secret one, not both";
         if (!launch.empty() && secret.empty())
             return "launch goes with a secret space: it starts the app when that space is shown";
-        if (!opt_bool(j, "maximized", maximized) || !opt_bool(j, "fullscreen", fullscreen))
+        if (!opt_bool(j, "maximized", rec.maximized) || !opt_bool(j, "fullscreen", rec.fullscreen))
             return "maximized and fullscreen are true, false or null";
+        for (auto [key, field] : window_flags(rec))
+            if (!opt_bool(j, key, *field))
+                return std::string(key) + " is true, false or null";
         return std::nullopt;
     };
 
@@ -124,7 +129,7 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         if (!req.contains("app_id") || !req["app_id"].is_string() || req["app_id"].get<std::string>().empty())
             return fail("app.set needs an \"app_id\"");
         AppRecord a = reg.app(req["app_id"]).value_or(AppRecord{.app_id = req["app_id"]});
-        if (auto err = placement_fields(req, a.secret, a.space, a.launch, a.maximized, a.fullscreen))
+        if (auto err = placement_fields(req, a))
             return fail(*err);
         // Only forgetting: where a window was is remembered, not set.
         if (req.contains("placement")) {
@@ -179,7 +184,7 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
                     return fail(std::string(key) + " is a pattern");
                 *field = req[key];
             }
-        if (auto err = placement_fields(req, r.secret, r.space, r.launch, r.maximized, r.fullscreen))
+        if (auto err = placement_fields(req, r))
             return fail(*err);
         json probe = json::object();
         if (!r.app_pattern.empty())

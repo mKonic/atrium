@@ -41,3 +41,4 @@ SoundPage 1.0 SoundPage.qml
 TextControl 1.0 TextControl.qml
 UsersPage 1.0 UsersPage.qml
 WallpaperControl 1.0 WallpaperControl.qml
+WindowOptions 1.0 WindowOptions.qml

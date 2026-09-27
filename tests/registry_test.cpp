@@ -48,6 +48,11 @@ TEST(Registry, AppsAreRecords) {
 
     r.put_app({.app_id = "vesktop"});  // nothing left: removed
     EXPECT_FALSE(r.app("vesktop"));
+
+    r.put_app({.app_id = "osu!", .floating = true});  // a flag alone is worth keeping
+    EXPECT_EQ(r.app("osu!")->floating, true);
+    r.set_dock({});
+    EXPECT_TRUE(r.app("osu!"));
 }
 
 TEST(Registry, RulesAndShortcuts) {
@@ -58,6 +63,14 @@ TEST(Registry, RulesAndShortcuts) {
     rule.space = 3;
     EXPECT_TRUE(r.update_rule(rule));
     EXPECT_EQ(r.rules().front().space, 3);
+    rule.follow = true;
+    rule.no_focus = false;
+    EXPECT_TRUE(r.update_rule(rule));
+    EXPECT_EQ(r.rules().front().follow, true);
+    EXPECT_EQ(r.rules().front().no_focus, false);
+    EXPECT_FALSE(r.rules().front().sticky);
+    EXPECT_EQ(rule_json(r.rules().front())["follow"], true);
+    EXPECT_TRUE(rule_json(r.rules().front())["sticky"].is_null());
     EXPECT_TRUE(r.remove_rule(id));
     EXPECT_TRUE(r.rules().empty());
 
@@ -149,9 +162,55 @@ TEST(Registry, MigratesDisplaysToAdaptiveSync) {
         EXPECT_FALSE(d->hdr);
         EXPECT_EQ(d->sdr_brightness, 30);
         EXPECT_EQ(d->sdr_color, 100);
+        // Apps and rules have the newer fields too.
+        EXPECT_GT(r.add_rule({.app_pattern = "x", .follow = true}), 0);
+        EXPECT_EQ(r.rules().front().follow, true);
     }
     std::remove(path.c_str());
     std::remove((path + ".v9.bak").c_str());
+}
+
+// Apps and rules from before Hyprland's rule fields: they keep what they had
+// and take the new fields, unset.
+TEST(Registry, MigratesAppsAndRulesToWindowFlags) {
+    const std::string path = ::testing::TempDir() + "atrium-flags.db";
+    std::remove(path.c_str());
+    {
+        sqlite3* db = nullptr;
+        ASSERT_EQ(sqlite3_open(path.c_str(), &db), SQLITE_OK);
+        sqlite3_exec(db,
+                     "CREATE TABLE apps (app_id TEXT PRIMARY KEY COLLATE NOCASE,"
+                     " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
+                     " dock INTEGER, maximized INTEGER, fullscreen INTEGER,"
+                     " place_output TEXT, place_x INTEGER, place_y INTEGER, place_w INTEGER, place_h INTEGER,"
+                     " place_maximized INTEGER, place_snapped INTEGER);"
+                     "CREATE TABLE rules (id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
+                     " app_pattern TEXT NOT NULL DEFAULT '', title_pattern TEXT NOT NULL DEFAULT '',"
+                     " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
+                     " maximized INTEGER, fullscreen INTEGER);"
+                     "INSERT INTO apps(app_id, space, fullscreen) VALUES('osu!', 3, 1);"
+                     "INSERT INTO rules(app_pattern, space) VALUES('^steam_app_', 5);"
+                     "PRAGMA user_version=12;",
+                     nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    {
+        Registry r(path);
+        ASSERT_TRUE(r.ok());
+        auto a = r.app("osu!");
+        ASSERT_TRUE(a);
+        EXPECT_EQ(a->space, 3);
+        EXPECT_EQ(a->fullscreen, true);
+        EXPECT_FALSE(a->follow);
+        a->follow = true;
+        r.put_app(*a);
+        EXPECT_EQ(r.app("osu!")->follow, true);
+        ASSERT_EQ(r.rules().size(), 1u);
+        EXPECT_EQ(r.rules().front().space, 5);
+        EXPECT_FALSE(r.rules().front().floating);
+    }
+    std::remove(path.c_str());
+    std::remove((path + ".v12.bak").c_str());
 }
 
 // A registry from before directional keys: its untouched arrow defaults

@@ -63,11 +63,24 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 12;
+constexpr int kSchemaVersion = 13;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
-    " place_output, place_x, place_y, place_w, place_h, place_maximized, place_snapped FROM apps";
+    " place_output, place_x, place_y, place_w, place_h, place_maximized, place_snapped,"
+    " follow, floating, keep_above, sticky, no_focus FROM apps";
+
+// The window_flags.hpp columns, in its order, from `first` on.
+template <class T>
+void read_flags(const Stmt& s, int first, T& t) {
+    for (auto [_, field] : window_flags(t))
+        *field = s.opt_bool(first++);
+}
+template <class S, class T>
+void bind_flags(S& s, int first, const T& t) {
+    for (auto [_, field] : window_flags(t))
+        s.bind(first++, *field);
+}
 
 AppRecord read_app(const Stmt& s) {
     AppRecord a;
@@ -82,15 +95,19 @@ AppRecord read_app(const Stmt& s) {
         a.placement = Placement{s.text(7), int(s.integer(8)), int(s.integer(9)), int(s.integer(10)),
                                 int(s.integer(11)), s.integer(12) != 0, uint32_t(s.integer(13))};
     }
+    read_flags(s, 14, a);
     return a;
 }
 
 constexpr const char* kRules =
-    "SELECT id, app_pattern, title_pattern, secret, space, launch, maximized, fullscreen FROM rules ORDER BY position, id";
+    "SELECT id, app_pattern, title_pattern, secret, space, launch, maximized, fullscreen,"
+    " follow, floating, keep_above, sticky, no_focus FROM rules ORDER BY position, id";
 
 RuleRecord read_rule(const Stmt& s) {
-    return RuleRecord{s.integer(0), s.text(1), s.text(2), s.text(3), int(s.integer(4)), s.text(5),
-                      s.opt_bool(6), s.opt_bool(7)};
+    RuleRecord r{s.integer(0), s.text(1), s.text(2), s.text(3), int(s.integer(4)), s.text(5),
+                 s.opt_bool(6), s.opt_bool(7)};
+    read_flags(s, 8, r);
+    return r;
 }
 
 // "discord|^vesktop$|WhatsApp" → the plain names, or nothing when the
@@ -116,7 +133,8 @@ std::optional<std::vector<std::string>> plain_names(const std::string& pattern) 
 } // namespace
 
 bool AppRecord::empty() const {
-    return secret.empty() && space == 0 && launch.empty() && !dock && !maximized && !fullscreen && !placement;
+    return secret.empty() && space == 0 && launch.empty() && !dock && !maximized && !fullscreen && !placement &&
+           std::ranges::none_of(window_flags(*this), [](const auto& f) { return f.second->has_value(); });
 }
 
 Registry::Registry(const std::string& path) {
@@ -172,12 +190,14 @@ void Registry::migrate() {
          " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
          " dock INTEGER, maximized INTEGER, fullscreen INTEGER,"
          " place_output TEXT, place_x INTEGER, place_y INTEGER, place_w INTEGER, place_h INTEGER,"
-         " place_maximized INTEGER, place_snapped INTEGER)");
+         " place_maximized INTEGER, place_snapped INTEGER,"
+         " follow INTEGER, floating INTEGER, keep_above INTEGER, sticky INTEGER, no_focus INTEGER)");
     exec("CREATE TABLE IF NOT EXISTS rules ("
          " id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
          " app_pattern TEXT NOT NULL DEFAULT '', title_pattern TEXT NOT NULL DEFAULT '',"
          " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
-         " maximized INTEGER, fullscreen INTEGER)");
+         " maximized INTEGER, fullscreen INTEGER,"
+         " follow INTEGER, floating INTEGER, keep_above INTEGER, sticky INTEGER, no_focus INTEGER)");
     exec("CREATE TABLE IF NOT EXISTS shortcuts ("
          " id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
          " keys TEXT NOT NULL, action TEXT NOT NULL, arg TEXT NOT NULL DEFAULT '', locked INTEGER NOT NULL DEFAULT 0)");
@@ -260,6 +280,11 @@ void Registry::migrate() {
     // 12: SDR color intensity in HDR per display.
     if (version > 0 && version < 12)
         exec("ALTER TABLE displays ADD COLUMN sdr_color INTEGER NOT NULL DEFAULT 100");
+    // 13: more of how a window opens, for apps and rules (Hyprland's rules).
+    if (version > 0 && version < 13)
+        for (const char* table : {"apps", "rules"})
+            for (const char* column : {"follow", "floating", "keep_above", "sticky", "no_focus"})
+                exec((std::string("ALTER TABLE ") + table + " ADD COLUMN " + column + " INTEGER").c_str());
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }
@@ -327,11 +352,12 @@ void Registry::put_app(const AppRecord& a) {
     const std::optional<Placement>& p = a.placement;
     Stmt s(db_,
            "INSERT INTO apps(app_id, secret, space, launch, dock, maximized, fullscreen, place_output, place_x,"
-           " place_y, place_w, place_h, place_maximized, place_snapped)"
-           " VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"
+           " place_y, place_w, place_h, place_maximized, place_snapped, follow, floating, keep_above, sticky, no_focus)"
+           " VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)"
            " ON CONFLICT(app_id) DO UPDATE SET secret = ?2, space = ?3, launch = ?4, dock = ?5, maximized = ?6,"
            " fullscreen = ?7, place_output = ?8, place_x = ?9, place_y = ?10, place_w = ?11, place_h = ?12,"
-           " place_maximized = ?13, place_snapped = ?14");
+           " place_maximized = ?13, place_snapped = ?14, follow = ?15, floating = ?16, keep_above = ?17,"
+           " sticky = ?18, no_focus = ?19");
     s.bind(1, a.app_id).bind(2, a.secret).bind(3, a.space).bind(4, a.launch).bind(5, a.dock)
         .bind(6, a.maximized).bind(7, a.fullscreen);
     if (p) {
@@ -341,6 +367,7 @@ void Registry::put_app(const AppRecord& a) {
         for (int i = 8; i <= 14; ++i)
             s.bind(i, std::optional<int>{});
     }
+    bind_flags(s, 15, a);
     s.run();
 }
 
@@ -361,7 +388,8 @@ void Registry::set_dock(const std::vector<std::string>& ids) {
     }
     // Apps that were only pinned are gone now.
     exec("DELETE FROM apps WHERE dock IS NULL AND secret = '' AND space = 0 AND launch = '' AND maximized IS NULL"
-         " AND fullscreen IS NULL AND (place_w IS NULL OR place_w = 0)");
+         " AND fullscreen IS NULL AND (place_w IS NULL OR place_w = 0) AND follow IS NULL AND floating IS NULL"
+         " AND keep_above IS NULL AND sticky IS NULL AND no_focus IS NULL");
     commit();
 }
 
@@ -377,19 +405,23 @@ std::vector<RuleRecord> Registry::rules() const {
 
 int64_t Registry::add_rule(const RuleRecord& r) {
     Stmt s(db_,
-           "INSERT INTO rules(position, app_pattern, title_pattern, secret, space, launch, maximized, fullscreen)"
-           " VALUES((SELECT COALESCE(MAX(position), 0) + 1 FROM rules), ?1, ?2, ?3, ?4, ?5, ?6, ?7)");
+           "INSERT INTO rules(position, app_pattern, title_pattern, secret, space, launch, maximized, fullscreen,"
+           " follow, floating, keep_above, sticky, no_focus)"
+           " VALUES((SELECT COALESCE(MAX(position), 0) + 1 FROM rules), ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)");
     s.bind(1, r.app_pattern).bind(2, r.title_pattern).bind(3, r.secret).bind(4, r.space).bind(5, r.launch)
         .bind(6, r.maximized).bind(7, r.fullscreen);
+    bind_flags(s, 8, r);
     return s.run() ? sqlite3_last_insert_rowid(db_) : 0;
 }
 
 bool Registry::update_rule(const RuleRecord& r) {
     Stmt s(db_,
            "UPDATE rules SET app_pattern = ?2, title_pattern = ?3, secret = ?4, space = ?5, launch = ?6,"
-           " maximized = ?7, fullscreen = ?8 WHERE id = ?1");
+           " maximized = ?7, fullscreen = ?8, follow = ?9, floating = ?10, keep_above = ?11, sticky = ?12,"
+           " no_focus = ?13 WHERE id = ?1");
     s.bind(1, r.id).bind(2, r.app_pattern).bind(3, r.title_pattern).bind(4, r.secret).bind(5, r.space)
         .bind(6, r.launch).bind(7, r.maximized).bind(8, r.fullscreen);
+    bind_flags(s, 9, r);
     return s.run() && sqlite3_changes(db_) > 0;
 }
 
@@ -642,6 +674,8 @@ json app_json(const AppRecord& a) {
     j["dock"] = a.dock ? json(*a.dock) : json(nullptr);
     j["maximized"] = a.maximized ? json(*a.maximized) : json(nullptr);
     j["fullscreen"] = a.fullscreen ? json(*a.fullscreen) : json(nullptr);
+    for (auto [key, field] : window_flags(a))
+        j[key] = *field ? json(**field) : json(nullptr);
     if (a.placement)
         j["placement"] = {{"output", a.placement->output}, {"x", a.placement->x}, {"y", a.placement->y},
                           {"width", a.placement->width}, {"height", a.placement->height},
@@ -654,6 +688,8 @@ json rule_json(const RuleRecord& r) {
               {"secret", r.secret}, {"space", r.space}, {"launch", r.launch}};
     j["maximized"] = r.maximized ? json(*r.maximized) : json(nullptr);
     j["fullscreen"] = r.fullscreen ? json(*r.fullscreen) : json(nullptr);
+    for (auto [key, field] : window_flags(r))
+        j[key] = *field ? json(**field) : json(nullptr);
     return j;
 }
 

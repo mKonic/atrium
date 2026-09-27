@@ -27,6 +27,31 @@ TEST(Rules, FirstPlacementWinsOtherFieldsAccumulate) {
     EXPECT_FALSE(r.fullscreen);
 }
 
+// Hyprland's window rules: "workspace N" or "workspace N silent", "float",
+// "pin", "no_initial_focus". The first rule to say each one wins.
+TEST(Rules, HowAWindowOpens) {
+    std::vector<std::string> errors;
+    auto rules = parse_rules(json::array({
+        {{"app_id", "^steam_app_"}, {"space", 5}, {"follow", true}, {"fullscreen", true}},
+        {{"app_id", "steam"}, {"follow", false}, {"floating", true}, {"no_focus", true}},
+        {{"title", "Picture-in-Picture"}, {"keep_above", true}, {"sticky", true}},
+        {{"app_id", "x"}, {"sticky", "yes"}},
+    }), &errors);
+    ASSERT_EQ(rules.size(), 3u);
+    EXPECT_EQ(errors.size(), 1u);
+    RuleResult game = apply_rules(rules, "steam_app_570", "Dota 2");
+    EXPECT_EQ(game.space, 5);
+    EXPECT_EQ(game.follow, true);  // the first rule's, not the second's
+    EXPECT_EQ(game.fullscreen, true);
+    EXPECT_EQ(game.floating, true);
+    EXPECT_EQ(game.no_focus, true);
+    EXPECT_FALSE(game.keep_above);
+    RuleResult pip = apply_rules(rules, "firefox", "Picture-in-Picture");
+    EXPECT_EQ(pip.keep_above, true);
+    EXPECT_EQ(pip.sticky, true);
+    EXPECT_FALSE(pip.follow);
+}
+
 TEST(Rules, TitleAndAppIdBothMustMatch) {
     auto rules = parse_rules(json::array({{{"app_id", "mpv"}, {"title", "^movie"}, {"space", 3}}}));
     EXPECT_EQ(apply_rules(rules, "mpv", "movie.mkv").space, 3);

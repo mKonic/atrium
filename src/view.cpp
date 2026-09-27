@@ -117,6 +117,9 @@ void View::handle_map() {
     const RuleResult wish = server.assign_space(this);
     if (space)
         wlr_scene_node_reparent(&tree->node, space->tree);
+    float_in_tiling = float_in_tiling || wish.floating.value_or(false);
+    keep_above = keep_above || wish.keep_above.value_or(false);
+    sticky = sticky || wish.sticky.value_or(false);
 
     std::erase(server.views, this);
     server.views.insert(server.views.begin(), this);
@@ -139,10 +142,21 @@ void View::handle_map() {
     else if (remembered_ && remembered_->snapped && !(space && space->tiled))
         snap(remembered_->snapped);
     remembered_.reset();
-    // A window a rule sent to a space you aren't looking at opens quietly;
-    // so do splash screens, notifications and menus.
+    // A window a rule sent to a space you aren't looking at opens quietly,
+    // unless the rule says to follow it there (Hyprland's "workspace N" to
+    // its "workspace N silent"); so do splash screens, notifications and
+    // menus. One that asked for focus as it was launched (with a token from
+    // a click or a key) gets it, but a rule's quiet placement holds.
     const bool asked = std::exchange(activate_on_map, false);
-    if (((!space || space->shown()) && !splash() && !passive()) || asked)
+    const bool sent_away = (wish.space || !wish.secret.empty()) && space && !space->shown();
+    bool focus = (!space || space->shown()) && !splash() && !passive();
+    if (sent_away)
+        focus = wish.follow.value_or(false);
+    else if (asked)
+        focus = true;
+    if (wish.no_focus.value_or(false))
+        focus = false;
+    if (focus)
         server.focus_view(this);
     else
         server.spaces_changed();

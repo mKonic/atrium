@@ -1,4 +1,6 @@
 #pragma once
+#include "window_flags.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <optional>
@@ -14,6 +16,7 @@ namespace atrium {
 //   {"app_id": "^vesktop$", "secret": "communication", "launch": "vesktop"}
 //   {"app_id": "^firefox$", "title": "Picture-in-Picture", "space": 2}
 //   {"app_id": "mpv", "fullscreen": true}
+//   {"app_id": "^steam_app_", "space": 5, "follow": true, "fullscreen": true}
 //
 // app_id and title are case-insensitive regular expressions matched anywhere
 // in the text; a rule needs at least one of them.
@@ -24,6 +27,7 @@ struct WindowRule {
     std::string secret;      // non-empty: into this secret space
     std::string launch;      // with secret: started when the space is shown and the app isn't running
     std::optional<bool> maximized, fullscreen;
+    std::optional<bool> follow, floating, keep_above, sticky, no_focus;  // window_flags.hpp
 
     bool matches(const std::string& app_id, const std::string& title) const;
 };
@@ -36,6 +40,7 @@ struct RuleResult {
     int space = 0;
     std::string secret;
     std::optional<bool> maximized, fullscreen;
+    std::optional<bool> follow, floating, keep_above, sticky, no_focus;  // window_flags.hpp
 };
 RuleResult apply_rules(const std::vector<WindowRule>& rules, const std::string& app_id,
                        const std::string& title);

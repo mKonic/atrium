@@ -115,18 +115,20 @@ void Server::seed_registry(const std::filesystem::path& dir) {
 // records: pattern rules first (they say more), then one per app.
 void Server::rebuild_from_registry() {
     json rules = json::array();
-    auto add = [&](json r, const std::string& secret, int space, const std::string& launch,
-                   const std::optional<bool>& maximized, const std::optional<bool>& fullscreen) {
-        if (!secret.empty())
-            r["secret"] = secret;
-        if (space)
-            r["space"] = space;
-        if (!launch.empty() && !secret.empty())
-            r["launch"] = launch;
-        if (maximized)
-            r["maximized"] = *maximized;
-        if (fullscreen)
-            r["fullscreen"] = *fullscreen;
+    auto add = [&](json r, const auto& rec) {
+        if (!rec.secret.empty())
+            r["secret"] = rec.secret;
+        if (rec.space)
+            r["space"] = rec.space;
+        if (!rec.launch.empty() && !rec.secret.empty())
+            r["launch"] = rec.launch;
+        if (rec.maximized)
+            r["maximized"] = *rec.maximized;
+        if (rec.fullscreen)
+            r["fullscreen"] = *rec.fullscreen;
+        for (auto [key, field] : window_flags(rec))
+            if (*field)
+                r[key] = **field;
         rules.push_back(std::move(r));
     };
     for (const RuleRecord& r : registry->rules()) {
@@ -135,10 +137,11 @@ void Server::rebuild_from_registry() {
             m["app_id"] = r.app_pattern;
         if (!r.title_pattern.empty())
             m["title"] = r.title_pattern;
-        add(m, r.secret, r.space, r.launch, r.maximized, r.fullscreen);
+        add(m, r);
     }
     for (const AppRecord& a : registry->apps()) {
-        if (a.secret.empty() && !a.space && !a.maximized && !a.fullscreen)
+        if (a.secret.empty() && !a.space && !a.maximized && !a.fullscreen &&
+            std::ranges::none_of(window_flags(a), [](const auto& f) { return f.second->has_value(); }))
             continue;
         std::string escaped = "^";
         for (char c : a.app_id) {
@@ -146,7 +149,7 @@ void Server::rebuild_from_registry() {
                 escaped += '\\';
             escaped += c;
         }
-        add({{"app_id", escaped + "$"}}, a.secret, a.space, a.launch, a.maximized, a.fullscreen);
+        add({{"app_id", escaped + "$"}}, a);
     }
     config.rules = parse_rules(rules);
 

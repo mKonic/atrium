@@ -52,13 +52,6 @@ FloatingWindow {
         }
     }
 
-    // Empty window background moves the window, as a title bar would.
-    MouseArea {
-        anchors.fill: parent
-        onPressed: root.startMove()
-        onDoubleClicked: root.toggleZoom()
-    }
-
     // --- sidebar -----------------------------------------------------------
     Rectangle {
         id: sidebar
@@ -76,8 +69,13 @@ FloatingWindow {
         border.width: 1
         border.color: Theme.light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.14)
 
+        // Its top, level with the toolbar, moves the window as a title bar
+        // would; the rest is the sidebar's own.
         MouseArea {
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: toolbar.height - sidebar.inset
             onPressed: root.startMove()
             onDoubleClicked: root.toggleZoom()
         }

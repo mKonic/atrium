@@ -178,6 +178,8 @@ Column {
                             parts.push(`Opens in ${modelData.secret}` + (modelData.launch ? ", started with it" : ""));
                         else if (modelData.space)
                             parts.push(`Opens in space ${modelData.space}`);
+                        if (modelData.follow && (modelData.secret || modelData.space))
+                            parts.push("Goes there with it");
                         if (modelData.dock !== null)
                             parts.push("In the Dock");
                         if (modelData.fullscreen)
@@ -279,34 +281,11 @@ Column {
                         spacing: 10
                         bottomPadding: 16
 
-                        Detail {
-                            label: "Opens in"
-
-                            Destination {
-                                space: app.modelData.space
-                                secret: app.modelData.secret
-                                onChanged: fields => Atrium.setApp(app.modelData.app_id, fields.secret ? fields : Object.assign(fields, { launch: "" }))
-                            }
-                        }
-
-                        Detail {
-                            visible: app.modelData.secret !== ""
-                            label: "Start with the space"
-
-                            Switch {
-                                checked: app.modelData.launch !== ""
-                                onToggled: Atrium.setApp(app.modelData.app_id, {
-                                    launch: checked ? "" : (DesktopEntries.heuristicLookup(app.modelData.app_id)?.execString ?? app.modelData.app_id).replace(/ %[a-zA-Z]/g, "")
-                                })
-                            }
-
-                            TextControl {
-                                visible: app.modelData.launch !== ""
-                                fieldWidth: 220
-                                placeholder: "Command"
-                                value: app.modelData.launch
-                                onCommitted: v => Atrium.setApp(app.modelData.app_id, { launch: v })
-                            }
+                        WindowOptions {
+                            record: app.modelData
+                            canLaunch: true
+                            launchCommand: (DesktopEntries.heuristicLookup(app.modelData.app_id)?.execString ?? app.modelData.app_id).replace(/ %[a-zA-Z]/g, "")
+                            onChanged: fields => Atrium.setApp(app.modelData.app_id, fields)
                         }
 
                         Detail {
@@ -315,19 +294,6 @@ Column {
                             Switch {
                                 checked: app.modelData.dock !== null
                                 onToggled: Atrium.setPinned(app.modelData.app_id, !checked)
-                            }
-                        }
-
-                        Detail {
-                            label: "Opens"
-
-                            ChoiceControl {
-                                value: app.modelData.fullscreen ? "fullscreen" : app.modelData.maximized ? "maximized" : "normal"
-                                choices: ["normal", "maximized", "fullscreen"]
-                                onPicked: v => Atrium.setApp(app.modelData.app_id, {
-                                    maximized: v === "maximized" ? true : null,
-                                    fullscreen: v === "fullscreen" ? true : null
-                                })
                             }
                         }
 

@@ -6,7 +6,8 @@ import shell.services
 import Atrium
 
 // Rules for what an app's own record can't say: windows matched by title,
-// or by a pattern over app ids.
+// or by a pattern over app ids. Each is written in a sheet, as macOS adds
+// things; the list says what each one does.
 Rectangle {
     id: root
 
@@ -16,6 +17,30 @@ Rectangle {
     color: Theme.palette.groupedBackground
     border.width: 1
     border.color: Theme.palette.separator
+
+    function describe(r: var): string {
+        const parts = [];
+        if (r.secret)
+            parts.push(`Opens in ${r.secret}`);
+        else if (r.space)
+            parts.push(`Opens in space ${r.space}`);
+        if (r.follow && (r.secret || r.space))
+            parts.push("goes there with it");
+        if (r.fullscreen)
+            parts.push("fullscreen");
+        else if (r.maximized)
+            parts.push("maximized");
+        if (r.floating)
+            parts.push("floats when tiling");
+        if (r.keep_above)
+            parts.push("kept above");
+        if (r.sticky)
+            parts.push("on every space");
+        if (r.no_focus)
+            parts.push("opens without focus");
+        const text = parts.join(", ");
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Does nothing yet";
+    }
 
     Column {
         id: column
@@ -34,7 +59,7 @@ Rectangle {
                 text: "Add"
                 icon: "add"
                 primary: true
-                onClicked: Atrium.addRule({ title_pattern: "Picture-in-Picture" })
+                onClicked: sheet.edit(null)
             }
         }
 
@@ -54,16 +79,14 @@ Rectangle {
         Repeater {
             model: Atrium.rules
 
-            Column {
+            Item {
                 id: rule
 
                 required property var modelData
                 required property int index
 
                 width: column.width
-                spacing: 8
-                topPadding: index > 0 ? 10 : 0
-                bottomPadding: 10
+                height: 56
 
                 Rectangle {
                     visible: rule.index > 0
@@ -72,67 +95,150 @@ Rectangle {
                     color: Theme.palette.separator
                 }
 
-                Row {
-                    spacing: 8
+                Column {
+                    anchors.left: parent.left
+                    anchors.right: buttons.left
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
 
                     StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 90
-                        text: "App id"
-                        font.pointSize: Theme.font.size.small
-                        color: Theme.palette.secondaryLabel
-                    }
-
-                    TextControl {
-                        fieldWidth: 200
-                        placeholder: "any"
-                        value: rule.modelData.app_pattern
-                        onCommitted: v => Atrium.setRule(rule.modelData.id, { app_pattern: v })
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: [rule.modelData.app_pattern ? `App id “${rule.modelData.app_pattern}”` : "",
+                               rule.modelData.title_pattern ? `title “${rule.modelData.title_pattern}”` : ""]
+                              .filter(s => s).join(", ")
                     }
 
                     StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Title"
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: root.describe(rule.modelData)
                         font.pointSize: Theme.font.size.small
                         color: Theme.palette.secondaryLabel
-                    }
-
-                    TextControl {
-                        fieldWidth: 200
-                        placeholder: "any"
-                        value: rule.modelData.title_pattern
-                        onCommitted: v => Atrium.setRule(rule.modelData.id, { title_pattern: v })
                     }
                 }
 
-                Item {
-                    width: parent.width
-                    height: 30
+                Row {
+                    id: buttons
 
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 90
-                        text: "Opens in"
-                        font.pointSize: Theme.font.size.small
-                        color: Theme.palette.secondaryLabel
-                    }
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
 
-                    Destination {
-                        x: 98
-                        anchors.verticalCenter: parent.verticalCenter
-                        space: rule.modelData.space
-                        secret: rule.modelData.secret
-                        onChanged: fields => Atrium.setRule(rule.modelData.id, fields)
+                    PillButton {
+                        text: "Edit"
+                        onClicked: sheet.edit(rule.modelData)
                     }
 
                     PillButton {
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
                         text: "Remove"
                         onClicked: Atrium.removeRule(rule.modelData.id)
                     }
                 }
             }
+        }
+    }
+
+    Sheet {
+        id: sheet
+
+        property var rule: null  // the one being edited; null: a new one
+        property var draft: ({})
+
+        function edit(r: var): void {
+            rule = r;
+            draft = r ? Object.assign({}, r) : {};
+            appField.text = r?.app_pattern ?? "";
+            titleField.text = r?.title_pattern ?? "";
+            open();
+        }
+
+        width: 600
+        title: rule ? "Edit Rule" : "New Rule"
+        action: rule ? "Save" : "Add"
+        ready: appField.text.trim() !== "" || titleField.text.trim() !== ""
+        onOpened: appField.focusField()
+        onSubmitted: {
+            const fields = Object.assign({}, draft, {
+                app_pattern: appField.text.trim(),
+                title_pattern: titleField.text.trim()
+            });
+            delete fields.id;
+            busy = true;
+            if (rule)
+                Atrium.setRule(rule.id, fields);
+            else
+                Atrium.addRule(fields);
+        }
+
+        // The answer: saved (the rules change) or refused (a bad pattern).
+        Connections {
+            target: Atrium
+            enabled: sheet.busy
+
+            function onRulesChanged(): void {
+                sheet.busy = false;
+                sheet.close();
+            }
+
+            function onRefused(why: string): void {
+                sheet.busy = false;
+                sheet.error = why;
+            }
+        }
+
+        StyledText {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "Patterns are regular expressions, matched anywhere and without regard to case: “firefox”, “^steam_app_”."
+            font.pointSize: Theme.font.size.smaller
+            color: Theme.palette.secondaryLabel
+        }
+
+        Row {
+            spacing: 12
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 150
+                text: "App id"
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+
+            Field {
+                id: appField
+
+                implicitWidth: 360
+                placeholder: "Any"
+                onAccepted: if (sheet.ready) sheet.submitted()
+            }
+        }
+
+        Row {
+            spacing: 12
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 150
+                text: "Title"
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+
+            Field {
+                id: titleField
+
+                implicitWidth: 360
+                placeholder: "Any"
+                onAccepted: if (sheet.ready) sheet.submitted()
+            }
+        }
+
+        WindowOptions {
+            record: sheet.draft
+            onChanged: fields => sheet.draft = Object.assign({}, sheet.draft, fields)
         }
     }
 }

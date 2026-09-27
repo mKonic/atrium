@@ -78,7 +78,11 @@ std::vector<WindowRule> parse_rules(const json& rules, std::vector<std::string>*
                 rule.launch = r["launch"];
             }
         }
-        for (auto [key, field] : {std::pair{"maximized", &rule.maximized}, std::pair{"fullscreen", &rule.fullscreen}}) {
+        auto flags = window_flags(rule);
+        std::vector<std::pair<const char*, std::optional<bool>*>> bools{{"maximized", &rule.maximized},
+                                                                       {"fullscreen", &rule.fullscreen}};
+        bools.insert(bools.end(), flags.begin(), flags.end());
+        for (auto [key, field] : bools) {
             if (!r.contains(key))
                 continue;
             if (!r[key].is_boolean()) {
@@ -118,6 +122,11 @@ RuleResult apply_rules(const std::vector<WindowRule>& rules, const std::string& 
             r.maximized = rule.maximized;
         if (!r.fullscreen && rule.fullscreen)
             r.fullscreen = rule.fullscreen;
+        auto from = window_flags(rule);
+        auto to = window_flags(r);
+        for (size_t i = 0; i < from.size(); ++i)
+            if (!*to[i].second && *from[i].second)
+                *to[i].second = *from[i].second;
     }
     return r;
 }
