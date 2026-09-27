@@ -77,7 +77,7 @@ void Server::retile(Space* space) {
             order.push_back(v->id);
 
     space->ensure_tile_backdrop();  // the screen may have changed size
-    const wlr_box frame = geometry::secret_frame(space->output->box, config.secret_margin);
+    const wlr_box frame = geometry::secret_frame(space->output->usable, config.secret_margin);
     const std::vector<wlr_box> boxes = geometry::dwindle(order.size(), frame, config.snap_gap);
     for (size_t i = 0; i < order.size(); ++i)
         for (View* v : members)

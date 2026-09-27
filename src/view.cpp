@@ -63,11 +63,10 @@ bool View::visible() const {
 }
 
 wlr_box View::usable_area() const {
-    // A secret space has no bar or Dock in it: its windows get the whole
-    // screen but a margin, maximized or not, as caelestia's special
-    // workspaces tile.
+    // A secret space's windows are as large as maximized ones (under the
+    // bar), maximized or not, less any margin asked for.
     if (space && space->secret && output)
-        return geometry::secret_frame(output->box, server.config.secret_margin);
+        return geometry::secret_frame(output->usable, server.config.secret_margin);
     if (output)
         return output->usable;
     if (server.focused_output)
@@ -475,7 +474,7 @@ void View::fit_secret(bool keep_box) {
         before_secret_ = geom;
     // Like a tile: the title bar goes, unless tiles keep theirs.
     set_tile_bar_hidden(!server.config.tiled_titlebars);
-    const wlr_box frame = geometry::secret_frame(output->box, server.config.secret_margin);
+    const wlr_box frame = geometry::secret_frame(output->usable, server.config.secret_margin);
     // As large as its hints allow, centered in the frame.
     wlr_box min{}, max{};
     size_hints(min, max);

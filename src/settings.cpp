@@ -436,7 +436,7 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(color("windows.secret_backdrop", "Windows", "Secret space backdrop",
         "Color that dims the screen behind a secret space.", &Config::secret_backdrop, d));
     s.push_back(number("windows.secret_margin", T::Int, "Windows", "Secret space margin",
-        "Windows in a secret space open large, with this much of the blurred desktop showing around them "
+        "Windows in a secret space open as large as a maximized window, less this much around them "
         "(percent of the screen).", &Config::secret_margin, d, 0, 25));
     s.push_back(boolean("windows.snapping", "Windows", "Snap to edges",
         "Drag a window to a screen edge or corner to fill half or a quarter of it; to the top to maximize.",

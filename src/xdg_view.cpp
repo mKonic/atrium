@@ -106,7 +106,7 @@ void XdgView::commit() {
         const bool secret = server.focused_output && toplevel->app_id &&
             !apply_rules(server.config.rules, toplevel->app_id, toplevel->title ? toplevel->title : "").secret.empty();
         if (secret && !toplevel->parent) {
-            const wlr_box f = geometry::secret_frame(server.focused_output->box, server.config.secret_margin);
+            const wlr_box f = geometry::secret_frame(server.focused_output->usable, server.config.secret_margin);
             wlr_xdg_toplevel_set_size(toplevel, f.width, std::max(1, f.height - (wants_ssd() ? Titlebar::kHeight : 0)));
         } else if (remembered_)
             wlr_xdg_toplevel_set_size(toplevel, remembered_->width,
