@@ -323,3 +323,62 @@ TEST(Registry, BacksUpAnOlderFileBeforeMigrating) {
     EXPECT_FALSE(std::filesystem::exists(dir + "/fresh.db.v0.bak"));
     std::filesystem::remove_all(dir);
 }
+
+TEST(Registry, RecordTables) {
+    Registry r(":memory:");
+    const RecordTable& links = *record_table("quicklinks");
+    const int64_t a = r.add_record(links, {{"name", "Search GitHub"}, {"url", "https://github.com/search?q={argument}"}});
+    const int64_t b = r.add_record(links, {{"name", "Arch Wiki"}});
+    ASSERT_GT(a, 0);
+    json all = r.records(links);
+    ASSERT_EQ(all.size(), 2u);
+    EXPECT_EQ(all[0]["name"], "Search GitHub");
+    EXPECT_EQ(all[0]["root"], true);  // the column's default
+    EXPECT_EQ(all[1]["url"], "");
+
+    EXPECT_TRUE(r.set_record(links, b, {{"url", "https://wiki.archlinux.org"}}));
+    EXPECT_EQ(r.record(links, b)->at("url"), "https://wiki.archlinux.org");
+    EXPECT_EQ(r.record(links, b)->at("name"), "Arch Wiki");  // untouched
+    EXPECT_FALSE(r.set_record(links, 999, {{"url", "x"}}));
+
+    r.order_records(links, {b, a});
+    EXPECT_EQ(r.records(links)[0]["id"], b);
+    EXPECT_TRUE(r.remove_record(links, a));
+    EXPECT_EQ(r.records(links).size(), 1u);
+
+    // Keyed records come and go with what they hold.
+    const RecordTable& entries = *record_table("launcher_entry");
+    EXPECT_TRUE(r.set_record(entries, "app:firefox.desktop", {{"alias", "ff"}, {"favorite", 0}}));
+    EXPECT_EQ(r.record(entries, "app:firefox.desktop")->at("favorite"), 0);
+    EXPECT_TRUE(r.set_record(entries, "app:firefox.desktop", {{"favorite", nullptr}}));
+    EXPECT_TRUE(r.record(entries, "app:firefox.desktop")->at("favorite").is_null());
+    EXPECT_TRUE(r.set_record(entries, "app:firefox.desktop", {{"alias", ""}}));
+    EXPECT_FALSE(r.record(entries, "app:firefox.desktop"));  // back to defaults: gone
+}
+
+TEST(Registry, RecordFieldsAreChecked) {
+    const RecordTable& cmds = *record_table("commands");
+    EXPECT_FALSE(check_record_fields(cmds, {{"name", "x"}, {"output", true}}));
+    EXPECT_TRUE(check_record_fields(cmds, {{"output", "yes"}}));
+    EXPECT_TRUE(check_record_fields(*record_table("launcher_entries"), {{"favorite", "1"}}));
+    EXPECT_FALSE(check_record_fields(*record_table("launcher_entries"), {{"favorite", nullptr}}));
+}
+
+TEST(Registry, RecordTablesGainColumns) {
+    const auto file = std::filesystem::temp_directory_path() / "atrium-records-test.db";
+    std::filesystem::remove(file);
+    {
+        sqlite3* db = nullptr;
+        sqlite3_open(file.c_str(), &db);
+        sqlite3_exec(db, "CREATE TABLE snippets (id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
+                         " name TEXT NOT NULL DEFAULT '')", nullptr, nullptr, nullptr);
+        sqlite3_exec(db, "INSERT INTO snippets(name) VALUES('sig')", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    Registry r(file.string());
+    const json all = r.records(*record_table("snippets"));
+    ASSERT_EQ(all.size(), 1u);
+    EXPECT_EQ(all[0]["name"], "sig");
+    EXPECT_EQ(all[0]["keyword"], "");
+    std::filesystem::remove(file);
+}

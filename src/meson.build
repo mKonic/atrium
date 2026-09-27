@@ -14,6 +14,7 @@ atrium_sources = files(
   'main.cpp',
   'overview.cpp',
   'registry.cpp',
+  'records.cpp',
   'displays.cpp',
   'edid.cpp',
   'output.cpp',

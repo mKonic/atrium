@@ -158,6 +158,7 @@ Registry::Registry(const std::string& path) {
     exec("PRAGMA synchronous=NORMAL");
     exec("PRAGMA foreign_keys=ON");
     migrate();
+    migrate_records();
 }
 
 Registry::~Registry() {
@@ -287,6 +288,41 @@ void Registry::migrate() {
                 exec((std::string("ALTER TABLE ") + table + " ADD COLUMN " + column + " INTEGER").c_str());
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
+}
+
+// The record tables follow their descriptions: made when missing, and a
+// column a description gained is added. Runs on every open (cheap).
+void Registry::migrate_records() {
+    auto sql_type = [](const Column& c) -> std::string {
+        std::string t;
+        switch (c.type) {
+        case ColumnType::Text: t = "TEXT"; break;
+        case ColumnType::Integer:
+        case ColumnType::Bool: t = "INTEGER"; break;
+        case ColumnType::Real: t = "REAL"; break;
+        }
+        if (c.nullable)
+            return t;
+        std::string def = c.fallback.is_string() ? "'" + c.fallback.get<std::string>() + "'"
+                          : c.fallback.is_boolean() ? std::string(c.fallback.get<bool>() ? "1" : "0")
+                                                    : c.fallback.dump();
+        return t + " NOT NULL DEFAULT " + def;
+    };
+    for (const RecordTable& t : record_tables()) {
+        std::string create = std::string("CREATE TABLE IF NOT EXISTS ") + t.name + " (";
+        create += *t.key ? std::string(t.key) + " TEXT PRIMARY KEY"
+                         : std::string("id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0");
+        for (const Column& c : t.columns)
+            create += std::string(", ") + c.name + " " + sql_type(c);
+        exec((create + ")").c_str());
+        std::vector<std::string> have;
+        Stmt info(db_, (std::string("PRAGMA table_info(") + t.name + ")").c_str());
+        while (info.step())
+            have.push_back(info.text(1));
+        for (const Column& c : t.columns)
+            if (std::ranges::find(have, c.name) == have.end())
+                exec((std::string("ALTER TABLE ") + t.name + " ADD COLUMN " + c.name + " " + sql_type(c)).c_str());
+    }
 }
 
 void Registry::begin() {
@@ -681,6 +717,166 @@ json app_json(const AppRecord& a) {
                           {"width", a.placement->width}, {"height", a.placement->height},
                           {"maximized", a.placement->maximized}, {"snapped", a.placement->snapped}};
     return j;
+}
+
+// --- record tables --------------------------------------------------------------------
+
+namespace {
+
+std::string record_columns(const RecordTable& t) {
+    std::string cols = *t.key ? t.key : "id";
+    for (const Column& c : t.columns)
+        cols += std::string(", ") + c.name;
+    return cols;
+}
+
+json read_record(const Stmt& s, const RecordTable& t) {
+    json j;
+    if (*t.key)
+        j[t.key] = s.text(0);
+    else
+        j["id"] = s.integer(0);
+    int col = 1;
+    for (const Column& c : t.columns) {
+        if (s.null(col))
+            j[c.name] = nullptr;
+        else
+            switch (c.type) {
+            case ColumnType::Text: j[c.name] = s.text(col); break;
+            case ColumnType::Integer: j[c.name] = s.integer(col); break;
+            case ColumnType::Real: j[c.name] = s.real(col); break;
+            case ColumnType::Bool: j[c.name] = s.integer(col) != 0; break;
+            }
+        ++col;
+    }
+    return j;
+}
+
+template <class S>
+void bind_value(S& s, int i, const Column& c, const json& v) {
+    if (v.is_null()) {
+        s.bind(i, std::optional<int>{});
+        return;
+    }
+    switch (c.type) {
+    case ColumnType::Text: s.bind(i, v.get<std::string>()); break;
+    case ColumnType::Integer: s.bind(i, v.get<int64_t>()); break;
+    case ColumnType::Real: s.bind(i, v.get<double>()); break;
+    case ColumnType::Bool: s.bind(i, v.get<bool>()); break;
+    }
+}
+
+bool key_fits(const RecordTable& t, const json& key) {
+    return *t.key ? key.is_string() : key.is_number_integer();
+}
+
+} // namespace
+
+json Registry::records(const RecordTable& t) const {
+    json list = json::array();
+    Stmt s(db_, ("SELECT " + record_columns(t) + " FROM " + t.name +
+                 (*t.key ? std::string(" ORDER BY ") + t.key : std::string(" ORDER BY position, id"))).c_str());
+    while (s.step())
+        list.push_back(read_record(s, t));
+    return list;
+}
+
+std::optional<json> Registry::record(const RecordTable& t, const json& key) const {
+    if (!key_fits(t, key))
+        return std::nullopt;
+    Stmt s(db_, ("SELECT " + record_columns(t) + " FROM " + t.name + " WHERE " + (*t.key ? t.key : "id") + " = ?1").c_str());
+    if (*t.key)
+        s.bind(1, key.get<std::string>());
+    else
+        s.bind(1, key.get<int64_t>());
+    if (s.step())
+        return read_record(s, t);
+    return std::nullopt;
+}
+
+int64_t Registry::add_record(const RecordTable& t, const json& fields) {
+    if (*t.key)
+        return 0;
+    std::string cols = "position", values = std::string("(SELECT COALESCE(MAX(position), 0) + 1 FROM ") + t.name + ")";
+    int n = 0;
+    for (const Column& c : t.columns) {
+        cols += std::string(", ") + c.name;
+        values += ", ?" + std::to_string(++n);
+    }
+    Stmt s(db_, (std::string("INSERT INTO ") + t.name + "(" + cols + ") VALUES(" + values + ")").c_str());
+    n = 0;
+    for (const Column& c : t.columns)
+        bind_value(s, ++n, c, fields.contains(c.name) ? fields[c.name] : c.fallback);
+    return s.run() ? sqlite3_last_insert_rowid(db_) : 0;
+}
+
+bool Registry::set_record(const RecordTable& t, const json& key, const json& fields) {
+    if (!key_fits(t, key))
+        return false;
+    json now = record(t, key).value_or(json());
+    if (now.is_null()) {
+        if (!*t.key)
+            return false;
+        now = json{{t.key, key}};
+        for (const Column& c : t.columns)
+            now[c.name] = c.fallback;
+    }
+    for (const Column& c : t.columns)
+        if (fields.contains(c.name))
+            now[c.name] = fields[c.name];
+    if (*t.key) {
+        // Nothing left that differs from the defaults: nothing to keep.
+        const bool plain = std::ranges::all_of(t.columns, [&](const Column& c) { return now[c.name] == c.fallback; });
+        if (plain)
+            return remove_record(t, key), true;
+        std::string cols = t.key, values = "?1", update;
+        int n = 1;
+        for (const Column& c : t.columns) {
+            cols += std::string(", ") + c.name;
+            values += ", ?" + std::to_string(++n);
+            update += (update.empty() ? "" : ", ") + std::string(c.name) + " = excluded." + c.name;
+        }
+        Stmt s(db_, (std::string("INSERT INTO ") + t.name + "(" + cols + ") VALUES(" + values + ") ON CONFLICT(" +
+                     t.key + ") DO UPDATE SET " + update).c_str());
+        s.bind(1, key.get<std::string>());
+        n = 1;
+        for (const Column& c : t.columns)
+            bind_value(s, ++n, c, now[c.name]);
+        return s.run();
+    }
+    std::string update;
+    int n = 1;
+    for (const Column& c : t.columns)
+        update += (update.empty() ? "" : ", ") + std::string(c.name) + " = ?" + std::to_string(++n);
+    Stmt s(db_, (std::string("UPDATE ") + t.name + " SET " + update + " WHERE id = ?1").c_str());
+    s.bind(1, key.get<int64_t>());
+    n = 1;
+    for (const Column& c : t.columns)
+        bind_value(s, ++n, c, now[c.name]);
+    return s.run();
+}
+
+bool Registry::remove_record(const RecordTable& t, const json& key) {
+    if (!record(t, key))
+        return false;
+    Stmt s(db_, (std::string("DELETE FROM ") + t.name + " WHERE " + (*t.key ? t.key : "id") + " = ?1").c_str());
+    if (*t.key)
+        s.bind(1, key.get<std::string>());
+    else
+        s.bind(1, key.get<int64_t>());
+    return s.run();
+}
+
+void Registry::order_records(const RecordTable& t, const std::vector<int64_t>& ids) {
+    if (*t.key)
+        return;
+    begin();
+    exec((std::string("UPDATE ") + t.name + " SET position = position + " + std::to_string(ids.size() + 1)).c_str());
+    int position = 0;
+    for (int64_t id : ids)
+        Stmt(db_, (std::string("UPDATE ") + t.name + " SET position = ?1 WHERE id = ?2").c_str())
+            .bind(1, ++position).bind(2, id).run();
+    commit();
 }
 
 json rule_json(const RuleRecord& r) {

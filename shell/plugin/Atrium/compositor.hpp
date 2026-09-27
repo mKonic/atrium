@@ -111,6 +111,13 @@ public:
     Q_INVOKABLE void removeShortcut(qint64 id);
     Q_INVOKABLE void resetShortcuts();
     Q_INVOKABLE void refreshDevices();
+    // Record tables (src/records.hpp): quicklinks, snippets, commands,
+    // window_sizes, launcher_entries. A record's key is its "id" (or "key").
+    Q_INVOKABLE QVariantList records(const QString& table) const { return records_.value(table); }
+    Q_INVOKABLE void addRecord(const QString& table, const QVariantMap& fields);
+    Q_INVOKABLE void setRecord(const QString& table, const QVariant& key, const QVariantMap& fields);
+    Q_INVOKABLE void removeRecord(const QString& table, const QVariant& key);
+    Q_INVOKABLE void orderRecords(const QString& table, const QVariantList& ids);
     // A device's own settings: speed, acceleration, natural_scroll,
     // left_handed; an undefined/null value hands it back to the shared one.
     Q_INVOKABLE void setDevice(const QString& name, const QVariantMap& fields);
@@ -129,6 +136,7 @@ signals:
     void rulesChanged();
     void shortcutsChanged();
     void devicesChanged();
+    void recordsChanged(const QString& table);
     // A registry change was refused: why, for the Settings app to say.
     void refused(const QString& why);
     void connectedChanged();
@@ -174,6 +182,7 @@ private:
     QVariantMap settings_;
     QVariantList schema_, apps_, rules_, shortcuts_, devices_;
     QStringList actions_;
+    QHash<QString, QVariantList> records_;
     void refreshTable(const QString& table);
     void change(QJsonObject req);
 };

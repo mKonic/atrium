@@ -211,6 +211,43 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         return ok();
     }
 
+    // Record tables (records.hpp): "<table>.list", "<record>.add",
+    // "<record>.set" / "<record>.remove" with "record" (its id or key), and
+    // "<table>.order" with "records" (ids in order).
+    if (const size_t dot = cmd.find('.'); dot != std::string::npos) {
+        const std::string noun = cmd.substr(0, dot), verb = cmd.substr(dot + 1);
+        if (const RecordTable* t = record_table(noun)) {
+            const bool plural = noun == t->name;
+            if (plural && verb == "list")
+                return ok(reg.records(*t));
+            if (plural && verb == "order") {
+                if (!req.contains("records") || !req["records"].is_array() ||
+                    !std::ranges::all_of(req["records"], [](const json& e) { return e.is_number_integer(); }))
+                    return fail(cmd + " needs \"records\": their ids in order");
+                reg.order_records(*t, req["records"].get<std::vector<int64_t>>());
+                changed(t->name);
+                return ok();
+            }
+            if (!plural && (verb == "add" || verb == "set" || verb == "remove")) {
+                if (auto err = check_record_fields(*t, req))
+                    return fail(*err);
+                if (verb == "add") {
+                    if (*t->key)
+                        return fail(std::string(t->singular) + " records are set by key, not added");
+                    const int64_t id = reg.add_record(*t, req);
+                    changed(t->name);
+                    return ok(reg.record(*t, id).value_or(json()));
+                }
+                if (!req.contains("record"))
+                    return fail(cmd + " needs a \"record\" (its " + (*t->key ? t->key : "id") + ")");
+                if (verb == "remove" ? !reg.remove_record(*t, req["record"]) : !reg.set_record(*t, req["record"], req))
+                    return fail("no " + std::string(t->singular) + " " + req["record"].dump());
+                changed(t->name);
+                return ok(verb == "set" ? reg.record(*t, req["record"]).value_or(json()) : json());
+            }
+        }
+    }
+
     if (cmd == "actions")
         return ok(action_names());
     if (cmd == "shortcuts.list") {

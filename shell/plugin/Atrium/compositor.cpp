@@ -3,6 +3,7 @@
 #include "accent.hpp"
 #include "desktop_entries.hpp"
 #include "palette.hpp"
+#include "records.hpp"
 
 #include <QDateTime>
 #include <QIcon>
@@ -142,6 +143,8 @@ void Compositor::refreshAll() {
     });
     for (const char* table : {"apps", "rules", "shortcuts"})
         refreshTable(table);
+    for (const RecordTable& t : record_tables())
+        refreshTable(t.name);
 }
 
 void Compositor::readReplies() {
@@ -436,6 +439,9 @@ void Compositor::refreshTable(const QString& table) {
         } else if (table == "shortcuts") {
             shortcuts_ = list;
             emit shortcutsChanged();
+        } else if (record_table(table.toStdString())) {
+            records_[table] = list;
+            emit recordsChanged(table);
         }
     });
 }
@@ -461,6 +467,44 @@ void Compositor::change(QJsonObject req) {
         if (!reply.value("ok").toBool())
             emit self->refused(reply.value("error").toString());
     });
+}
+
+namespace {
+
+const RecordTable* tableNamed(const QString& table) {
+    const RecordTable* t = record_table(table.toStdString());
+    if (!t)
+        qWarning("atrium: no record table %s", qPrintable(table));
+    return t;
+}
+
+} // namespace
+
+void Compositor::addRecord(const QString& table, const QVariantMap& fields) {
+    if (const RecordTable* t = tableNamed(table)) {
+        QJsonObject req = QJsonObject::fromVariantMap(fields);
+        req["cmd"] = QString(t->singular) + ".add";
+        change(req);
+    }
+}
+
+void Compositor::setRecord(const QString& table, const QVariant& key, const QVariantMap& fields) {
+    if (const RecordTable* t = tableNamed(table)) {
+        QJsonObject req = QJsonObject::fromVariantMap(fields);
+        req["cmd"] = QString(t->singular) + ".set";
+        req["record"] = QJsonValue::fromVariant(key);
+        change(req);
+    }
+}
+
+void Compositor::removeRecord(const QString& table, const QVariant& key) {
+    if (const RecordTable* t = tableNamed(table))
+        change({{"cmd", QString(t->singular) + ".remove"}, {"record", QJsonValue::fromVariant(key)}});
+}
+
+void Compositor::orderRecords(const QString& table, const QVariantList& ids) {
+    if (const RecordTable* t = tableNamed(table))
+        change({{"cmd", QString(t->name) + ".order"}, {"records", QJsonArray::fromVariantList(ids)}});
 }
 
 void Compositor::refreshDevices() {

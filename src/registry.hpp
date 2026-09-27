@@ -18,6 +18,7 @@
 //              where each named window was, per session
 
 #include "placements.hpp"
+#include "records.hpp"
 #include "window_flags.hpp"
 
 #include <nlohmann/json.hpp>
@@ -169,6 +170,19 @@ public:
     // Sessions not used since `before` (unix seconds) go, with their windows.
     void drop_sessions_before(int64_t before);
 
+    // --- record tables (records.hpp) ---
+    // Every record as JSON, in order: "id" (numbered tables) or the key column, then the columns.
+    json records(const RecordTable& table) const;
+    std::optional<json> record(const RecordTable& table, const json& key) const;
+    // A numbered record from `fields` (checked already), at the end; its id.
+    int64_t add_record(const RecordTable& table, const json& fields);
+    // Changes the fields given. A keyed record is created when missing; one left
+    // with every column at its default is removed. False: no such record.
+    bool set_record(const RecordTable& table, const json& key, const json& fields);
+    bool remove_record(const RecordTable& table, const json& key);
+    // Numbered records in this order (ids not named keep theirs, after).
+    void order_records(const RecordTable& table, const std::vector<int64_t>& ids);
+
     // One transaction around many changes (an import).
     void begin();
     void commit();
@@ -178,6 +192,7 @@ public:
 
 private:
     void migrate();
+    void migrate_records();
     bool exec(const char* sql) const;
 
     std::string file_;  // "" for an in-memory one
