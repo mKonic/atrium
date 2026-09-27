@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "stacking.hpp"
 #include "render/renderer.hpp"
 #include "terminal.hpp"
 #include "input_method.hpp"
@@ -1138,22 +1139,17 @@ std::optional<std::pair<int, int>> Server::dock_icon_of(const View& view) const 
     return std::nullopt;
 }
 
-// As on Windows, macOS and KDE: a fullscreen window is over everything only
-// while it's the front window of its screen and space.
+// Fullscreen windows over the panels only while in front (stacking::in_front_of).
 void Server::restack_fullscreen() {
-    for (View* f : views) {
+    std::vector<stacking::Window> mru;
+    for (const View* v : views)
+        mru.push_back({v->fullscreen, v->mapped && v->tree && !v->minimized, !v->unmanaged(), v->output, v->space});
+    for (size_t i = 0; i < views.size(); ++i) {
+        View* f = views[i];
         if (!f->fullscreen || !f->tree || f->minimized || f->unmanaged())
             continue;
-        View* front = nullptr;
-        for (View* v : views) {
-            if (v == f)
-                break;
-            if (v->mapped && v->tree && !v->minimized && !v->unmanaged() && v->output == f->output &&
-                v->space == f->space) {
-                front = v;
-                break;
-            }
-        }
+        const int j = stacking::in_front_of(mru, i);
+        View* front = j >= 0 ? views[size_t(j)] : nullptr;
         if ((front != nullptr) == f->covered)
             continue;
         f->covered = front != nullptr;

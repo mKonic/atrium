@@ -12,7 +12,6 @@ atrium_sources = files(
   'toplevel_icon.cpp',
   'layer_surface.cpp',
   'surface_blur.cpp',
-  'main.cpp',
   'overview.cpp',
   'registry.cpp',
   'records.cpp',
@@ -24,6 +23,7 @@ atrium_sources = files(
   'night_light_core.cpp',
   'seat.cpp',
   'shake.cpp',
+  'stacking.cpp',
   'icc.cpp',
   'keyboard_conf.cpp',
   'server.cpp',
@@ -60,9 +60,21 @@ atrium_sources = files(
   'render/shaders_embedded.cpp',
 )
 
-executable('atrium',
+# Everything but main(): the compositor as a library, which the unit tests
+# link too, so they test the real code (as Hyprland's hyprland_lib).
+atrium_lib = static_library('atrium',
   atrium_sources, protocol_headers, protocol_code, version_h, paths_h,
   dependencies: deps,
+)
+atrium_dep = declare_dependency(
+  link_with: atrium_lib,
+  sources: [protocol_headers, version_h, paths_h],
+  include_directories: include_directories('.'),
+  dependencies: deps,
+)
+
+executable('atrium', 'main.cpp',
+  dependencies: atrium_dep,
   install: true,
 )
 

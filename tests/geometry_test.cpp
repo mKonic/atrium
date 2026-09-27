@@ -351,3 +351,35 @@ TEST(NamedPlace, OnlyTheSameCommandAgainCycles) {
     EXPECT_EQ(named_place("left-half", area, two_thirds, 0, false)->width, 600);
     EXPECT_EQ(named_place("left-half", area, two_thirds, 0, true)->width, 400);
 }
+
+TEST(ClipToFrame, InsideIsUntouched) {
+    auto c = clip_to_frame({10, 20, 100, 50}, {}, 100, 50, 400, 300);
+    ASSERT_TRUE(c);
+    EXPECT_BOX(c->box, 10, 20, 100, 50);
+    EXPECT_DOUBLE_EQ(c->src.width, 100);
+    EXPECT_DOUBLE_EQ(c->src.x, 0);
+}
+
+TEST(ClipToFrame, AnAppsOwnShadowIsCutOff) {
+    // A 440x340 surface with a 20 px shadow margin around a 400x300 frame.
+    auto c = clip_to_frame({-20, -20, 440, 340}, {}, 440, 340, 400, 300);
+    ASSERT_TRUE(c);
+    EXPECT_BOX(c->box, 0, 0, 400, 300);
+    EXPECT_DOUBLE_EQ(c->src.x, 20);
+    EXPECT_DOUBLE_EQ(c->src.y, 20);
+    EXPECT_DOUBLE_EQ(c->src.width, 400);
+    EXPECT_DOUBLE_EQ(c->src.height, 300);
+}
+
+TEST(ClipToFrame, TheCropFollowsAScaledSource) {
+    // A 2x buffer (880x680) shown at 440x340: the crop is in buffer pixels.
+    auto c = clip_to_frame({-20, -20, 440, 340}, {}, 880, 680, 400, 300);
+    ASSERT_TRUE(c);
+    EXPECT_DOUBLE_EQ(c->src.x, 40);
+    EXPECT_DOUBLE_EQ(c->src.width, 800);
+}
+
+TEST(ClipToFrame, AllOutsideIsNothing) {
+    EXPECT_FALSE(clip_to_frame({-50, 0, 30, 30}, {}, 30, 30, 400, 300));
+    EXPECT_FALSE(clip_to_frame({500, 0, 30, 30}, {}, 30, 30, 400, 300));
+}

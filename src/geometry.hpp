@@ -14,6 +14,17 @@ extern "C" {
 
 namespace atrium::geometry {
 
+// A miniature's piece (a buffer at `box` in the window's frame, showing
+// `src` of its buffer, which is `buffer_w` x `buffer_h`) clipped to the frame
+// (0, 0, frame_w, frame_h): what an app draws past its frame (its shadow)
+// is cut off, and the source crop follows. Nothing when it's all outside.
+struct ClippedPiece {
+    wlr_box box;
+    wlr_fbox src;
+};
+std::optional<ClippedPiece> clip_to_frame(const wlr_box& box, const wlr_fbox& src, int buffer_w, int buffer_h,
+                                          int frame_w, int frame_h);
+
 // Where a new window of size (w, h) opens inside `area`.
 //  - Over its parent, centered, when it has one.
 //  - Otherwise centered, stepped down-right by `step` while it would land

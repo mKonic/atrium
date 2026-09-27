@@ -403,4 +403,18 @@ int neighbor(const wlr_box& from, std::span<const wlr_box> others, uint32_t dire
     return best;
 }
 
+std::optional<ClippedPiece> clip_to_frame(const wlr_box& box, const wlr_fbox& src, int buffer_w, int buffer_h,
+                                          int frame_w, int frame_h) {
+    const int x0 = std::max(box.x, 0), y0 = std::max(box.y, 0);
+    const int x1 = std::min(box.x + box.width, frame_w), y1 = std::min(box.y + box.height, frame_h);
+    if (x1 <= x0 || y1 <= y0 || box.width <= 0 || box.height <= 0)
+        return std::nullopt;
+    wlr_fbox from = src;
+    if (wlr_fbox_empty(&from))
+        from = {0, 0, double(buffer_w), double(buffer_h)};
+    const double kx = from.width / box.width, ky = from.height / box.height;
+    return ClippedPiece{{x0, y0, x1 - x0, y1 - y0},
+                        {from.x + (x0 - box.x) * kx, from.y + (y0 - box.y) * ky, (x1 - x0) * kx, (y1 - y0) * ky}};
+}
+
 } // namespace atrium::geometry

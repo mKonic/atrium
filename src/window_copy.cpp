@@ -1,5 +1,6 @@
 #include "window_copy.hpp"
 
+#include "geometry.hpp"
 #include "view.hpp"
 
 #include <algorithm>
@@ -86,24 +87,20 @@ void WindowCopy::place(int width, int height) {
     for (Piece& p : pieces_) {
         // Only the window itself: what an app draws past its frame (its own
         // shadow) would be a dark rim around the miniature.
-        const int x0 = std::max(p.x, 0), y0 = std::max(p.y, 0);
-        const int x1 = std::min(p.x + p.w, fw), y1 = std::min(p.y + p.h, fh);
-        if (x1 <= x0 || y1 <= y0 || p.w <= 0 || p.h <= 0) {
+        const bool plain = p.node->transform == WL_OUTPUT_TRANSFORM_NORMAL && p.node->buffer;
+        const auto c = geometry::clip_to_frame({p.x, p.y, p.w, p.h}, p.src, plain ? p.node->buffer->width : 0,
+                                               plain ? p.node->buffer->height : 0, fw, fh);
+        if (!c) {
             p.node->set_enabled(false);
             continue;
         }
         p.node->set_enabled(true);
-        if ((x0 != p.x || y0 != p.y || x1 != p.x + p.w || y1 != p.y + p.h) && p.node->buffer &&
-            p.node->transform == WL_OUTPUT_TRANSFORM_NORMAL) {
-            wlr_fbox src = p.src;
-            if (wlr_fbox_empty(&src))
-                src = {0, 0, double(p.node->buffer->width), double(p.node->buffer->height)};
-            const double kx = src.width / p.w, ky = src.height / p.h;
-            const wlr_fbox cropped{src.x + (x0 - p.x) * kx, src.y + (y0 - p.y) * ky, (x1 - x0) * kx, (y1 - y0) * ky};
-            p.node->set_source_box(&cropped);
-        }
-        p.node->set_position(round_i(x0 * sx), round_i(y0 * sy));
-        p.node->set_dest_size(std::max(1, round_i((x1 - x0) * sx)), std::max(1, round_i((y1 - y0) * sy)));
+        // A rotated buffer's crop isn't worked out: it shows whole.
+        const wlr_box b = plain ? c->box : wlr_box{p.x, p.y, p.w, p.h};
+        if (plain)
+            p.node->set_source_box(&c->src);
+        p.node->set_position(round_i(b.x * sx), round_i(b.y * sy));
+        p.node->set_dest_size(std::max(1, round_i(b.width * sx)), std::max(1, round_i(b.height * sy)));
         p.node->set_corner_radii(scene::Radii(scaled(p.corners.tl, sx), scaled(p.corners.tr, sx), scaled(p.corners.br, sx), scaled(p.corners.bl, sx)));
     }
 }
