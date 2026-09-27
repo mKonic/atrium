@@ -531,6 +531,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         }));
     s.push_back(boolean("pointer.natural_scroll", "Mouse & Touchpad", "Natural scrolling (mouse)",
         "Content follows the wheel, like a touchscreen.", &Config::natural_scroll, d));
+    s.push_back(boolean("pointer.shake_to_find", "Mouse & Touchpad", "Shake to find the pointer",
+        "Shaking the pointer quickly makes it big for a moment, so you can see where it is.", &Config::shake_to_find, d));
     s.push_back(boolean("pointer.left_handed", "Mouse & Touchpad", "Left-handed",
         "Swap the primary and secondary buttons.", &Config::left_handed, d));
     s.push_back(boolean("pointer.middle_emulation", "Mouse & Touchpad", "Middle-click emulation",

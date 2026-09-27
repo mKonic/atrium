@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- Shake the pointer to find it: it grows for a moment.
 - Frosted blur behind menus and input-method popups when transparency is on.
 - A screen shader setting: a GLSL file drawn over every screen.
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.

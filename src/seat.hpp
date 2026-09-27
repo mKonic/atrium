@@ -1,6 +1,7 @@
 #pragma once
 #include "config.hpp"
 #include "listener.hpp"
+#include "shake.hpp"
 
 #include <array>
 #include <string>
@@ -84,6 +85,17 @@ public:
     Mode mode = Mode::Normal;
 
 private:
+    // Shaking the pointer grows the arrow for a moment, to find it.
+    void shake_grow();
+    void shake_settle();
+    void show_shake_level(int level);
+    ShakeDetector shake_;
+    static constexpr int kShakeLevels = 4;  // sizes on the way up: 1.5x to 3x
+    std::array<wlr_xcursor_manager*, kShakeLevels> shake_xcursor_{};
+    int shake_level_ = 0;  // 0: normal size
+    bool shaking_ = false;
+    wl_event_source* shake_end_ = nullptr;
+
     void new_input(wlr_input_device* device);
     void add_keyboard(wlr_keyboard* keyboard);
     void add_pointer(wlr_pointer* pointer);
