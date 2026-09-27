@@ -43,6 +43,9 @@ pangocairo = dependency('pangocairo')
 libdrm = dependency('libdrm')
 gio = dependency('gio-2.0')
 display_info = dependency('libdisplay-info')
+egl = dependency('egl')
+glesv2 = dependency('glesv2')
+gbm = dependency('gbm')
 sqlite = dependency('sqlite3')
 json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
 
@@ -53,7 +56,7 @@ if xwayland_opt.enabled() and not have_xwayland
 endif
 use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
-deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info]
+deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')
@@ -110,6 +113,7 @@ install_data('data/lib/systemd/user/atrium-session.target', install_dir: get_opt
 # comes with greetd): the config's comments say to install it.
 # The shell's own font (Rubik), for every user and the greeter.
 install_subdir('data/share/atrium/fonts', install_dir: get_option('datadir') / 'atrium')
+install_subdir('data/share/atrium/shaders', install_dir: get_option('datadir') / 'atrium')
 install_data('data/share/atrium/greetd-config.toml', 'data/share/atrium/greeter-tmpfiles.conf', install_dir: get_option('datadir') / 'atrium')
 subdir('shell/plugin/Atrium')
 subdir('shell/host')

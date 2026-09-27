@@ -44,6 +44,13 @@ atrium_sources = files(
   'window_copy.cpp',
   'xdg_view.cpp',
   'xwayland_view.cpp',
+  'render/egl.cpp',
+  'render/formats.cpp',
+  'render/matrix.cpp',
+  'render/pass.cpp',
+  'render/renderer.cpp',
+  'render/shaders.cpp',
+  'render/shaders_embedded.cpp',
 )
 
 executable('atrium',

@@ -1,0 +1,50 @@
+// Rounded-box coverage from v_frag. Returns 0 outside and 1 inside the box
+// (is_cutout: the reverse), antialiased across the edge.
+
+float get_dist(vec2 q, float radius) {
+	return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - radius;
+}
+
+float corner_alpha(vec2 size, vec2 position, bool is_cutout,
+		float radius_tl, float radius_tr, float radius_bl, float radius_br) {
+	if (radius_tl <= 0.0 && radius_tr <= 0.0 && radius_bl <= 0.0 && radius_br <= 0.0) {
+		return 1.0;
+	}
+
+	vec2 relative_pos = v_frag - position;
+
+	// Pixel centres fall on whole numbers here, the edge pixels on 0.0 and
+	// size give or take interpolation error: half a pixel's tolerance keeps
+	// them from flickering in and out with position.
+	if (relative_pos.x < -0.5 || relative_pos.y < -0.5
+			|| relative_pos.x > size.x + 0.5 || relative_pos.y > size.y + 0.5) {
+		if (is_cutout) {
+			return 1.0;
+		}
+		discard;
+	}
+
+	bool is_top_left = radius_tl > 0.0 && relative_pos.x <= radius_tl && relative_pos.y <= radius_tl;
+	bool is_top_right = radius_tr > 0.0 && relative_pos.x >= size.x - radius_tr && relative_pos.y <= radius_tr;
+	bool is_bottom_left = radius_bl > 0.0 && relative_pos.x <= radius_bl && relative_pos.y >= size.y - radius_bl;
+	bool is_bottom_right = radius_br > 0.0 && relative_pos.x >= size.x - radius_br
+		&& relative_pos.y >= size.y - radius_br;
+	if (!is_top_left && !is_top_right && !is_bottom_left && !is_bottom_right) {
+		if (is_cutout) {
+			discard;
+		}
+		return 1.0;
+	}
+
+	vec2 top_left = abs(relative_pos - size) - size + radius_tl;
+	vec2 top_right = abs(relative_pos - vec2(0, size.y)) - size + radius_tr;
+	vec2 bottom_left = abs(relative_pos - vec2(size.x, 0)) - size + radius_bl;
+	vec2 bottom_right = abs(relative_pos) - size + radius_br;
+
+	float dist = max(
+		max(get_dist(top_left, radius_tl), get_dist(top_right, radius_tr)),
+		max(get_dist(bottom_left, radius_bl), get_dist(bottom_right, radius_br)));
+
+	float result = smoothstep(0.0, 1.0, dist);
+	return is_cutout ? result : 1.0 - result;
+}
