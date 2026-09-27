@@ -700,6 +700,17 @@ json Ipc::handle(Client& c, const json& req) {
         return ok();
     }
 
+    // A typed snippet keyword replaced by its text: `delete` bytes before the
+    // cursor go, `text` comes in their place (as an input method would).
+    if (cmd == "text.replace") {
+        if (!req.contains("text") || !req["text"].is_string() || !req.contains("delete") ||
+            !req["delete"].is_number_unsigned())
+            return fail("text.replace needs \"delete\" (bytes before the cursor) and \"text\"");
+        if (!server_.input_method || !server_.input_method->replace_text(req["delete"], req["text"]))
+            return fail("no text field takes it");
+        return ok();
+    }
+
     // Pointing devices and their own settings (null: the shared one applies).
     if (cmd == "devices")
         return ok(devices_json(server_));

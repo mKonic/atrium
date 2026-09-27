@@ -849,6 +849,15 @@ void LauncherModel::typeSnippet(const QVariantMap& m, const QVariantList& args, 
     Compositor::instance()->insertText(text);
 }
 
+void LauncherModel::expandSnippet(qint64 snippet, int before) {
+    const QVariantMap m = record("snippets", QString::number(snippet));
+    if (m.isEmpty())
+        return;
+    // Arguments can't be asked for mid-typing: their defaults, else nothing.
+    const QString text = expand(m.value("text").toString(), {}, int(placeholders::Encoding::Plain));
+    Compositor::instance()->replaceText(before, text);
+}
+
 void LauncherModel::runCustom(const QVariantMap& m, const QVariantList& args) {
     if (m.isEmpty())
         return;

@@ -30,6 +30,11 @@ public:
     // soon as a field is active again (a picker had the keyboard). Nothing
     // within a moment: the shell hears "text.not_inserted".
     void insert_text(const std::string& text);
+    // Take `before` bytes back from before the cursor and put `text` there,
+    // in the focused field (a snippet keyword). False when no field takes text.
+    bool replace_text(size_t before, const std::string& text);
+    // A focused field takes text right now.
+    bool takes_text_now() const { return takes_text(active_); }
 
 private:
     struct TextInput {

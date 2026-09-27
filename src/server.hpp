@@ -1,6 +1,7 @@
 #pragma once
 #include "anim.hpp"
 #include "config.hpp"
+#include "keyword_watch.hpp"
 #include "listener.hpp"
 
 #include <nlohmann/json_fwd.hpp>
@@ -191,6 +192,8 @@ public:
     void notify_window(const View& view, const char* what);
 
     Config config;
+    // Snippet keywords being typed (launcher.snippet_expansion).
+    KeywordWatch keywords;
     const bool nested;
     Animator animator{*this};
 

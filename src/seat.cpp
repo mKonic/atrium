@@ -403,7 +403,38 @@ void Seat::update_capabilities() {
 
 // --- keyboard ------------------------------------------------------------------
 
+// What was typed, for snippet keywords: characters count, Backspace takes
+// one back, anything that moves the caret starts over.
+bool Seat::watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym) {
+    const uint32_t mods = wlr_keyboard_get_modifiers(kb);
+    if (sym == XKB_KEY_Shift_L || sym == XKB_KEY_Shift_R || sym == XKB_KEY_Caps_Lock || sym == XKB_KEY_ISO_Level3_Shift)
+        return false;
+    if (mods & (WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO)) {
+        server.keywords.reset();
+        return false;
+    }
+    if (sym == XKB_KEY_BackSpace) {
+        server.keywords.backspace();
+        return false;
+    }
+    const uint32_t c = xkb_state_key_get_utf32(kb->xkb_state, keycode);
+    if (c < 0x20 || c == 0x7f) {
+        server.keywords.reset();
+        return false;
+    }
+    auto hit = server.keywords.typed(char32_t(c));
+    if (!hit || !server.ipc || !server.input_method || !server.input_method->takes_text_now())
+        return false;
+    // The app has all of the keyword but this last character.
+    char last[8] = {};
+    const int last_len = xkb_keysym_to_utf8(xkb_utf32_to_keysym(c), last, sizeof last) - 1;
+    const size_t received = hit->second.size() - size_t(std::max(0, last_len));
+    server.ipc->broadcast("shell", {{"event", "snippet.typed"}, {"snippet", hit->first}, {"delete", received}});
+    return true;
+}
+
 void Seat::keyboard_enter(wlr_surface* surface) {
+    server.keywords.reset();
     // Never enter with no keyboard (and so no keymap) while a real one exists.
     if (!wlr_seat_get_keyboard(wlr))
         wlr_seat_set_keyboard(wlr, physical_keyboard());
@@ -511,6 +542,15 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     if (server.overview->active() && e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         consumed_[e->keycode] = true;
         server.overview->key(g.syms[0]);
+        return;
+    }
+
+    // The key that completes a snippet keyword never reaches the app: what it
+    // did get of the keyword is taken back and the snippet typed instead, in
+    // one go, with no keystroke still on its way to race the replacement.
+    if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED && server.config.snippet_expansion && !server.keywords.empty() &&
+        watch_keyword(kb, keycode, g.syms[0])) {
+        consumed_[e->keycode] = true;
         return;
     }
 
@@ -786,6 +826,8 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 }
 
 void Seat::button(wlr_pointer_button_event* e) {
+    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED)
+        server.keywords.reset();  // a click moves the caret
     wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
 
     // A press on the overview is the overview's, and so is its release, even

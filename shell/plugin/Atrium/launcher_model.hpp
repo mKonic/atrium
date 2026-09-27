@@ -125,6 +125,8 @@ public:
     Q_INVOKABLE QVariantList items(const QString& query = {});
     Q_INVOKABLE void setAlias(const QString& key, const QString& alias);
     Q_INVOKABLE void setHidden(const QString& key, bool hidden);
+    // A snippet's keyword typed in an app: it becomes the snippet.
+    Q_INVOKABLE void expandSnippet(qint64 snippet, int before);
     Q_INVOKABLE void stopOutput();
     Q_INVOKABLE void rerunOutput();
     Q_INVOKABLE void copyOutput() const;

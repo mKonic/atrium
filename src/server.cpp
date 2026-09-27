@@ -114,6 +114,12 @@ void Server::seed_registry(const std::filesystem::path& dir) {
 // Rules and shortcuts as the compositor uses them, from the registry's
 // records: pattern rules first (they say more), then one per app.
 void Server::rebuild_from_registry() {
+    {
+        std::vector<std::pair<int64_t, std::string>> words;
+        for (const json& s : registry->records(*record_table("snippets")))
+            words.emplace_back(s.value("id", int64_t(0)), s.value("keyword", std::string()));
+        keywords.set_keywords(std::move(words));
+    }
     json rules = json::array();
     auto add = [&](json r, const auto& rec) {
         if (!rec.secret.empty())

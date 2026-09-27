@@ -91,6 +91,9 @@ private:
     void configure_libinput(libinput_device* device);
 
     void key(KeyboardGroup& group, wlr_keyboard_key_event* event);
+    // A snippet keyword being typed; true when this key completed one (and
+    // the shell was asked to type the snippet instead of it).
+    bool watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym);
     void modifiers(KeyboardGroup& group);
     int key_repeat(KeyboardGroup& group);
     // While locked, only bindings marked for the lock screen.

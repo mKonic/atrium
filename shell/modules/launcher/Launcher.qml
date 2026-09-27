@@ -164,6 +164,10 @@ PanelWindow {
             else if (name.startsWith("run:"))
                 lm.run(name.slice(4));
         }
+
+        function onSnippetTyped(snippet: int, before: int): void {
+            lm.expandSnippet(snippet, before);
+        }
     }
 
     // A click beside the panel puts it away.

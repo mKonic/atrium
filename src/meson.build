@@ -15,6 +15,7 @@ atrium_sources = files(
   'overview.cpp',
   'registry.cpp',
   'records.cpp',
+  'keyword_watch.cpp',
   'displays.cpp',
   'edid.cpp',
   'output.cpp',
@@ -52,7 +53,7 @@ executable('atrium',
 )
 
 executable('atriumctl',
-  '../tools/atriumctl.cpp',
+  '../tools/atriumctl.cpp', 'records.cpp',
   dependencies: [json],
   install: true,
 )

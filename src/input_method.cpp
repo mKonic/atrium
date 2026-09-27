@@ -199,6 +199,15 @@ void InputMethodRelay::insert_text(const std::string& text) {
     wl_event_source_timer_update(pending_timer_, 1500);
 }
 
+bool InputMethodRelay::replace_text(size_t before, const std::string& text) {
+    if (!takes_text(active_))
+        return false;
+    wlr_text_input_v3_send_delete_surrounding_text(active_->input, uint32_t(before), 0);
+    wlr_text_input_v3_send_commit_string(active_->input, text.c_str());
+    wlr_text_input_v3_send_done(active_->input);
+    return true;
+}
+
 void InputMethodRelay::commit_pending() {
     wlr_text_input_v3_send_commit_string(active_->input, pending_text_.c_str());
     wlr_text_input_v3_send_done(active_->input);

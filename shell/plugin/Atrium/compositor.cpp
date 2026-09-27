@@ -190,6 +190,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "setting.changed") {
         settings_[e.value("key").toString()] = e.value("value").toVariant();
         emit settingsChanged();
+    } else if (kind == "snippet.typed") {
+        emit snippetTyped(e.value("snippet").toInteger(), e.value("delete").toInt());
     } else if (kind == "text.not_inserted") {
         emit textNotInserted(e.value("text").toString());
     } else if (kind == "window.menu") {
@@ -332,6 +334,10 @@ void Compositor::windowRequest(int id, const QString& command, const QVariantMap
 
 void Compositor::insertText(const QString& text) {
     change({{"cmd", "text.insert"}, {"text", text}});
+}
+
+void Compositor::replaceText(int before, const QString& text) {
+    request({{"cmd", "text.replace"}, {"delete", before}, {"text", text}});
 }
 
 void Compositor::closeWindow(int id) {

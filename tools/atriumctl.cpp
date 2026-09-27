@@ -1,5 +1,7 @@
 // atriumctl: talk to a running atrium over its control socket.
 
+#include "records.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <cctype>
@@ -49,6 +51,8 @@ void usage() {
         "  rules                     pattern rules (by title or app id pattern)\n"
         "  rule add FIELD=VALUE...   add one (app_pattern, title_pattern, secret, space, ...)\n"
         "  rule rm ID                remove one\n"
+        "  records TABLE             quicklinks, snippets, commands, window_sizes or launcher_entries\n"
+        "  record add TABLE FIELD=VALUE... | record set TABLE ID FIELD=VALUE... | record rm TABLE ID\n"
         "  shortcuts                 key combinations and what they do\n"
         "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
@@ -381,6 +385,39 @@ int main(int argc, char** argv) {
         } else {
             usage();
             return 2;
+        }
+    } else if (cmd == "records") {
+        need(1);
+        req = {{"cmd", args[0] + ".list"}};
+    } else if (cmd == "record") {
+        need(2);
+        const atrium::RecordTable* table = atrium::record_table(args[1]);
+        if (!table) {
+            std::fprintf(stderr, "atriumctl: no record table %s\n", args[1].c_str());
+            return 2;
+        }
+        size_t first = 2;
+        if (args[0] == "add") {
+            req = {{"cmd", std::string(table->singular) + ".add"}};
+        } else if (args[0] == "set" || args[0] == "rm") {
+            need(3);
+            req = {{"cmd", std::string(table->singular) + (args[0] == "rm" ? ".remove" : ".set")}};
+            req["record"] = *table->key ? json(args[2]) : json(std::stoll(args[2]));
+            first = 3;
+        } else {
+            usage();
+            return 2;
+        }
+        for (size_t k = first; k < args.size(); ++k) {
+            const size_t eq = args[k].find('=');
+            if (eq == std::string::npos) {
+                usage();
+                return 2;
+            }
+            // Text columns stay text even when they look like numbers.
+            const std::string field = args[k].substr(0, eq), value = args[k].substr(eq + 1);
+            const auto col = std::ranges::find_if(table->columns, [&](const atrium::Column& c) { return field == c.name; });
+            req[field] = col != table->columns.end() && col->type == atrium::ColumnType::Text ? json(value) : parse_value(value);
         }
     } else if (cmd == "shortcuts") {
         req = {{"cmd", "shortcuts.list"}};

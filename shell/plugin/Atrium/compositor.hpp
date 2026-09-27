@@ -87,6 +87,8 @@ public:
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.
     Q_INVOKABLE void insertText(const QString& text);
+    // Take `before` bytes back from before the cursor and type `text` there.
+    Q_INVOKABLE void replaceText(int before, const QString& text);
     // "minimize", "maximize", "fullscreen", "pin", "to_space" ({number}), ...
     Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
@@ -144,6 +146,9 @@ signals:
     // Right-click on a title bar (or an app asking): the window menu, at a
     // point on that output.
     void textNotInserted(const QString& text);
+    // A snippet's keyword was typed in an app (launcher.snippet_expansion).
+    // `before` bytes of its keyword reached the app and are to be taken back.
+    void snippetTyped(qint64 snippet, int before);
     void windowMenu(const QVariantMap& window, const QString& output, int x, int y);
     void shellAction(const QString& name);
     // The pointer reached the top or bottom of a screen with a fullscreen
