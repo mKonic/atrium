@@ -241,7 +241,7 @@ void Switcher::layout() {
         it.tree->set_position(it.box.x, it.box.y);
         it.copy->place(iw, ih);
         scene::Node* first = wl_list_empty(&it.tree->children) ? nullptr
-            : wl_container_of(it.tree->children.next, first, link);
+            : scene::node_of_link(it.tree->children.next);
         if (first && first->type == scene::Type::Rect) {
             auto* back = static_cast<scene::Rect*>(first);
             back->set_size(iw, ih);

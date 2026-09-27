@@ -99,8 +99,7 @@ void visibility(Node* node, pixman_region32_t* out) {
     if (!node->enabled)
         return;
     if (node->type == Type::Tree) {
-        Node* child;
-        wl_list_for_each(child, &static_cast<Tree*>(node)->children, link)
+        for (Node* child : each_child(static_cast<Tree*>(node)))
             visibility(child, out);
         return;
     }
@@ -112,8 +111,7 @@ void bounds(Node* node, const Walk& w, pixman_region32_t* out) {
         return;
     if (node->type == Type::Tree) {
         Tree* tree = static_cast<Tree*>(node);
-        Node* child;
-        wl_list_for_each(child, &tree->children, link)
+        for (Node* child : each_child(tree))
             bounds(child, w.child(tree, child), out);
         return;
     }
@@ -123,8 +121,7 @@ void bounds(Node* node, const Walk& w, pixman_region32_t* out) {
 
 void cleanup_when_disabled(Node* node, bool restack, wl_list* outputs) {
     if (node->type == Type::Tree) {
-        Node* child;
-        wl_list_for_each(child, &static_cast<Tree*>(node)->children, link)
+        for (Node* child : each_child(static_cast<Tree*>(node)))
             if (child->enabled)
                 cleanup_when_disabled(child, restack, outputs);
         return;
@@ -165,8 +162,7 @@ bool nodes_in_box_at(Node* node, const wlr_box& box, const BoxIterator& fn, cons
         return false;
     if (node->type == Type::Tree) {
         Tree* tree = static_cast<Tree*>(node);
-        Node* child;
-        wl_list_for_each_reverse(child, &tree->children, link)
+        for (Node* child : each_child_top_down(tree))
             if (nodes_in_box_at(child, box, fn, w.child(tree, child)))
                 return true;
         return false;
@@ -348,8 +344,7 @@ void SceneImpl::update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore
 
 void SceneImpl::output_update(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force) {
     if (node->type == Type::Tree) {
-        Node* child;
-        wl_list_for_each(child, &static_cast<Tree*>(node)->children, link)
+        for (Node* child : each_child(static_cast<Tree*>(node)))
             output_update(child, outputs, ignore, force);
         return;
     }
@@ -394,8 +389,7 @@ void SceneImpl::send_frame_done(Node* node, SceneOutput* out, const timespec* no
         FrameDoneEvent ev{out, *now};
         static_cast<Buffer*>(node)->send_frame_done(&ev);
     } else if (node->type == Type::Tree) {
-        Node* child;
-        wl_list_for_each(child, &static_cast<Tree*>(node)->children, link)
+        for (Node* child : each_child(static_cast<Tree*>(node)))
             send_frame_done(child, out, now);
     }
 }
@@ -404,8 +398,7 @@ void SceneImpl::mark_cache_dirty(Node* node) {
     if (node->type == Type::BlurCache) {
         static_cast<BlurCache*>(node)->mark_dirty();
     } else if (node->type == Type::Tree) {
-        Node* child;
-        wl_list_for_each(child, &static_cast<Tree*>(node)->children, link)
+        for (Node* child : each_child(static_cast<Tree*>(node)))
             mark_cache_dirty(child);
     }
 }
@@ -448,8 +441,7 @@ void Node::destroy() {
             wl_list_for_each_safe(o, tmp, &scene->outputs, link)
                 o->destroy();
         }
-        Node *child, *tmp;
-        wl_list_for_each_safe(child, tmp, &tree->children, link)
+        for (Node* child : each_child(tree))
             child->destroy();
     }
     delete this;
@@ -583,13 +575,13 @@ void Node::place_below(Node* sibling) {
 }
 
 void Node::raise_to_top() {
-    Node* top = wl_container_of(parent->children.prev, top, link);
+    Node* top = node_of_link(parent->children.prev);
     if (top != this)
         place_above(top);
 }
 
 void Node::lower_to_bottom() {
-    Node* bottom = wl_container_of(parent->children.next, bottom, link);
+    Node* bottom = node_of_link(parent->children.next);
     if (bottom != this)
         place_below(bottom);
 }
@@ -611,6 +603,13 @@ void Node::reparent(Tree* p) {
     update(&was);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+Node* node_of_link(wl_list* link) {
+    return reinterpret_cast<Node*>(reinterpret_cast<char*>(link) - offsetof(Node, link));
+}
+#pragma GCC diagnostic pop
+
 namespace {
 
 void for_each_buffer_at(Node* node, const Walk& w, const std::function<void(Buffer*, int, int)>& fn) {
@@ -620,8 +619,7 @@ void for_each_buffer_at(Node* node, const Walk& w, const std::function<void(Buff
         fn(static_cast<Buffer*>(node), int(std::lround(w.x)), int(std::lround(w.y)));
     } else if (node->type == Type::Tree) {
         Tree* tree = static_cast<Tree*>(node);
-        Node *child, *tmp;
-        wl_list_for_each_safe(child, tmp, &tree->children, link)
+        for (Node* child : each_child(tree))
             for_each_buffer_at(child, w.child(tree, child), fn);
     }
 }
@@ -639,8 +637,7 @@ void Node::for_each_buffer(const std::function<void(Buffer*, int, int)>& fn) {
     }
     if (type == Type::Tree) {
         Tree* tree = static_cast<Tree*>(this);
-        Node *child, *tmp;
-        wl_list_for_each_safe(child, tmp, &tree->children, link)
+        for (Node* child : each_child(tree))
             for_each_buffer_at(child, w.child(tree, child), fn);
     }
 }

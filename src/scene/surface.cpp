@@ -409,8 +409,7 @@ bool set_clip(Node* node, const wlr_box* clip) {
         found = true;
         reconfigure_clip(t);
     }
-    Node* child;
-    wl_list_for_each(child, &static_cast<Tree*>(node)->children, link)
+    for (Node* child : each_child(static_cast<Tree*>(node)))
         found = set_clip(child, clip) || found;
     return found;
 }

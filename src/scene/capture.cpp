@@ -53,8 +53,7 @@ size_t g_last_output = 0;
 void extents(Node* node, const Walk& w, int* x1, int* y1, int* x2, int* y2) {
     if (node->type == Type::Tree) {
         Tree* tree = static_cast<Tree*>(node);
-        Node* child;
-        wl_list_for_each(child, &tree->children, link)
+        for (Node* child : each_child(tree))
             extents(child, w.child(tree, child), x1, y1, x2, y2);
         return;
     }

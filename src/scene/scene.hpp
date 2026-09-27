@@ -131,6 +131,40 @@ private:
     friend class Node;
 };
 
+// A tree's children, bottom to top or top to bottom; the current one may
+// be removed. Not wl_list_for_each: at the end it makes a Node* of the list
+// head and reads `link` through it, which UBSan's vptr check (Node is
+// polymorphic) dereferences.
+Node* node_of_link(wl_list* link);
+class ChildRange {
+public:
+    ChildRange(const Tree* tree, bool top_down) : head_(const_cast<wl_list*>(&tree->children)), top_down_(top_down) {}
+    class iterator {
+    public:
+        iterator(wl_list* cur, bool top_down) : cur_(cur), next_(top_down ? cur->prev : cur->next), top_down_(top_down) {}
+        Node* operator*() const { return node_of_link(cur_); }
+        iterator& operator++() {
+            cur_ = next_;
+            next_ = top_down_ ? cur_->prev : cur_->next;
+            return *this;
+        }
+        bool operator!=(const iterator& o) const { return cur_ != o.cur_; }
+
+    private:
+        wl_list* cur_;
+        wl_list* next_;
+        bool top_down_;
+    };
+    iterator begin() const { return {top_down_ ? head_->prev : head_->next, top_down_}; }
+    iterator end() const { return {head_, top_down_}; }
+
+private:
+    wl_list* head_;
+    bool top_down_;
+};
+inline ChildRange each_child(const Tree* tree) { return {tree, false}; }
+inline ChildRange each_child_top_down(const Tree* tree) { return {tree, true}; }
+
 class Rect : public Node {
 public:
     static Rect* create(Tree* parent, int width, int height, const float color[4]);
