@@ -127,6 +127,8 @@ public:
     // offset from its real position. Neither changes geometry or input.
     void set_alpha(float alpha);
     void set_anim_offset(int dx, int dy);
+    // Drawn at `scale` about its centre; geometry and input stay put.
+    void set_anim_scale(float scale);
     float alpha() const { return alpha_; }
 
     std::unique_ptr<Titlebar> titlebar;
@@ -229,6 +231,7 @@ protected:
     bool resize_settling_ = false;
     float alpha_ = 1.0f;
     int anim_dx_ = 0, anim_dy_ = 0;
+    float anim_scale_ = 1.0f;  // drawn scaled about its centre (opening, closing, minimising)
     int glide_dx_ = 0, glide_dy_ = 0;  // on its way to where atrium put it
     bool opening_ = false;             // its open animation is running
     bool listed_ = false;              // in server.views (managed when it mapped)

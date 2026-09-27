@@ -22,6 +22,13 @@
 namespace atrium {
 
 namespace {
+constexpr double kOpenScale = 0.92;       // a window zooms up from this as it opens
+constexpr double kCloseScale = 0.92;      // and down to it as it closes
+constexpr double kMinimizedScale = 0.08;  // how small it is on reaching the Dock
+constexpr int kDockReach = 40;            // the Dock's middle, above the screen's bottom
+} // namespace
+
+namespace {
 
 // Behind window content when transparency is off.
 constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};
@@ -41,8 +48,18 @@ View::~View() {
 }
 
 void View::place_tree() {
-    if (tree)
-        tree->set_position(geom.x + anim_dx_ + glide_dx_, geom.y + anim_dy_ + glide_dy_);
+    if (!tree)
+        return;
+    // Scaled about the frame's centre: the origin moves in by what it loses.
+    const int cx = int(std::lround((1 - anim_scale_) * geom.width / 2.0));
+    const int cy = int(std::lround((1 - anim_scale_) * geom.height / 2.0));
+    tree->set_scale(anim_scale_);
+    tree->set_position(geom.x + anim_dx_ + glide_dx_ + cx, geom.y + anim_dy_ + glide_dy_ + cy);
+}
+
+void View::set_anim_scale(float scale) {
+    anim_scale_ = scale;
+    place_tree();
 }
 
 void View::set_anim_offset(int dx, int dy) {
@@ -165,13 +182,16 @@ void View::handle_map() {
     else
         server.spaces_changed();
 
-    // Fade in, rising into place (caelestia's windowsIn: 500 ms, emphasized
+    // Fade in, zooming up from a little smaller (macOS: 500 ms, emphasized
     // decelerate).
     opening_ = true;
     server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
         set_alpha(float(t));
-        set_anim_offset(0, int(std::lround((1 - t) * 14)));
-    }, [this] { opening_ = false; });
+        set_anim_scale(float(kOpenScale + (1 - kOpenScale) * t));
+    }, [this] {
+        opening_ = false;
+        set_anim_scale(1.0f);
+    });
     server.overview->view_mapped(this);
 }
 
@@ -222,6 +242,8 @@ void View::handle_unmap() {
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
     minimized = maximized = fullscreen = covered = activated = activate_on_map = false;
+    anim_scale_ = 1.0f;
+    anim_dx_ = anim_dy_ = 0;
     snapped = 0;
     tile_bar_hidden_ = false;
     resize_edges_ = 0;
@@ -344,6 +366,7 @@ struct Ghost {
     scene::Rect* backing = nullptr;
     Color shadow_color{}, outline_color{};
     int x = 0, y = 0;
+    int w = 0, h = 0;  // the frame, which it shrinks about the centre of
 };
 
 void copy_into_ghost(scene::Buffer* src, int sx, int sy, void* data) {
@@ -372,6 +395,8 @@ void View::animate_close() {
     g->tree = scene::Tree::create(server.layer(fullscreen_front() ? Layer::Fullscreen : Layer::Views));
     g->x = tree->x;
     g->y = tree->y;
+    g->w = geom.width;
+    g->h = geom.height;
     g->tree->set_position(g->x, g->y);
 
     const Config& c = server.config;
@@ -417,7 +442,10 @@ void View::animate_close() {
             bc[3] *= a;
             g->backing->set_color(premultiplied(bc).data());
         }
-        g->tree->set_position(g->x, g->y + int(std::lround(t * 10)));
+        const float sc = float(1 - (1 - kCloseScale) * t);
+        g->tree->set_scale(sc);
+        g->tree->set_position(g->x + int(std::lround((1 - sc) * g->w / 2.0)),
+                              g->y + int(std::lround((1 - sc) * g->h / 2.0)));
     }, [g] {
         g->tree->destroy();
         delete g;
@@ -822,20 +850,31 @@ void View::set_minimized(bool m) {
     // tree stays enabled while it animates out.
     server.animator.cancel_owner(this, false);
     tree->set_enabled(true);
+    // Shrink into the Dock, at the bottom middle of the screen, and grow
+    // back out of it (macOS's Scale effect).
+    int to_x = 0, to_y = 0;
+    if (output) {
+        to_x = output->box.x + output->box.width / 2 - (geom.x + geom.width / 2);
+        to_y = output->box.y + output->box.height - kDockReach - (geom.y + geom.height / 2);
+    }
+    const auto step = [this, to_x, to_y](double k) {  // 0: in place, 1: in the Dock
+        set_anim_scale(float(1 - (1 - kMinimizedScale) * k));
+        set_anim_offset(int(std::lround(to_x * k)), int(std::lround(to_y * k)));
+        set_alpha(float(std::clamp(1.4 - 1.4 * k, 0.0, 1.0)));  // gone as it arrives
+    };
     if (m) {
-        server.animator.start(this, 300, Ease::EmphasizedAccel, [this](double t) {
-            set_alpha(float(1 - t));
-            set_anim_offset(0, int(std::lround(t * 40)));
-        }, [this] {
+        server.animator.start(this, 400, Ease::EmphasizedAccel, [step](double t) { step(t); }, [this] {
             if (minimized && tree)
                 tree->set_enabled(false);
             set_alpha(1.0f);
             set_anim_offset(0, 0);
+            set_anim_scale(1.0f);
         });
     } else {
-        server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
-            set_alpha(float(t));
-            set_anim_offset(0, int(std::lround((1 - t) * 40)));
+        server.animator.start(this, 500, Ease::EmphasizedDecel, [step](double t) { step(1 - t); }, [this] {
+            set_alpha(1.0f);
+            set_anim_offset(0, 0);
+            set_anim_scale(1.0f);
         });
     }
     send_suspended(m);

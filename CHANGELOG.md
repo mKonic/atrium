@@ -16,6 +16,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
 
 ### Changed
+- Windows zoom in as they open and out as they close, and shrink into the Dock when minimised.
 - Updates no longer show in the menu bar; Software Update in Settings has them.
 - atrium draws with its own renderer: a full redraw with blur and Liquid Glass takes about half the time.
 
