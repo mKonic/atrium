@@ -2,11 +2,9 @@ import QtQuick
 import Atrium.Shell
 import Atrium
 import shell.modules.bar
-import shell.modules.clipboard
 import shell.modules.controlcenter
 import shell.modules.desktop
 import shell.modules.dock
-import shell.modules.emoji
 import shell.modules.launcher
 import shell.modules.notifications
 import shell.modules.osd
@@ -58,10 +56,6 @@ ShellRoot {
     }
 
     Launcher {}
-
-    ClipboardPicker {}
-
-    EmojiPicker {}
 
     Notifications {}
 

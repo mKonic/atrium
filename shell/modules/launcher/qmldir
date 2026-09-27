@@ -1,2 +1,8 @@
 module shell.modules.launcher
 Launcher 1.0 Launcher.qml
+RootList 1.0 RootList.qml
+ClipboardScreen 1.0 ClipboardScreen.qml
+EmojiScreen 1.0 EmojiScreen.qml
+OutputScreen 1.0 OutputScreen.qml
+Keycap 1.0 Keycap.qml
+FeedbackPill 1.0 FeedbackPill.qml

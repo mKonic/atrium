@@ -39,6 +39,7 @@ constexpr PageInfo kPages[] = {
     {"Date & Time", "schedule", "#8e8e93"},
     {"Keyboard", "keyboard", "#8e8e93"},
     {"Keyboard Shortcuts", "keyboard_command_key", "#8e8e93"},
+    {"Launcher", "search", "#5e5ce6"},
     {"Mouse & Touchpad", "mouse", "#8e8e93"},
     {"Power", "bolt", "#30d158"},
     {"Disks", "hard_drive", "#8e8e93"},

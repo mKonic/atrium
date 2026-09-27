@@ -636,6 +636,15 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Off, there is one Dock, as on a Mac: rest the pointer at the bottom of another screen to bring it there.",
         false, [](Config&, const json&) {}));
 
+    // Launcher (read by the shell; snippet expansion by the compositor too)
+    s.push_back(choice("launcher.sensitivity", "Launcher", "Search sensitivity",
+        "How loose a match may be. Low shows anything whose letters appear in order; High keeps to word starts and initials.",
+        {"low", "medium", "high"}, "medium", [](Config&, const json&) {}));
+    s.push_back(make("launcher.suggestions", SettingType::Bool, "Launcher", "Show suggestions",
+        "With nothing typed, list what you open most above everything else.", true, [](Config&, const json&) {}));
+    s.push_back(boolean("launcher.snippet_expansion", "Launcher", "Expand snippet keywords",
+        "Typing a snippet's keyword in any app replaces it with the snippet.", &Config::snippet_expansion, d));
+
     // Shortcuts (the modifier must apply before the bindings that use it)
     s.push_back(choice("shortcuts.modifier", "Keyboard Shortcuts", "Shortcut key",
         "The key written as Mod in shortcuts.", {"super", "alt", "ctrl"}, modifier_name(d.mod),

@@ -7,15 +7,60 @@ import shell.components
 import shell.services
 import Atrium
 
-// Spotlight: type to find apps (and open windows), do sums, or ">" to run a
-// command. Opened by the "shell launcher" action (Super+Space).
+// The palette (Super+Space), after Tinycast: find and open apps, Settings
+// pages, windows, quicklinks, snippets, your own commands, system actions and
+// window commands; do sums; Ctrl+K for what else a row can do. Clipboard
+// History (Super+V) and Emoji (Super+Period) are screens of it. The logic is
+// LauncherModel's; this is its window.
 PanelWindow {
     id: launcher
 
-    LauncherResults {
-        id: results
+    readonly property bool listScreen: ["root", "windows", "snippets", "quicklinks"].includes(lm.screen)
+    // What the arguments beside the field hold, in the selected row's order.
+    property var args: []
+    property bool menuOpen: false
+    property int menuCurrent: 0
+    property var menuActions: []
+    property var confirming: null  // { title, detail, glyph, token }
+
+    readonly property var placeholders: ({
+            "root": "Search for apps and commands…",
+            "clipboard": "Search clipboard…",
+            "emoji": "Search emoji…",
+            "windows": "Search windows…",
+            "snippets": "Search snippets…",
+            "quicklinks": "Search quicklinks…",
+            "files": "Search files…",
+            "calculator": "Search calculations…",
+            "output": ""
+        })
+    readonly property var screenTitles: ({
+            "clipboard": "Clipboard History",
+            "emoji": "Emoji & Symbols",
+            "windows": "Switch Windows",
+            "snippets": "Snippets",
+            "quicklinks": "Quicklinks",
+            "files": "Files",
+            "calculator": "Calculator History",
+            "output": ""
+        })
+
+    LauncherModel {
+        id: lm
 
         entries: DesktopEntries
+
+        onCloseRequested: launcher.close()
+        onFeedback: (glyph, text, noop) => pill.show(glyph, text, noop)
+        onConfirmRequested: (title, detail, glyph, token) => {
+            launcher.confirming = { title, detail, glyph, token };
+            if (!launcher.visible)
+                launcher.show();
+        }
+        onOpenRequested: query => launcher.open("root", query)
+        onCurrentChanged: launcher.args = []
+        onQueryChanged: if (input.text !== lm.query) input.text = lm.query
+        onScreenChanged: launcher.menuOpen = false
     }
 
     visible: false
@@ -32,12 +77,15 @@ PanelWindow {
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "atrium-launcher"
 
-    function toggle(): void {
-        visible ? close() : open();
+    function open(screenName: string, query: string): void {
+        confirming = null;
+        menuOpen = false;
+        lm.open(screenName, query);
+        input.text = lm.query;
+        show();
     }
 
-    function open(): void {
-        input.text = "";
+    function show(): void {
         visible = true;
         input.forceActiveFocus();
         shown.restart();
@@ -45,11 +93,41 @@ PanelWindow {
 
     function close(): void {
         visible = false;
+        menuOpen = false;
+        confirming = null;
     }
 
     function activate(row: int): void {
-        if (results.activate(row))
-            close();
+        // A required argument still empty takes the keyboard instead.
+        const wanted = lm.arguments;
+        for (let i = 0; i < wanted.length; ++i)
+            if (!wanted[i].optional && !(args[i] ?? "").length) {
+                argFields.itemAt(i)?.focusField();
+                return;
+            }
+        lm.activate(row, args);
+    }
+
+    function openMenu(): void {
+        if (!listScreen || lm.count === 0)
+            return;
+        menuSearch.text = "";
+        menuActions = lm.actions(-1, "");
+        menuCurrent = 0;
+        menuOpen = true;
+        menuSearch.forceActiveFocus();
+    }
+
+    function closeMenu(): void {
+        menuOpen = false;
+        input.forceActiveFocus();
+    }
+
+    function runMenu(index: int): void {
+        const a = menuActions[index];
+        closeMenu();
+        if (a)
+            lm.runAction(-1, a.id);
     }
 
     Connections {
@@ -57,7 +135,11 @@ PanelWindow {
 
         function onShellAction(name: string): void {
             if (name === "launcher")
-                launcher.toggle();
+                launcher.visible && lm.screen === "root" ? launcher.close() : launcher.open("root", "");
+            else if (name === "clipboard" || name === "emoji")
+                launcher.visible && lm.screen === name ? launcher.close() : launcher.open(name, "");
+            else if (name.startsWith("run:"))
+                lm.run(name.slice(4));
         }
     }
 
@@ -71,10 +153,10 @@ PanelWindow {
         id: panel
 
         anchors.horizontalCenter: parent.horizontalCenter
-        y: Math.round(launcher.height * 0.2)
-        width: Math.min(680, launcher.width - 64)
-        height: column.implicitHeight
-        radius: 26
+        y: Math.round(launcher.height * 0.18)
+        width: Math.min(760, launcher.width - 64)
+        height: Math.min(480, launcher.height - y - 48)
+        radius: 22
         color: Theme.material.regular
 
         Glass {}
@@ -91,15 +173,13 @@ PanelWindow {
         }
 
         // Opens with a small settle.
-        scale: 1
-        opacity: 1
         ParallelAnimation {
             id: shown
 
             Anim {
                 target: panel
                 property: "scale"
-                from: 0.96
+                from: 0.97
                 to: 1
                 duration: Theme.anim.small
                 easing.bezierCurve: Theme.anim.emphasizedDecel
@@ -115,152 +195,631 @@ PanelWindow {
 
         MouseArea {
             anchors.fill: parent  // clicks on the panel stay on it
+            onClicked: if (launcher.menuOpen) launcher.closeMenu()
         }
 
-        Column {
-            id: column
+        // --- the field ---------------------------------------------------------------------
+
+        Item {
+            id: header
 
             width: parent.width
+            height: 58
 
-            Item {
-                width: parent.width
-                height: 60
+            // Off the root, the icon slot steps back (or closes a screen opened on its own).
+            Rectangle {
+                id: back
+
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                width: 30
+                height: 30
+                radius: 8
+                color: backArea.containsMouse && lm.screen !== "root" ? Theme.palette.tertiaryFill : "transparent"
 
                 MaterialIcon {
-                    id: glass
+                    anchors.centerIn: parent
+                    text: lm.screen === "root" ? "search" : "arrow_back"
+                    font.pointSize: 16
+                    color: backArea.containsMouse ? Theme.palette.label : Theme.palette.secondaryLabel
+                }
 
-                    anchors.left: parent.left
-                    anchors.leftMargin: 20
+                MouseArea {
+                    id: backArea
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled: lm.screen !== "root"
+                    onClicked: if (!lm.backspace()) launcher.close()
+                }
+            }
+
+            TextInput {
+                id: input
+
+                anchors.left: back.right
+                anchors.leftMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                // Sized to what's typed while arguments follow it, as Raycast does.
+                width: argRow.visible ? Math.min(Math.max(contentWidth + 4, 40), header.width * 0.45)
+                                      : header.width - x - 20
+                color: Theme.palette.label
+                font.family: Theme.font.sans
+                font.pointSize: 16
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
+                clip: true
+                readOnly: lm.screen === "output"
+                onTextChanged: if (lm.query !== text) lm.query = text
+
+                // Ctrl held a moment shows the favorites' numbers.
+                Keys.onReleased: event => {
+                    if (event.key === Qt.Key_Control) {
+                        ctrlHold.stop();
+                        rootList.ctrlHeld = false;
+                    }
+                }
+                Keys.onPressed: event => {
+                    const ctrl = event.modifiers & Qt.ControlModifier;
+                    if (event.key === Qt.Key_Control) {
+                        ctrlHold.restart();
+                        return;
+                    }
+                    ctrlHold.stop();
+                    rootList.ctrlHeld = false;
+                    event.accepted = true;
+                    if (launcher.confirming) {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            const token = launcher.confirming.token;
+                            launcher.confirming = null;
+                            lm.confirm(token);
+                        } else if (event.key === Qt.Key_Escape) {
+                            launcher.confirming = null;
+                        }
+                        return;
+                    }
+                    if (event.key === Qt.Key_Escape) {
+                        if (ctrl)
+                            launcher.open("root", "");
+                        else if (!lm.escape())
+                            launcher.close();
+                        return;
+                    }
+                    if (event.key === Qt.Key_Backspace && input.text.length === 0 && !ctrl) {
+                        lm.backspace();
+                        return;
+                    }
+                    if (ctrl && event.key === Qt.Key_K) {
+                        launcher.openMenu();
+                        return;
+                    }
+                    if (event.key === Qt.Key_Tab && launcher.listScreen && lm.arguments.length > 0) {
+                        argFields.itemAt(0)?.focusField();
+                        return;
+                    }
+                    if (event.key === Qt.Key_Tab && (lm.screen === "root" || lm.screen === "clipboard")) {
+                        lm.tab();
+                        return;
+                    }
+                    if (body.item && body.item.handleKey(event))
+                        return;
+                    if (launcher.listScreen && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                        launcher.activate(-1);
+                        return;
+                    }
+                    event.accepted = false;
+                }
+
+                StyledText {
+                    anchors.fill: parent
+                    visible: input.text.length === 0 && !argRow.visible
+                    text: lm.screen === "output" ? lm.outputTitle : (launcher.placeholders[lm.screen] ?? "")
+                    elide: Text.ElideRight
+                    font.pointSize: 16
+                    color: lm.screen === "output" ? Theme.palette.label : Theme.palette.tertiaryLabel
+                }
+            }
+
+            Timer {
+                id: ctrlHold
+
+                interval: 400
+                onTriggered: rootList.ctrlHeld = true
+            }
+
+            // The selected row's arguments, typed right after the query.
+            Row {
+                id: argRow
+
+                anchors.left: input.right
+                anchors.leftMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                visible: launcher.listScreen && lm.arguments.length > 0
+
+                Repeater {
+                    id: argFields
+
+                    model: launcher.listScreen ? lm.arguments : []
+
+                    Rectangle {
+                        id: argBox
+
+                        required property var modelData
+                        required property int index
+
+                        function focusField(): void {
+                            argInput.forceActiveFocus();
+                        }
+
+                        width: Math.max(90, argInput.contentWidth + 24)
+                        height: 30
+                        radius: 8
+                        color: Theme.palette.quaternaryFill
+                        border.width: argInput.activeFocus ? 2 : 1
+                        border.color: argInput.activeFocus ? Theme.palette.focusRing : Theme.palette.separator
+
+                        TextInput {
+                            id: argInput
+
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: TextInput.AlignVCenter
+                            color: Theme.palette.label
+                            font.family: Theme.font.sans
+                            font.pointSize: Theme.font.size.normal
+                            selectionColor: Theme.palette.accent
+                            clip: true
+                            onTextChanged: {
+                                const a = launcher.args.slice();
+                                a[argBox.index] = text;
+                                launcher.args = a;
+                            }
+
+                            Keys.onPressed: event => {
+                                event.accepted = true;
+                                if (event.key === Qt.Key_Tab && argBox.index + 1 < argFields.count)
+                                    argFields.itemAt(argBox.index + 1).focusField();
+                                else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Escape
+                                         || event.key === Qt.Key_Backtab)
+                                    input.forceActiveFocus();
+                                else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                                    launcher.activate(-1);
+                                else
+                                    event.accepted = false;
+                            }
+
+                            StyledText {
+                                anchors.fill: parent
+                                verticalAlignment: Text.AlignVCenter
+                                visible: argInput.text.length === 0
+                                text: argBox.modelData.name + (argBox.modelData.optional ? " (optional)" : "")
+                                color: Theme.palette.tertiaryLabel
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            id: rule
+
+            anchors.top: header.bottom
+            width: parent.width
+            height: 1
+            color: Theme.palette.separator
+        }
+
+        // --- the screen --------------------------------------------------------------------
+
+        RootList {
+            id: rootList
+
+            anchors.top: rule.bottom
+            anchors.bottom: footerRule.top
+            width: parent.width
+            visible: launcher.listScreen
+            launcherModel: lm
+            onActivated: row => {
+                lm.current = row;
+                launcher.activate(row);
+            }
+            // handleKey is reached through `body` below while it is the screen.
+        }
+
+        Loader {
+            id: body
+
+            anchors.top: rule.bottom
+            anchors.bottom: footerRule.top
+            width: parent.width
+            // The list screens share the one RootList; the rest load their own.
+            sourceComponent: launcher.listScreen ? listProxy
+                           : lm.screen === "clipboard" ? clipboardScreen
+                           : lm.screen === "emoji" ? emojiScreen
+                           : lm.screen === "output" ? outputScreen
+                           : notYet
+        }
+
+        Component {
+            id: listProxy
+
+            Item {
+                readonly property var hints: []
+                function handleKey(event: var): bool {
+                    return rootList.handleKey(event);
+                }
+            }
+        }
+
+        Component {
+            id: clipboardScreen
+
+            ClipboardScreen {
+                launcherModel: lm
+                onDone: launcher.close()
+            }
+        }
+
+        Component {
+            id: emojiScreen
+
+            EmojiScreen {
+                launcherModel: lm
+                onDone: launcher.close()
+            }
+        }
+
+        Component {
+            id: outputScreen
+
+            OutputScreen {
+                launcherModel: lm
+            }
+        }
+
+        Component {
+            id: notYet
+
+            Item {
+                readonly property var hints: []
+                function handleKey(event: var): bool {
+                    return false;
+                }
+            }
+        }
+
+        // --- the footer ---------------------------------------------------------------------
+
+        Rectangle {
+            id: footerRule
+
+            anchors.bottom: footer.top
+            width: parent.width
+            height: 1
+            color: Theme.palette.separator
+        }
+
+        Item {
+            id: footer
+
+            readonly property var primary: launcher.listScreen && lm.count > 0 ? lm.actions(lm.current, "")[0] ?? null : null
+
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 42
+
+            Row {
+                anchors.left: parent.left
+                anchors.leftMargin: 18
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+
+                // The root advertises its one hop: Tab to Clipboard History.
+                StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "search"
-                    font.pointSize: 18
+                    text: lm.screen === "root" ? "Clipboard History" : (launcher.screenTitles[lm.screen] ?? "")
+                    font.pointSize: Theme.font.size.smaller
                     color: Theme.palette.secondaryLabel
                 }
 
-                TextInput {
-                    id: input
-
-                    anchors.left: glass.right
-                    anchors.leftMargin: 12
-                    anchors.right: parent.right
-                    anchors.rightMargin: 20
+                Keycap {
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: lm.screen === "root" && lm.arguments.length === 0
+                    keys: "Tab"
+                    dim: true
+                }
+            }
+
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 14
+
+                // The screen's own keys, or the row's action and the menu.
+                Repeater {
+                    model: launcher.listScreen ? (footer.primary ? [[footer.primary.title, "Enter"], ["Actions", "Ctrl+K"]] : [])
+                                               : (body.item?.hints ?? [])
+
+                    Row {
+                        required property var modelData
+
+                        spacing: 6
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: parent.modelData[0]
+                            font.pointSize: Theme.font.size.smaller
+                            color: Theme.palette.secondaryLabel
+                        }
+
+                        Keycap {
+                            anchors.verticalCenter: parent.verticalCenter
+                            keys: parent.modelData[1]
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- the actions menu (Ctrl+K) --------------------------------------------------------
+
+        Rectangle {
+            id: menu
+
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.bottom: footer.top
+            anchors.bottomMargin: 6
+            width: 330
+            height: Math.min(menuColumn.implicitHeight, panel.height - header.height - footer.height - 20)
+            radius: 14
+            visible: launcher.menuOpen
+            color: Theme.material.thick
+            border.width: 1
+            border.color: Theme.palette.separator
+            clip: true
+
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: Theme.palette.shadow
+                shadowBlur: 0.8
+                shadowVerticalOffset: 4
+            }
+
+            MouseArea {
+                anchors.fill: parent
+            }
+
+            Column {
+                id: menuColumn
+
+                width: parent.width
+                topPadding: 6
+                bottomPadding: 0
+
+                Repeater {
+                    model: launcher.menuActions
+
+                    Column {
+                        id: item
+
+                        required property var modelData
+                        required property int index
+
+                        width: menuColumn.width
+
+                        Rectangle {
+                            visible: item.modelData.group
+                            x: 8
+                            width: parent.width - 16
+                            height: 1
+                            color: Theme.palette.separator
+                        }
+
+                        Item {
+                            width: parent.width
+                            height: 36
+
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.leftMargin: 6
+                                anchors.rightMargin: 6
+                                radius: 8
+                                color: item.index === launcher.menuCurrent ? Theme.palette.accentFill : "transparent"
+                            }
+
+                            MaterialIcon {
+                                id: menuGlyph
+
+                                anchors.left: parent.left
+                                anchors.leftMargin: 16
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: item.modelData.glyph
+                                color: Theme.palette.secondaryLabel
+                            }
+
+                            StyledText {
+                                anchors.left: menuGlyph.right
+                                anchors.leftMargin: 10
+                                anchors.right: menuKeys.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: item.modelData.title
+                                elide: Text.ElideRight
+                                color: item.modelData.id === "delete" ? Theme.palette.red : Theme.palette.label
+                            }
+
+                            Keycap {
+                                id: menuKeys
+
+                                anchors.right: parent.right
+                                anchors.rightMargin: 14
+                                anchors.verticalCenter: parent.verticalCenter
+                                keys: item.modelData.keys
+                                dim: true
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onPositionChanged: launcher.menuCurrent = item.index
+                                onClicked: launcher.runMenu(item.index)
+                            }
+                        }
+                    }
+                }
+
+                StyledText {
+                    visible: launcher.menuActions.length === 0
+                    width: parent.width
+                    height: 36
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "No Results"
+                    color: Theme.palette.secondaryLabel
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: Theme.palette.separator
+                }
+
+                // Menus search too.
+                TextInput {
+                    id: menuSearch
+
+                    width: parent.width
+                    height: 38
+                    leftPadding: 16
+                    rightPadding: 16
+                    verticalAlignment: TextInput.AlignVCenter
                     color: Theme.palette.label
                     font.family: Theme.font.sans
-                    font.pointSize: 18
-                    selectionColor: Theme.palette.accent
-                    selectedTextColor: Theme.palette.labelOnAccent
+                    font.pointSize: Theme.font.size.normal
                     clip: true
-                    onTextChanged: results.query = text
+                    onTextChanged: {
+                        launcher.menuActions = lm.actions(-1, text);
+                        launcher.menuCurrent = 0;
+                    }
 
-                    Keys.onEscapePressed: launcher.close()
-                    Keys.onDownPressed: results.move(1)
-                    Keys.onUpPressed: results.move(-1)
-                    Keys.onTabPressed: results.move(1)
-                    Keys.onBacktabPressed: results.move(-1)
-                    Keys.onReturnPressed: launcher.activate(-1)
-                    Keys.onEnterPressed: launcher.activate(-1)
+                    Keys.onPressed: event => {
+                        event.accepted = true;
+                        const n = launcher.menuActions.length;
+                        if (event.key === Qt.Key_Escape) {
+                            if (text.length > 0)
+                                text = "";
+                            else
+                                launcher.closeMenu();
+                        } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_K) {
+                            launcher.closeMenu();
+                        } else if (event.key === Qt.Key_Down || ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_N)) {
+                            launcher.menuCurrent = n ? (launcher.menuCurrent + 1) % n : 0;
+                        } else if (event.key === Qt.Key_Up || ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_P)) {
+                            launcher.menuCurrent = n ? (launcher.menuCurrent - 1 + n) % n : 0;
+                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            launcher.runMenu(launcher.menuCurrent);
+                        } else {
+                            event.accepted = false;
+                        }
+                    }
 
                     StyledText {
                         anchors.fill: parent
-                        visible: input.text.length === 0
-                        text: "Search"
-                        font.pointSize: 18
+                        leftPadding: 16
+                        verticalAlignment: Text.AlignVCenter
+                        visible: menuSearch.text.length === 0
+                        text: "Search for actions…"
                         color: Theme.palette.tertiaryLabel
                     }
                 }
             }
+        }
 
-            Rectangle {
-                visible: results.count > 0
-                width: parent.width
-                height: 1
-                color: Theme.palette.separator
+        // --- asking first -----------------------------------------------------------------------
+
+        Rectangle {
+            anchors.fill: parent
+            radius: panel.radius
+            visible: launcher.confirming !== null
+            color: Theme.palette.scrim
+
+            MouseArea {
+                anchors.fill: parent
             }
 
-            Column {
-                width: parent.width
-                topPadding: results.count > 0 ? 6 : 0
-                bottomPadding: results.count > 0 ? 6 : 0
+            Rectangle {
+                anchors.centerIn: parent
+                width: 320
+                height: askColumn.implicitHeight + 36
+                radius: 18
+                color: Theme.material.thick
+                border.width: 1
+                border.color: Theme.palette.separator
 
-                Repeater {
-                    model: results
+                Column {
+                    id: askColumn
 
-                    Item {
-                        id: row
+                    anchors.centerIn: parent
+                    width: parent.width - 36
+                    spacing: 10
 
-                        required property int index
-                        required property string kind
-                        required property string title
-                        required property string subtitle
-                        required property string icon
-                        required property string glyph
-                        readonly property bool selected: index === results.current
+                    MaterialIcon {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: launcher.confirming?.glyph ?? ""
+                        font.pointSize: 26
+                        color: Theme.palette.accent
+                    }
 
-                        width: column.width
-                        height: 50
+                    StyledText {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: launcher.confirming?.title ?? ""
+                        wrapMode: Text.Wrap
+                        font.weight: Font.Medium
+                    }
 
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.leftMargin: 6
-                            anchors.rightMargin: 6
-                            radius: 14
-                            color: row.selected ? Theme.palette.accentFill : "transparent"
+                    StyledText {
+                        width: parent.width
+                        visible: text.length > 0
+                        horizontalAlignment: Text.AlignHCenter
+                        text: launcher.confirming?.detail ?? ""
+                        wrapMode: Text.Wrap
+                        font.pointSize: Theme.font.size.smaller
+                        color: Theme.palette.secondaryLabel
+                    }
+
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 10
+
+                        DialogButton {
+                            text: "Cancel"
+                            onClicked: launcher.confirming = null
                         }
 
-                        IconImage {
-                            id: appIcon
-
-                            anchors.left: parent.left
-                            anchors.leftMargin: 18
-                            anchors.verticalCenter: parent.verticalCenter
-                            implicitSize: 32
-                            visible: row.icon.length > 0
-                            source: row.icon ? (row.icon.startsWith("file:") ? row.icon : Shell.iconPath(row.icon, "application-x-executable")) : ""
-                            asynchronous: true
-                        }
-
-                        MaterialIcon {
-                            anchors.centerIn: appIcon
-                            visible: row.icon.length === 0
-                            text: row.glyph
-                            font.pointSize: 18
-                            color: Theme.palette.accent
-                        }
-
-                        Column {
-                            anchors.left: appIcon.right
-                            anchors.leftMargin: 14
-                            anchors.right: parent.right
-                            anchors.rightMargin: 20
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            StyledText {
-                                width: parent.width
-                                text: row.title
-                                elide: Text.ElideRight
-                                font.pointSize: row.kind === "calc" ? 16 : Theme.font.size.normal
-                                font.weight: Font.Medium
+                        DialogButton {
+                            text: "Confirm"
+                            primary: true
+                            onClicked: {
+                                const token = launcher.confirming.token;
+                                launcher.confirming = null;
+                                lm.confirm(token);
                             }
-
-                            StyledText {
-                                width: parent.width
-                                text: row.subtitle
-                                elide: Text.ElideRight
-                                font.pointSize: Theme.font.size.small
-                                color: Theme.palette.secondaryLabel
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onEntered: results.current = row.index
-                            onClicked: launcher.activate(row.index)
                         }
                     }
                 }
             }
         }
+    }
+
+    FeedbackPill {
+        id: pill
     }
 }

@@ -155,6 +155,7 @@ struct Config {
     // Bindings
     uint32_t mod = WLR_MODIFIER_LOGO;
     std::string terminal;  // empty: kDefaultTerminal
+    bool snippet_expansion = false;  // typed snippet keywords become the snippet
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
