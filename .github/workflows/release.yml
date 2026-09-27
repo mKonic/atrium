@@ -1,0 +1,88 @@
+name: Release
+
+# Builds the Arch package and publishes a release when a v* tag is pushed. Software Update
+# in atrium's Settings installs the package attached here.
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Set up the build machine
+        run: |
+          pacman -Syu --noconfirm --needed git github-cli
+          git config --global --add safe.directory '*'
+
+      - name: Clone repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TAG }}
+          # The package version comes from the tag and the commit count.
+          fetch-depth: 0
+
+      - name: Check the tag is semver
+        run: |
+          echo "$TAG" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$' \
+            || { echo "$TAG is not a semver tag (vMAJOR.MINOR.PATCH)." >&2; exit 1; }
+
+      # makepkg won't run as root: a user of its own, allowed to install the build's dependencies.
+      - name: Build the package
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE/packaging/arch' && ATRIUM_SRC='$GITHUB_WORKSPACE' makepkg --syncdeps --noconfirm"
+          mkdir -p dist
+          cp packaging/arch/*.pkg.tar.zst dist/
+          ls -l dist
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          set -euo pipefail
+          # Matched literally: a tag's dots and any +build suffix are not regex.
+          awk -v heading="## [$TAG]" '
+              index($0, heading) == 1 { found = 1; next }
+              found && /^## \[/ { exit }
+              found { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A semver pre-release (a -suffix ahead of any +build) is published as one, which also keeps
+          # it out of Software Update's check.
+          prerelease=()
+          case "${TAG%%+*}" in *-*) prerelease=(--prerelease) ;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.pkg.tar.zst --clobber
+            if [ -s notes.md ]; then
+              gh release edit "$TAG" --notes-file notes.md
+            fi
+          elif [ -s notes.md ]; then
+            gh release create "$TAG" dist/*.pkg.tar.zst --verify-tag "${prerelease[@]}" --title "atrium $TAG" --notes-file notes.md
+          else
+            echo "No '## [$TAG]' section in CHANGELOG.md; generating notes." >&2
+            gh release create "$TAG" dist/*.pkg.tar.zst --verify-tag "${prerelease[@]}" --title "atrium $TAG" --generate-notes
+          fi
