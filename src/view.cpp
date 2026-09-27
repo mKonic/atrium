@@ -532,6 +532,10 @@ void View::handle_size(int width, int height) {
     geom.height = height;
     place_tree();
     update_decorations();
+    // A size that was asked for (a snap, a window command) has landed: the
+    // shell hears where the window is now. A drag says so once, as it ends.
+    if (!resize_edges_)
+        server.notify_window(*this, "changed");
 }
 
 void View::begin_resize(uint32_t edges) {
