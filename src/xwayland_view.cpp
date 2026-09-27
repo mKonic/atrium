@@ -158,7 +158,7 @@ void XwaylandView::request_configure(wlr_xwayland_surface_configure_event* e) {
     if (!mapped || unmanaged()) {
         wlr_xwayland_surface_configure(xsurface, e->x, e->y, e->width, e->height);
         if (tree && unmanaged())
-            wlr_scene_node_set_position(&tree->node, e->x, e->y);
+            tree->set_position(e->x, e->y);
         return;
     }
     // A floating X11 window may move and resize itself, except while the
@@ -174,7 +174,7 @@ void XwaylandView::set_geometry() {
     if (!unmanaged() || !mapped)
         return;
     geom = {xsurface->x, xsurface->y, xsurface->width, xsurface->height};
-    wlr_scene_node_set_position(&tree->node, geom.x, geom.y);
+    tree->set_position(geom.x, geom.y);
 }
 
 void XwaylandView::configure(const wlr_box& frame) {
@@ -183,8 +183,8 @@ void XwaylandView::configure(const wlr_box& frame) {
                                    uint16_t(box.width), uint16_t(box.height));
 }
 
-wlr_scene_tree* XwaylandView::create_content(wlr_scene_tree* parent) {
-    return wlr_scene_subsurface_tree_create(parent, surface());
+scene::Tree* XwaylandView::create_content(scene::Tree* parent) {
+    return scene::subsurface_tree_create(parent, surface());
 }
 
 void XwaylandView::send_activated(bool a) {

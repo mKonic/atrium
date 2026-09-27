@@ -1,5 +1,6 @@
 #pragma once
 #include "config.hpp"
+#include "scene/scene.hpp"
 #include "wlr.hpp"
 
 #include <memory>
@@ -56,30 +57,30 @@ private:
 
     struct Screen {
         Output* output;
-        wlr_scene_tree* tree;
-        wlr_scene_blur* blur;
-        wlr_scene_rect* dim;
-        wlr_scene_tree* strip = nullptr;  // space tiles, under the thumbnails
+        scene::Tree* tree;
+        scene::Blur* blur;
+        scene::Rect* dim;
+        scene::Tree* strip = nullptr;  // space tiles, under the thumbnails
     };
     // One space in the strip.
     struct Tile {
         Screen* screen;
         int number;
-        wlr_scene_tree* tree;
-        wlr_scene_rect* ring;
+        scene::Tree* tree;
+        scene::Rect* ring;
         wlr_box box;
         bool current;
     };
     struct Thumb {
         View* view;
         Screen* screen;
-        wlr_scene_tree* tree;        // at cur.x/cur.y
-        wlr_scene_rect* ring;        // highlight around the hovered one
-        wlr_scene_shadow* shadow;
-        wlr_scene_blur* blur;        // frosted glass behind translucent windows
-        wlr_scene_rect* backing;     // or a solid fill, with transparency off
+        scene::Tree* tree;        // at cur.x/cur.y
+        scene::Rect* ring;        // highlight around the hovered one
+        scene::Shadow* shadow;
+        scene::Blur* blur;        // frosted glass behind translucent windows
+        scene::Rect* backing;     // or a solid fill, with transparency off
         std::unique_ptr<WindowCopy> copy;
-        wlr_scene_buffer* label;     // title pill, under the hovered one
+        scene::Buffer* label;     // title pill, under the hovered one
         wlr_box from{}, to{}, cur{};
         int laid_w = 0, laid_h = 0;  // window size the layout was made for
         int label_w = 0;
@@ -112,7 +113,7 @@ private:
     Server& server_;
     State state_ = State::Closed;
     std::string app_;  // app exposé: only this app's windows
-    wlr_scene_tree* root_ = nullptr;
+    scene::Tree* root_ = nullptr;
     std::vector<std::unique_ptr<Screen>> screens_;
     std::vector<std::unique_ptr<Thumb>> thumbs_;
     Thumb* highlight_ = nullptr;

@@ -67,13 +67,13 @@ constexpr double kGroupWidth = 3 * kButton + 2 * kGap + kRight;
 
 // --- Titlebar --------------------------------------------------------------------------------
 
-Titlebar::Titlebar(View& view, wlr_scene_tree* parent) : view_(view) {
-    buffer_ = wlr_scene_buffer_create(parent, nullptr);
-    buffer_->node.data = this;
+Titlebar::Titlebar(View& view, scene::Tree* parent) : view_(view) {
+    buffer_ = scene::Buffer::create(parent, nullptr);
+    buffer_->data = this;
 }
 
 Titlebar::~Titlebar() {
-    wlr_scene_node_destroy(&buffer_->node);
+    buffer_->destroy();
     if (held_)
         wlr_buffer_unlock(held_);
 }
@@ -230,7 +230,7 @@ void Titlebar::render(int width, int height, float scale) {
         wlr_buffer_unlock(old);
 
     const int radius = view_.fullscreen ? 0 : view_.server.config.corner_radius;
-    wlr_scene_buffer_set_corner_radii(buffer_, corner_radii_top(radius));
+    buffer_->set_corner_radii(scene::Radii::top(radius));
 }
 
 } // namespace atrium

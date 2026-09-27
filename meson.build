@@ -14,7 +14,7 @@ cpp = meson.get_compiler('cpp')
 add_project_arguments(
   '-DWLR_USE_UNSTABLE',
   '-D_POSIX_C_SOURCE=200809L',
-  # wlroots/scenefx headers use C idioms (designated initializers out of order,
+  # wlroots headers use C idioms (designated initializers out of order,
   # anonymous structs in unions) that g++ accepts but warns about.
   cpp.get_supported_arguments(
     '-Wno-unused-parameter',
@@ -25,12 +25,6 @@ add_project_arguments(
   language: 'cpp',
 )
 
-# scenefx must come before wlroots: it re-exports the wlr_scene_* symbols with
-# effect support, and the first library providing a symbol wins at load time.
-# atrium's own scenefx (subprojects/packagefiles/scenefx: refraction for
-# Liquid Glass), built in and linked statically.
-scenefx_proj = subproject('scenefx', default_options: ['examples=false', 'default_library=static'])
-scenefx = scenefx_proj.get_variable('scenefx')
 # The system's wlroots, else the pinned one (subprojects/wlroots.wrap).
 wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
@@ -56,7 +50,7 @@ if xwayland_opt.enabled() and not have_xwayland
 endif
 use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
-deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm]
+deps = [wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')

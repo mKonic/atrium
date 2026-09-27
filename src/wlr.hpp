@@ -1,7 +1,7 @@
 #pragma once
 // Every C header atrium uses, made safe for C++.
 //
-// wlroots and scenefx headers are written for C11 and trip g++ in four ways:
+// wlroots headers are written for C11 and trip g++ in four ways:
 //   - `float color[static 4]` array parameters (not valid C++),
 //   - a struct field literally named `class` in wlr_xwayland_surface,
 //   - a parameter and a field named `namespace` in wlr-layer-shell, and
@@ -11,8 +11,8 @@
 // only ever touches the declarations it is meant for (a stray `static inline`
 // helper would otherwise lose its `static`).
 //
-// scenefx's wlr_scene.h shares its include guard with wlroots' own, so it
-// replaces it: never include <wlr/types/wlr_scene.h> anywhere.
+// atrium has its own scene graph (src/scene): never include
+// <wlr/types/wlr_scene.h>.
 
 #include <linux/input-event-codes.h>
 
@@ -113,15 +113,6 @@ extern "C" {
 #include <wlr/util/box.h>
 #include <wlr/util/log.h>
 #include <wlr/util/region.h>
-
-#include <scenefx/render/fx_renderer/fx_renderer.h>
-#include <scenefx/types/fx/blur_data.h>
-#include <scenefx/types/fx/clipped_region.h>
-#include <scenefx/types/linked_node.h>
-
-#define static
-#include <scenefx/types/wlr_scene.h>
-#undef static
 
 #ifdef ATRIUM_XWAYLAND
 #include <xcb/xcb.h>

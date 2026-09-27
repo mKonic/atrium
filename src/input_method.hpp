@@ -1,5 +1,6 @@
 #pragma once
 #include "listener.hpp"
+#include "scene/scene.hpp"
 
 #include <memory>
 #include <string>
@@ -47,9 +48,9 @@ private:
         Listener<> enable, commit, disable, destroy;
     };
     struct Popup {
-        Popup(wlr_input_popup_surface_v2* s, wlr_scene_tree* t) : surface(s), tree(t) {}
+        Popup(wlr_input_popup_surface_v2* s, scene::Tree* t) : surface(s), tree(t) {}
         wlr_input_popup_surface_v2* surface;
-        wlr_scene_tree* tree;
+        scene::Tree* tree;
         Listener<> commit, destroy;
     };
 

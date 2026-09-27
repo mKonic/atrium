@@ -39,15 +39,15 @@ const wlr_buffer_impl kCairoBufferImpl = {
 
 } // namespace
 
-wlr_buffer* set_cairo_buffer(wlr_scene_buffer* node, cairo_surface_t* surface, int width, int height) {
+wlr_buffer* set_cairo_buffer(scene::Buffer* node, cairo_surface_t* surface, int width, int height) {
     auto* cb = new CairoBuffer{};
     cb->surface = surface;
     wlr_buffer_init(&cb->base, &kCairoBufferImpl, cairo_image_surface_get_width(surface),
                     cairo_image_surface_get_height(surface));
-    wlr_scene_buffer_set_buffer(node, &cb->base);
+    node->set_buffer(&cb->base);
     wlr_buffer* held = wlr_buffer_lock(&cb->base);
     wlr_buffer_drop(&cb->base);
-    wlr_scene_buffer_set_dest_size(node, width, height);
+    node->set_dest_size(width, height);
     return held;
 }
 

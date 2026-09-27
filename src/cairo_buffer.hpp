@@ -1,4 +1,5 @@
 #pragma once
+#include "scene/scene.hpp"
 #include "wlr.hpp"
 
 #include <cairo.h>
@@ -12,6 +13,6 @@ namespace atrium {
 // lock once the texture is uploaded, and node->buffer turns null with it; a
 // node whose buffer gets copied elsewhere (close animation, overview) has to
 // be kept alive by this lock. Release with wlr_buffer_unlock.
-wlr_buffer* set_cairo_buffer(wlr_scene_buffer* node, cairo_surface_t* surface, int width, int height);
+wlr_buffer* set_cairo_buffer(scene::Buffer* node, cairo_surface_t* surface, int width, int height);
 
 } // namespace atrium

@@ -1,4 +1,5 @@
 #pragma once
+#include "scene/scene.hpp"
 #include "wlr.hpp"
 
 #include <string>
@@ -43,9 +44,9 @@ public:
     const std::string name;    // empty for numbered spaces
     const bool secret;
 
-    wlr_scene_tree* tree = nullptr;             // windows
-    wlr_scene_tree* fullscreen_tree = nullptr;  // fullscreen windows, above panels
-    wlr_scene_rect* backdrop = nullptr;         // secret spaces: the dimmed screen behind them
+    scene::Tree* tree = nullptr;             // windows
+    scene::Tree* fullscreen_tree = nullptr;  // fullscreen windows, above panels
+    scene::Rect* backdrop = nullptr;         // secret spaces: the dimmed screen behind them
 
     wlr_ext_workspace_handle_v1* handle = nullptr;
 
@@ -58,8 +59,8 @@ public:
     std::vector<uint64_t> tile_order;
     // The dimmed, frosted desktop behind a tiled space's windows, made on
     // first use. Unlike a secret space's backdrop it takes no clicks.
-    wlr_scene_rect* tile_dim = nullptr;
-    wlr_scene_blur* tile_blur = nullptr;
+    scene::Rect* tile_dim = nullptr;
+    scene::Blur* tile_blur = nullptr;
     void ensure_tile_backdrop();
 
 private:

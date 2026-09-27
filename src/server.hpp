@@ -3,6 +3,7 @@
 #include "config.hpp"
 #include "keyword_watch.hpp"
 #include "listener.hpp"
+#include "scene/scene.hpp"
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -90,7 +91,7 @@ public:
     void run(const char* startup_cmd);
     void quit();
 
-    wlr_scene_tree* layer(Layer l) const { return layers_[int(l)]; }
+    scene::Tree* layer(Layer l) const { return layers_[int(l)]; }
 
     Output* output_at(double lx, double ly) const;
     // `through`: a window the pointer looks through (one riding a drag).
@@ -208,13 +209,13 @@ public:
     wlr_renderer* renderer = nullptr;
     wlr_allocator* allocator = nullptr;
     wlr_compositor* compositor = nullptr;
-    wlr_scene* scene = nullptr;
-    wlr_scene_tree* drag_icons = nullptr;
-    wlr_scene_rect* root_bg = nullptr;
-    wlr_scene_rect* locked_bg = nullptr;
+    scene::Scene* scene = nullptr;
+    scene::Tree* drag_icons = nullptr;
+    scene::Rect* root_bg = nullptr;
+    scene::Rect* locked_bg = nullptr;
     // A blurred copy of everything below the windows (wallpaper, bottom
     // panels), rendered once per frame and sampled by every window's blur.
-    wlr_scene_optimized_blur* background_blur = nullptr;
+    scene::BlurCache* background_blur = nullptr;
     void apply_blur_settings();
 
     wlr_output_layout* output_layout = nullptr;
@@ -306,7 +307,7 @@ private:
     // content type and tearing (window_hints.cpp).
     void setup_window_hints();
 
-    wlr_scene_tree* layers_[kLayerCount]{};
+    scene::Tree* layers_[kLayerCount]{};
     wlr_backend* headless_ = nullptr;  // made on the first create_output() without a nested backend
     void seed_registry(const std::filesystem::path& dir);
 

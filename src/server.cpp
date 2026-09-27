@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "render/renderer.hpp"
 #include "terminal.hpp"
 #include "input_method.hpp"
 #include "background_effect.hpp"
@@ -205,21 +206,22 @@ void Server::setup() {
         wl_display_terminate(display);
     });
 
-    scene = wlr_scene_create();
-    root_bg = wlr_scene_rect_create(&scene->tree, 0, 0, config.background.data());
+    scene = scene::Scene::create();
+    root_bg = scene::Rect::create(scene, 0, 0, config.background.data());
     for (auto& tree : layers_)
-        tree = wlr_scene_tree_create(&scene->tree);
-    drag_icons = wlr_scene_tree_create(&scene->tree);
-    wlr_scene_node_place_below(&drag_icons->node, &layer(Layer::Lock)->node);
+        tree = scene::Tree::create(scene);
+    drag_icons = scene::Tree::create(scene);
+    drag_icons->place_below(layer(Layer::Lock));
     snap_preview = std::make_unique<SnapPreview>(*this);
     overview = std::make_unique<Overview>(*this);
     switcher = std::make_unique<Switcher>(*this);
-    background_blur = wlr_scene_optimized_blur_create(&scene->tree, 0, 0);
-    wlr_scene_node_place_above(&background_blur->node, &layer(Layer::Bottom)->node);
+    background_blur = scene::BlurCache::create(scene, 0, 0);
+    background_blur->place_above(layer(Layer::Bottom));
     apply_blur_settings();
 
-    // scenefx's renderer: GLES2 with rounded corners, shadows and blur.
-    renderer = fx_renderer_create(backend);
+    // atrium's own GLES 3 renderer: rounded corners, shadows, blur and glass.
+    if (render::Renderer* r = render::Renderer::create(backend))
+        renderer = r->wlr();
     if (!renderer)
         die("couldn't create renderer");
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
@@ -227,8 +229,7 @@ void Server::setup() {
     wlr_renderer_init_wl_shm(renderer, display);
     if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
         wlr_drm_create(display, renderer);
-        wlr_scene_set_linux_dmabuf_v1(scene,
-            wlr_linux_dmabuf_v1_create_with_renderer(display, 5, renderer));
+        scene->set_linux_dmabuf_v1(wlr_linux_dmabuf_v1_create_with_renderer(display, 5, renderer));
     }
     int drm_fd = wlr_renderer_get_drm_fd(renderer);
     if (drm_fd >= 0 && renderer->features.timeline && backend->features.timeline)
@@ -259,7 +260,7 @@ void Server::setup() {
         [this](auto* e) { activation_request(e); });
 
     gamma_manager = wlr_gamma_control_manager_v1_create(display);
-    wlr_scene_set_gamma_control_manager_v1(scene, gamma_manager);
+    scene->set_gamma_control_manager_v1(gamma_manager);
     // Color management: apps say what their content is (an HDR video, a
     // game's HDR10 swapchain) and hear what a screen prefers. The renderer
     // converts PQ or linear content in BT.2020 or sRGB primaries.
@@ -282,7 +283,7 @@ void Server::setup() {
         options.primaries = primaries;
         options.primaries_len = std::size(primaries);
         if (wlr_color_manager_v1* cm = wlr_color_manager_v1_create(display, 1, &options))
-            wlr_scene_set_color_manager_v1(scene, cm);
+            scene->set_color_manager_v1(cm);
     }
 
     power_manager = wlr_output_power_manager_v1_create(display);
@@ -323,15 +324,15 @@ void Server::setup() {
 
     session_lock_manager = wlr_session_lock_manager_v1_create(display);
     new_lock_.connect(&session_lock_manager->events.new_lock, [this](wlr_session_lock_v1* l) {
-        wlr_scene_node_set_enabled(&locked_bg->node, true);
+        locked_bg->set_enabled(true);
         if (lock) {  // one lock at a time
             wlr_session_lock_v1_destroy(l);
             return;
         }
         lock = new SessionLock(*this, l);
     });
-    locked_bg = wlr_scene_rect_create(layer(Layer::Lock), 0, 0, config.lock_background.data());
-    wlr_scene_node_set_enabled(&locked_bg->node, false);
+    locked_bg = scene::Rect::create(layer(Layer::Lock), 0, 0, config.lock_background.data());
+    locked_bg->set_enabled(false);
 
     ext_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(display, 1);
     toplevel_manager = wlr_foreign_toplevel_manager_v1_create(display);
@@ -576,7 +577,7 @@ void Server::teardown() {
         wlr_backend_destroy(backend);
     wl_display_destroy(display);
     // Only after the display: outputs are gone and no scene output is left.
-    wlr_scene_node_destroy(&scene->tree.node);
+    (scene)->destroy();
 }
 
 // KDE apps build their app database from ${XDG_MENU_PREFIX}applications.menu.
@@ -768,13 +769,13 @@ void Server::update_outputs() {
     }
 
     wlr_output_layout_get_box(output_layout, nullptr, &layout_box);
-    wlr_scene_node_set_position(&background_blur->node, layout_box.x, layout_box.y);
-    wlr_scene_optimized_blur_set_size(background_blur, layout_box.width, layout_box.height);
-    wlr_scene_optimized_blur_mark_dirty(background_blur);
-    wlr_scene_node_set_position(&root_bg->node, layout_box.x, layout_box.y);
-    wlr_scene_rect_set_size(root_bg, layout_box.width, layout_box.height);
-    wlr_scene_node_set_position(&locked_bg->node, layout_box.x, layout_box.y);
-    wlr_scene_rect_set_size(locked_bg, layout_box.width, layout_box.height);
+    background_blur->set_position(layout_box.x, layout_box.y);
+    background_blur->set_size(layout_box.width, layout_box.height);
+    background_blur->mark_dirty();
+    root_bg->set_position(layout_box.x, layout_box.y);
+    root_bg->set_size(layout_box.width, layout_box.height);
+    locked_bg->set_position(layout_box.x, layout_box.y);
+    locked_bg->set_size(layout_box.width, layout_box.height);
 
     for (Output* o : outputs) {
         if (!o->enabled() || o->dying)
@@ -784,13 +785,13 @@ void Server::update_outputs() {
         wlr_output_layout_get_box(output_layout, o->wlr, &o->box);
         o->usable = o->box;
         if (o->scene_output)
-            wlr_scene_output_set_position(o->scene_output, o->box.x, o->box.y);
-        wlr_scene_node_set_position(&o->fullscreen_bg->node, o->box.x, o->box.y);
-        wlr_scene_rect_set_size(o->fullscreen_bg, o->box.width, o->box.height);
+            o->scene_output->set_position(o->box.x, o->box.y);
+        o->fullscreen_bg->set_position(o->box.x, o->box.y);
+        o->fullscreen_bg->set_size(o->box.width, o->box.height);
 
         if (o->lock_surface) {
-            auto* tree = static_cast<wlr_scene_tree*>(o->lock_surface->surface->data);
-            wlr_scene_node_set_position(&tree->node, o->box.x, o->box.y);
+            auto* tree = static_cast<scene::Tree*>(o->lock_surface->surface->data);
+            tree->set_position(o->box.x, o->box.y);
             wlr_session_lock_surface_v1_configure(o->lock_surface, o->box.width, o->box.height);
         }
 
@@ -846,7 +847,8 @@ void Server::gpu_reset() {
     wlr_renderer* old_renderer = renderer;
     wlr_allocator* old_allocator = allocator;
 
-    renderer = fx_renderer_create(backend);
+    render::Renderer* r = render::Renderer::create(backend);
+    renderer = r ? r->wlr() : nullptr;
     if (!renderer)
         die("couldn't recreate renderer");
     allocator = wlr_allocator_autocreate(backend, renderer);
@@ -906,12 +908,12 @@ Owner Server::owner_of(wlr_surface* surface) {
 
 Hit Server::hit_test(double lx, double ly, View* through) const {
     // Out of the scene for the lookup only; nothing draws in between.
-    const bool hide = through && through->tree && through->tree->node.enabled;
+    const bool hide = through && through->tree && through->tree->enabled;
     if (hide)
-        wlr_scene_node_set_enabled(&through->tree->node, false);
+        through->tree->set_enabled(false);
     Hit hit = hit_test_scene(lx, ly);
     if (hide)
-        wlr_scene_node_set_enabled(&through->tree->node, true);
+        through->tree->set_enabled(true);
     return hit;
 }
 
@@ -922,10 +924,10 @@ Hit Server::hit_test_scene(double lx, double ly) const {
         // A secret space still fading away takes no pointer.
         if (l == int(Layer::InputPopup) || (l == int(Layer::Secret) && !shown_secret))
             continue;
-        wlr_scene_node* node = wlr_scene_node_at(&layers_[l]->node, lx, ly, &hit.sx, &hit.sy);
-        if (!node || (node->type != WLR_SCENE_NODE_BUFFER && node->type != WLR_SCENE_NODE_RECT))
+        scene::Node* node = layers_[l]->at(lx, ly, &hit.sx, &hit.sy);
+        if (!node || (node->type != scene::Type::Buffer && node->type != scene::Type::Rect))
             continue;
-        if (node->type == WLR_SCENE_NODE_RECT) {
+        if (node->type == scene::Type::Rect) {
             // Only a secret space's backdrop is a rect that carries data.
             if (node->data) {
                 auto* space = static_cast<Space*>(node->data);
@@ -936,7 +938,7 @@ Hit Server::hit_test_scene(double lx, double ly) const {
             }
             continue;
         }
-        if (auto* ss = wlr_scene_surface_try_from_buffer(wlr_scene_buffer_from_node(node))) {
+        if (auto* ss = (static_cast<scene::Buffer*>(node))->surface()) {
             hit.surface = ss->surface;
         } else if (node->data) {
             // The only non-surface buffers carrying data are title bars.
@@ -1129,9 +1131,9 @@ void Server::restack_fullscreen() {
         if ((front != nullptr) == f->covered)
             continue;
         f->covered = front != nullptr;
-        wlr_scene_node_reparent(&f->tree->node, f->home_tree());
-        if (front && front->tree->node.parent == f->tree->node.parent)
-            wlr_scene_node_place_below(&f->tree->node, &front->tree->node);
+        f->tree->reparent(f->home_tree());
+        if (front && front->tree->parent == f->tree->parent)
+            f->tree->place_below(front->tree);
         f->update_decorations();
         if (f->output)
             f->output->refit_views();  // the backdrop behind it
@@ -1203,18 +1205,17 @@ void Server::new_toplevel_capture(
     if (!view || !view->capture_scene_)
         return;
     if (!view->capture_source_) {
-        view->capture_source_ = wlr_ext_image_capture_source_v1_create_with_scene_node(
-            &view->capture_scene_->tree.node, loop, allocator, renderer);
+        view->capture_source_ = scene::capture_source_create(view->capture_scene_, loop, allocator, renderer);
         if (!view->capture_source_)
             return;
         View::CaptureImpl& ci = view->capture_impl_;
         ci.base = view->capture_source_->impl;
         ci.impl = *ci.base;
-        ci.node = &view->capture_scene_->tree.node;
+        ci.node = view->capture_scene_;
         // Off and on again damages all of it.
-        static constexpr auto redraw = [](wlr_scene_node* node) {
-            wlr_scene_node_set_enabled(node, false);
-            wlr_scene_node_set_enabled(node, true);
+        static constexpr auto redraw = [](scene::Node* node) {
+            node->set_enabled(false);
+            node->set_enabled(true);
         };
         ci.refresh = wl_event_loop_add_timer(loop, [](void* data) {
             redraw(static_cast<View::CaptureImpl*>(data)->node);
@@ -1258,11 +1259,11 @@ void Server::check_idle_inhibitors(wlr_surface* exclude) {
     wlr_idle_inhibitor_v1* inhibitor;
     wl_list_for_each(inhibitor, &idle_inhibit_manager->inhibitors, link) {
         wlr_surface* surface = wlr_surface_get_root_surface(inhibitor->surface);
-        auto* tree = static_cast<wlr_scene_tree*>(surface->data);
+        auto* tree = static_cast<scene::Tree*>(surface->data);
         int x, y;
         if (exclude != surface &&
             (config.idle_inhibit_ignore_visibility || !tree ||
-             wlr_scene_node_coords(&tree->node, &x, &y))) {
+             tree->coords(&x, &y))) {
             inhibited = true;
             break;
         }
@@ -1435,7 +1436,7 @@ void Server::setting_changed(const std::string& key) {
             apply_interface(interface());
     }
     if (is("appearance.")) {
-        wlr_scene_rect_set_color(root_bg, config.background.data());
+        root_bg->set_color(config.background.data());
         for (View* v : views) {
             v->update_decorations();
             if (v->titlebar)
@@ -1482,13 +1483,13 @@ void Server::apply_blur_settings() {
     // Liquid Glass lets the colours behind through, brighter and richer;
     // frosted glass dims and greys them a little.
     if (config.liquid_glass)
-        wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.01f, 1.02f, 0.95f, 1.45f);
+        scene->set_blur({config.blur_passes, float(config.blur_radius), 0.01f, 1.02f, 0.95f, 1.45f});
     else
-        wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.02f, 0.9f, 0.9f, 1.1f);
-    wlr_scene_node_set_enabled(&background_blur->node, config.blur);
+        scene->set_blur({config.blur_passes, float(config.blur_radius), 0.02f, 0.9f, 0.9f, 1.1f});
+    background_blur->set_enabled(config.blur);
     for (View* v : views)
         v->update_decorations();
-    wlr_scene_optimized_blur_mark_dirty(background_blur);
+    background_blur->mark_dirty();
 }
 
 void Server::show_window_menu(const View* view, double lx, double ly) {

@@ -1,5 +1,6 @@
 #pragma once
 #include "listener.hpp"
+#include "scene/scene.hpp"
 
 namespace atrium {
 
@@ -21,9 +22,9 @@ public:
     Server& server;
     wlr_layer_surface_v1* const wlr;
     Output* output = nullptr;
-    wlr_scene_layer_surface_v1* scene_layer = nullptr;
-    wlr_scene_tree* tree = nullptr;
-    wlr_scene_tree* popups = nullptr;
+    scene::LayerSurfaceNode* scene_layer = nullptr;
+    scene::Tree* tree = nullptr;
+    scene::Tree* popups = nullptr;
     bool mapped = false;
     // Some of it is on screen, not covered: the scene sends it frame callbacks.
     bool shown_on_output() const;
@@ -34,7 +35,7 @@ private:
     // Frost what is behind the panel, only where it draws, per appearance.blurred_panels.
     void update_blur();
 
-    wlr_scene_blur* blur_ = nullptr;  // in `tree`, which frees it
+    scene::Blur* blur_ = nullptr;  // in `tree`, which frees it
     // Liquid Glass materializes: its lensing grows in on map (0..1).
     double lensing_ = 1;
     uint32_t keyboard_interactive_ = 0;  // as of the last commit

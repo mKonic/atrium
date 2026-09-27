@@ -1,10 +1,10 @@
 #pragma once
 #include "listener.hpp"
+#include "scene/scene.hpp"
 
 #include <unordered_map>
 #include <vector>
 
-struct wlr_scene_blur;
 
 namespace atrium {
 
@@ -26,7 +26,7 @@ constexpr int kGlassShadowReach = 24;
 // in the blur node's), `width` x `height` being the surface's size. `lensing`
 // (0..1) grows the bending in as the glass appears. The same material on the
 // shell's panels and on atrium's own windows.
-void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& shapes, float dx, float dy, int width,
+void apply_glass(scene::Blur* blur, const std::vector<GlassShape>& shapes, float dx, float dy, int width,
                  int height, double lensing, const Config& c);
 
 

@@ -39,12 +39,8 @@ public:
     // screen can show it.
     nlohmann::json state() const;
 
-    // For the outputs: the colour transform to render through, null for
-    // none, and a number that changes whenever it does.
-    wlr_color_transform* transform() const { return transform_; }
-    uint64_t generation() const { return generation_; }
-    // The same warmth as multipliers in linear light, for HDR screens where
-    // the renderer applies it instead of a gamma table (1, 1, 1 when off).
+    // The warmth as multipliers in linear light, which the renderer draws
+    // the screens through (1, 1, 1 when off).
     night::Rgb linear_white() const { return linear_white_; }
 
 private:
@@ -62,9 +58,7 @@ private:
     time_t until_ = 0;  // when what's shown next changes: past an override, the flip after
     int target_ = 6500;
     double kelvin_ = 6500;
-    wlr_color_transform* transform_ = nullptr;
-    night::Rgb linear_white_;
-    uint64_t generation_ = 0;
+    night::Rgb linear_white_{1, 1, 1};
 };
 
 } // namespace atrium

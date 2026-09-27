@@ -54,12 +54,11 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
 
     // xdg-shell: nothing outside a fullscreen surface's own tree may show
     // through it, even where the surface is translucent.
-    fullscreen_bg = wlr_scene_rect_create(server.layer(Layer::Fullscreen), 0, 0,
-                                          server.config.fullscreen_background.data());
+    fullscreen_bg = scene::Rect::create(server.layer(Layer::Fullscreen), 0, 0, server.config.fullscreen_background.data());
     server.retile(active);
-    wlr_scene_node_set_enabled(&fullscreen_bg->node, false);
+    fullscreen_bg->set_enabled(false);
 
-    scene_output = wlr_scene_output_create(server.scene, wlr);
+    scene_output = scene::SceneOutput::create(server.scene, wlr);
     if (!wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr))
         hdr_caps = hdr_caps_from_edid(connector_edid(wlr->name));
     // Adding to the layout fires layout.change, which runs update_outputs().
@@ -73,7 +72,7 @@ Output::~Output() {
     // asserts on the leftover bind listener).
     dying = true;
     wlr_output_layout_remove(server.output_layout, wlr);
-    wlr_scene_output_destroy(scene_output);
+    scene_output->destroy();
     scene_output = nullptr;
     server.animator.cancel_owner(this, true);
     if (server.overview)
@@ -115,7 +114,7 @@ Output::~Output() {
     }
 
     wlr->data = nullptr;
-    wlr_scene_node_destroy(&fullscreen_bg->node);
+    fullscreen_bg->destroy();
 
     if (!server.shutting_down)
         server.update_outputs();
@@ -203,7 +202,7 @@ bool Output::apply_hdr() {
             wlr_log(WLR_ERROR, "%s: refused %s HDR", wlr->name, want ? "turning on" : "turning off");
         wlr_output_state_finish(&state);
     }
-    wlr_scene_output_set_sdr_white_nits(scene_output, hdr_active() ? float(sdr_white_nits()) : 0.0f);
+    scene_output->set_sdr_white_nits(hdr_active() ? float(sdr_white_nits()) : 0.0f);
     // Out of HDR the screen spreads sRGB over its whole gamut; in HDR atrium
     // does, as far as SDR color intensity says.
     if (hdr_active() && wlr->default_primaries && sdr_color > 0) {
@@ -217,13 +216,10 @@ bool Output::apply_hdr() {
         spread.green = mix(srgb.green, wlr->default_primaries->green);
         spread.blue = mix(srgb.blue, wlr->default_primaries->blue);
         spread.white = srgb.white;  // the same white: greys stay grey
-        wlr_scene_output_set_sdr_primaries(scene_output, &spread);
+        scene_output->set_sdr_primaries(&spread);
     } else {
-        wlr_scene_output_set_sdr_primaries(scene_output, nullptr);
+        scene_output->set_sdr_primaries(nullptr);
     }
-    if (!hdr_active())
-        wlr_scene_output_set_tint(scene_output, 1, 1, 1);
-    night_generation_ = 0;  // night light shown the way this mode shows it
     wlr_output_schedule_frame(wlr);
     return ok;
 }
@@ -296,23 +292,13 @@ void Output::render() {
     if (wlr->frame_pending)
         return;
     server.animator.tick();
-    // Night light's colour table, when it changed and no app sets this
-    // screen's gamma itself; screens without one (nested) do without.
+    // Night light, in linear light by the renderer, on SDR screens only
+    // while no app sets the screen's gamma itself; screens without one
+    // (nested) do without. A change repaints the whole screen.
     const NightLight* night = server.night_light.get();
-    // In HDR the renderer warms the picture in linear light instead: a table
-    // on the PQ signal would bend brightness along with colour.
-    const bool hdr_on = hdr_active();
     const bool own_gamma = wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr) != nullptr;
-    const bool recolour = night && night_generation_ != night->generation() && (hdr_on || !own_gamma);
-    // On an SDR screen the renderer draws through night light's transform
-    // (every frame; a change repaints the whole screen).
-    wlr_scene_output_state_options options{};
-    if (night && !hdr_on && !own_gamma)
-        options.color_transform = night->transform();
-    if (recolour && hdr_on) {
-        const night::Rgb w = night->linear_white();
-        wlr_scene_output_set_tint(scene_output, float(w.r), float(w.g), float(w.b));
-    }
+    const night::Rgb w = night && (hdr_active() || !own_gamma) ? night->linear_white() : night::Rgb{1, 1, 1};
+    scene_output->set_tint(float(w.r), float(w.g), float(w.b));
     // Variable refresh, as set: always, or while a fullscreen game is in front.
     const bool vrr = wlr->adaptive_sync_supported &&
                      (adaptive_sync == "on" || (adaptive_sync == "games" && game_view(server, *this)));
@@ -324,13 +310,13 @@ void Output::render() {
     // Frame callbacks go out even when nothing changed: a client that asked
     // for one without new damage (Qt between animation steps) would
     // otherwise wait forever, frozen mid-animation.
-    if (!wlr_scene_output_needs_frame(scene_output) && !recolour && !switch_vrr) {
+    if (!scene_output->needs_frame() && !switch_vrr) {
         send_frame_done();
         return;
     }
     wlr_output_state state;
     wlr_output_state_init(&state);
-    if (wlr_scene_output_build_state(scene_output, &state, &options)) {
+    if (scene_output->build_state(&state)) {
         if (switch_vrr)
             wlr_output_state_set_adaptive_sync_enabled(&state, vrr);
         if (tearing_view(server, *this)) {
@@ -349,8 +335,6 @@ void Output::render() {
             wlr_output_commit_state(wlr, &state);
             vrr_refused_ = vrr;
         }
-        if (recolour)
-            night_generation_ = night->generation();
         if (committed && switch_vrr && server.ipc)
             server.ipc->broadcast("outputs", {{"event", "outputs.changed"}});
     }
@@ -364,7 +348,7 @@ void Output::render() {
 void Output::send_frame_done() {
     timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
-    wlr_scene_output_send_frame_done(scene_output, &now);
+    scene_output->send_frame_done(&now);
     // Top and overlay only: a wallpaper animating under a window stays paused.
     for (auto layer : {ZWLR_LAYER_SHELL_V1_LAYER_TOP, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY})
         for (LayerSurface* l : layers[layer])
@@ -381,8 +365,8 @@ void arrange_layer(Output& o, std::vector<LayerSurface*>& list, wlr_box& usable,
             continue;
         if (exclusive != (l->wlr->current.exclusive_zone > 0))
             continue;
-        wlr_scene_layer_surface_v1_configure(l->scene_layer, &full, &usable);
-        wlr_scene_node_set_position(&l->popups->node, l->tree->node.x, l->tree->node.y);
+        scene::layer_surface_v1_configure(l->scene_layer, &full, &usable);
+        l->popups->set_position(l->tree->x, l->tree->y);
     }
 }
 
@@ -430,8 +414,7 @@ void Output::refit_views() {
         else if (v->snapped)
             v->request_geometry(geometry::snap_box(usable, v->snapped, server.config.snap_gap));
     }
-    wlr_scene_node_set_enabled(&fullscreen_bg->node,
-        std::ranges::any_of(server.views, [this](View* v) {
+    fullscreen_bg->set_enabled(std::ranges::any_of(server.views, [this](View* v) {
             return v->output == this && v->fullscreen_front() && v->visible();
         }));
 }

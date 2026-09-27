@@ -124,8 +124,8 @@ void Server::switch_space(Output* output, int number, View* carry) {
         if (in || out)
             slide_backdrop = [output, in, dir, w](double t) {
                 const int x = in ? int(std::lround(dir * w * (1 - t))) : int(std::lround(-dir * w * t));
-                wlr_scene_node_set_enabled(&output->fullscreen_bg->node, true);
-                wlr_scene_node_set_position(&output->fullscreen_bg->node, output->box.x + x, output->box.y);
+                output->fullscreen_bg->set_enabled(true);
+                output->fullscreen_bg->set_position(output->box.x + x, output->box.y);
             };
         // caelestia's workspace slide: 500 ms on the standard curve.
         old->sliding = target->sliding = true;
@@ -141,7 +141,7 @@ void Server::switch_space(Output* output, int number, View* carry) {
             old->hide_now();
             target->set_offset(0, 0);
             hold(0);
-            wlr_scene_node_set_position(&output->fullscreen_bg->node, output->box.x, output->box.y);
+            output->fullscreen_bg->set_position(output->box.x, output->box.y);
             output->refit_views();
             prune_space(old);
         });
@@ -241,7 +241,7 @@ void Server::move_to_space(View* view, Space* space) {
     Output* to = space->secret ? (space->output ? space->output : focused_output) : space->output;
     carry_to_output(view, to);
     view->space = space;
-    wlr_scene_node_reparent(&view->tree->node, view->home_tree());
+    view->tree->reparent(view->home_tree());
     if (space->secret)
         view->fit_secret();
     else if (old && old->secret)
@@ -438,7 +438,7 @@ void Server::fade_secret(Space* s, bool in) {
         const double a = in ? t : 1 - t;
         Color c = dim;
         c[3] = float(dim[3] * a);
-        wlr_scene_rect_set_color(s->backdrop, premultiplied(c).data());
+        s->backdrop->set_color(premultiplied(c).data());
         s->set_offset(0, -int(std::lround((1 - a) * reach)));
         each([a](View* v) { v->set_alpha(float(a)); });
     };

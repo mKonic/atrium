@@ -9,7 +9,7 @@ namespace atrium {
 
 SessionLock::SessionLock(Server& srv, wlr_session_lock_v1* lock) : server(srv), wlr(lock) {
     server.focus_view(nullptr);
-    tree = wlr_scene_tree_create(server.layer(Layer::Lock));
+    tree = scene::Tree::create(server.layer(Layer::Lock));
     server.lock = this;
     server.overview->close_now();
     server.locked = true;
@@ -27,16 +27,16 @@ SessionLock::SessionLock(Server& srv, wlr_session_lock_v1* lock) : server(srv), 
 }
 
 SessionLock::~SessionLock() {
-    wlr_scene_node_destroy(&tree->node);
+    tree->destroy();
 }
 
 void SessionLock::new_surface(wlr_session_lock_surface_v1* ls) {
     auto* o = static_cast<Output*>(ls->output->data);
-    auto* st = wlr_scene_subsurface_tree_create(tree, ls->surface);
+    auto* st = scene::subsurface_tree_create(tree, ls->surface);
     ls->surface->data = st;
     o->lock_surface = ls;
 
-    wlr_scene_node_set_position(&st->node, o->box.x, o->box.y);
+    st->set_position(o->box.x, o->box.y);
     wlr_session_lock_surface_v1_configure(ls, o->box.width, o->box.height);
 
     // These listeners live on the Output and can fire after this lock is gone
@@ -80,7 +80,7 @@ void SessionLock::finish(bool unlocked) {
     server.locked = !unlocked;
     server.lock = nullptr;
     if (unlocked) {
-        wlr_scene_node_set_enabled(&server.locked_bg->node, false);
+        server.locked_bg->set_enabled(false);
         server.focus_top();
         server.seat->refresh_pointer();
     }

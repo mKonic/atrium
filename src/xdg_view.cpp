@@ -121,7 +121,7 @@ void XdgView::commit() {
     // Crop to the window geometry: client-side shadows are the client's
     // business, ours are drawn by the compositor.
     wlr_box clip = base->geometry;
-    wlr_scene_subsurface_tree_set_clip(&content->node, &clip);
+    scene::subsurface_tree_set_clip(content, &clip);
     handle_size(base->geometry.width, base->geometry.height);
     if (resize_settling_ && !awaiting_configure())
         settle_resize();
@@ -142,8 +142,8 @@ void XdgView::configure(const wlr_box& frame) {
         last_size_serial_ = wlr_xdg_toplevel_set_size(toplevel, box.width, box.height);
 }
 
-wlr_scene_tree* XdgView::create_content(wlr_scene_tree* parent) {
-    return wlr_scene_xdg_surface_create(parent, toplevel->base);
+scene::Tree* XdgView::create_content(scene::Tree* parent) {
+    return scene::xdg_surface_create(parent, toplevel->base);
 }
 
 void XdgView::surface_origin(double& x, double& y) const {
@@ -265,12 +265,12 @@ void handle_new_xdg_popup(Server&, wlr_xdg_popup* popup) {
             return;
 
         Owner owner = Server::owner_of(popup->base->surface);
-        auto* parent_tree = popup->parent ? static_cast<wlr_scene_tree*>(popup->parent->data) : nullptr;
+        auto* parent_tree = popup->parent ? static_cast<scene::Tree*>(popup->parent->data) : nullptr;
         if (!owner || !parent_tree) {
             delete watch;
             return;
         }
-        popup->base->surface->data = wlr_scene_xdg_surface_create(parent_tree, popup->base);
+        popup->base->surface->data = scene::xdg_surface_create(parent_tree, popup->base);
 
         // Keep the popup on its output, in the toplevel's coordinate space.
         wlr_box box;
@@ -281,8 +281,8 @@ void handle_new_xdg_popup(Server&, wlr_xdg_popup* popup) {
                 return;
             }
             box = owner.layer->output->box;
-            box.x -= owner.layer->tree->node.x;
-            box.y -= owner.layer->tree->node.y;
+            box.x -= owner.layer->tree->x;
+            box.y -= owner.layer->tree->y;
         } else {
             View* v = owner.view;
             if (!v->output) {

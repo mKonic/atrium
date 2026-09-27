@@ -19,58 +19,58 @@ int lerp(int a, int b, double t) {
 } // namespace
 
 SnapPreview::SnapPreview(Server& server) : server_(server) {
-    tree_ = wlr_scene_tree_create(server.layer(Layer::Views));
-    blur_ = wlr_scene_blur_create(tree_, 0, 0);
-    wlr_scene_blur_set_should_only_blur_bottom_layer(blur_, false);
+    tree_ = scene::Tree::create(server.layer(Layer::Views));
+    blur_ = scene::Blur::create(tree_, 0, 0);
+    blur_->set_use_cache(false);
     constexpr float kClear[4] = {0, 0, 0, 0};
-    fill_ = wlr_scene_rect_create(tree_, 0, 0, kClear);
+    fill_ = scene::Rect::create(tree_, 0, 0, kClear);
     fill_->accepts_input = false;
-    ring_ = wlr_scene_rect_create(tree_, 0, 0, kClear);
+    ring_ = scene::Rect::create(tree_, 0, 0, kClear);
     ring_->accepts_input = false;
-    wlr_scene_node_set_enabled(&tree_->node, false);
+    tree_->set_enabled(false);
 }
 
 SnapPreview::~SnapPreview() {
     server_.animator.cancel_owner(this, false);
-    wlr_scene_node_destroy(&tree_->node);
+    tree_->destroy();
 }
 
 void SnapPreview::set_box(const wlr_box& b, float alpha) {
     box_ = b;
     alpha_ = alpha;
     const int r = server_.config.corner_radius;
-    wlr_scene_node_set_position(&tree_->node, b.x, b.y);
+    tree_->set_position(b.x, b.y);
 
-    wlr_scene_blur_set_size(blur_, b.width, b.height);
-    wlr_scene_blur_set_corner_radius(blur_, r);
-    wlr_scene_blur_set_alpha(blur_, alpha);
-    wlr_scene_node_set_enabled(&blur_->node, server_.config.blur);
+    blur_->set_size(b.width, b.height);
+    blur_->set_corner_radius(r);
+    blur_->set_alpha(alpha);
+    blur_->set_enabled(server_.config.blur);
 
     const float fa = kFill[3] * alpha, ra = kRing[3] * alpha;
     float fill[4] = {kFill[0] * fa, kFill[1] * fa, kFill[2] * fa, fa};  // premultiplied
-    wlr_scene_rect_set_color(fill_, fill);
-    wlr_scene_rect_set_size(fill_, b.width, b.height);
-    wlr_scene_rect_set_corner_radius(fill_, r);
+    fill_->set_color(fill);
+    fill_->set_size(b.width, b.height);
+    fill_->set_corner_radius(r);
 
     float ring[4] = {kRing[0] * ra, kRing[1] * ra, kRing[2] * ra, ra};
-    wlr_scene_rect_set_color(ring_, ring);
-    wlr_scene_rect_set_size(ring_, b.width, b.height);
-    wlr_scene_rect_set_corner_radius(ring_, r);
-    wlr_scene_rect_set_clipped_region(ring_, clipped_region{
+    ring_->set_color(ring);
+    ring_->set_size(b.width, b.height);
+    ring_->set_corner_radius(r);
+    ring_->set_cut_out(scene::CutOut{
         .area = {1, 1, b.width - 2, b.height - 2},
-        .corners = corner_radii_all(r > 0 ? r - 1 : 0),
+        .corners = scene::Radii::all(r > 0 ? r - 1 : 0),
     });
 }
 
-void SnapPreview::show(const wlr_box& target, wlr_scene_node* below, const wlr_box& from) {
+void SnapPreview::show(const wlr_box& target, scene::Node* below, const wlr_box& from) {
     if (visible_ && wlr_box_equal(&target, &box_) && alpha_ >= 1.0f)
         return;
     server_.animator.cancel_owner(this, false);
     if (below && below->parent) {
-        wlr_scene_node_reparent(&tree_->node, below->parent);
-        wlr_scene_node_place_below(&tree_->node, below);
+        tree_->reparent(below->parent);
+        tree_->place_below(below);
     }
-    wlr_scene_node_set_enabled(&tree_->node, true);
+    tree_->set_enabled(true);
     // Grow out of the window when appearing; glide from the old zone otherwise.
     const wlr_box start = visible_ ? box_ : from;
     const float a0 = visible_ ? alpha_ : 0.0f;
@@ -94,17 +94,17 @@ void SnapPreview::hide() {
     }, [this] {
         if (visible_)
             return;
-        wlr_scene_node_set_enabled(&tree_->node, false);
-        wlr_scene_node_reparent(&tree_->node, server_.layer(Layer::Views));
+        tree_->set_enabled(false);
+        tree_->reparent(server_.layer(Layer::Views));
     });
 }
 
 void SnapPreview::rescue(Space* space) {
-    if (tree_->node.parent == space->tree || tree_->node.parent == space->fullscreen_tree) {
+    if (tree_->parent == space->tree || tree_->parent == space->fullscreen_tree) {
         server_.animator.cancel_owner(this, false);
         visible_ = false;
-        wlr_scene_node_set_enabled(&tree_->node, false);
-        wlr_scene_node_reparent(&tree_->node, server_.layer(Layer::Views));
+        tree_->set_enabled(false);
+        tree_->reparent(server_.layer(Layer::Views));
     }
 }
 

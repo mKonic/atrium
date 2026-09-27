@@ -83,8 +83,6 @@ NightLight::~NightLight() {
         wl_event_source_remove(tick_);
     if (ramp_)
         wl_event_source_remove(ramp_);
-    if (transform_)
-        wlr_color_transform_unref(transform_);
 }
 
 bool NightLight::scheduled(time_t now, time_t& next) {
@@ -197,31 +195,16 @@ void NightLight::step() {
 }
 
 void NightLight::set_transform(double kelvin) {
-    wlr_color_transform* next = nullptr;
-    linear_white_ = {};
+    linear_white_ = {1, 1, 1};
     if (kelvin < 6500) {
         const night::Rgb wp = night::whitepoint(int(std::lround(kelvin)));
         // The white point scales encoded values; the same look in linear light.
-        linear_white_ = {std::pow(wp.r, 2.2), std::pow(wp.g, 2.2), std::pow(wp.b, 2.2)};
         // Drawn by the renderer, as hyprsunset does with a colour matrix, not
         // the screen's gamma table: NVIDIA's mangles colour and bands. The
         // frame, blended as always, goes to linear light, is scaled by the
         // white point, and is encoded again (in half-float precision).
-        const float m[9] = {float(linear_white_.r), 0, 0, 0, float(linear_white_.g), 0, 0, 0, float(linear_white_.b)};
-        wlr_color_transform* parts[] = {
-            wlr_color_transform_init_matrix(m),
-            wlr_color_transform_init_linear_to_inverse_eotf(WLR_COLOR_TRANSFER_FUNCTION_GAMMA22),
-        };
-        if (parts[0] && parts[1])
-            next = wlr_color_transform_init_pipeline(parts, 2);
-        for (wlr_color_transform* t : parts)
-            if (t)
-                wlr_color_transform_unref(t);
+        linear_white_ = {std::pow(wp.r, 2.2), std::pow(wp.g, 2.2), std::pow(wp.b, 2.2)};
     }
-    if (transform_)
-        wlr_color_transform_unref(transform_);
-    transform_ = next;
-    ++generation_;
     for (Output* o : server_.outputs)
         wlr_output_schedule_frame(o->wlr);
 }

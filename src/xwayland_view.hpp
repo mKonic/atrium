@@ -1,5 +1,6 @@
 #pragma once
 #ifdef ATRIUM_XWAYLAND
+#include "scene/scene.hpp"
 #include "view.hpp"
 
 namespace atrium {
@@ -35,7 +36,7 @@ protected:
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;
     void notify_position() override { configure(geom); }
-    wlr_scene_tree* create_content(wlr_scene_tree* parent) override;
+    scene::Tree* create_content(scene::Tree* parent) override;
 
 private:
     bool has_type(wlr_xwayland_net_wm_window_type type) const {

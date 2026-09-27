@@ -1,4 +1,5 @@
 #pragma once
+#include "scene/scene.hpp"
 #include "wlr.hpp"
 
 namespace atrium {
@@ -16,7 +17,7 @@ public:
     SnapPreview& operator=(const SnapPreview&) = delete;
 
     // Show at `target`, placed just under `below` (the dragged window's tree).
-    void show(const wlr_box& target, wlr_scene_node* below, const wlr_box& from);
+    void show(const wlr_box& target, scene::Node* below, const wlr_box& from);
     void hide();
     bool visible() const { return visible_; }
     // The space holding the preview is going away: take it back.
@@ -26,10 +27,10 @@ private:
     void set_box(const wlr_box& box, float alpha);
 
     Server& server_;
-    wlr_scene_tree* tree_ = nullptr;
-    wlr_scene_blur* blur_ = nullptr;
-    wlr_scene_rect* fill_ = nullptr;
-    wlr_scene_rect* ring_ = nullptr;
+    scene::Tree* tree_ = nullptr;
+    scene::Blur* blur_ = nullptr;
+    scene::Rect* fill_ = nullptr;
+    scene::Rect* ring_ = nullptr;
     wlr_box box_{};
     float alpha_ = 0;
     bool visible_ = false;

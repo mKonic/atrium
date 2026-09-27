@@ -15,6 +15,7 @@ license=('GPL-3.0-or-later' 'OFL-1.1')
 depends=(
   # compositor
   wlroots0.20 wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info
+  libglvnd mesa
   xcb-util-wm libxcrypt fontconfig xorg-xwayland
   # shell
   qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse
@@ -61,9 +62,8 @@ pkgver() {
 
 prepare() {
   cd atrium
-  # The pinned scenefx (with atrium's patch) and nlohmann-json, fetched here,
-  # not while building.
-  meson subprojects download scenefx nlohmann_json
+  # nlohmann-json, fetched here, not while building.
+  meson subprojects download nlohmann_json
 }
 
 build() {
@@ -76,6 +76,5 @@ check() {
 }
 
 package() {
-  # scenefx is linked in; its headers and library stay out.
   meson install -C build --destdir "$pkgdir" --skip-subprojects
 }

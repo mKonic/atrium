@@ -1,6 +1,7 @@
 #pragma once
 #include "listener.hpp"
 #include "placements.hpp"
+#include "scene/scene.hpp"
 #include "titlebar.hpp"
 
 #include <memory>
@@ -102,7 +103,7 @@ public:
     bool fullscreen_front() const { return fullscreen && !covered; }
     // The tree its tree belongs under: its space's windows, or their
     // fullscreen layer while it is fullscreen in front.
-    wlr_scene_tree* home_tree() const;
+    scene::Tree* home_tree() const;
     // The app asks to be minimized. A fullscreen game asks on its own when
     // it loses focus (SDL does, in an exclusive fullscreen mode), and the
     // request lands late, after a space switch or Alt+Tab may have handed
@@ -135,13 +136,13 @@ public:
     const uint64_t id;  // stable for the view's lifetime; IPC addresses windows by it
     Output* output = nullptr;
     Space* space = nullptr;  // managed windows only
-    wlr_scene_tree* tree = nullptr;      // root of the view, at geom.x/geom.y
-    wlr_scene_tree* content = nullptr;   // the client's surfaces, at (0, top())
-    wlr_scene_tree* popups = nullptr;    // xdg popups, at the content origin
-    wlr_scene_shadow* shadow = nullptr;
-    wlr_scene_rect* outline = nullptr;   // 1px hairline around the frame
-    wlr_scene_blur* blur = nullptr;      // frosted glass behind translucent content
-    wlr_scene_rect* backing = nullptr;   // solid fill behind the content with transparency off
+    scene::Tree* tree = nullptr;      // root of the view, at geom.x/geom.y
+    scene::Tree* content = nullptr;   // the client's surfaces, at (0, top())
+    scene::Tree* popups = nullptr;    // xdg popups, at the content origin
+    scene::Shadow* shadow = nullptr;
+    scene::Rect* outline = nullptr;   // 1px hairline around the frame
+    scene::Blur* blur = nullptr;      // frosted glass behind translucent content
+    scene::Rect* backing = nullptr;   // solid fill behind the content with transparency off
     wlr_box geom{};
     wlr_box restore{};  // geometry to return to from maximized/fullscreen
 
@@ -188,7 +189,7 @@ protected:
     virtual void notify_position() {}  // X11 windows are told where they are
     // True while the client has not yet acked the last size we asked for.
     virtual bool awaiting_configure() const { return false; }
-    virtual wlr_scene_tree* create_content(wlr_scene_tree* parent) = 0;
+    virtual scene::Tree* create_content(scene::Tree* parent) = 0;
 
     // Shared map/unmap/commit logic, called by the backends.
     void handle_map();
@@ -244,7 +245,7 @@ private:
 
     wlr_ext_foreign_toplevel_handle_v1* ext_handle_ = nullptr;
     wlr_foreign_toplevel_handle_v1* handle_ = nullptr;
-    wlr_scene* capture_scene_ = nullptr;
+    scene::Scene* capture_scene_ = nullptr;
     wlr_ext_image_capture_source_v1* capture_source_ = nullptr;
     // wlroots' scene-node capture source (0.20) draws only on new damage, so
     // a client asking for a frame of a still window, even its first, waits
@@ -255,7 +256,7 @@ private:
     struct CaptureImpl {
         wlr_ext_image_capture_source_v1_interface impl;  // first: source->impl points here
         const wlr_ext_image_capture_source_v1_interface* base;
-        wlr_scene_node* node;
+        scene::Node* node;
         wl_event_source* refresh;
     } capture_impl_{};
 
@@ -299,7 +300,7 @@ protected:
     void send_fullscreen(bool fullscreen) override;
     void send_suspended(bool suspended) override;
     bool awaiting_configure() const override;
-    wlr_scene_tree* create_content(wlr_scene_tree* parent) override;
+    scene::Tree* create_content(scene::Tree* parent) override;
 
 private:
     void commit();

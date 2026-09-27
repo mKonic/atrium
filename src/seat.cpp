@@ -161,7 +161,7 @@ Seat::Seat(Server& srv) : server(srv) {
     start_drag_.connect(&wlr->events.start_drag, [this](wlr_drag* drag) {
         if (!drag->icon)
             return;
-        drag->icon->data = &wlr_scene_drag_icon_create(server.drag_icons, drag->icon)->node;
+        drag->icon->data = static_cast<scene::Node*>(scene::drag_icon_create(server.drag_icons, drag->icon));
         struct Watch {
             Listener<> destroy;
         };
@@ -625,7 +625,7 @@ int Seat::key_repeat(KeyboardGroup& g) {
 void Seat::reach_edge() {
     const char* edge = nullptr;
     Output* o = server.output_at(cursor->x, cursor->y);
-    if (o && !active_constraint_ && o->fullscreen_bg->node.enabled) {
+    if (o && !active_constraint_ && o->fullscreen_bg->enabled) {
         // On a title bar brought out below the menu bar counts as the top:
         // both stay while it is used.
         int revealed = 0;
@@ -684,8 +684,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             push_edge(dx);
     }
 
-    wlr_scene_node_set_position(&server.drag_icons->node, int(std::lround(cursor->x)),
-                                int(std::lround(cursor->y)));
+    server.drag_icons->set_position(int(std::lround(cursor->x)), int(std::lround(cursor->y)));
 
     if (server.overview->active()) {
         server.overview->motion(cursor->x, cursor->y);
@@ -719,7 +718,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             snap_zone_ = zone;
             if (zone)
                 server.snap_preview->show(geometry::snap_box(o->usable, zone, zone == WLR_EDGE_TOP ? 0 : server.config.snap_gap),
-                                          &grab_view_->tree->node, grab_view_->geom);
+                                          grab_view_->tree, grab_view_->geom);
             else
                 server.snap_preview->hide();
         }
@@ -795,8 +794,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         if (Owner owner = Server::owner_of(focused)) {
             double ox, oy;
             if (owner.layer) {
-                ox = owner.layer->tree->node.x;
-                oy = owner.layer->tree->node.y;
+                ox = owner.layer->tree->x;
+                oy = owner.layer->tree->y;
             } else {
                 owner.view->surface_origin(ox, oy);
             }

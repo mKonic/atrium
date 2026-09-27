@@ -18,20 +18,20 @@ uint16_t scaled(uint16_t r, double s) {
 }
 
 struct CopyCtx {
-    wlr_scene_tree* into;
+    scene::Tree* into;
     int ox, oy;  // the root's own position, which for_each_buffer counts
-    std::vector<wlr_scene_buffer*> nodes;
+    std::vector<scene::Buffer*> nodes;
     std::vector<std::array<int, 4>> boxes;
-    std::vector<fx_corner_radii> corners;
+    std::vector<scene::Radii> corners;
 };
 
-void copy_buffer(wlr_scene_buffer* src, int sx, int sy, void* data) {
+void copy_buffer(scene::Buffer* src, int sx, int sy, void* data) {
     auto* c = static_cast<CopyCtx*>(data);
     if (!src->buffer)
         return;
-    wlr_scene_buffer* dst = wlr_scene_buffer_create(c->into, src->buffer);
-    wlr_scene_buffer_set_source_box(dst, &src->src_box);
-    wlr_scene_buffer_set_transform(dst, src->transform);
+    scene::Buffer* dst = scene::Buffer::create(c->into, src->buffer);
+    dst->set_source_box(&src->src_box);
+    dst->set_transform(src->transform);
     int w = src->dst_width, h = src->dst_height;
     if (w <= 0 || h <= 0) {
         w = src->buffer->width;
@@ -44,24 +44,24 @@ void copy_buffer(wlr_scene_buffer* src, int sx, int sy, void* data) {
 
 } // namespace
 
-WindowCopy::WindowCopy(View& view, wlr_scene_tree* parent) : view_(view) {
-    tree_ = wlr_scene_tree_create(parent);
+WindowCopy::WindowCopy(View& view, scene::Tree* parent) : view_(view) {
+    tree_ = scene::Tree::create(parent);
     refresh();
 }
 
 WindowCopy::~WindowCopy() {
-    wlr_scene_node_destroy(&tree_->node);
+    tree_->destroy();
 }
 
 void WindowCopy::refresh() {
     if (inner_)
-        wlr_scene_node_destroy(&inner_->node);
-    inner_ = wlr_scene_tree_create(tree_);
+        inner_->destroy();
+    inner_ = scene::Tree::create(tree_);
     pieces_.clear();
     if (!view_.tree)
         return;
-    CopyCtx ctx{inner_, view_.tree->node.x, view_.tree->node.y, {}, {}, {}};
-    wlr_scene_node_for_each_buffer(&view_.tree->node, copy_buffer, &ctx);
+    CopyCtx ctx{inner_, view_.tree->x, view_.tree->y, {}, {}, {}};
+    view_.tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { (copy_buffer)(b_, x_, y_, &ctx); });
     for (size_t i = 0; i < ctx.nodes.size(); ++i)
         pieces_.push_back({ctx.nodes[i], ctx.boxes[i][0], ctx.boxes[i][1], ctx.boxes[i][2], ctx.boxes[i][3],
                            ctx.corners[i]});
@@ -75,11 +75,9 @@ void WindowCopy::place(int width, int height) {
     const double sx = width / double(std::max(1, view_.geom.width));
     const double sy = height / double(std::max(1, view_.geom.height));
     for (Piece& p : pieces_) {
-        wlr_scene_node_set_position(&p.node->node, round_i(p.x * sx), round_i(p.y * sy));
-        wlr_scene_buffer_set_dest_size(p.node, std::max(1, round_i(p.w * sx)), std::max(1, round_i(p.h * sy)));
-        wlr_scene_buffer_set_corner_radii(p.node, corner_radii_new(
-            scaled(p.corners.top_left, sx), scaled(p.corners.top_right, sx),
-            scaled(p.corners.bottom_right, sx), scaled(p.corners.bottom_left, sx)));
+        p.node->set_position(round_i(p.x * sx), round_i(p.y * sy));
+        p.node->set_dest_size(std::max(1, round_i(p.w * sx)), std::max(1, round_i(p.h * sy)));
+        p.node->set_corner_radii(scene::Radii(scaled(p.corners.tl, sx), scaled(p.corners.tr, sx), scaled(p.corners.br, sx), scaled(p.corners.bl, sx)));
     }
 }
 

@@ -623,7 +623,7 @@ json Ipc::handle(Client& c, const json& req) {
         for (Output* o : server_.outputs)
             for (int i = 0; i < 4; ++i)
                 for (LayerSurface* l : o->layers[i]) {
-                    const wlr_box g = {l->tree ? l->tree->node.x : 0, l->tree ? l->tree->node.y : 0,
+                    const wlr_box g = {l->tree ? l->tree->x : 0, l->tree ? l->tree->y : 0,
                                        int(l->wlr->current.actual_width), int(l->wlr->current.actual_height)};
                     list.push_back({{"namespace", l->wlr->namespace_ ? l->wlr->namespace_ : ""},
                                     {"layer", kNames[i]}, {"output", o->wlr->name},

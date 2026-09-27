@@ -294,12 +294,12 @@ void InputMethodRelay::new_input_method(wlr_input_method_v2* im) {
 // --- candidate popups ------------------------------------------------------------
 
 void InputMethodRelay::new_popup(wlr_input_popup_surface_v2* surface) {
-    auto p = std::make_unique<Popup>(surface, wlr_scene_tree_create(server_.layer(Layer::InputPopup)));
+    auto p = std::make_unique<Popup>(surface, scene::Tree::create(server_.layer(Layer::InputPopup)));
     Popup* pp = p.get();
-    wlr_scene_subsurface_tree_create(pp->tree, surface->surface);
+    scene::subsurface_tree_create(pp->tree, surface->surface);
     pp->commit.connect(&surface->surface->events.commit, [this, pp](void*) { place(*pp); });
     pp->destroy.connect(&surface->events.destroy, [this, pp](void*) {
-        wlr_scene_node_destroy(&pp->tree->node);
+        pp->tree->destroy();
         std::erase_if(popups_, [pp](const auto& q) { return q.get() == pp; });
     });
     popups_.push_back(std::move(p));
@@ -325,7 +325,7 @@ void InputMethodRelay::place(Popup& popup) {
             owner.view->surface_origin(ox, oy);
         } else if (owner.layer && owner.layer->scene_layer) {
             int lx = 0, ly = 0;
-            wlr_scene_node_coords(&owner.layer->scene_layer->tree->node, &lx, &ly);
+            owner.layer->scene_layer->tree->coords(&lx, &ly);
             ox = lx;
             oy = ly;
         } else {
@@ -355,8 +355,8 @@ void InputMethodRelay::place(Popup& popup) {
     wlr_xdg_positioner_rules_get_geometry(&rules, &box);
     wlr_xdg_positioner_rules_unconstrain_box(&rules, &output->box, &box);
 
-    wlr_scene_node_set_position(&popup.tree->node, box.x, box.y);
-    wlr_scene_node_raise_to_top(&popup.tree->node);
+    popup.tree->set_position(box.x, box.y);
+    popup.tree->raise_to_top();
     wlr_box relative{cursor.x - box.x, cursor.y - box.y, cursor.width, cursor.height};
     wlr_input_popup_surface_v2_send_text_input_rectangle(popup.surface, &relative);
 }

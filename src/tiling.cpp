@@ -29,20 +29,20 @@ void Server::toggle_tiling(Space* space) {
     const Color dim = config.secret_backdrop;
     const bool blur = config.blur;
     animator.cancel_owner(space, true);
-    wlr_scene_node_set_enabled(&space->tile_dim->node, true);
-    wlr_scene_node_set_enabled(&space->tile_blur->node, blur);
+    space->tile_dim->set_enabled(true);
+    space->tile_blur->set_enabled(blur);
     animator.start(space, 600, Ease::Standard,
         [space, dim, in](double t) {
             const double a = in ? t : 1 - t;
             Color c = dim;
             c[3] = float(dim[3] * a);
-            wlr_scene_rect_set_color(space->tile_dim, premultiplied(c).data());
-            wlr_scene_blur_set_alpha(space->tile_blur, float(a));
+            space->tile_dim->set_color(premultiplied(c).data());
+            space->tile_blur->set_alpha(float(a));
         },
         [space, in] {
             if (!in) {
-                wlr_scene_node_set_enabled(&space->tile_dim->node, false);
-                wlr_scene_node_set_enabled(&space->tile_blur->node, false);
+                space->tile_dim->set_enabled(false);
+                space->tile_blur->set_enabled(false);
             }
         });
 

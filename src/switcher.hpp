@@ -1,4 +1,5 @@
 #pragma once
+#include "scene/scene.hpp"
 #include "wlr.hpp"
 
 #include <memory>
@@ -38,7 +39,7 @@ public:
 private:
     struct Item {
         View* view;
-        wlr_scene_tree* tree;
+        scene::Tree* tree;
         std::unique_ptr<WindowCopy> copy;
         wlr_box box;  // layout coordinates
     };
@@ -59,11 +60,11 @@ private:
     int index_ = 0;
 
     wl_event_source* delay_ = nullptr;
-    wlr_scene_tree* root_ = nullptr;
-    wlr_scene_blur* blur_ = nullptr;
-    wlr_scene_rect* panel_ = nullptr;
-    wlr_scene_rect* selection_ = nullptr;
-    wlr_scene_buffer* title_ = nullptr;
+    scene::Tree* root_ = nullptr;
+    scene::Blur* blur_ = nullptr;
+    scene::Rect* panel_ = nullptr;
+    scene::Rect* selection_ = nullptr;
+    scene::Buffer* title_ = nullptr;
     std::vector<std::unique_ptr<Item>> items_;
     wlr_box panel_box_{};
 };

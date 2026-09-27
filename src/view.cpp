@@ -42,7 +42,7 @@ View::~View() {
 
 void View::place_tree() {
     if (tree)
-        wlr_scene_node_set_position(&tree->node, geom.x + anim_dx_ + glide_dx_, geom.y + anim_dy_ + glide_dy_);
+        tree->set_position(geom.x + anim_dx_ + glide_dx_, geom.y + anim_dy_ + glide_dy_);
 }
 
 void View::set_anim_offset(int dx, int dy) {
@@ -58,7 +58,7 @@ void View::set_alpha(float a) {
     update_decorations();  // shadow, outline, title bar and content all follow alpha_
 }
 
-wlr_scene_tree* View::home_tree() const {
+scene::Tree* View::home_tree() const {
     if (fullscreen_front())
         return space ? space->fullscreen_tree : server.layer(Layer::Fullscreen);
     return space ? space->tree : server.layer(Layer::Views);
@@ -84,11 +84,11 @@ wlr_box View::usable_area() const {
 
 void View::handle_map() {
     opening_ = true;  // placed where it opens, not glided there
-    tree = wlr_scene_tree_create(server.layer(unmanaged() ? Layer::Unmanaged : Layer::Views));
+    tree = scene::Tree::create(server.layer(unmanaged() ? Layer::Unmanaged : Layer::Views));
     content = create_content(tree);
-    popups = wlr_scene_tree_create(tree);
+    popups = scene::Tree::create(tree);
     surface()->data = popups;  // parent tree for this window's popups
-    tree->node.data = content->node.data = popups->node.data = this;
+    tree->data = content->data = popups->data = this;
     mapped = true;
 
     if (unmanaged()) {
@@ -100,18 +100,17 @@ void View::handle_map() {
     }
 
     const Config& c = server.config;
-    shadow = wlr_scene_shadow_create(tree, 0, 0, c.corner_radius, c.shadow_sigma,
-                                     c.shadow_color.data());
-    wlr_scene_node_lower_to_bottom(&shadow->node);
-    outline = wlr_scene_rect_create(tree, 0, 0, premultiplied(c.outline_color).data());
+    shadow = scene::Shadow::create(tree, 0, 0, c.corner_radius, c.shadow_sigma, c.shadow_color.data());
+    shadow->lower_to_bottom();
+    outline = scene::Rect::create(tree, 0, 0, premultiplied(c.outline_color).data());
     outline->accepts_input = false;
-    wlr_scene_node_place_above(&outline->node, &shadow->node);
-    blur = wlr_scene_blur_create(tree, 0, 0);
-    wlr_scene_blur_set_should_only_blur_bottom_layer(blur, true);  // the cheap, shared background blur
-    wlr_scene_node_place_above(&blur->node, &outline->node);
-    backing = wlr_scene_rect_create(tree, 0, 0, kBacking.data());
+    outline->place_above(shadow);
+    blur = scene::Blur::create(tree, 0, 0);
+    blur->set_use_cache(true);  // the cheap, shared background blur
+    blur->place_above(outline);
+    backing = scene::Rect::create(tree, 0, 0, kBacking.data());
     backing->accepts_input = false;
-    wlr_scene_node_place_above(&backing->node, &blur->node);
+    backing->place_above(blur);
 
     if (wants_ssd()) {
         titlebar = std::make_unique<Titlebar>(*this, tree);
@@ -121,7 +120,7 @@ void View::handle_map() {
 
     const RuleResult wish = server.assign_space(this);
     if (space)
-        wlr_scene_node_reparent(&tree->node, space->tree);
+        tree->reparent(space->tree);
     float_in_tiling = float_in_tiling || wish.floating.value_or(false);
     keep_above = keep_above || wish.keep_above.value_or(false);
     sticky = sticky || wish.sticky.value_or(false);
@@ -213,7 +212,7 @@ void View::handle_unmap() {
     titlebar.reset();
     Space* old_space = space;
     space = nullptr;
-    wlr_scene_node_destroy(&tree->node);
+    tree->destroy();
     tree = content = popups = nullptr;
     shadow = nullptr;
     outline = nullptr;
@@ -336,27 +335,27 @@ namespace {
 // What stays on screen for a moment after a window is gone: copies of its last
 // buffers, shadow and outline, fading out on their own.
 struct Ghost {
-    wlr_scene_tree* tree = nullptr;
+    scene::Tree* tree = nullptr;
     int origin_x = 0, origin_y = 0;  // for_each_buffer counts the root's own position
-    std::vector<wlr_scene_buffer*> buffers;
+    std::vector<scene::Buffer*> buffers;
     std::vector<float> opacity;  // each buffer's own opacity at close
-    wlr_scene_shadow* shadow = nullptr;
-    wlr_scene_rect* outline = nullptr;
-    wlr_scene_rect* backing = nullptr;
+    scene::Shadow* shadow = nullptr;
+    scene::Rect* outline = nullptr;
+    scene::Rect* backing = nullptr;
     Color shadow_color{}, outline_color{};
     int x = 0, y = 0;
 };
 
-void copy_into_ghost(wlr_scene_buffer* src, int sx, int sy, void* data) {
+void copy_into_ghost(scene::Buffer* src, int sx, int sy, void* data) {
     auto* g = static_cast<Ghost*>(data);
     if (!src->buffer)
         return;
-    wlr_scene_buffer* dst = wlr_scene_buffer_create(g->tree, src->buffer);
-    wlr_scene_node_set_position(&dst->node, sx - g->origin_x, sy - g->origin_y);
-    wlr_scene_buffer_set_source_box(dst, &src->src_box);
-    wlr_scene_buffer_set_dest_size(dst, src->dst_width, src->dst_height);
-    wlr_scene_buffer_set_transform(dst, src->transform);
-    wlr_scene_buffer_set_corner_radii(dst, src->corners);
+    scene::Buffer* dst = scene::Buffer::create(g->tree, src->buffer);
+    dst->set_position(sx - g->origin_x, sy - g->origin_y);
+    dst->set_source_box(&src->src_box);
+    dst->set_dest_size(src->dst_width, src->dst_height);
+    dst->set_transform(src->transform);
+    dst->set_corner_radii(src->corners);
     g->buffers.push_back(dst);
     g->opacity.push_back(src->opacity);
 }
@@ -370,58 +369,57 @@ void View::animate_close() {
     auto* g = new Ghost;
     // Straight under the layer, not the space: the space may be pruned while
     // the ghost is still fading.
-    g->tree = wlr_scene_tree_create(server.layer(fullscreen_front() ? Layer::Fullscreen : Layer::Views));
-    g->x = tree->node.x;
-    g->y = tree->node.y;
-    wlr_scene_node_set_position(&g->tree->node, g->x, g->y);
+    g->tree = scene::Tree::create(server.layer(fullscreen_front() ? Layer::Fullscreen : Layer::Views));
+    g->x = tree->x;
+    g->y = tree->y;
+    g->tree->set_position(g->x, g->y);
 
     const Config& c = server.config;
-    if (shadow && shadow->node.enabled) {
+    if (shadow && shadow->enabled) {
         g->shadow_color = activated ? c.shadow_color : c.shadow_color_inactive;
-        g->shadow = wlr_scene_shadow_create(g->tree, shadow->width, shadow->height, shadow->corner_radius,
-                                            shadow->blur_sigma, g->shadow_color.data());
-        wlr_scene_node_set_position(&g->shadow->node, shadow->node.x, shadow->node.y);
-        wlr_scene_shadow_set_clipped_region(g->shadow, shadow->clipped_region);
+        g->shadow = scene::Shadow::create(g->tree, shadow->width, shadow->height, shadow->corner_radius, shadow->blur_sigma, g->shadow_color.data());
+        g->shadow->set_position(shadow->x, shadow->y);
+        g->shadow->set_cut_out(shadow->cut);
     }
-    if (outline && outline->node.enabled) {
+    if (outline && outline->enabled) {
         g->outline_color = activated ? c.outline_color : c.outline_color_inactive;
-        g->outline = wlr_scene_rect_create(g->tree, outline->width, outline->height, premultiplied(g->outline_color).data());
+        g->outline = scene::Rect::create(g->tree, outline->width, outline->height, premultiplied(g->outline_color).data());
         g->outline->accepts_input = false;
-        wlr_scene_node_set_position(&g->outline->node, outline->node.x, outline->node.y);
-        wlr_scene_rect_set_corner_radii(g->outline, outline->corners);
-        wlr_scene_rect_set_clipped_region(g->outline, outline->clipped_region);
+        g->outline->set_position(outline->x, outline->y);
+        g->outline->set_corner_radii(outline->corners);
+        g->outline->set_cut_out(outline->cut);
     }
-    if (backing && backing->node.enabled) {
-        g->backing = wlr_scene_rect_create(g->tree, backing->width, backing->height, premultiplied(kBacking).data());
-        wlr_scene_node_set_position(&g->backing->node, backing->node.x, backing->node.y);
-        wlr_scene_rect_set_corner_radii(g->backing, backing->corners);
+    if (backing && backing->enabled) {
+        g->backing = scene::Rect::create(g->tree, backing->width, backing->height, premultiplied(kBacking).data());
+        g->backing->set_position(backing->x, backing->y);
+        g->backing->set_corner_radii(backing->corners);
     }
-    g->origin_x = tree->node.x;
-    g->origin_y = tree->node.y;
-    wlr_scene_node_for_each_buffer(&tree->node, copy_into_ghost, g);
+    g->origin_x = tree->x;
+    g->origin_y = tree->y;
+    tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { (copy_into_ghost)(b_, x_, y_, g); });
 
     server.animator.start(g, 300, Ease::EmphasizedAccel, [g](double t) {
         const float a = float(1 - t);
         for (size_t i = 0; i < g->buffers.size(); ++i)
-            wlr_scene_buffer_set_opacity(g->buffers[i], g->opacity[i] * a);
+            g->buffers[i]->set_opacity(g->opacity[i] * a);
         if (g->shadow) {
             Color sc = g->shadow_color;
             sc[3] *= a;
-            wlr_scene_shadow_set_color(g->shadow, sc.data());
+            g->shadow->set_color(sc.data());
         }
         if (g->outline) {
             Color oc = g->outline_color;
             oc[3] *= a;
-            wlr_scene_rect_set_color(g->outline, premultiplied(oc).data());
+            g->outline->set_color(premultiplied(oc).data());
         }
         if (g->backing) {
             Color bc = kBacking;
             bc[3] *= a;
-            wlr_scene_rect_set_color(g->backing, premultiplied(bc).data());
+            g->backing->set_color(premultiplied(bc).data());
         }
-        wlr_scene_node_set_position(&g->tree->node, g->x, g->y + int(std::lround(t * 10)));
+        g->tree->set_position(g->x, g->y + int(std::lround(t * 10)));
     }, [g] {
-        wlr_scene_node_destroy(&g->tree->node);
+        g->tree->destroy();
         delete g;
     });
 }
@@ -600,16 +598,16 @@ int View::top() const {
 void View::layout_frame() {
     if (!tree)
         return;
-    wlr_scene_node_set_position(&content->node, 0, top());
-    wlr_scene_node_set_position(&popups->node, 0, top());
+    content->set_position(0, top());
+    popups->set_position(0, top());
     if (titlebar) {
         const bool revealed = fullscreen && reveal_ > 0;
-        wlr_scene_node_set_enabled(&titlebar->node()->node, top() > 0 || revealed);
+        titlebar->node()->set_enabled(top() > 0 || revealed);
         // Over the content, sliding down from under the menu bar.
         const int y = revealed ? reveal_y_ - int(std::lround((1 - reveal_) * Titlebar::kHeight)) : 0;
-        wlr_scene_node_set_position(&titlebar->node()->node, 0, y);
+        titlebar->node()->set_position(0, y);
         if (revealed)
-            wlr_scene_node_raise_to_top(&titlebar->node()->node);
+            titlebar->node()->raise_to_top();
         titlebar->update();
     }
 }
@@ -662,9 +660,9 @@ void View::raise() {
     if (!tree)
         return;
     if (keep_below)
-        wlr_scene_node_lower_to_bottom(&tree->node);
+        tree->lower_to_bottom();
     else
-        wlr_scene_node_raise_to_top(&tree->node);
+        tree->raise_to_top();
     // Its dialogs come along, over it.
     for (View* v : server.views)
         if (v != this && v->mapped && v->tree && v->parent() == this)
@@ -673,7 +671,7 @@ void View::raise() {
     if (!keep_above)
         for (View* v : server.views)
             if (v != this && v->keep_above && v->mapped && v->tree)
-                wlr_scene_node_raise_to_top(&v->tree->node);
+                v->tree->raise_to_top();
 }
 
 void View::set_activated(bool a) {
@@ -792,7 +790,7 @@ void View::set_fullscreen(bool f) {
         wlr_foreign_toplevel_handle_v1_set_fullscreen(handle_, f);
 
     covered = false;
-    wlr_scene_node_reparent(&tree->node, home_tree());
+    tree->reparent(home_tree());
     if (f) {
         if (output)
             request_geometry(output->box);
@@ -823,14 +821,14 @@ void View::set_minimized(bool m) {
     // Sink and fade toward the bottom of the screen, or come back from it. The
     // tree stays enabled while it animates out.
     server.animator.cancel_owner(this, false);
-    wlr_scene_node_set_enabled(&tree->node, true);
+    tree->set_enabled(true);
     if (m) {
         server.animator.start(this, 300, Ease::EmphasizedAccel, [this](double t) {
             set_alpha(float(1 - t));
             set_anim_offset(0, int(std::lround(t * 40)));
         }, [this] {
             if (minimized && tree)
-                wlr_scene_node_set_enabled(&tree->node, false);
+                tree->set_enabled(false);
             set_alpha(1.0f);
             set_anim_offset(0, 0);
         });
@@ -876,11 +874,11 @@ struct RoundCtx {
 // build windows out of several surfaces (foot draws its title bar as a
 // subsurface, GTK pads the main surface with its own shadow), so no single
 // buffer is "the window": what matters is which visible pixels form its corners.
-void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) {
+void round_window_corners(scene::Buffer* buffer, int sx, int sy, void* data) {
     auto* ctx = static_cast<RoundCtx*>(data);
     sx -= ctx->ox;
     sy -= ctx->oy;
-    if (!wlr_scene_surface_try_from_buffer(buffer))
+    if (!buffer->surface())
         return;
     int w = buffer->dst_width, h = buffer->dst_height;
     if ((w <= 0 || h <= 0) && buffer->buffer) {
@@ -893,9 +891,8 @@ void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) 
     const int r = ctx->radius;
     const bool left = x0 == 0, right = x1 == ctx->width, top = y0 == 0 && ctx->round_top,
                bottom = y1 == ctx->height;
-    wlr_scene_buffer_set_corner_radii(buffer, corner_radii_new(
-        top && left ? r : 0, top && right ? r : 0, bottom && right ? r : 0, bottom && left ? r : 0));
-    wlr_scene_buffer_set_opacity(buffer, ctx->alpha);
+    buffer->set_corner_radii(scene::Radii(top && left ? r : 0, top && right ? r : 0, bottom && right ? r : 0, bottom && left ? r : 0));
+    buffer->set_opacity(ctx->alpha);
 }
 
 } // namespace
@@ -910,28 +907,28 @@ void View::update_decorations() {
     // A secret space's backdrop already sets its windows apart; a shadow
     // there only muddies the thin margin of blurred desktop around them.
     const bool show_shadow = c.shadows && !fullscreen && !(space && space->secret);
-    wlr_scene_node_set_enabled(&shadow->node, show_shadow);
+    shadow->set_enabled(show_shadow);
     if (show_shadow) {
         const float sigma = activated ? c.shadow_sigma : c.shadow_sigma_inactive;
         const int margin = int(std::ceil(sigma));
-        wlr_scene_shadow_set_blur_sigma(shadow, sigma);
+        shadow->set_blur_sigma(sigma);
         Color sc = activated ? c.shadow_color : c.shadow_color_inactive;
         sc[3] *= alpha_;
-        wlr_scene_shadow_set_color(shadow, sc.data());
-        wlr_scene_shadow_set_corner_radius(shadow, radius);
-        wlr_scene_shadow_set_size(shadow, geom.width + 2 * margin, geom.height + 2 * margin);
-        wlr_scene_node_set_position(&shadow->node, -margin, -margin);
+        shadow->set_color(sc.data());
+        shadow->set_corner_radius(radius);
+        shadow->set_size(geom.width + 2 * margin, geom.height + 2 * margin);
+        shadow->set_position(-margin, -margin);
         // Cut the window's own area out, so a translucent window does not
         // show its shadow through itself.
-        wlr_scene_shadow_set_clipped_region(shadow, clipped_region{
+        shadow->set_cut_out(scene::CutOut{
             .area = {margin, margin, geom.width, geom.height},
-            .corners = corner_radii_all(radius),
+            .corners = scene::Radii::all(radius),
         });
     }
 
     // A faint light hairline keeps dark windows distinct on a dark desktop,
     // where a shadow alone disappears.
-    wlr_scene_node_set_enabled(&outline->node, !fullscreen && (c.outline_color[3] > 0 || layout_owned()));
+    outline->set_enabled(!fullscreen && (c.outline_color[3] > 0 || layout_owned()));
     if (!fullscreen) {
         Color oc = activated ? c.outline_color : c.outline_color_inactive;
         // Tiles and secret windows show which has focus: an accent ring,
@@ -945,13 +942,13 @@ void View::update_decorations() {
                 oc[i] = faint[i] + (ring[i] - faint[i]) * t;
         }
         oc[3] *= alpha_;
-        wlr_scene_rect_set_color(outline, premultiplied(oc).data());
-        wlr_scene_rect_set_size(outline, geom.width + 2, geom.height + 2);
-        wlr_scene_node_set_position(&outline->node, -1, -1);
-        wlr_scene_rect_set_corner_radius(outline, radius > 0 ? radius + 1 : 0);
-        wlr_scene_rect_set_clipped_region(outline, clipped_region{
+        outline->set_color(premultiplied(oc).data());
+        outline->set_size(geom.width + 2, geom.height + 2);
+        outline->set_position(-1, -1);
+        outline->set_corner_radius(radius > 0 ? radius + 1 : 0);
+        outline->set_cut_out(scene::CutOut{
             .area = {1, 1, geom.width, geom.height},
-            .corners = corner_radii_all(radius),
+            .corners = scene::Radii::all(radius),
         });
     }
 
@@ -964,15 +961,15 @@ void View::update_decorations() {
 
     // Translucent content either shows the desktop, frosted, or sits on a
     // solid fill that makes it look opaque.
-    wlr_scene_node_set_enabled(&backing->node, !c.transparency && !is_glass);
+    backing->set_enabled(!c.transparency && !is_glass);
     if (!c.transparency && !is_glass) {
         Color bc = kBacking;
         bc[3] *= alpha_;
-        wlr_scene_rect_set_color(backing, premultiplied(bc).data());
-        wlr_scene_rect_set_size(backing, geom.width, geom.height - top());
-        wlr_scene_node_set_position(&backing->node, 0, top());
+        backing->set_color(premultiplied(bc).data());
+        backing->set_size(geom.width, geom.height - top());
+        backing->set_position(0, top());
         const int tr = top() ? 0 : radius;
-        wlr_scene_rect_set_corner_radii(backing, corner_radii_new(tr, tr, radius, radius));
+        backing->set_corner_radii(scene::Radii(tr, tr, radius, radius));
     }
 
     // Blur behind translucent windows, or behind just the part an app asked
@@ -981,41 +978,41 @@ void View::update_decorations() {
         server.background_effects ? server.background_effects->blur_for(surface()) : std::nullopt;
     const bool show_blur =
         is_glass || (c.blur && c.transparency && !fullscreen && (!asked || (asked->width > 0 && asked->height > 0)));
-    wlr_scene_node_set_enabled(&blur->node, show_blur);
+    blur->set_enabled(show_blur);
     // Glass sees the windows under it too; plain blur only the desktop.
-    wlr_scene_blur_set_should_only_blur_bottom_layer(blur, !is_glass);
+    blur->set_use_cache(!is_glass);
     if (!is_glass) {
-        wlr_scene_blur_set_strength(blur, 1.0f);
-        wlr_scene_blur_set_refraction(blur, 0, 0);
-        wlr_scene_blur_set_glass_shapes(blur, nullptr, 0);
+        blur->set_strength(1.0f);
+        blur->set_refraction(0, 0);
+        blur->set_glass_shapes(nullptr, 0);
     }
     if (is_glass) {
         const int reach = kGlassShadowReach;
         const int w = geom.width, h = geom.height - top();
-        wlr_scene_node_set_position(&blur->node, -reach, top() - reach);
-        wlr_scene_blur_set_size(blur, w + 2 * reach, h + 2 * reach);
-        wlr_scene_blur_set_corner_radius(blur, 0);
-        wlr_scene_blur_set_alpha(blur, alpha_);
+        blur->set_position(-reach, top() - reach);
+        blur->set_size(w + 2 * reach, h + 2 * reach);
+        blur->set_corner_radius(0);
+        blur->set_alpha(alpha_);
         apply_glass(blur, *given, float(reach), float(reach), w, h, 1.0, c);
     } else if (show_blur && asked) {
         // In surface coordinates, from the content's corner under the title bar.
         const wlr_box content_area{0, 0, geom.width, geom.height - top()};
         wlr_box b{};
         wlr_box_intersection(&b, &*asked, &content_area);
-        wlr_scene_node_set_position(&blur->node, b.x, top() + b.y);
-        wlr_scene_blur_set_size(blur, b.width, b.height);
-        wlr_scene_blur_set_corner_radius(blur, b.width == geom.width ? radius : 0);
-        wlr_scene_blur_set_alpha(blur, alpha_);
+        blur->set_position(b.x, top() + b.y);
+        blur->set_size(b.width, b.height);
+        blur->set_corner_radius(b.width == geom.width ? radius : 0);
+        blur->set_alpha(alpha_);
     } else if (show_blur) {
-        wlr_scene_node_set_position(&blur->node, 0, 0);
-        wlr_scene_blur_set_size(blur, geom.width, geom.height);
-        wlr_scene_blur_set_corner_radius(blur, radius);
-        wlr_scene_blur_set_alpha(blur, alpha_);
+        blur->set_position(0, 0);
+        blur->set_size(geom.width, geom.height);
+        blur->set_corner_radius(radius);
+        blur->set_alpha(alpha_);
     }
 
     if (titlebar) {
         titlebar->update();
-        wlr_scene_buffer_set_opacity(titlebar->node(), alpha_);
+        titlebar->node()->set_opacity(alpha_);
     }
     update_corners();
 }
@@ -1023,9 +1020,9 @@ void View::update_decorations() {
 void View::update_corners() {
     if (!content || unmanaged())
         return;
-    RoundCtx ctx{content->node.x, content->node.y, geom.width, geom.height - top(), fullscreen ? 0 : server.config.corner_radius,
+    RoundCtx ctx{content->x, content->y, geom.width, geom.height - top(), fullscreen ? 0 : server.config.corner_radius,
                  top() == 0, alpha_};
-    wlr_scene_node_for_each_buffer(&content->node, round_window_corners, &ctx);
+    content->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { (round_window_corners)(b_, x_, y_, &ctx); });
     if (server.overview)
         server.overview->view_changed(this);
     if (server.switcher)
@@ -1064,8 +1061,8 @@ void View::create_toplevel_handles() {
     handle_close_.connect(&handle_->events.request_close, [this](void*) { close(); });
 
     // A private scene holding just this window, for per-window screen capture.
-    capture_scene_ = wlr_scene_create();
-    create_content(&capture_scene_->tree);
+    capture_scene_ = scene::Scene::create();
+    create_content(capture_scene_);
 }
 
 void View::destroy_toplevel_handles() {
@@ -1087,7 +1084,7 @@ void View::destroy_toplevel_handles() {
         capture_impl_.refresh = nullptr;
     }
     if (capture_scene_) {
-        wlr_scene_node_destroy(&capture_scene_->tree.node);
+        (capture_scene_)->destroy();
         capture_scene_ = nullptr;
         capture_source_ = nullptr;  // owned by the scene node
     }

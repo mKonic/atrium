@@ -1,4 +1,5 @@
 #pragma once
+#include "scene/scene.hpp"
 #include "wlr.hpp"
 
 #include <string>
@@ -17,7 +18,7 @@ public:
     enum class Part { None, Close, Minimize, Maximize, Bar };
     static constexpr int kHeight = 30;  // logical pixels
 
-    Titlebar(View& view, wlr_scene_tree* parent);
+    Titlebar(View& view, scene::Tree* parent);
     ~Titlebar();
     Titlebar(const Titlebar&) = delete;
     Titlebar& operator=(const Titlebar&) = delete;
@@ -34,14 +35,14 @@ public:
     Part pressed() const { return pressed_; }
 
     int height() const { return kHeight; }
-    wlr_scene_buffer* node() const { return buffer_; }
+    scene::Buffer* node() const { return buffer_; }
     View& view() const { return view_; }
 
 private:
     void render(int width, int height, float scale);
 
     View& view_;
-    wlr_scene_buffer* buffer_ = nullptr;
+    scene::Buffer* buffer_ = nullptr;
     wlr_buffer* held_ = nullptr;  // keeps buffer_->buffer valid (see set_cairo_buffer)
     Part hover_ = Part::None;
     Part pressed_ = Part::None;

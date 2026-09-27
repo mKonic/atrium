@@ -1,5 +1,6 @@
 #pragma once
 #include "listener.hpp"
+#include "scene/scene.hpp"
 
 namespace atrium {
 
@@ -17,7 +18,7 @@ public:
 
     Server& server;
     wlr_session_lock_v1* const wlr;
-    wlr_scene_tree* tree = nullptr;
+    scene::Tree* tree = nullptr;
 
 private:
     void new_surface(wlr_session_lock_surface_v1* surface);

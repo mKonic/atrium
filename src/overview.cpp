@@ -138,19 +138,19 @@ void Overview::open(bool animate) {
     server_.seat->cancel_grab();
     server_.hide_secret();
 
-    root_ = wlr_scene_tree_create(server_.layer(Layer::Overview));
+    root_ = scene::Tree::create(server_.layer(Layer::Overview));
     for (Output* o : server_.outputs) {
         if (!o->enabled())
             continue;
         auto s = std::make_unique<Screen>();
         s->output = o;
-        s->tree = wlr_scene_tree_create(root_);
+        s->tree = scene::Tree::create(root_);
         // The desktop frosts over; windows turn into thumbnails above it.
-        s->blur = wlr_scene_blur_create(s->tree, o->box.width, o->box.height);
-        wlr_scene_blur_set_should_only_blur_bottom_layer(s->blur, false);
-        wlr_scene_node_set_position(&s->blur->node, o->box.x, o->box.y);
-        s->dim = wlr_scene_rect_create(s->tree, o->box.width, o->box.height, premultiplied(kDim).data());
-        wlr_scene_node_set_position(&s->dim->node, o->box.x, o->box.y);
+        s->blur = scene::Blur::create(s->tree, o->box.width, o->box.height);
+        s->blur->set_use_cache(false);
+        s->blur->set_position(o->box.x, o->box.y);
+        s->dim = scene::Rect::create(s->tree, o->box.width, o->box.height, premultiplied(kDim).data());
+        s->dim->set_position(o->box.x, o->box.y);
         screens_.push_back(std::move(s));
     }
     state_ = State::Open;
@@ -183,7 +183,7 @@ void Overview::close(View* pick) {
     set_highlight(nullptr);
     if (pick) {
         if (Thumb* t = thumb_for(pick))
-            wlr_scene_node_raise_to_top(&t->tree->node);
+            t->tree->raise_to_top();
         server_.focus_view(pick);
         if (state_ != State::Closing)
             return;  // focusing tore the overview down
@@ -229,7 +229,7 @@ void Overview::destroy_all() {
     for (auto& t : thumbs_)
         t->copy.reset();  // before the trees holding them
     if (root_)
-        wlr_scene_node_destroy(&root_->node);
+        root_->destroy();
     root_ = nullptr;
     highlight_ = nullptr;
     tile_hover_ = press_tile_ = nullptr;
@@ -243,10 +243,10 @@ void Overview::destroy_all() {
 void Overview::set_fade(double a) {
     fade_ = a;
     for (auto& s : screens_) {
-        wlr_scene_blur_set_alpha(s->blur, float(a));
+        s->blur->set_alpha(float(a));
         Color c = kDim;
         c[3] *= float(a);
-        wlr_scene_rect_set_color(s->dim, premultiplied(c).data());
+        s->dim->set_color(premultiplied(c).data());
     }
 }
 
@@ -256,18 +256,18 @@ void Overview::add_thumb(View* view, Screen* screen) {
     auto t = std::make_unique<Thumb>();
     t->view = view;
     t->screen = screen;
-    t->tree = wlr_scene_tree_create(screen->tree);
-    t->shadow = wlr_scene_shadow_create(t->tree, 0, 0, 0, kShadowSigma, kShadow.data());
-    t->ring = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(ring_color()).data());
-    wlr_scene_node_set_enabled(&t->ring->node, false);
+    t->tree = scene::Tree::create(screen->tree);
+    t->shadow = scene::Shadow::create(t->tree, 0, 0, 0, kShadowSigma, kShadow.data());
+    t->ring = scene::Rect::create(t->tree, 0, 0, premultiplied(ring_color()).data());
+    t->ring->set_enabled(false);
     const Config& c = server_.config;
-    t->blur = wlr_scene_blur_create(t->tree, 0, 0);
-    wlr_scene_node_set_enabled(&t->blur->node, c.blur && c.transparency);
-    t->backing = wlr_scene_rect_create(t->tree, 0, 0, premultiplied(kBacking).data());
-    wlr_scene_node_set_enabled(&t->backing->node, !c.transparency);
+    t->blur = scene::Blur::create(t->tree, 0, 0);
+    t->blur->set_enabled(c.blur && c.transparency);
+    t->backing = scene::Rect::create(t->tree, 0, 0, premultiplied(kBacking).data());
+    t->backing->set_enabled(!c.transparency);
     t->copy = std::make_unique<WindowCopy>(*view, t->tree);
-    t->label = wlr_scene_buffer_create(t->tree, nullptr);
-    wlr_scene_node_set_enabled(&t->label->node, false);
+    t->label = scene::Buffer::create(t->tree, nullptr);
+    t->label->set_enabled(false);
     t->from = t->to = t->cur = view->geom;
 
     // The real window stays put, drawing (so the copy stays live) but unseen.
@@ -287,7 +287,7 @@ void Overview::remove_thumb(Thumb* thumb) {
     if (drag_ == thumb)
         drag_ = nullptr;
     thumb->copy.reset();
-    wlr_scene_node_destroy(&thumb->tree->node);
+    thumb->tree->destroy();
     std::erase_if(thumbs_, [thumb](const auto& t) { return t.get() == thumb; });
 }
 
@@ -300,34 +300,34 @@ void Overview::place(Thumb& t, const wlr_box& box) {
     t.cur = box;
     const View& v = *t.view;
     const double sx = box.width / double(std::max(1, v.geom.width));
-    wlr_scene_node_set_position(&t.tree->node, box.x, box.y);
+    t.tree->set_position(box.x, box.y);
 
     t.copy->place(box.width, box.height);
 
     const int radius = v.fullscreen ? 0 : std::max(1, round_i(server_.config.corner_radius * sx));
     const int m = int(std::ceil(kShadowSigma));
-    wlr_scene_shadow_set_size(t.shadow, box.width + 2 * m, box.height + 2 * m);
-    wlr_scene_shadow_set_corner_radius(t.shadow, radius);
-    wlr_scene_node_set_position(&t.shadow->node, -m, -m);
-    wlr_scene_shadow_set_clipped_region(t.shadow, clipped_region{
+    t.shadow->set_size(box.width + 2 * m, box.height + 2 * m);
+    t.shadow->set_corner_radius(radius);
+    t.shadow->set_position(-m, -m);
+    t.shadow->set_cut_out(scene::CutOut{
         .area = {m, m, box.width, box.height},
-        .corners = corner_radii_all(radius),
+        .corners = scene::Radii::all(radius),
     });
 
-    wlr_scene_rect_set_size(t.ring, box.width + 2 * kRing, box.height + 2 * kRing);
-    wlr_scene_node_set_position(&t.ring->node, -kRing, -kRing);
-    wlr_scene_rect_set_corner_radius(t.ring, radius + kRing);
-    wlr_scene_rect_set_clipped_region(t.ring, clipped_region{
+    t.ring->set_size(box.width + 2 * kRing, box.height + 2 * kRing);
+    t.ring->set_position(-kRing, -kRing);
+    t.ring->set_corner_radius(radius + kRing);
+    t.ring->set_cut_out(scene::CutOut{
         .area = {kRing, kRing, box.width, box.height},
-        .corners = corner_radii_all(radius),
+        .corners = scene::Radii::all(radius),
     });
 
-    wlr_scene_blur_set_size(t.blur, box.width, box.height);
-    wlr_scene_blur_set_corner_radius(t.blur, radius);
-    wlr_scene_rect_set_size(t.backing, box.width, box.height);
-    wlr_scene_rect_set_corner_radius(t.backing, radius);
+    t.blur->set_size(box.width, box.height);
+    t.blur->set_corner_radius(radius);
+    t.backing->set_size(box.width, box.height);
+    t.backing->set_corner_radius(radius);
 
-    wlr_scene_node_set_position(&t.label->node, (box.width - t.label_w) / 2, box.height + kLabelGap);
+    t.label->set_position((box.width - t.label_w) / 2, box.height + kLabelGap);
 }
 
 void Overview::relayout(bool animate) {
@@ -361,15 +361,15 @@ void Overview::set_highlight(Thumb* t) {
     if (t == highlight_)
         return;
     if (highlight_) {
-        wlr_scene_node_set_enabled(&highlight_->ring->node, false);
-        wlr_scene_node_set_enabled(&highlight_->label->node, false);
+        highlight_->ring->set_enabled(false);
+        highlight_->label->set_enabled(false);
     }
     highlight_ = t;
     if (!t)
         return;
-    wlr_scene_node_set_enabled(&t->ring->node, true);
+    t->ring->set_enabled(true);
     render_label(*t);
-    wlr_scene_node_set_enabled(&t->label->node, true);
+    t->label->set_enabled(true);
     place(*t, t->cur);
 }
 
@@ -441,8 +441,8 @@ void Overview::motion(double lx, double ly) {
         drag_ = press_thumb_;
         drag_rx_ = (press_x_ - drag_->cur.x) / std::max(1, drag_->cur.width);
         drag_ry_ = (press_y_ - drag_->cur.y) / std::max(1, drag_->cur.height);
-        wlr_scene_node_raise_to_top(&drag_->tree->node);
-        wlr_scene_node_raise_to_top(&drag_->screen->tree->node);
+        drag_->tree->raise_to_top();
+        drag_->screen->tree->raise_to_top();
         set_highlight(nullptr);
     }
     if (drag_) {
@@ -462,9 +462,9 @@ void Overview::motion(double lx, double ly) {
         set_tile_hover(tile);
         for (auto& s : screens_) {
             if (tile && tile->screen == s.get())
-                wlr_scene_node_raise_to_top(&s->strip->node);
+                s->strip->raise_to_top();
             else
-                wlr_scene_node_place_above(&s->strip->node, &s->dim->node);
+                s->strip->place_above(s->dim);
         }
         return;
     }
@@ -568,7 +568,7 @@ namespace {
 // Copy every buffer under `root` into `into`, shrunk by `s` around `origin`
 // (layout coordinates), for a miniature.
 struct MiniCtx {
-    wlr_scene_tree* into;
+    scene::Tree* into;
     int root_x, root_y;     // the root's own position, which for_each_buffer counts
     double ox, oy;          // where the root sits in layout coordinates
     double origin_x, origin_y;
@@ -577,7 +577,7 @@ struct MiniCtx {
     int full_w, full_h;
 };
 
-void copy_mini(wlr_scene_buffer* src, int sx, int sy, void* data) {
+void copy_mini(scene::Buffer* src, int sx, int sy, void* data) {
     auto* c = static_cast<MiniCtx*>(data);
     if (!src->buffer)
         return;
@@ -587,15 +587,15 @@ void copy_mini(wlr_scene_buffer* src, int sx, int sy, void* data) {
         h = src->buffer->height;
     }
     const double lx = c->ox + (sx - c->root_x), ly = c->oy + (sy - c->root_y);
-    wlr_scene_buffer* dst = wlr_scene_buffer_create(c->into, src->buffer);
-    wlr_scene_buffer_set_source_box(dst, &src->src_box);
-    wlr_scene_buffer_set_transform(dst, src->transform);
-    wlr_scene_node_set_position(&dst->node, round_i((lx - c->origin_x) * c->s), round_i((ly - c->origin_y) * c->s));
-    wlr_scene_buffer_set_dest_size(dst, std::max(1, round_i(w * c->s)), std::max(1, round_i(h * c->s)));
+    scene::Buffer* dst = scene::Buffer::create(c->into, src->buffer);
+    dst->set_source_box(&src->src_box);
+    dst->set_transform(src->transform);
+    dst->set_position(round_i((lx - c->origin_x) * c->s), round_i((ly - c->origin_y) * c->s));
+    dst->set_dest_size(std::max(1, round_i(w * c->s)), std::max(1, round_i(h * c->s)));
     if (w >= c->full_w && h >= c->full_h)
-        wlr_scene_buffer_set_corner_radii(dst, corner_radii_all(c->radius));
+        dst->set_corner_radii(scene::Radii::all(c->radius));
     else
-        wlr_scene_buffer_set_corner_radii(dst, corner_radii_all(scaled(src->corners.top_left, c->s)));
+        dst->set_corner_radii(scene::Radii::all(scaled(src->corners.tl, c->s)));
 }
 
 } // namespace
@@ -614,9 +614,9 @@ void Overview::spaces_changed() {
 
 void Overview::build_strip(Screen& sc) {
     if (sc.strip)
-        wlr_scene_node_destroy(&sc.strip->node);
-    sc.strip = wlr_scene_tree_create(sc.tree);
-    wlr_scene_node_place_above(&sc.strip->node, &sc.dim->node);
+        sc.strip->destroy();
+    sc.strip = scene::Tree::create(sc.tree);
+    sc.strip->place_above(sc.dim);
 
     Output* o = sc.output;
     std::vector<Space*> spaces;
@@ -639,19 +639,18 @@ void Overview::build_strip(Screen& sc) {
         t->number = number;
         t->current = current;
         t->box = {x, y, tw, kTileHeight};
-        t->tree = wlr_scene_tree_create(sc.strip);
-        wlr_scene_node_set_position(&t->tree->node, x, y);
-        auto* shadow = wlr_scene_shadow_create(t->tree, tw + 16, kTileHeight + 16, kTileRadius, 8.0f, kShadow.data());
-        wlr_scene_node_set_position(&shadow->node, -8, -8);
-        wlr_scene_shadow_set_clipped_region(shadow, clipped_region{
-            .area = {8, 8, tw, kTileHeight}, .corners = corner_radii_all(kTileRadius)});
-        t->ring = wlr_scene_rect_create(t->tree, tw + 2 * kRing, kTileHeight + 2 * kRing,
-                                        premultiplied(current ? kTileCurrent : ring_color()).data());
-        wlr_scene_node_set_position(&t->ring->node, -kRing, -kRing);
-        wlr_scene_rect_set_corner_radius(t->ring, kTileRadius + kRing);
-        wlr_scene_rect_set_clipped_region(t->ring, clipped_region{
-            .area = {kRing, kRing, tw, kTileHeight}, .corners = corner_radii_all(kTileRadius)});
-        wlr_scene_node_set_enabled(&t->ring->node, current);
+        t->tree = scene::Tree::create(sc.strip);
+        t->tree->set_position(x, y);
+        auto* shadow = scene::Shadow::create(t->tree, tw + 16, kTileHeight + 16, kTileRadius, 8.0f, kShadow.data());
+        shadow->set_position(-8, -8);
+        shadow->set_cut_out(scene::CutOut{
+            .area = {8, 8, tw, kTileHeight}, .corners = scene::Radii::all(kTileRadius)});
+        t->ring = scene::Rect::create(t->tree, tw + 2 * kRing, kTileHeight + 2 * kRing, premultiplied(current ? kTileCurrent : ring_color()).data());
+        t->ring->set_position(-kRing, -kRing);
+        t->ring->set_corner_radius(kTileRadius + kRing);
+        t->ring->set_cut_out(scene::CutOut{
+            .area = {kRing, kRing, tw, kTileHeight}, .corners = scene::Radii::all(kTileRadius)});
+        t->ring->set_enabled(current);
         x += tw + kTileGap;
         return t;
     };
@@ -659,16 +658,16 @@ void Overview::build_strip(Screen& sc) {
     for (Space* sp : spaces) {
         auto t = make_tile(sp->number, sp == o->active);
         // The desktop: background color, then wallpaper and bottom panels.
-        auto* bg = wlr_scene_rect_create(t->tree, tw, kTileHeight, c.background.data());
-        wlr_scene_rect_set_corner_radius(bg, kTileRadius);
-        auto* mini = wlr_scene_tree_create(t->tree);
+        auto* bg = scene::Rect::create(t->tree, tw, kTileHeight, c.background.data());
+        bg->set_corner_radius(kTileRadius);
+        auto* mini = scene::Tree::create(t->tree);
         for (int layer = 0; layer < 2; ++layer)
             for (LayerSurface* l : o->layers[layer]) {
                 if (!l->tree)
                     continue;
-                MiniCtx ctx{mini, l->tree->node.x, l->tree->node.y, double(l->tree->node.x), double(l->tree->node.y),
+                MiniCtx ctx{mini, l->tree->x, l->tree->y, double(l->tree->x), double(l->tree->y),
                             double(o->box.x), double(o->box.y), s, kTileRadius, o->box.width, o->box.height};
-                wlr_scene_node_for_each_buffer(&l->tree->node, copy_mini, &ctx);
+                l->tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { (copy_mini)(b_, x_, y_, &ctx); });
             }
         // Its windows, bottom of the stack first.
         for (auto it = server_.views.rbegin(); it != server_.views.rend(); ++it) {
@@ -676,14 +675,13 @@ void Overview::build_strip(Screen& sc) {
             if (v->space != sp || v->minimized || !v->mapped || !v->tree)
                 continue;
             if (!c.transparency) {
-                auto* back = wlr_scene_rect_create(mini, std::max(1, round_i(v->geom.width * s)),
-                                                   std::max(1, round_i(v->geom.height * s)), premultiplied(kBacking).data());
-                wlr_scene_node_set_position(&back->node, round_i((v->geom.x - o->box.x) * s), round_i((v->geom.y - o->box.y) * s));
-                wlr_scene_rect_set_corner_radius(back, 2);
+                auto* back = scene::Rect::create(mini, std::max(1, round_i(v->geom.width * s)), std::max(1, round_i(v->geom.height * s)), premultiplied(kBacking).data());
+                back->set_position(round_i((v->geom.x - o->box.x) * s), round_i((v->geom.y - o->box.y) * s));
+                back->set_corner_radius(2);
             }
-            MiniCtx ctx{mini, v->tree->node.x, v->tree->node.y, double(v->geom.x), double(v->geom.y),
+            MiniCtx ctx{mini, v->tree->x, v->tree->y, double(v->geom.x), double(v->geom.y),
                         double(o->box.x), double(o->box.y), s, kTileRadius, o->box.width, o->box.height};
-            wlr_scene_node_for_each_buffer(&v->tree->node, copy_mini, &ctx);
+            v->tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { (copy_mini)(b_, x_, y_, &ctx); });
         }
         tiles_.push_back(std::move(t));
     }
@@ -705,8 +703,8 @@ void Overview::set_tile_hover(Tile* tile) {
     auto show = [this](Tile* t, bool hover) {
         if (!t)
             return;
-        wlr_scene_node_set_enabled(&t->ring->node, hover || t->current);
-        wlr_scene_rect_set_color(t->ring, premultiplied(hover ? ring_color() : kTileCurrent).data());
+        t->ring->set_enabled(hover || t->current);
+        t->ring->set_color(premultiplied(hover ? ring_color() : kTileCurrent).data());
     };
     show(tile_hover_, false);
     tile_hover_ = tile;
@@ -726,7 +724,7 @@ void Overview::go_to_space(Output* output, int number) {
 void Overview::drop(Thumb* thumb, double lx, double ly) {
     set_tile_hover(nullptr);
     for (auto& s : screens_)
-        wlr_scene_node_place_above(&s->strip->node, &s->dim->node);
+        s->strip->place_above(s->dim);
     Tile* tile = tile_at(lx, ly);
     View* view = thumb->view;
     const int n = tile ? tile->number : 0;

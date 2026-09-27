@@ -153,22 +153,22 @@ void Switcher::show() {
     if (!o)
         return;
     shown_ = true;
-    root_ = wlr_scene_tree_create(server_.layer(Layer::Overview));
-    blur_ = wlr_scene_blur_create(root_, 0, 0);
-    wlr_scene_blur_set_should_only_blur_bottom_layer(blur_, false);
-    wlr_scene_node_set_enabled(&blur_->node, server_.config.blur);
-    panel_ = wlr_scene_rect_create(root_, 0, 0, premultiplied(kPanel).data());
-    selection_ = wlr_scene_rect_create(root_, 0, 0, premultiplied(kSelection).data());
+    root_ = scene::Tree::create(server_.layer(Layer::Overview));
+    blur_ = scene::Blur::create(root_, 0, 0);
+    blur_->set_use_cache(false);
+    blur_->set_enabled(server_.config.blur);
+    panel_ = scene::Rect::create(root_, 0, 0, premultiplied(kPanel).data());
+    selection_ = scene::Rect::create(root_, 0, 0, premultiplied(kSelection).data());
     for (View* v : views_) {
         auto item = std::make_unique<Item>();
         item->view = v;
-        item->tree = wlr_scene_tree_create(root_);
+        item->tree = scene::Tree::create(root_);
         if (!server_.config.transparency)
-            wlr_scene_rect_create(item->tree, 0, 0, premultiplied(kBacking).data());
+            scene::Rect::create(item->tree, 0, 0, premultiplied(kBacking).data());
         item->copy = std::make_unique<WindowCopy>(*v, item->tree);
         items_.push_back(std::move(item));
     }
-    title_ = wlr_scene_buffer_create(root_, nullptr);
+    title_ = scene::Buffer::create(root_, nullptr);
     layout();
     select(index_);
     server_.seat->refresh_pointer();
@@ -181,7 +181,7 @@ void Switcher::hide() {
     for (auto& it : items_)
         it->copy.reset();  // before the trees holding them
     items_.clear();
-    wlr_scene_node_destroy(&root_->node);
+    root_->destroy();
     root_ = nullptr;
     blur_ = nullptr;
     panel_ = selection_ = nullptr;
@@ -217,12 +217,12 @@ void Switcher::layout() {
     const int ph = h + 2 * kPad + kTitleGap + kTitleHeight;
     panel_box_ = {o->box.x + (o->box.width - pw) / 2, o->box.y + (o->box.height - ph) / 2, pw, ph};
 
-    wlr_scene_node_set_position(&blur_->node, panel_box_.x, panel_box_.y);
-    wlr_scene_blur_set_size(blur_, pw, ph);
-    wlr_scene_blur_set_corner_radius(blur_, kRadius);
-    wlr_scene_node_set_position(&panel_->node, panel_box_.x, panel_box_.y);
-    wlr_scene_rect_set_size(panel_, pw, ph);
-    wlr_scene_rect_set_corner_radius(panel_, kRadius);
+    blur_->set_position(panel_box_.x, panel_box_.y);
+    blur_->set_size(pw, ph);
+    blur_->set_corner_radius(kRadius);
+    panel_->set_position(panel_box_.x, panel_box_.y);
+    panel_->set_size(pw, ph);
+    panel_->set_corner_radius(kRadius);
 
     int x = panel_box_.x + kPad;
     const int y = panel_box_.y + kPad;
@@ -238,14 +238,14 @@ void Switcher::layout() {
         else
             iw = std::max(1, round_i(ih * va));
         it.box = {x + (widths[i] - iw) / 2, y + (h - ih) / 2, iw, ih};
-        wlr_scene_node_set_position(&it.tree->node, it.box.x, it.box.y);
+        it.tree->set_position(it.box.x, it.box.y);
         it.copy->place(iw, ih);
-        wlr_scene_node* first = wl_list_empty(&it.tree->children) ? nullptr
+        scene::Node* first = wl_list_empty(&it.tree->children) ? nullptr
             : wl_container_of(it.tree->children.next, first, link);
-        if (first && first->type == WLR_SCENE_NODE_RECT) {
-            auto* back = wlr_scene_rect_from_node(first);
-            wlr_scene_rect_set_size(back, iw, ih);
-            wlr_scene_rect_set_corner_radius(back, radius);
+        if (first && first->type == scene::Type::Rect) {
+            auto* back = static_cast<scene::Rect*>(first);
+            back->set_size(iw, ih);
+            back->set_corner_radius(radius);
         }
         x += widths[i] + kItemGap;
     }
@@ -256,9 +256,9 @@ void Switcher::select(int index) {
     if (!shown_ || index < 0 || index >= int(items_.size()))
         return;
     const wlr_box& b = items_[index]->box;
-    wlr_scene_node_set_position(&selection_->node, b.x - kSelectPad, b.y - kSelectPad);
-    wlr_scene_rect_set_size(selection_, b.width + 2 * kSelectPad, b.height + 2 * kSelectPad);
-    wlr_scene_rect_set_corner_radius(selection_, 12);
+    selection_->set_position(b.x - kSelectPad, b.y - kSelectPad);
+    selection_->set_size(b.width + 2 * kSelectPad, b.height + 2 * kSelectPad);
+    selection_->set_corner_radius(12);
     render_title();
 }
 
@@ -294,8 +294,7 @@ void Switcher::render_title() {
     cairo_destroy(cr);
     cairo_surface_flush(surface);
     wlr_buffer_unlock(set_cairo_buffer(title_, surface, w, h));
-    wlr_scene_node_set_position(&title_->node, panel_box_.x + kPad,
-                                panel_box_.y + panel_box_.height - kPad - kTitleHeight + 4);
+    title_->set_position(panel_box_.x + kPad, panel_box_.y + panel_box_.height - kPad - kTitleHeight + 4);
 }
 
 int Switcher::item_at(double lx, double ly) const {

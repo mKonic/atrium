@@ -31,15 +31,15 @@ LayerSurface::LayerSurface(Server& srv, wlr_layer_surface_v1* surface) : server(
     wlr->data = this;
     output = static_cast<Output*>(wlr->output->data);
 
-    wlr_scene_tree* parent = server.layer(scene_layer_for(wlr->pending.layer));
-    scene_layer = wlr_scene_layer_surface_v1_create(parent, wlr);
+    scene::Tree* parent = server.layer(scene_layer_for(wlr->pending.layer));
+    scene_layer = scene::layer_surface_v1_create(parent, wlr);
     tree = scene_layer->tree;
     // Popups of background/bottom surfaces (a dock's menu) must still show
     // above windows.
-    popups = wlr_scene_tree_create(wlr->pending.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
+    popups = scene::Tree::create(wlr->pending.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
                                        ? server.layer(Layer::Top) : parent);
     wlr->surface->data = popups;  // parent tree for xdg popups
-    tree->node.data = popups->node.data = this;
+    tree->data = popups->data = this;
 
     output->layers[wlr->pending.layer].push_back(this);
 
@@ -57,7 +57,7 @@ LayerSurface::~LayerSurface() {
             std::erase(list, this);
     // `tree` belongs to the scene helper, which frees it on this same destroy
     // signal; only the popup tree is ours.
-    wlr_scene_node_destroy(&popups->node);
+    popups->destroy();
 }
 
 bool LayerSurface::wants_exclusive_keyboard() const {
@@ -66,10 +66,10 @@ bool LayerSurface::wants_exclusive_keyboard() const {
 
 bool LayerSurface::shown_on_output() const {
     bool shown = false;
-    wlr_scene_node_for_each_buffer(&tree->node, [](wlr_scene_buffer* b, int, int, void* data) {
+    tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { ([](scene::Buffer* b, int, int, void* data) {
         if (b->primary_output)
             *static_cast<bool*>(data) = true;
-    }, &shown);
+    })(b_, x_, y_, &shown); });
     return shown;
 }
 
@@ -79,7 +79,7 @@ void LayerSurface::commit() {
     // The shared background blur is cached; wallpaper and bottom panels
     // changing invalidate it.
     if (wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM && !wlr->initial_commit)
-        wlr_scene_optimized_blur_mark_dirty(server.background_blur);
+        server.background_blur->mark_dirty();
 
     if (wlr->initial_commit) {
         float scale = output->wlr->scale;
@@ -117,13 +117,13 @@ void LayerSurface::commit() {
         });
     }
 
-    wlr_scene_tree* parent = server.layer(scene_layer_for(wlr->current.layer));
-    if (parent != tree->node.parent) {
-        wlr_scene_node_reparent(&tree->node, parent);
+    scene::Tree* parent = server.layer(scene_layer_for(wlr->current.layer));
+    if (parent != tree->parent) {
+        tree->reparent(parent);
         for (auto& list : output->layers)
             std::erase(list, this);
         output->layers[wlr->current.layer].push_back(this);
-        wlr_scene_node_reparent(&popups->node, wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
+        popups->reparent(wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
                                                    ? server.layer(Layer::Top) : parent);
     }
 
@@ -134,7 +134,7 @@ void LayerSurface::commit() {
     // overlay layer): the app's title bar comes out below it, and goes with it.
     if (wlr->namespace_ && std::string_view(wlr->namespace_) == "atrium-bar") {
         const bool over = mapped && wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
-        const int bottom = tree->node.y - output->box.y + int(wlr->current.actual_height);
+        const int bottom = tree->y - output->box.y + int(wlr->current.actual_height);
         for (View* v : server.views)
             if (v->output == output && v->fullscreen_front() && v->visible())
                 v->reveal_titlebar(over, bottom);
@@ -165,16 +165,16 @@ bool namespace_matches(const std::string& ns, const std::vector<std::string>& pa
     return false;
 }
 
-wlr_scene_buffer* main_buffer(wlr_scene_tree* tree, wlr_surface* surface) {
+scene::Buffer* main_buffer(scene::Tree* tree, wlr_surface* surface) {
     struct Find {
         wlr_surface* surface;
-        wlr_scene_buffer* found = nullptr;
+        scene::Buffer* found = nullptr;
     } find{surface};
-    wlr_scene_node_for_each_buffer(&tree->node, [](wlr_scene_buffer* b, int, int, void* data) {
+    tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { ([](scene::Buffer* b, int, int, void* data) {
         auto* f = static_cast<Find*>(data);
-        if (wlr_scene_surface* s = wlr_scene_surface_try_from_buffer(b); s && s->surface == f->surface)
+        if (scene::SurfaceNode* s = b->surface(); s && s->surface == f->surface)
             f->found = b;
-    }, &find);
+    })(b_, x_, y_, &find); });
     return find.found;
 }
 
@@ -198,29 +198,29 @@ void LayerSurface::update_blur() {
                       namespace_matches(wlr->namespace_, c.blurred_panels);
     if (!want) {
         if (blur_)
-            wlr_scene_node_set_enabled(&blur_->node, false);
+            blur_->set_enabled(false);
         return;
     }
-    wlr_scene_buffer* mask = main_buffer(tree, wlr->surface);
+    scene::Buffer* mask = main_buffer(tree, wlr->surface);
     if (!mask)
         return;
     if (!blur_) {
-        blur_ = wlr_scene_blur_create(tree, 0, 0);
-        wlr_scene_blur_set_should_only_blur_bottom_layer(blur_, false);  // windows under a bar too
+        blur_ = scene::Blur::create(tree, 0, 0);
+        blur_->set_use_cache(false);  // windows under a bar too
     }
     const int width = wlr->surface->current.width, height = wlr->surface->current.height;
-    wlr_scene_node_lower_to_bottom(&blur_->node);
-    wlr_scene_node_set_enabled(&blur_->node, true);
+    blur_->lower_to_bottom();
+    blur_->set_enabled(true);
     // Liquid Glass casts a soft shadow past the panel's edge: room for it.
     const int reach = is_glass ? kGlassShadowReach : 0;
-    wlr_scene_node_set_position(&blur_->node, mask->node.x - reach, mask->node.y - reach);
-    wlr_scene_blur_set_size(blur_, width + 2 * reach, height + 2 * reach);
+    blur_->set_position(mask->x - reach, mask->y - reach);
+    blur_->set_size(width + 2 * reach, height + 2 * reach);
     // Only where the panel actually draws: a dock's window is mostly empty.
-    wlr_scene_blur_set_transparency_mask_source(blur_, mask);
+    blur_->set_mask(mask);
     if (!is_glass) {
-        wlr_scene_blur_set_strength(blur_, 1.0f);
-        wlr_scene_blur_set_refraction(blur_, 0, 0);
-        wlr_scene_blur_set_glass_shapes(blur_, nullptr, 0);
+        blur_->set_strength(1.0f);
+        blur_->set_refraction(0, 0);
+        blur_->set_glass_shapes(nullptr, 0);
         return;
     }
     apply_glass(blur_, *given, float(reach), float(reach), width, height, lensing_, c);
@@ -229,8 +229,8 @@ void LayerSurface::update_blur() {
 void LayerSurface::unmap() {
     mapped = false;
     if (wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM)
-        wlr_scene_optimized_blur_mark_dirty(server.background_blur);
-    wlr_scene_node_set_enabled(&tree->node, false);
+        server.background_blur->mark_dirty();
+    tree->set_enabled(false);
     if (wlr->output && (output = static_cast<Output*>(wlr->output->data)))
         output->arrange_layers();
     if (wlr->surface == server.seat->wlr->keyboard_state.focused_surface)

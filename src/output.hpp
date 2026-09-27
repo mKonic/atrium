@@ -1,6 +1,7 @@
 #pragma once
 #include "edid.hpp"
 #include "listener.hpp"
+#include "scene/scene.hpp"
 
 #include <optional>
 #include <string>
@@ -33,8 +34,8 @@ public:
 
     Server& server;
     wlr_output* const wlr;
-    wlr_scene_output* scene_output = nullptr;
-    wlr_scene_rect* fullscreen_bg = nullptr;  // hides what is behind a translucent fullscreen view
+    scene::SceneOutput* scene_output = nullptr;
+    scene::Rect* fullscreen_bg = nullptr;  // hides what is behind a translucent fullscreen view
 
     wlr_box box{};     // whole output, layout coordinates
     wlr_box usable{};  // box minus exclusive zones of panels and docks
@@ -94,7 +95,6 @@ private:
     int64_t aimed_ns_ = 0;                // the vblank the waiting frame is aimed at
     int on_time_ = 0;
 
-    uint64_t night_generation_ = 0;  // night light's table this screen shows
     std::optional<bool> vrr_refused_;  // a switch the screen wouldn't take, not tried again
 
     Listener<wlr_output_event_present> present_;

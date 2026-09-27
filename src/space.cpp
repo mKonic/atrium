@@ -18,10 +18,10 @@ constexpr uint32_t kWorkspaceCaps =
 
 Space::Space(Server& srv, Output* out, int n)
     : server(srv), output(out), number(n), secret(false) {
-    tree = wlr_scene_tree_create(server.layer(Layer::Views));
-    fullscreen_tree = wlr_scene_tree_create(server.layer(Layer::Fullscreen));
-    wlr_scene_node_set_enabled(&tree->node, false);
-    wlr_scene_node_set_enabled(&fullscreen_tree->node, false);
+    tree = scene::Tree::create(server.layer(Layer::Views));
+    fullscreen_tree = scene::Tree::create(server.layer(Layer::Fullscreen));
+    tree->set_enabled(false);
+    fullscreen_tree->set_enabled(false);
 
     handle = wlr_ext_workspace_handle_v1_create(server.workspace_manager, id().c_str(), kWorkspaceCaps);
     wlr_ext_workspace_handle_v1_set_name(handle, label().c_str());
@@ -34,15 +34,15 @@ Space::Space(Server& srv, Output* out, int n)
 
 Space::Space(Server& srv, std::string n)
     : server(srv), output(nullptr), number(0), name(std::move(n)), secret(true) {
-    tree = wlr_scene_tree_create(server.layer(Layer::Secret));
+    tree = scene::Tree::create(server.layer(Layer::Secret));
     // The dimmed screen behind a secret space; clicking it puts the space
     // away. Dimmed only, not blurred, as caelestia's special workspaces are
     // (Hyprland's dim_special): the space's windows stand out plainly.
     const Color& dim = server.config.secret_backdrop;
-    backdrop = wlr_scene_rect_create(tree, 0, 0, premultiplied(dim).data());
-    backdrop->node.data = this;
-    fullscreen_tree = wlr_scene_tree_create(tree);
-    wlr_scene_node_set_enabled(&tree->node, false);
+    backdrop = scene::Rect::create(tree, 0, 0, premultiplied(dim).data());
+    backdrop->data = this;
+    fullscreen_tree = scene::Tree::create(tree);
+    tree->set_enabled(false);
 
     handle = wlr_ext_workspace_handle_v1_create(server.workspace_manager, id().c_str(), kWorkspaceCaps |
         EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_DEACTIVATE);
@@ -64,8 +64,8 @@ Space::~Space() {
         wlr_ext_workspace_handle_v1_destroy(handle);
     }
     if (!secret)
-        wlr_scene_node_destroy(&fullscreen_tree->node);
-    wlr_scene_node_destroy(&tree->node);  // a secret space's fullscreen tree goes with it
+        fullscreen_tree->destroy();
+    tree->destroy();  // a secret space's fullscreen tree goes with it
 }
 
 std::string Space::id() const {
@@ -85,9 +85,9 @@ bool Space::empty() const {
 void Space::set_shown(bool shown, bool linger) {
     shown_ = shown;
     if (shown || !linger) {
-        wlr_scene_node_set_enabled(&tree->node, shown);
+        tree->set_enabled(shown);
         if (!secret)
-            wlr_scene_node_set_enabled(&fullscreen_tree->node, shown);
+            fullscreen_tree->set_enabled(shown);
     }
     if (handle)
         wlr_ext_workspace_handle_v1_set_active(handle, shown);
@@ -97,18 +97,18 @@ void Space::hide_now() {
     if (shown_)
         return;
     set_offset(0, 0);
-    wlr_scene_node_set_enabled(&tree->node, false);
+    tree->set_enabled(false);
     if (!secret)
-        wlr_scene_node_set_enabled(&fullscreen_tree->node, false);
+        fullscreen_tree->set_enabled(false);
 }
 
 void Space::set_offset(int dx, int dy) {
-    wlr_scene_node_set_position(&tree->node, dx, dy);
+    tree->set_position(dx, dy);
     if (!secret)
-        wlr_scene_node_set_position(&fullscreen_tree->node, dx, dy);
+        fullscreen_tree->set_position(dx, dy);
     // A secret backdrop covers the screen whatever the windows are doing.
     if (backdrop && output) {
-        wlr_scene_node_set_position(&backdrop->node, output->box.x - dx, output->box.y - dy);
+        backdrop->set_position(output->box.x - dx, output->box.y - dy);
     }
 }
 
@@ -116,27 +116,27 @@ void Space::ensure_tile_backdrop() {
     if (!output)
         return;
     if (!tile_dim) {
-        tile_blur = wlr_scene_blur_create(tree, 0, 0);
-        wlr_scene_blur_set_should_only_blur_bottom_layer(tile_blur, false);
-        tile_dim = wlr_scene_rect_create(tree, 0, 0, premultiplied(server.config.secret_backdrop).data());
+        tile_blur = scene::Blur::create(tree, 0, 0);
+        tile_blur->set_use_cache(false);
+        tile_dim = scene::Rect::create(tree, 0, 0, premultiplied(server.config.secret_backdrop).data());
         tile_dim->accepts_input = false;
-        wlr_scene_node_lower_to_bottom(&tile_dim->node);
-        wlr_scene_node_lower_to_bottom(&tile_blur->node);
+        tile_dim->lower_to_bottom();
+        tile_blur->lower_to_bottom();
     }
     // Relative to the space's tree, which sits at 0,0 in layout coordinates.
-    wlr_scene_node_set_position(&tile_dim->node, output->box.x, output->box.y);
-    wlr_scene_rect_set_size(tile_dim, output->box.width, output->box.height);
-    wlr_scene_node_set_position(&tile_blur->node, output->box.x, output->box.y);
-    wlr_scene_blur_set_size(tile_blur, output->box.width, output->box.height);
+    tile_dim->set_position(output->box.x, output->box.y);
+    tile_dim->set_size(output->box.width, output->box.height);
+    tile_blur->set_position(output->box.x, output->box.y);
+    tile_blur->set_size(output->box.width, output->box.height);
 }
 
 void Space::attach(Output* out) {
     output = out;
     if (!backdrop || !out)
         return;
-    wlr_scene_node_set_position(&backdrop->node, out->box.x, out->box.y);
-    wlr_scene_rect_set_size(backdrop, out->box.width, out->box.height);
-    wlr_scene_rect_set_color(backdrop, premultiplied(server.config.secret_backdrop).data());
+    backdrop->set_position(out->box.x, out->box.y);
+    backdrop->set_size(out->box.width, out->box.height);
+    backdrop->set_color(premultiplied(server.config.secret_backdrop).data());
 }
 
 } // namespace atrium
