@@ -24,6 +24,7 @@ atrium_sources = files(
   'seat.cpp',
   'shake.cpp',
   'stacking.cpp',
+  'warp.cpp',
   'icc.cpp',
   'keyboard_conf.cpp',
   'server.cpp',

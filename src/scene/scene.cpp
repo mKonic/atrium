@@ -700,6 +700,27 @@ void Tree::set_scale(float s) {
     update(&was);
 }
 
+void Tree::set_warp(std::function<std::pair<double, double>(double, double)> fn, wlr_fbox frame) {
+    if (!fn && !warp_)
+        return;
+    pixman_region32_t was;
+    pixman_region32_init(&was);
+    int lx, ly;
+    if (coords(&lx, &ly))
+        visibility(this, &was);
+    warp_ = std::move(fn);
+    warp_frame_ = frame;
+    update(&was);
+    // Where a warp lands isn't its nodes' boxes: every step repaints the
+    // screens it may be on.
+    if (Scene* s = root()) {
+        pixman_region32_t all;
+        pixman_region32_init_rect(&all, -(1 << 20), -(1 << 20), 1u << 21, 1u << 21);
+        SceneImpl::damage_outputs(s, &all);
+        pixman_region32_fini(&all);
+    }
+}
+
 void Tree::set_opacity(float o) {
     o = std::clamp(o, 0.0f, 1.0f);
     if (o == opacity_)

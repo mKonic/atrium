@@ -94,6 +94,7 @@ Program make_program(GLuint id) {
     Program p;
     p.id = id;
     p.pos = id ? glGetAttribLocation(id, "pos") : -1;
+    p.at = id ? glGetAttribLocation(id, "at") : -1;
     return p;
 }
 
@@ -129,6 +130,8 @@ ShaderLibrary::ShaderLibrary(bool external_textures) : dir_(shader_directory()),
         for (int source = 1; source <= 3; ++source)
             tex.push_back("#define SOURCE " + std::to_string(source) + "\n#define EFFECTS " +
                           std::to_string(effects) + "\n");
+    for (int source = 1; source <= 3; ++source)
+        tex.push_back("#define SOURCE " + std::to_string(source) + "\n#define EFFECTS 0\n#define MESH 1\n");
     set(Shader::Tex, "tex.frag", std::move(tex));
     set(Shader::BoxShadow, "box_shadow.frag", {""});
     set(Shader::Blur1, "blur1.frag", {""});
@@ -215,7 +218,7 @@ GLuint ShaderLibrary::build(const std::string& frag_name, const std::string& def
             *error = "missing file";
         return 0;
     }
-    GLuint vert = compile(GL_VERTEX_SHADER, vsrc, error);
+    GLuint vert = compile(GL_VERTEX_SHADER, with_defines(vsrc, defines), error);
     if (!vert)
         return 0;
     GLuint frag = compile(GL_FRAGMENT_SHADER, with_defines(fsrc, defines), error);

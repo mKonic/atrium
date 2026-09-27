@@ -348,6 +348,57 @@ void RenderPass::draw(Program& p, const FBox& box, const pixman_region32_t* clip
 
 // ---- drawing ------------------------------------------------------------
 
+void RenderPass::add_texture_mesh(const TextureDraw& d, const std::vector<MeshVertex>& vertices) {
+    if (vertices.empty() || !d.tex.tex)
+        return;
+    const int source = d.tex.target == GL_TEXTURE_EXTERNAL_OES ? 2 : d.tex.has_alpha ? 0 : 1;
+    Program& p = r_.shaders().get(Shader::Tex, 6 + source);
+    if (!p.id || p.at < 0)
+        return;
+    wlr_fbox src = d.src;
+    if (src.width <= 0 || src.height <= 0)
+        src = {0, 0, double(d.tex.width), double(d.tex.height)};
+    src.x /= d.tex.width;
+    src.y /= d.tex.height;
+    src.width /= d.tex.width;
+    src.height /= d.tex.height;
+
+    glEnable(GL_BLEND);
+    glUseProgram(p.id);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(d.tex.target, d.tex.tex);
+    filter(d.tex.target, WLR_SCALE_FILTER_BILINEAR);
+    p.set("tex", 0);
+    p.set("alpha", d.alpha);
+    p.set("discard_transparent", 0);
+    float prim[9];
+    matrix::identity(prim);
+    p.set("hdr_tf", 0);
+    p.set_mat3("hdr_prim", prim);
+    p.set("hdr_lum", 1.0f);
+    set_proj(p, FBox{0, 0, 1, 1});  // `at` is in framebuffer pixels already
+    set_tex_matrix(p, d.transform, src);
+    p.set("frag_size", float(width_), float(height_));
+
+    std::vector<GLfloat> pos, at;
+    pos.reserve(vertices.size() * 2);
+    at.reserve(vertices.size() * 2);
+    for (const MeshVertex& v : vertices) {
+        pos.push_back(v.u);
+        pos.push_back(v.v);
+        at.push_back(v.x);
+        at.push_back(v.y);
+    }
+    glEnableVertexAttribArray(GLuint(p.pos));
+    glEnableVertexAttribArray(GLuint(p.at));
+    glVertexAttribPointer(GLuint(p.pos), 2, GL_FLOAT, GL_FALSE, 0, pos.data());
+    glVertexAttribPointer(GLuint(p.at), 2, GL_FLOAT, GL_FALSE, 0, at.data());
+    glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertices.size()));
+    glDisableVertexAttribArray(GLuint(p.at));
+    glDisableVertexAttribArray(GLuint(p.pos));
+    glBindTexture(d.tex.target, 0);
+}
+
 void RenderPass::add_texture(const TextureDraw& d) {
     if (d.dst.empty() || !d.tex.tex)
         return;

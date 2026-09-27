@@ -1,4 +1,5 @@
 #include "view.hpp"
+#include "warp.hpp"
 
 #include "background_effect.hpp"
 
@@ -26,6 +27,7 @@ constexpr double kOpenScale = 0.92;       // a window zooms up from this as it o
 constexpr double kCloseScale = 0.92;      // and down to it as it closes
 constexpr double kMinimizedScale = 0.08;  // how small it is on reaching the Dock
 constexpr int kDockReach = 40;            // the Dock's middle, above the screen's bottom
+constexpr int kDockIcon = 48;             // an icon's size, when the Dock doesn't say
 } // namespace
 
 namespace {
@@ -846,38 +848,56 @@ void View::set_minimized(bool m) {
     if (m == minimized || unmanaged() || !tree)
         return;
     minimized = m;
-    // Sink and fade toward the bottom of the screen, or come back from it. The
-    // tree stays enabled while it animates out.
+    // Into the Dock or back out of it; the tree stays enabled while it
+    // animates out.
     server.animator.cancel_owner(this, false);
     tree->set_enabled(true);
-    // Shrink into the Dock and grow back out of it (macOS's Scale effect).
-    // Into its own icon when the Dock shows one, else the Dock's middle.
-    int to_x = 0, to_y = 0;
+    // Into its own Dock icon when the Dock shows one, else the Dock's middle.
+    wlr_box icon{0, 0, kDockIcon, kDockIcon};
     if (output) {
-        auto [tx, ty] = server.dock_icon_of(*this).value_or(
-            std::pair{output->box.x + output->box.width / 2, output->box.y + output->box.height - kDockReach});
-        to_x = tx - (geom.x + geom.width / 2);
-        to_y = ty - (geom.y + geom.height / 2);
+        icon = server.dock_icon_of(*this).value_or(wlr_box{output->box.x + output->box.width / 2 - kDockIcon / 2,
+                                                            output->box.y + output->box.height - kDockReach - kDockIcon / 2,
+                                                            kDockIcon, kDockIcon});
     }
-    const auto step = [this, to_x, to_y](double k) {  // 0: in place, 1: in the Dock
-        set_anim_scale(float(1 - (1 - kMinimizedScale) * k));
-        set_anim_offset(int(std::lround(to_x * k)), int(std::lround(to_y * k)));
-        set_alpha(float(std::clamp(1.4 - 1.4 * k, 0.0, 1.0)));  // gone as it arrives
+    const double to_x = icon.x + icon.width / 2.0, to_y = icon.y + icon.height / 2.0;
+    const auto settle = [this] {
+        if (minimized && tree)
+            tree->set_enabled(false);
+        if (tree)
+            tree->set_warp({}, {});
+        set_alpha(1.0f);
+        set_anim_offset(0, 0);
+        set_anim_scale(1.0f);
     };
-    if (m) {
-        server.animator.start(this, 400, Ease::EmphasizedAccel, [step](double t) { step(t); }, [this] {
-            if (minimized && tree)
-                tree->set_enabled(false);
-            set_alpha(1.0f);
-            set_anim_offset(0, 0);
-            set_anim_scale(1.0f);
-        });
+    if (server.config.minimize_genie && output) {
+        // macOS's Genie: poured into the icon, and back out of it.
+        const wlr_fbox frame{double(geom.x), double(geom.y), double(geom.width), double(geom.height)};
+        const double icon_w = icon.width;
+        const auto step = [this, frame, to_x, to_y, icon_w](double k) {  // 0: in place, 1: in the Dock
+            if (!tree)
+                return;
+            tree->set_warp([frame, to_x, to_y, icon_w, k](double u, double v) {
+                return warp::genie(frame.x, frame.y, frame.width, frame.height, to_x, to_y, icon_w, k, u, v);
+            }, frame);
+            set_alpha(float(std::clamp((1 - k) * 8, 0.0, 1.0)));  // gone as it arrives
+        };
+        if (m)
+            server.animator.start(this, 500, Ease::EmphasizedAccel, [step](double t) { step(t); }, settle);
+        else
+            server.animator.start(this, 500, Ease::EmphasizedDecel, [step](double t) { step(1 - t); }, settle);
     } else {
-        server.animator.start(this, 500, Ease::EmphasizedDecel, [step](double t) { step(1 - t); }, [this] {
-            set_alpha(1.0f);
-            set_anim_offset(0, 0);
-            set_anim_scale(1.0f);
-        });
+        // macOS's Scale: shrunk into the icon, and grown back out.
+        const int dx = int(std::lround(to_x - (geom.x + geom.width / 2.0)));
+        const int dy = int(std::lround(to_y - (geom.y + geom.height / 2.0)));
+        const auto step = [this, dx, dy](double k) {
+            set_anim_scale(float(1 - (1 - kMinimizedScale) * k));
+            set_anim_offset(int(std::lround(dx * k)), int(std::lround(dy * k)));
+            set_alpha(float(std::clamp(1.4 - 1.4 * k, 0.0, 1.0)));
+        };
+        if (m)
+            server.animator.start(this, 400, Ease::EmphasizedAccel, [step](double t) { step(t); }, settle);
+        else
+            server.animator.start(this, 500, Ease::EmphasizedDecel, [step](double t) { step(1 - t); }, settle);
     }
     send_suspended(m);
     if (handle_)

@@ -2,6 +2,7 @@
 // it needs, from wlroots/scenefx).
 
 #include "scene/internal.hpp"
+#include "warp.hpp"
 
 #include "render/matrix.hpp"
 
@@ -446,10 +447,41 @@ namespace {
 
 } // namespace
 
+// A buffer under a warped tree, as a mesh through the warp. Only on outputs
+// that aren't rotated.
+void SceneImpl::render_warped(Buffer* b, const Walk& w, RenderData& d, render::RenderPass* pass,
+                              wlr_renderer* renderer) {
+    if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || b->single_pixel_)
+        return;
+    render::Texture* t = render::Renderer::texture(SceneImpl::texture(b, renderer));
+    const wlr_fbox& frame = w.warp->warp_frame();
+    if (!t || frame.width <= 0 || frame.height <= 0)
+        return;
+    const render::FBox lb = fbox_of(b, w);
+    const double u0 = (lb.x - frame.x) / frame.width, u1 = (lb.x + lb.width - frame.x) / frame.width;
+    const double v0 = (lb.y - frame.y) / frame.height, v1 = (lb.y + lb.height - frame.y) / frame.height;
+    const auto verts = warp::mesh(w.warp->warp(), u0, v0, u1, v1, 16);
+    std::vector<render::RenderPass::MeshVertex> out;
+    out.reserve(verts.size());
+    for (const warp::Vertex& v : verts)
+        out.push_back({float((v.x - d.logical.x) * d.scale), float((v.y - d.logical.y) * d.scale), v.u, v.v});
+    render::TextureDraw td;
+    td.tex = t->ref();
+    td.src = b->src_box;
+    td.transform = wlr_output_transform_invert(b->transform);
+    td.alpha = b->opacity * w.opacity;
+    pass->add_texture_mesh(td, out);
+}
+
 void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
                              wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
     Node* node = e.node;
     const Walk& w = e.walk;
+    if (w.warp) {
+        if (node->type == Type::Buffer)
+            render_warped(static_cast<Buffer*>(node), w, d, pass, renderer);
+        return;
+    }
 
     pixman_region32_t region;
     pixman_region32_init(&region);
@@ -750,6 +782,13 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
     nodes_in_box(scene, d.logical, [&](Node* n, const Walk& w) {
         if (SceneImpl::invisible(n))
             return false;
+        // Under a warp: its buffers are drawn wherever it takes them, the
+        // rest sits it out.
+        if (w.warp) {
+            if (n->type == Type::Buffer)
+                list.push_back({n, w});
+            return false;
+        }
         // The background is black anyway: an opaque black rectangle (a
         // fullscreen app's backdrop) and what's under it needn't be drawn.
         if (scene->calculate_visibility && (!fractional || list.empty()) && w.identity()) {

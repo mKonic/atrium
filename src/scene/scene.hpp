@@ -121,6 +121,12 @@ public:
     float opacity() const { return opacity_; }
     void set_scale(float scale);
     void set_opacity(float opacity);
+    // Drawn warped: `fn` takes a point of `frame` (a layout box; u, v in
+    // 0..1) to where it lands. Its buffers are drawn as meshes; the rest of
+    // it (shadows, outlines, blur) sits the warp out. Clear with an empty fn.
+    void set_warp(std::function<std::pair<double, double>(double, double)> fn, wlr_fbox frame);
+    const std::function<std::pair<double, double>(double, double)>& warp() const { return warp_; }
+    const wlr_fbox& warp_frame() const { return warp_frame_; }
 
 protected:
     explicit Tree(Tree* parent, Type type = Type::Tree);
@@ -129,6 +135,8 @@ protected:
 private:
     float scale_ = 1;
     float opacity_ = 1;
+    std::function<std::pair<double, double>(double, double)> warp_;
+    wlr_fbox warp_frame_{};
     friend class Node;
 };
 

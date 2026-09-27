@@ -1117,7 +1117,7 @@ void Server::keyboard_layout_changed() {
         ipc->broadcast("keyboard", {{"event", "keyboard.changed"}, {"keyboard", Ipc::keyboard_json(*this)}});
 }
 
-std::optional<std::pair<int, int>> Server::dock_icon_of(const View& view) const {
+std::optional<wlr_box> Server::dock_icon_of(const View& view) const {
     if (!view.output)
         return std::nullopt;
     auto it = dock_icons.find(view.output->wlr->name);
@@ -1135,7 +1135,7 @@ std::optional<std::pair<int, int>> Server::dock_icon_of(const View& view) const 
     dock->tree->coords(&lx, &ly);
     for (const DockIcon& icon : it->second)
         if (std::ranges::find(icon.windows, view.id) != icon.windows.end())
-            return std::pair{lx + icon.box.x + icon.box.width / 2, ly + icon.box.y + icon.box.height / 2};
+            return wlr_box{lx + icon.box.x, ly + icon.box.y, icon.box.width, icon.box.height};
     return std::nullopt;
 }
 

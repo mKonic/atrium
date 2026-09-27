@@ -14,13 +14,14 @@ struct Walk {
     double x = 0, y = 0;
     double scale = 1;
     float opacity = 1;
+    const Tree* warp = nullptr;  // the warped tree it is under, if any
 
     // Where a tree's child lands.
     Walk child(const Tree* tree, const Node* child) const {
         const double s = scale * tree->scale();
-        return {x + child->x * s, y + child->y * s, s, opacity * tree->opacity()};
+        return {x + child->x * s, y + child->y * s, s, opacity * tree->opacity(), tree->warp() ? tree : warp};
     }
-    bool identity() const { return scale == 1.0 && opacity == 1.0f; }
+    bool identity() const { return scale == 1.0 && opacity == 1.0f && !warp; }
 };
 
 // Float and whole-pixel (rounded out) layout boxes of a node.
@@ -59,6 +60,8 @@ struct OutputAddonAccess {
 };
 
 struct SceneImpl {
+    static void render_warped(Buffer* b, const Walk& w, RenderData& d, render::RenderPass* pass,
+                              wlr_renderer* renderer);
     static void render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
                              wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
     static void update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force);

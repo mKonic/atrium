@@ -33,6 +33,7 @@ if gtest.found()
     'shake_test.cpp',
     'icc_test.cpp',
     'stacking_test.cpp',
+    'warp_test.cpp',
     files('../shell/plugin/Atrium/search.cpp', '../shell/plugin/Atrium/rank.cpp', '../shell/plugin/Atrium/placeholders.cpp', '../shell/plugin/Atrium/file_search_core.cpp', '../shell/plugin/Atrium/calc.cpp', '../shell/plugin/Atrium/notes_core.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/levels.cpp', '../shell/plugin/Atrium/sysinfo_core.cpp', '../shell/plugin/Atrium/netspeed_core.cpp', '../shell/plugin/Atrium/passwd_core.cpp', '../shell/plugin/Atrium/emoji_core.cpp', '../shell/plugin/Atrium/Shell/desktop_entry_core.cpp', '../shell/plugin/Atrium/wallpaper_core.cpp', '../shell/plugin/Atrium/mimeapps_core.cpp', '../shell/plugin/Atrium/ini_core.cpp', '../shell/plugin/Atrium/battery_core.cpp', '../shell/plugin/Atrium/printers_core.cpp', '../shell/plugin/Atrium/keyboard_core.cpp', '../shell/plugin/Atrium/share_core.cpp', '../shell/plugin/Atrium/capture_core.cpp', '../shell/plugin/Atrium/updates_core.cpp', '../shell/clipsync/clipsync_core.cpp'),
     include_directories: include_directories('..', '../src', '../shell/plugin/Atrium', '../shell/plugin/Atrium/Shell', '../shell/clipsync'),
     dependencies: [atrium_dep, gtest, dependency('libxcrypt')],

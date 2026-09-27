@@ -117,8 +117,8 @@ public:
         std::vector<uint64_t> windows;
     };
     std::map<std::string, std::vector<DockIcon>> dock_icons;  // by output name
-    // The layout point a window minimises into, if the Dock shows its icon.
-    std::optional<std::pair<int, int>> dock_icon_of(const View& view) const;
+    // The layout box of the Dock icon a window minimises into, if shown.
+    std::optional<wlr_box> dock_icon_of(const View& view) const;
     View* top_view(Output* output) const;
     void cycle_focus(int direction);
 

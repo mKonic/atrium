@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 // One frame drawn into one framebuffer. Coordinates are the target's pixels
 // (y down); boxes are floats so scaled scene nodes land between pixels.
 // Clip regions are whole pixels. Ported from scenefx's fx_pass.c (MIT).
@@ -162,6 +163,12 @@ public:
     const BlurParams* blur_params = nullptr;
 
     void add_texture(const TextureDraw& d);
+    // `d` warped: triangles whose x, y are framebuffer pixels and u, v the
+    // point of d.src (0..1) each vertex shows. No clip, corners or cut-out.
+    struct MeshVertex {
+        float x, y, u, v;
+    };
+    void add_texture_mesh(const TextureDraw& d, const std::vector<MeshVertex>& vertices);
     void add_rect(const RectDraw& d);
     void add_shadow(const ShadowDraw& d);
     void add_blur(const BlurDraw& d);

@@ -23,6 +23,7 @@ class Program {
 public:
     GLuint id = 0;
     GLint pos = -1;  // the `pos` attribute
+    GLint at = -1;   // the mesh variants' `at` attribute
 
     // A uniform's location, looked up once (-1 when the program has none).
     GLint loc(const char* name);
@@ -50,7 +51,7 @@ private:
 enum class Shader {
     Quad,        // flat colour; variant 1: a rounded cut-out
     QuadRound,   // flat colour, rounded corners
-    Tex,         // variant: source (0 RGBA, 1 RGBX, 2 external) + 3 * effects
+    Tex,         // variant: source (0 RGBA, 1 RGBX, 2 external) + 3 * effects; 6 + source: a mesh
     BoxShadow,
     Blur1,       // dual Kawase down
     Blur2,       // dual Kawase up
