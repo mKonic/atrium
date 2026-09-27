@@ -25,6 +25,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
 - A window launched or switched to over a fullscreen app staying hidden behind it.
+- Alt+Tab's miniature of a window playing video flickering at its edges.
 - The shell's text drawn in Rubik Light at every weight, with bold faked, since caelestia's fonts left.
 
 ## [v0.1.0] - 2026-09-27

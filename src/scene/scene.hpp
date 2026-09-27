@@ -343,6 +343,7 @@ private:
     void set_texture(wlr_texture* texture);
     wlr_texture* texture(wlr_renderer* renderer);
     bool is_black_opaque() const;
+    void note_single_pixel(wlr_buffer* b);
 
     uint64_t active_outputs_ = 0;
     wlr_texture* texture_ = nullptr;

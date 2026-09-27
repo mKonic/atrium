@@ -11,7 +11,8 @@ class View;
 // A miniature of a window: copies of its scene buffers (title bar, surfaces,
 // popups) scaled into a box. The copies hold references to the client's
 // buffers, so they stay valid after the client moves on; refresh() picks up
-// what the window shows now. Must not outlive the view.
+// what the window shows now, in place while its pieces stay the same.
+// Must not outlive the view.
 class WindowCopy {
 public:
     WindowCopy(View& view, scene::Tree* parent);
@@ -31,11 +32,12 @@ private:
         scene::Buffer* node;
         int x, y, w, h;  // in the window's frame, unscaled
         scene::Radii corners;
+        wlr_fbox src{};  // the source's own crop of its buffer
     };
 
     View& view_;
     scene::Tree* tree_;
-    scene::Tree* inner_ = nullptr;  // rebuilt by refresh()
+    scene::Tree* inner_ = nullptr;  // made again by refresh() when the pieces change
     std::vector<Piece> pieces_;
     int width_ = 0, height_ = 0;
 };

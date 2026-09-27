@@ -933,6 +933,7 @@ Buffer::Buffer(Tree* parent, wlr_buffer* b) : Node(Type::Buffer, parent) {
     wl_signal_init(&events.output_sample);
     wl_signal_init(&events.frame_done);
     pixman_region32_init(&opaque_region);
+    note_single_pixel(b);  // as set_buffer does: a copy of one is a rectangle too
     take_buffer(b);
 }
 
@@ -998,6 +999,22 @@ wlr_texture* Buffer::texture(wlr_renderer* renderer) {
     return t;
 }
 
+// Single-pixel buffers are drawn as rectangles: remember the colour, the
+// buffer may be gone after the upload.
+void Buffer::note_single_pixel(wlr_buffer* b) {
+    single_pixel_ = false;
+    wlr_client_buffer* cb = b ? wlr_client_buffer_get(b) : nullptr;
+    if (cb && cb->source) {
+        if (wlr_single_pixel_buffer_v1* sp = wlr_single_pixel_buffer_v1_try_from_buffer(cb->source)) {
+            single_pixel_ = true;
+            single_pixel_color_[0] = sp->r;
+            single_pixel_color_[1] = sp->g;
+            single_pixel_color_[2] = sp->b;
+            single_pixel_color_[3] = sp->a;
+        }
+    }
+}
+
 bool Buffer::is_black_opaque() const {
     return single_pixel_ && single_pixel_color_[0] == 0 && single_pixel_color_[1] == 0 &&
            single_pixel_color_[2] == 0 && single_pixel_color_[3] == UINT32_MAX && opacity == 1 && corners.empty();
@@ -1014,21 +1031,8 @@ void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
     if (b && dst_width == 0 && dst_height == 0)
         changed = changed || buffer_width_ != b->width || buffer_height_ != b->height;
 
-    // Single-pixel buffers are drawn as rectangles: remember the colour,
-    // the buffer may be gone after the upload.
-    if (b != buffer) {
-        single_pixel_ = false;
-        wlr_client_buffer* cb = b ? wlr_client_buffer_get(b) : nullptr;
-        if (cb && cb->source) {
-            if (wlr_single_pixel_buffer_v1* sp = wlr_single_pixel_buffer_v1_try_from_buffer(cb->source)) {
-                single_pixel_ = true;
-                single_pixel_color_[0] = sp->r;
-                single_pixel_color_[1] = sp->g;
-                single_pixel_color_[2] = sp->b;
-                single_pixel_color_[3] = sp->a;
-            }
-        }
-    }
+    if (b != buffer)
+        note_single_pixel(b);
 
     take_buffer(b);
     set_texture(nullptr);
