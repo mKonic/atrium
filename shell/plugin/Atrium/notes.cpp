@@ -269,7 +269,7 @@ QTextCharFormat MarkdownHighlighter::hidden() const {
     f.setForeground(Qt::transparent);
     f.setFontPointSize(1);
     f.setFontLetterSpacingType(QFont::AbsoluteSpacing);
-    f.setFontLetterSpacing(-1);
+    f.setFontLetterSpacing(-0.5);  // a 1-point character, nearly nothing, never less
     return f;
 }
 
