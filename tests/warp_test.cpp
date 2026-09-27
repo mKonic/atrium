@@ -71,3 +71,47 @@ TEST(Mesh, APieceMapsItsOwnPartOfTheFrame) {
     EXPECT_FLOAT_EQ(m.back().y, 100);
     EXPECT_FLOAT_EQ(m.back().v, 1);
 }
+
+TEST(Wobble, AtRestNothingMoves) {
+    Wobble w;
+    EXPECT_TRUE(w.stable());
+    auto [x, y] = w.offset(0.3, 0.7);
+    EXPECT_DOUBLE_EQ(x, 0);
+    EXPECT_DOUBLE_EQ(y, 0);
+}
+
+TEST(Wobble, TheFarSideLagsTheHeldPointDoesnt) {
+    Wobble w;
+    w.moved(40, 0, 0, 0);  // dragged right by its top-left corner
+    EXPECT_DOUBLE_EQ(w.offset(0, 0).first, 0);
+    EXPECT_LT(w.offset(1, 1).first, -30);  // the far corner trails behind
+    EXPECT_FALSE(w.stable());
+}
+
+TEST(Wobble, ItSettles) {
+    Wobble w;
+    w.moved(80, 30, 0.5, 0);
+    for (int i = 0; i < 300 && !w.stable(); ++i)
+        w.advance(1.0 / 60);
+    EXPECT_TRUE(w.stable());
+    EXPECT_NEAR(w.offset(1, 1).first, 0, 0.3);
+}
+
+TEST(Wobble, ItOvershootsOnTheWayBack) {
+    // Underdamped: the far corner swings past rest before settling.
+    Wobble w;
+    w.moved(60, 0, 0, 0);
+    double most = 0;
+    for (int i = 0; i < 120; ++i) {
+        w.advance(1.0 / 60);
+        most = std::max(most, w.offset(1, 1).first);
+    }
+    EXPECT_GT(most, 1);
+}
+
+TEST(Wobble, ALongDragLagsNoMoreThanTheMost) {
+    Wobble w;
+    for (int i = 0; i < 50; ++i)
+        w.moved(50, 0, 0, 0);
+    EXPECT_GE(w.offset(1, 1).first, -Wobble::kMaxLag - 1e-9);
+}

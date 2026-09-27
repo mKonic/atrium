@@ -47,6 +47,7 @@ View::~View() {
     server.animator.cancel_owner(&glide_dx_, false);
     server.animator.cancel_owner(&reveal_, false);
     end_morph();
+    end_wobble();
     destroy_toplevel_handles();
     std::erase(server.views, this);
 }
@@ -212,6 +213,7 @@ void View::handle_unmap() {
         server.switcher->view_unmapped(this);
     server.animator.cancel_owner(this, false);
     end_morph();
+    end_wobble();
     if (managed && visible())
         animate_close();
     alpha_ = 1.0f;
@@ -842,6 +844,70 @@ void View::end_morph() {
         morph_.reset();
         alpha_ = 1.0f;
     }
+}
+
+struct WobbleState {
+    warp::Wobble springs;
+    int64_t last_ns = 0;
+};
+
+namespace {
+
+int64_t mono_ns() {
+    timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return int64_t(t.tv_sec) * 1000000000 + t.tv_nsec;
+}
+
+} // namespace
+
+void View::wobble(int dx, int dy, double hx, double hy) {
+    if (!server.config.wobbly || !server.config.animations || !tree || (!dx && !dy))
+        return;
+    const bool running = wobble_ != nullptr;
+    if (!wobble_) {
+        wobble_ = std::make_unique<WobbleState>();
+        wobble_->last_ns = mono_ns();
+    }
+    const double gu = geom.width > 0 ? (hx - geom.x) / geom.width : 0.5;
+    const double gv = geom.height > 0 ? (hy - geom.y) / geom.height : 0.5;
+    wobble_->springs.moved(dx, dy, gu, gv);
+    if (running)
+        return;
+    // Every frame until it settles: the springs move on by real time, and
+    // the frame is drawn through them.
+    struct Tick {
+        static void start(View* v) {
+            v->server.animator.start(&v->wobble_, 1000, Ease::Linear, [v](double) {
+                if (!v->wobble_ || !v->tree)
+                    return;
+                const int64_t now = mono_ns();
+                v->wobble_->springs.advance(double(now - v->wobble_->last_ns) / 1e9);
+                v->wobble_->last_ns = now;
+                const wlr_fbox frame{double(v->geom.x), double(v->geom.y), double(v->geom.width), double(v->geom.height)};
+                const warp::Wobble* springs = &v->wobble_->springs;
+                v->tree->set_warp([frame, springs](double u, double w) {
+                    auto [ox, oy] = springs->offset(u, w);
+                    return std::pair{frame.x + u * frame.width + ox, frame.y + w * frame.height + oy};
+                }, frame);
+            }, [v] {
+                if (!v->wobble_)
+                    return;
+                if (v->wobble_->springs.stable() && v->server.seat->mode != Seat::Mode::Move)
+                    v->end_wobble();
+                else
+                    start(v);
+            });
+        }
+    };
+    Tick::start(this);
+}
+
+void View::end_wobble() {
+    server.animator.cancel_owner(&wobble_, false);
+    if (wobble_ && tree)
+        tree->set_warp({}, {});
+    wobble_.reset();
 }
 
 void View::set_tile_bar_hidden(bool hidden) {

@@ -129,6 +129,10 @@ public:
     void set_anim_offset(int dx, int dy);
     // Drawn at `scale` about its centre; geometry and input stay put.
     void set_anim_scale(float scale);
+    // Dragged by the user (wobbly windows): the frame moved by (dx, dy),
+    // held at layout point (hx, hy).
+    void wobble(int dx, int dy, double hx, double hy);
+    void end_wobble();
     float alpha() const { return alpha_; }
 
     std::unique_ptr<Titlebar> titlebar;
@@ -241,6 +245,7 @@ protected:
     void morph_from(const wlr_box& from);
     wlr_box requested_{};  // the frame last asked for (request_geometry)
     void end_morph();
+    std::unique_ptr<class WobbleState> wobble_;
     std::unique_ptr<class WindowCopy> morph_;
     int anchor_right_ = 0, anchor_bottom_ = 0;
 

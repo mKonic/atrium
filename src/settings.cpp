@@ -453,6 +453,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "1 is normal; 2 is twice as fast.", &Config::animation_speed, d, 0.25, 4));
 
     // Windows
+    s.push_back(boolean("windows.wobbly", "Windows", "Wobbly windows",
+        "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
     s.push_back(choice("windows.minimize_effect", "Windows", "Minimize effect",
         "How a window goes into the Dock: Genie pours it in, as on a Mac; Scale shrinks it.",
         {"genie", "scale"}, d.minimize_genie ? "genie" : "scale",

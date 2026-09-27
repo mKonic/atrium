@@ -139,7 +139,8 @@ struct Config {
     libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
     bool natural_scroll = true;
     bool shake_to_find = true;
-    bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale  // pointer.shake_to_find: shaking grows the arrow
+    bool minimize_genie = true;
+    bool wobbly = false;  // windows.wobbly: wobble while dragged  // windows.minimize_effect: genie (true) or scale  // pointer.shake_to_find: shaking grows the arrow
     bool touchpad_natural_scroll = true;
     bool tap_to_click = true;
     bool tap_and_drag = true;

@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- Wobbly windows, off by default (Windows: Wobbly windows).
 - The Genie minimize effect, as on a Mac (Windows: Minimize effect; Scale is the other).
 - A color profile (ICC) per display, in Displays.
 - Shake the pointer to find it: it grows for a moment.

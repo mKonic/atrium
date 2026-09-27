@@ -762,7 +762,9 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         if (Output* o = server.output_at(cursor->x, cursor->y))
             geometry::snap(nx, ny, grab_view_->geom.width, grab_view_->geom.height, o->usable,
                            server.config.snap_distance);
+        const int was_x = grab_view_->geom.x, was_y = grab_view_->geom.y;
         grab_view_->move_to(nx, ny);
+        grab_view_->wobble(grab_view_->geom.x - was_x, grab_view_->geom.y - was_y, cursor->x, cursor->y);
 
         // Screen edges and corners offer to tile the window.
         Output* o = server.output_at(cursor->x, cursor->y);
