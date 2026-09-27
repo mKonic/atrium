@@ -13,6 +13,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <unordered_set>
+#include <unordered_map>
 #include <memory>
 
 namespace atrium::scene {
@@ -473,6 +475,9 @@ private:
     wlr_addon addon_{};
     render::EffectBuffers fx_;
     std::unique_ptr<render::ColorLut> lut_;
+    // Offscreen layers of warped trees, kept while they stay warped.
+    std::unordered_map<const Tree*, std::unique_ptr<render::Target>> warp_layers_;
+    std::unordered_set<const Tree*> warp_layers_used_;
     void drop_lut_texture();
     uint8_t dmabuf_feedback_debounce_ = 0;
     bool prev_scanout_ = false;

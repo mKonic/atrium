@@ -210,6 +210,7 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
         // The effects buffers are the renderer's: gone before it is.
         so->renderer_destroy_.connect(&output->renderer->events.destroy, [so](void*) {
             so->fx_.release();
+            so->warp_layers_.clear();
             if (so->lut_)
                 so->lut_->tex = 0;  // went with its context
             so->renderer_destroy_.disconnect();
@@ -447,45 +448,100 @@ namespace {
 
 } // namespace
 
-// A buffer under a warped tree, as a mesh through the warp. Only on outputs
-// that aren't rotated.
-void SceneImpl::render_warped(Buffer* b, const Walk& w, RenderData& d, render::RenderPass* pass,
-                              wlr_renderer* renderer) {
-    if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || b->single_pixel_)
+// A warped tree: everything in it (shadow, outline, rounded buffers, title
+// bar) drawn as it is into an offscreen layer, then the layer drawn once
+// through the warp. Only on outputs that aren't rotated.
+void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
+                                  wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
+    const wlr_fbox& frame = tree->warp_frame();
+    if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || frame.width <= 0 || frame.height <= 0)
         return;
-    render::Texture* t = render::Renderer::texture(SceneImpl::texture(b, renderer));
-    const wlr_fbox& frame = w.warp->warp_frame();
-    if (!t || frame.width <= 0 || frame.height <= 0)
+    // What's in it, bottom to top, as if it weren't warped. Blur can't be
+    // drawn off screen (it samples what's behind): it sits the warp out.
+    std::vector<Entry> entries;
+    pixman_region32_t area;
+    pixman_region32_init(&area);
+    const std::function<void(Node*, const Walk&)> collect = [&](Node* n, const Walk& nw) {
+        if (!n->enabled)
+            return;
+        if (n->type == Type::Tree) {
+            Tree* t = static_cast<Tree*>(n);
+            for (Node* child : each_child(t)) {
+                Walk cw = nw.child(t, child);
+                cw.warp = nullptr;
+                collect(child, cw);
+            }
+            return;
+        }
+        if (n->type == Type::Blur || n->type == Type::BlurCache || SceneImpl::invisible(n))
+            return;
+        entries.push_back({n, nw});
+        const wlr_box b = box_of(n, nw);
+        pixman_region32_union_rect(&area, &area, b.x, b.y, unsigned(b.width), unsigned(b.height));
+    };
+    Walk tw = w;
+    tw.warp = nullptr;
+    collect(tree, tw);
+    const pixman_box32_t* ext = pixman_region32_extents(&area);
+    const wlr_box bounds{ext->x1, ext->y1, ext->x2 - ext->x1, ext->y2 - ext->y1};
+    pixman_region32_fini(&area);
+    if (entries.empty() || bounds.width <= 0 || bounds.height <= 0)
         return;
-    const render::FBox lb = fbox_of(b, w);
-    const double u0 = (lb.x - frame.x) / frame.width, u1 = (lb.x + lb.width - frame.x) / frame.width;
-    const double v0 = (lb.y - frame.y) / frame.height, v1 = (lb.y + lb.height - frame.y) / frame.height;
-    const auto verts = warp::mesh(w.warp->warp(), u0, v0, u1, v1, 16);
-    std::vector<render::RenderPass::MeshVertex> out;
-    out.reserve(verts.size());
+
+    SceneOutput* out = d.output;
+    auto& layer = out->warp_layers_[tree];
+    if (!layer)
+        layer = std::make_unique<render::Target>();
+    out->warp_layers_used_.insert(tree);
+    const int lw = int(std::ceil(bounds.width * d.scale)), lh = int(std::ceil(bounds.height * d.scale));
+    if (!pass->push_target(*layer, lw, lh))
+        return;
+    RenderData ld;
+    ld.transform = WL_OUTPUT_TRANSFORM_NORMAL;
+    ld.scale = d.scale;
+    ld.logical = bounds;
+    ld.trans_width = lw;
+    ld.trans_height = lh;
+    ld.output = out;
+    ld.pass = pass;
+    ld.whole = true;
+    pixman_region32_init_rect(&ld.damage, 0, 0, unsigned(lw), unsigned(lh));
+    for (const Entry& e : entries)
+        render_entry(e, ld, scene, pass, renderer, in_timeline, in_point);
+    pixman_region32_fini(&ld.damage);
+    pass->pop_target();
+
+    const double u0 = (bounds.x - frame.x) / frame.width, u1 = (bounds.x + bounds.width - frame.x) / frame.width;
+    const double v0 = (bounds.y - frame.y) / frame.height, v1 = (bounds.y + bounds.height - frame.y) / frame.height;
+    const auto verts = warp::mesh(tree->warp(), u0, v0, u1, v1, 16);
+    std::vector<render::RenderPass::MeshVertex> mesh;
+    mesh.reserve(verts.size());
     for (const warp::Vertex& v : verts)
-        out.push_back({float((v.x - d.logical.x) * d.scale), float((v.y - d.logical.y) * d.scale), v.u, v.v});
+        mesh.push_back({float((v.x - d.logical.x) * d.scale), float((v.y - d.logical.y) * d.scale), v.u, v.v});
     render::TextureDraw td;
-    td.tex = t->ref();
-    td.src = b->src_box;
-    td.transform = wlr_output_transform_invert(b->transform);
-    td.alpha = b->opacity * w.opacity;
-    pass->add_texture_mesh(td, out);
+    td.tex = layer->get()->texture();
+    pass->add_texture_mesh(td, mesh);
 }
 
 void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
                              wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
     Node* node = e.node;
     const Walk& w = e.walk;
-    if (w.warp) {
-        if (node->type == Type::Buffer)
-            render_warped(static_cast<Buffer*>(node), w, d, pass, renderer);
+    if (node->type == Type::Tree) {
+        Tree* t = static_cast<Tree*>(node);
+        if (t->warp())
+            render_warp_layer(t, w, d, scene, pass, renderer, in_timeline, in_point);
         return;
     }
 
     pixman_region32_t region;
     pixman_region32_init(&region);
-    pixman_region32_copy(&region, &node->visible);
+    if (d.whole) {
+        const wlr_box b = box_of(node, w);
+        pixman_region32_init_rect(&region, b.x, b.y, unsigned(b.width), unsigned(b.height));
+    } else {
+        pixman_region32_copy(&region, &node->visible);
+    }
     pixman_region32_translate(&region, -d.logical.x, -d.logical.y);
     logical_to_buffer(&region, d, true);
     pixman_region32_intersect(&region, &region, &d.damage);
@@ -778,15 +834,16 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
 
     // What shows, top to bottom.
     std::vector<Entry> list;
+    std::unordered_set<const Tree*> warped;
     const bool fractional = std::floor(d.scale) != d.scale;
     nodes_in_box(scene, d.logical, [&](Node* n, const Walk& w) {
         if (SceneImpl::invisible(n))
             return false;
-        // Under a warp: its buffers are drawn wherever it takes them, the
-        // rest sits it out.
+        // Under a warp: the warped tree is one entry, drawn as a layer.
         if (w.warp) {
-            if (n->type == Type::Buffer)
-                list.push_back({n, w});
+            Tree* t = const_cast<Tree*>(w.warp);
+            if (warped.insert(t).second)
+                list.push_back({t, walk_of(t)});
             return false;
         }
         // The background is black anyway: an opaque black rectangle (a
@@ -1028,6 +1085,7 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
     pass->add_rect(bg);
     pixman_region32_fini(&background);
 
+    warp_layers_used_.clear();
     for (auto it = list.rbegin(); it != list.rend(); ++it) {
         SceneImpl::render_entry(*it, d, scene, pass, output->renderer, in_timeline_, in_point_);
         if (it->node->type == Type::Buffer) {
@@ -1041,6 +1099,8 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
             }
         }
     }
+    // Layers of trees no longer warped go.
+    std::erase_if(warp_layers_, [this](const auto& kv) { return !warp_layers_used_.contains(kv.first); });
 
     if (scene->debug_damage == Scene::DebugDamage::Highlight) {
         for (Highlight* h : highlights_) {

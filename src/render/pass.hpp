@@ -177,6 +177,12 @@ public:
     // Copies `region` of `src` over `dst` (pixels, same size).
     void copy(const pixman_region32_t* region, Framebuffer* dst, Framebuffer* src);
 
+    // What follows is drawn into `t` (w x h pixels, cleared) until
+    // pop_target: a layer composited later (a warped window). False if the
+    // target can't be made.
+    bool push_target(Target& t, int w, int h);
+    void pop_target();
+
     // The user's screen shader over `region`, before submit.
     void apply_screen_shader(const pixman_region32_t* region);
 
@@ -218,6 +224,12 @@ private:
     bool two_pass_ = false;
     wlr_buffer* locked_ = nullptr;
     Target own_blend_;  // the blend buffer when there are no EffectBuffers
+    struct Saved {
+        Framebuffer* fb;
+        int width, height;
+        float proj[9];
+    };
+    std::vector<Saved> saved_;  // push_target's stack
 };
 
 } // namespace atrium::render

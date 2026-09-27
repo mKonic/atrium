@@ -48,6 +48,7 @@ struct RenderData {
     SceneOutput* output;
     render::RenderPass* pass;
     pixman_region32_t damage;
+    bool whole = false;  // nodes drawn whole, not just their visible parts (a warp layer)
 };
 
 struct Entry {
@@ -60,8 +61,8 @@ struct OutputAddonAccess {
 };
 
 struct SceneImpl {
-    static void render_warped(Buffer* b, const Walk& w, RenderData& d, render::RenderPass* pass,
-                              wlr_renderer* renderer);
+    static void render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
+                                  wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
     static void render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
                              wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
     static void update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force);

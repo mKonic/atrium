@@ -939,6 +939,35 @@ void RenderPass::output_pass() {
     output_fb_ = nullptr;
 }
 
+bool RenderPass::push_target(Target& t, int w, int h) {
+    if (w <= 0 || h <= 0 || !t.ensure(r_, w, h, two_pass_ ? GL_RGBA16F : GL_RGBA8))
+        return false;
+    Saved was{fb_, width_, height_, {}};
+    std::memcpy(was.proj, proj_, sizeof(proj_));
+    saved_.push_back(was);
+    fb_ = t.get();
+    width_ = w;
+    height_ = h;
+    matrix::projection(proj_, w, h, WL_OUTPUT_TRANSFORM_FLIPPED_180);
+    bind(fb_);
+    glDisable(GL_SCISSOR_TEST);
+    glClearColor(0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    return true;
+}
+
+void RenderPass::pop_target() {
+    if (saved_.empty())
+        return;
+    const Saved was = saved_.back();
+    saved_.pop_back();
+    fb_ = was.fb;
+    width_ = was.width;
+    height_ = was.height;
+    std::memcpy(proj_, was.proj, sizeof(proj_));
+    bind(fb_);
+}
+
 void RenderPass::apply_screen_shader(const pixman_region32_t* region) {
     Program& p = r_.shaders().get(Shader::Screen);
     if (!p.id || !fx_ || !region || !pixman_region32_not_empty(region))
