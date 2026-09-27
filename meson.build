@@ -40,6 +40,7 @@ display_info = dependency('libdisplay-info')
 egl = dependency('egl')
 glesv2 = dependency('glesv2')
 gbm = dependency('gbm')
+lcms2 = dependency('lcms2')
 sqlite = dependency('sqlite3')
 json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
 
@@ -50,7 +51,7 @@ if xwayland_opt.enabled() and not have_xwayland
 endif
 use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
-deps = [wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm]
+deps = [wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')
