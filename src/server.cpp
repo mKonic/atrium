@@ -1337,6 +1337,10 @@ void Server::run_action(const Keybind& b) {
         break;
     case Action::NextLayout: seat->set_layout(seat->layout() + 1); break;
     case Action::Portal: portal_shortcut(b.arg, true); break;
+    case Action::Place:
+        if (v)
+            place_window(v, b.arg);
+        break;
     case Action::TogglePin:
         if (v) {
             v->sticky = !v->sticky;

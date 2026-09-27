@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
+#include <string>
 
 namespace atrium::geometry {
 
@@ -132,6 +134,114 @@ wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap) {
             b.y = inner.y + inner.height - half_h;
     }
     return b;
+}
+
+namespace {
+
+// The part of `area` between fractions x0..x1, y0..y1, with `gap` at the
+// area's edges and half of it where two parts meet.
+wlr_box fraction(const wlr_box& area, double x0, double y0, double x1, double y1, int gap) {
+    auto edge = [gap](double f) { return f <= 0.0001 || f >= 0.9999 ? gap : gap / 2; };
+    const int left = area.x + int(std::lround(area.width * x0)) + edge(x0);
+    const int right = area.x + int(std::lround(area.width * x1)) - edge(x1);
+    const int top = area.y + int(std::lround(area.height * y0)) + edge(y0);
+    const int bottom = area.y + int(std::lround(area.height * y1)) - edge(y1);
+    return {left, top, std::max(1, right - left), std::max(1, bottom - top)};
+}
+
+bool same_box(const wlr_box& a, const wlr_box& b) {
+    return std::abs(a.x - b.x) <= 2 && std::abs(a.y - b.y) <= 2 && std::abs(a.width - b.width) <= 2 &&
+           std::abs(a.height - b.height) <= 2;
+}
+
+wlr_box centered(const wlr_box& area, int w, int h) {
+    w = std::min(w, area.width);
+    h = std::min(h, area.height);
+    return {area.x + (area.width - w) / 2, area.y + (area.height - h) / 2, w, h};
+}
+
+constexpr std::string_view kPlaceNames[] = {
+    "left-half", "right-half", "top-half", "bottom-half", "center-half",
+    "top-left", "top-right", "bottom-left", "bottom-right",
+    "first-third", "center-third", "last-third", "first-two-thirds", "center-two-thirds", "last-two-thirds",
+    "first-fourth", "second-fourth", "third-fourth", "last-fourth", "first-three-fourths", "last-three-fourths",
+    "top-left-sixth", "top-center-sixth", "top-right-sixth", "bottom-left-sixth", "bottom-center-sixth",
+    "bottom-right-sixth",
+    "almost-maximize", "maximize-height", "maximize-width", "larger", "smaller", "center",
+    "move-left", "move-right", "move-up", "move-down",
+};
+
+} // namespace
+
+std::span<const std::string_view> place_names() {
+    return kPlaceNames;
+}
+
+std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& cur, int gap) {
+    auto f = [&](double x0, double y0, double x1, double y1) { return fraction(area, x0, y0, x1, y1, gap); };
+    // A half pressed again: two thirds, then one third, then back.
+    auto cycle = [&](bool left) {
+        const wlr_box half = left ? f(0, 0, 0.5, 1) : f(0.5, 0, 1, 1);
+        const wlr_box two = left ? f(0, 0, 2.0 / 3, 1) : f(1.0 / 3, 0, 1, 1);
+        const wlr_box third = left ? f(0, 0, 1.0 / 3, 1) : f(2.0 / 3, 0, 1, 1);
+        return same_box(cur, half) ? two : same_box(cur, two) ? third : half;
+    };
+    const wlr_box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};
+    if (name == "left-half") return cycle(true);
+    if (name == "right-half") return cycle(false);
+    if (name == "top-half") return f(0, 0, 1, 0.5);
+    if (name == "bottom-half") return f(0, 0.5, 1, 1);
+    if (name == "center-half") return f(0.25, 0, 0.75, 1);
+    if (name == "top-left") return f(0, 0, 0.5, 0.5);
+    if (name == "top-right") return f(0.5, 0, 1, 0.5);
+    if (name == "bottom-left") return f(0, 0.5, 0.5, 1);
+    if (name == "bottom-right") return f(0.5, 0.5, 1, 1);
+    if (name == "first-third") return f(0, 0, 1.0 / 3, 1);
+    if (name == "center-third") return f(1.0 / 3, 0, 2.0 / 3, 1);
+    if (name == "last-third") return f(2.0 / 3, 0, 1, 1);
+    if (name == "first-two-thirds") return f(0, 0, 2.0 / 3, 1);
+    if (name == "center-two-thirds") return f(1.0 / 6, 0, 5.0 / 6, 1);
+    if (name == "last-two-thirds") return f(1.0 / 3, 0, 1, 1);
+    if (name == "first-fourth") return f(0, 0, 0.25, 1);
+    if (name == "second-fourth") return f(0.25, 0, 0.5, 1);
+    if (name == "third-fourth") return f(0.5, 0, 0.75, 1);
+    if (name == "last-fourth") return f(0.75, 0, 1, 1);
+    if (name == "first-three-fourths") return f(0, 0, 0.75, 1);
+    if (name == "last-three-fourths") return f(0.25, 0, 1, 1);
+    if (name.ends_with("-sixth")) {
+        const double y0 = name.starts_with("top") ? 0 : 0.5;
+        const double x0 = name.find("left") != std::string_view::npos    ? 0
+                          : name.find("center") != std::string_view::npos ? 1.0 / 3
+                          : name.find("right") != std::string_view::npos  ? 2.0 / 3
+                                                                          : -1;
+        if (x0 < 0)
+            return std::nullopt;
+        return f(x0, y0, x0 + 1.0 / 3, y0 + 0.5);
+    }
+    if (name == "almost-maximize")
+        return centered(area, int(area.width * 0.9), int(area.height * 0.9));
+    if (name == "maximize-height") return wlr_box{cur.x, inner.y, cur.width, inner.height};
+    if (name == "maximize-width") return wlr_box{inner.x, cur.y, inner.width, cur.height};
+    if (name == "larger" || name == "smaller") {
+        const int step = std::max(area.width, area.height) / 20 * (name == "larger" ? 1 : -1);
+        wlr_box b{cur.x - step, cur.y - step, cur.width + 2 * step, cur.height + 2 * step};
+        if (b.width < 200 || b.height < 150)
+            return cur;
+        return fit_into(b, inner);
+    }
+    if (name == "center") return centered(area, cur.width, cur.height);
+    if (name == "move-left") return fit_into({inner.x, cur.y, cur.width, cur.height}, inner);
+    if (name == "move-right") return fit_into({inner.x + inner.width - cur.width, cur.y, cur.width, cur.height}, inner);
+    if (name == "move-up") return fit_into({cur.x, inner.y, cur.width, cur.height}, inner);
+    if (name == "move-down") return fit_into({cur.x, inner.y + inner.height - cur.height, cur.width, cur.height}, inner);
+    if (name.starts_with("size:")) {
+        double w = 0, h = 0;
+        if (std::sscanf(std::string(name.substr(5)).c_str(), "%lfx%lf", &w, &h) != 2 || w <= 0 || h <= 0 || w > 1 ||
+            h > 1)
+            return std::nullopt;
+        return centered(inner, int(inner.width * w), int(inner.height * h));
+    }
+    return std::nullopt;
 }
 
 wlr_box fit_into(wlr_box box, const wlr_box& area) {

@@ -298,3 +298,48 @@ TEST(Neighbor, NothingThatWay) {
     EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, others, WLR_EDGE_RIGHT), -1);
     EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, {}, WLR_EDGE_LEFT), -1);
 }
+
+TEST(NamedPlace, HalvesCycleThroughThirds) {
+    const wlr_box area{0, 30, 1200, 900};
+    const wlr_box free{100, 100, 400, 300};
+    auto half = named_place("left-half", area, free, 0);
+    ASSERT_TRUE(half);
+    EXPECT_EQ(half->x, 0);
+    EXPECT_EQ(half->width, 600);
+    EXPECT_EQ(half->height, 900);
+    auto two = named_place("left-half", area, *half, 0);
+    EXPECT_EQ(two->width, 800);
+    auto third = named_place("left-half", area, *two, 0);
+    EXPECT_EQ(third->width, 400);
+    EXPECT_EQ(named_place("left-half", area, *third, 0)->width, 600);
+    EXPECT_EQ(named_place("right-half", area, free, 0)->x, 600);
+}
+
+TEST(NamedPlace, GapsAtEdgesAndHalvesBetween) {
+    const wlr_box area{0, 0, 1000, 800};
+    auto l = *named_place("top-left", area, {}, 10);
+    auto r = *named_place("top-right", area, {}, 10);
+    EXPECT_EQ(l.x, 10);
+    EXPECT_EQ(l.y, 10);
+    EXPECT_EQ(r.x - (l.x + l.width), 10);  // one full gap between them
+    EXPECT_EQ(r.x + r.width, 990);
+}
+
+TEST(NamedPlace, SizesAndMoves) {
+    const wlr_box area{0, 0, 1000, 800};
+    const wlr_box cur{300, 300, 200, 100};
+    EXPECT_EQ(named_place("move-left", area, cur, 0)->x, 0);
+    EXPECT_EQ(named_place("move-left", area, cur, 0)->y, 300);
+    EXPECT_EQ(named_place("move-down", area, cur, 0)->y, 700);
+    auto c = *named_place("center", area, cur, 0);
+    EXPECT_EQ(c.x, 400);
+    EXPECT_EQ(c.y, 350);
+    auto s = *named_place("size:0.5x0.5", area, cur, 0);
+    EXPECT_EQ(s.width, 500);
+    EXPECT_EQ(s.x, 250);
+    EXPECT_FALSE(named_place("size:2x1", area, cur, 0));
+    EXPECT_FALSE(named_place("maximize", area, cur, 0));  // the window manager's own
+    EXPECT_EQ(named_place("bottom-center-sixth", area, cur, 0)->x, 333);
+    for (std::string_view n : place_names())
+        EXPECT_TRUE(named_place(n, area, cur, 4)) << n;
+}

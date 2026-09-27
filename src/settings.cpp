@@ -91,6 +91,7 @@ constexpr ActionName kActions[] = {
     {Action::MoveToSpaceNext, "move-to-space-next"},
     {Action::ToggleFloating, "toggle-floating"},
     {Action::TogglePin, "toggle-pin"},
+    {Action::Place, "place"},
 };
 
 } // namespace
@@ -291,7 +292,8 @@ std::vector<Keybind> resolve_keybinds(const json& binds, uint32_t mod, std::vect
         if (*action == Action::SwitchVt || *action == Action::Space || *action == Action::MoveToSpace)
             k.iarg = std::atoi(k.arg.c_str());
         if ((*action == Action::Spawn || *action == Action::ToggleSecret || *action == Action::MoveToSecret ||
-             *action == Action::FocusDirection || *action == Action::MoveDirection || *action == Action::Portal) &&
+             *action == Action::FocusDirection || *action == Action::MoveDirection || *action == Action::Portal ||
+             *action == Action::Place) &&
             k.arg.empty()) {
             fail("'" + keys + "': " + b["action"].get<std::string>() + " needs \"arg\"");
             continue;

@@ -117,6 +117,9 @@ public:
     // Next or previous existing space on the focused output, wrapping around.
     void cycle_space(int direction);
     void move_to_space(View* view, Space* space);
+    // A window command: geometry::named_place, or maximize, restore,
+    // next-display / prev-display (the same place on the next screen).
+    void place_window(View* view, const std::string& name);
     // The space before (-1) or after (+1) on the view's screen, taking the
     // view along (a window dragged against the screen's end). False if none.
     bool carry_to_space(View* view, int direction);

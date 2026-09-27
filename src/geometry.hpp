@@ -7,7 +7,9 @@ extern "C" {
 #include <wlr/util/edges.h>
 }
 
+#include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace atrium::geometry {
@@ -48,6 +50,16 @@ uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corn
 // The box a snap zone stands for, with `gap` between snapped windows and
 // around them. TOP alone (maximize) fills the area without a gap.
 wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap);
+
+// Window commands (the palette's, after Rectangle): where `name` puts a window
+// now at `current` inside `area`, with `gap` around and between. Halves,
+// quarters, thirds, fourths, sixths, centered sizes, edges ("move-left" keeps
+// the size), "size:0.6x0.5" (a share of the area, centered). Pressing a half
+// again steps it to two thirds, then one third. Nothing for an unknown name,
+// or one the window manager answers itself (maximize, restore, displays).
+std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& current, int gap);
+// Every name named_place() knows, in the palette's order.
+std::span<const std::string_view> place_names();
 
 // Where a window in a secret space (or a tiled one) goes: `area` (what a
 // maximized window fills) less a margin of `percent` of its shorter side,

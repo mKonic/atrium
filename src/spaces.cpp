@@ -1,6 +1,7 @@
 // Server's space management: switching, moving windows between spaces, secret
 // spaces, rules at map time, and ext-workspace-v1 for the shell.
 
+#include "geometry.hpp"
 #include "ipc.hpp"
 #include "output.hpp"
 #include "overview.hpp"
@@ -269,6 +270,55 @@ void Server::move_to_space(View* view, Space* space) {
     seat->refresh_pointer();
     notify_window(*view, "changed");
     spaces_changed();
+}
+
+void Server::place_window(View* v, const std::string& name) {
+    if (!v || v->unmanaged() || !v->mapped || v->tiled() || (v->space && v->space->secret))
+        return;
+    if (name == "maximize") {
+        if (!v->fullscreen)
+            v->set_maximized(!v->maximized);
+        return;
+    }
+    if (name == "restore") {
+        if (v->fullscreen)
+            v->set_fullscreen(false);
+        else if (v->maximized)
+            v->set_maximized(false);
+        else if (v->snapped)
+            v->unsnap(true);
+        else if (v->placed) {
+            v->placed = false;
+            v->request_geometry(v->restore);
+        }
+        return;
+    }
+    if (v->fullscreen)
+        return;
+    if (name == "next-display" || name == "prev-display") {
+        if (outputs.size() < 2 || !v->output)
+            return;
+        auto it = std::ranges::find(outputs, v->output);
+        const long n = long(outputs.size());
+        const long at = it == outputs.end() ? 0 : it - outputs.begin();
+        Output* to = outputs[size_t(((at + (name == "next-display" ? 1 : -1)) % n + n) % n)];
+        if (to->active)
+            move_to_space(v, to->active);
+        return;
+    }
+    if (v->maximized)
+        v->set_maximized(false, false);
+    if (v->snapped)
+        v->unsnap(false);
+    const auto box = geometry::named_place(name, v->output ? v->output->usable : layout_box, v->geom, config.snap_gap);
+    if (!box)
+        return;
+    if (!v->placed) {
+        v->restore = v->geom;
+        v->placed = true;
+    }
+    v->request_geometry(*box);
+    notify_window(*v, "changed");
 }
 
 void Server::toggle_secret(const std::string& name) {
