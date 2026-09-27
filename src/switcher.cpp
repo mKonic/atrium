@@ -57,12 +57,23 @@ void Switcher::step(int direction, uint32_t hold) {
         const Space* only = (server_.shown_secret && server_.shown_secret->output == o) ? server_.shown_secret : nullptr;
         views_.clear();
         for (View* v : server_.views) {
-            if (v->unmanaged() || !v->mapped || v->output != o || !v->space || v->hidden_from_lists())
+            // A window's dialogs go with it (focusing it hands over to its
+            // modal one), as on Windows: one entry per window, not per sheet.
+            if (v->unmanaged() || !v->mapped || v->output != o || !v->space || v->hidden_from_lists() || v->parent())
                 continue;
             if (only ? v->space != only : !v->space->shown())
                 continue;
-            views_.push_back(v);
+            if (std::ranges::find(views_, v) == views_.end())
+                views_.push_back(v);
         }
+        // The first step goes to the window before the one in use: that one
+        // leads, even when a window opened since (quietly, unfocused) came
+        // ahead of it in the recency order.
+        View* current = server_.focused_view;
+        while (current && current->parent())
+            current = current->parent();
+        if (auto it = std::ranges::find(views_, current); it != views_.end())
+            std::rotate(views_.begin(), it, it + 1);
         if (views_.size() < 2)
             return;
         active_ = true;

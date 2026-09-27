@@ -57,7 +57,7 @@ private:
     Listener<wlr_xwayland_surface_configure_event> request_configure_;
     Listener<> request_move_;
     Listener<wlr_xwayland_resize_event> request_resize_;
-    Listener<> set_geometry_, set_hints_, set_title_, set_class_, set_decorations_;
+    Listener<> set_geometry_, set_hints_, set_title_, set_class_, set_decorations_, set_override_redirect_;
     Listener<> request_above_, request_below_, request_sticky_, request_skip_taskbar_, request_attention_;
 };
 

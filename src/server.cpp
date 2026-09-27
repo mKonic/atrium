@@ -1011,7 +1011,7 @@ void Server::focus_top() {
 }
 
 void Server::focus_view(View* view, bool raise) {
-    if (locked)
+    if (locked || (view && !view->mapped))
         return;
     // A window waiting on a modal dialog hands focus to the dialog (the
     // newest one, and on down a chain of them), raised along with it.
@@ -1034,14 +1034,7 @@ void Server::focus_view(View* view, bool raise) {
     if (view && raise)
         view->raise();
 
-    wlr_surface* old = seat->wlr->keyboard_state.focused_surface;
-    if (view && view->surface() == old)
-        return;
-
-    Owner old_owner = owner_of(old);
-    if (old_owner.view && old_owner.view->kind == View::Kind::Xdg)
-        static_cast<XdgView*>(old_owner.view)->dismiss_popups();
-
+    // Most recently used first, even when it has the keys already.
     if (view && !view->unmanaged()) {
         std::erase(views, view);
         views.insert(views.begin(), view);
@@ -1049,6 +1042,14 @@ void Server::focus_view(View* view, bool raise) {
             focused_output = view->output;
         view->urgent = false;
     }
+
+    wlr_surface* old = seat->wlr->keyboard_state.focused_surface;
+    if (view && view->surface() == old)
+        return;
+
+    Owner old_owner = owner_of(old);
+    if (old_owner.view && old_owner.view->kind == View::Kind::Xdg)
+        static_cast<XdgView*>(old_owner.view)->dismiss_popups();
 
     // A top/overlay layer surface holding exclusive keyboard focus (a lock
     // screen stand-in, a launcher) keeps it; the view only moves up the order.
@@ -1139,6 +1140,12 @@ void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* ev
     View* view = owner.view;
     if (!view || view == focused_view)
         return;
+    // Asked for before it has shown (a terminal launched from a shortcut
+    // does): it takes focus as it opens.
+    if (!view->mapped) {
+        view->activate_on_map = event->token && event->token->seat;
+        return;
+    }
 
     // A token minted from real user input (a click on a link, a notification)
     // may take focus; anything else only marks the window as wanting attention.

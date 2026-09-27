@@ -68,6 +68,14 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     set_title_.connect(&xsurface->events.set_title, [this](void*) { update_title(); });
     set_class_.connect(&xsurface->events.set_class, [this](void*) { update_title(); });
     set_decorations_.connect(&xsurface->events.set_decorations, [this](void*) { refresh_decoration_mode(); });
+    // A window turning into a menu (or back) while shown: taken down as what
+    // it was, put up again as what it is now.
+    set_override_redirect_.connect(&xsurface->events.set_override_redirect, [this](void*) {
+        if (!mapped)
+            return;
+        handle_unmap();
+        map();
+    });
     auto states = [this](void*) {
         if (mapped && !unmanaged())
             apply_states();

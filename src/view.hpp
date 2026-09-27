@@ -133,6 +133,7 @@ public:
     wlr_box restore{};  // geometry to return to from maximized/fullscreen
 
     bool mapped = false;
+    bool activate_on_map = false;  // asked for focus before it had shown
     bool activated = false;
     bool minimized = false;
     uint32_t keyboard_layout = 0;  // with keyboard.per_window: the layout it was left in
@@ -213,6 +214,7 @@ protected:
     int anim_dx_ = 0, anim_dy_ = 0;
     int glide_dx_ = 0, glide_dy_ = 0;  // on its way to where atrium put it
     bool opening_ = false;             // its open animation is running
+    bool listed_ = false;              // in server.views (managed when it mapped)
     void glide_from(int from_x, int from_y);
     int anchor_right_ = 0, anchor_bottom_ = 0;
 

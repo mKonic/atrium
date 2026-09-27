@@ -37,6 +37,7 @@ View::~View() {
     server.animator.cancel_owner(&glide_dx_, false);
     server.animator.cancel_owner(&reveal_, false);
     destroy_toplevel_handles();
+    std::erase(server.views, this);
 }
 
 void View::place_tree() {
@@ -117,7 +118,9 @@ void View::handle_map() {
     if (space)
         wlr_scene_node_reparent(&tree->node, space->tree);
 
+    std::erase(server.views, this);
     server.views.insert(server.views.begin(), this);
+    listed_ = true;
     create_toplevel_handles();
     place();
     raise();  // new windows open on top, still under any kept above
@@ -138,7 +141,8 @@ void View::handle_map() {
     remembered_.reset();
     // A window a rule sent to a space you aren't looking at opens quietly;
     // so do splash screens, notifications and menus.
-    if ((!space || space->shown()) && !splash() && !passive())
+    const bool asked = std::exchange(activate_on_map, false);
+    if (((!space || space->shown()) && !splash() && !passive()) || asked)
         server.focus_view(this);
     else
         server.spaces_changed();
@@ -154,14 +158,18 @@ void View::handle_map() {
 }
 
 void View::handle_unmap() {
-    if (!unmanaged())
+    // As it was when it opened: an X11 window can flip override-redirect in
+    // between, and a window left listed would linger in the switcher.
+    const bool managed = listed_;
+    listed_ = false;
+    if (managed)
         server.remember_placement(this);
     if (server.overview)
         server.overview->view_unmapped(this);
     if (server.switcher)
         server.switcher->view_unmapped(this);
     server.animator.cancel_owner(this, false);
-    if (!unmanaged() && visible())
+    if (managed && visible())
         animate_close();
     alpha_ = 1.0f;
     anim_dx_ = anim_dy_ = 0;
@@ -174,7 +182,7 @@ void View::handle_unmap() {
     if (was_focused)
         server.focused_view = nullptr;
 
-    if (!unmanaged()) {
+    if (managed) {
         server.notify_window(*this, "closed");
         std::erase(server.views, this);
         destroy_toplevel_handles();
@@ -195,7 +203,7 @@ void View::handle_unmap() {
     surface()->data = nullptr;
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
-    minimized = maximized = fullscreen = activated = false;
+    minimized = maximized = fullscreen = activated = activate_on_map = false;
     snapped = 0;
     tile_bar_hidden_ = false;
     resize_edges_ = 0;
