@@ -125,6 +125,10 @@ public:
     Q_INVOKABLE QVariantList items(const QString& query = {});
     Q_INVOKABLE void setAlias(const QString& key, const QString& alias);
     Q_INVOKABLE void setHidden(const QString& key, bool hidden);
+    // Window layouts, for Settings: [{ name, windows }].
+    Q_INVOKABLE QVariantList windowLayouts() const;
+    Q_INVOKABLE void renameLayout(const QString& from, const QString& to);
+    Q_INVOKABLE void removeLayout(const QString& name);
     // A snippet's keyword typed in an app: it becomes the snippet.
     Q_INVOKABLE void expandSnippet(qint64 snippet, int before);
     Q_INVOKABLE void stopOutput();

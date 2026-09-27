@@ -884,6 +884,18 @@ json Ipc::handle(Client& c, const json& req) {
                 server_.move_to_space(v, server_.ensure_space(server_.focused_output, req["number"]));
             else
                 return fail("window.to_space needs a \"number\" (1-99) or a \"secret\" name");
+        } else if (cmd == "window.frame") {
+            // Where and how big at once (a window layout putting it back).
+            for (const char* k : {"x", "y", "width", "height"})
+                if (!req.contains(k) || !req[k].is_number_integer())
+                    return fail("window.frame needs x, y, width and height");
+            if (v->fullscreen)
+                v->set_fullscreen(false);
+            if (v->maximized)
+                v->set_maximized(false, false);
+            if (v->snapped)
+                v->unsnap(false);
+            v->request_geometry({req["x"].get<int>(), req["y"].get<int>(), req["width"].get<int>(), req["height"].get<int>()});
         } else if (cmd == "window.resize") {
             if (!req.contains("width") || !req.contains("height"))
                 return fail("window.resize needs width and height");

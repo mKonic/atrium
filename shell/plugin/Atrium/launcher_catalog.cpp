@@ -103,6 +103,7 @@ constexpr CatalogItem kWindow[] = {
     {"move-up", "Move Up", "align_vertical_top", "edge nudge"},
     {"move-down", "Move Down", "align_vertical_bottom", "edge nudge"},
     {"next-display", "Next Display", "desktop_windows", "monitor screen move"},
+    {"save-layout", "Save Window Layout", "dashboard_customize", "arrangement windows remember"},
     {"prev-display", "Previous Display", "desktop_windows", "monitor screen move"},
 };
 

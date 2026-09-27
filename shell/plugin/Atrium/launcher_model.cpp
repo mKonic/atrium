@@ -7,6 +7,7 @@
 #include "launcher_catalog.hpp"
 #include "placeholders.hpp"
 #include "settings_pages.hpp"
+#include "window_layouts.hpp"
 
 #include <QClipboard>
 #include <QDBusConnection>
@@ -339,6 +340,16 @@ void LauncherModel::rebuildEntries() {
              .detail = QString("%1% × %2%").arg(qRound(w * 100)).arg(qRound(h * 100)), .glyph = "aspect_ratio",
              .target = QString("size:%1x%2").arg(w).arg(h)},
             {}, {"size"}, {});
+    }
+    // Window layouts: arrangements put back in one go.
+    for (const QVariant& v : WindowLayouts::instance()->layouts()) {
+        const QVariantMap m = v.toMap();
+        const QString name = m.value("name").toString();
+        const int n = m.value("windows").toInt();
+        add({.key = "window:layout:" + name, .kind = Kind::Window, .title = name,
+             .detail = n == 1 ? QString("1 window") : QString("%1 windows").arg(n), .glyph = "dashboard",
+             .target = "layout:" + name},
+            {}, {"layout"}, {});
     }
     for (const QVariant& v : c->records("commands")) {
         const QVariantMap m = v.toMap();
@@ -764,7 +775,15 @@ void LauncherModel::runEntry(const Entry& e, const QVariantList& args, bool from
     }
     case Kind::Window:
         emit closeRequested();
-        Compositor::instance()->action("place", e.target);
+        if (e.target.startsWith("layout:"))
+            WindowLayouts::instance()->run(e.target.mid(7), index_);
+        else if (e.target == "save-layout") {
+            const QString name = WindowLayouts::instance()->capture();
+            emit feedback("dashboard_customize", name.isEmpty() ? QStringLiteral("No Windows to Save")
+                                                                : QString("Saved as “%1”").arg(name),
+                          name.isEmpty());
+        } else
+            Compositor::instance()->action("place", e.target);
         return;
     case Kind::Script:
         runCustom(record("commands", e.target), args);
@@ -987,6 +1006,11 @@ void LauncherModel::confirm(const QString& token) {
     if (verb == "run") {
         e.confirm = false;
         runEntry(e, {}, true);
+    } else if (verb == "delete" && e.key.startsWith("window:layout:")) {
+        WindowLayouts::instance()->remove(e.target.mid(7));
+        if (prefs(e.key))
+            Compositor::instance()->removeRecord("launcher_entries", e.key);
+        ranking_.reset(e.key);
     } else if (verb == "delete") {
         const QString table = e.kind == Kind::Quicklink ? "quicklinks"
                               : e.kind == Kind::Snippet ? "snippets"
@@ -1096,6 +1120,18 @@ void LauncherModel::setAlias(const QString& key, const QString& alias) {
 
 void LauncherModel::setHidden(const QString& key, bool hidden) {
     setPref(key, {{"hidden", hidden}});
+}
+
+QVariantList LauncherModel::windowLayouts() const {
+    return WindowLayouts::instance()->layouts();
+}
+
+void LauncherModel::renameLayout(const QString& from, const QString& to) {
+    WindowLayouts::instance()->rename(from, to);
+}
+
+void LauncherModel::removeLayout(const QString& name) {
+    WindowLayouts::instance()->remove(name);
 }
 
 void LauncherModel::setPref(const QString& key, const QVariantMap& fields) {
@@ -1273,7 +1309,7 @@ QVariantList LauncherModel::allActions(int row) const {
     section();
     add("configure", "Alias and Shortcut…", "tune");
     if (e.kind == Kind::Quicklink || e.kind == Kind::Snippet || e.kind == Kind::Script ||
-        e.key.startsWith("window:size:")) {
+        e.key.startsWith("window:size:") || e.key.startsWith("window:layout:")) {
         add("edit", "Edit…", "edit");
         section();
         add("delete", "Delete", "delete");

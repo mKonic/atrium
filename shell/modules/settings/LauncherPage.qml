@@ -18,12 +18,12 @@ Column {
     property string itemQuery: ""
     // The key being given a shortcut ("" none).
     property string recording: ""
-    readonly property var tabs: ["Quicklinks", "Snippets", "Commands", "Window Sizes", "Search Items"]
+    readonly property var tabs: ["Quicklinks", "Snippets", "Commands", "Windows", "Search Items"]
 
     // "settings:Launcher/quicklinks" shows a tab; "…/quicklink" starts a new one.
     function show(sub: string): void {
         const tabFor = { quicklink: "Quicklinks", quicklinks: "Quicklinks", snippet: "Snippets", snippets: "Snippets",
-                         command: "Commands", commands: "Commands", sizes: "Window Sizes", items: "Search Items" };
+                         command: "Commands", commands: "Commands", sizes: "Windows", items: "Search Items" };
         if (tabFor[sub])
             tab = tabFor[sub];
         if (sub === "quicklink")
@@ -70,7 +70,7 @@ Column {
             id: records
 
             readonly property string table: ({ "Quicklinks": "quicklinks", "Snippets": "snippets",
-                                               "Commands": "commands", "Window Sizes": "window_sizes" })[root.tab] ?? ""
+                                               "Commands": "commands", "Windows": "window_sizes" })[root.tab] ?? ""
             readonly property var list: table ? recordsOf.value : []
 
             x: 16
@@ -96,12 +96,12 @@ Column {
 
             SectionHeader {
                 width: parent.width
-                title: root.tab
+                title: root.tab === "Windows" ? "Window Sizes" : root.tab
                 subtitle: ({
                     "Quicklinks": "Addresses, searches, files and folders opened from the palette. {argument} is asked for when it runs; {clipboard}, {date} and {time} are filled in.",
                     "Snippets": "Text typed where you are typing, from the palette or by typing its keyword (turn on keyword expansion above). {clipboard}, {date}, {time} and {argument} work here too.",
                     "Commands": "Shell commands you run from the palette. {argument} is asked for and passed quoted.",
-                    "Window Sizes": "Sizes of your own for the focused window, as a share of the screen, centered."
+                    "Windows": "Sizes of your own for the focused window, as a share of the screen, centered."
                 })[root.tab] ?? ""
 
                 PillButton {
@@ -130,7 +130,7 @@ Column {
                 visible: records.list.length === 0
                 topPadding: 6
                 bottomPadding: 6
-                text: `No ${root.tab.toLowerCase()} yet.`
+                text: root.tab === "Windows" ? "No window sizes yet." : `No ${root.tab.toLowerCase()} yet.`
                 color: Theme.palette.secondaryLabel
             }
 
@@ -206,6 +206,143 @@ Column {
                     }
                 }
             }
+        }
+    }
+
+    // --- window layouts (on the Windows tab) ---------------------------------------------------
+
+    Rectangle {
+        width: parent.width
+        height: layoutsColumn.implicitHeight + 32
+        radius: 14
+        visible: root.tab === "Windows"
+        color: Theme.palette.groupedBackground
+        border.width: 1
+        border.color: Theme.palette.separator
+
+        Column {
+            id: layoutsColumn
+
+            property var list: lm.windowLayouts()
+
+            x: 16
+            y: 16
+            width: parent.width - 32
+            spacing: 4
+
+            Connections {
+                target: Atrium
+
+                function onRecordsChanged(table: string): void {
+                    if (table === "layout_windows")
+                        layoutsColumn.list = lm.windowLayouts();
+                }
+            }
+
+            SectionHeader {
+                width: parent.width
+                title: "Window Layouts"
+                subtitle: "Arrangements the palette puts back in one go. Save one with Save Window Layout in the palette: it takes the windows on the space you're on."
+            }
+
+            Item {
+                width: 1
+                height: 8
+            }
+
+            StyledText {
+                visible: layoutsColumn.list.length === 0
+                topPadding: 6
+                bottomPadding: 6
+                text: "No window layouts yet."
+                color: Theme.palette.secondaryLabel
+            }
+
+            Repeater {
+                model: layoutsColumn.list
+
+                Item {
+                    id: lay
+
+                    required property var modelData
+                    required property int index
+
+                    width: layoutsColumn.width
+                    height: 52
+
+                    Rectangle {
+                        visible: lay.index > 0
+                        width: parent.width
+                        height: 1
+                        color: Theme.palette.separator
+                    }
+
+                    Column {
+                        anchors.left: parent.left
+                        anchors.right: layButtons.left
+                        anchors.rightMargin: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+
+                        StyledText {
+                            text: lay.modelData.name
+                        }
+
+                        StyledText {
+                            text: lay.modelData.windows === 1 ? "1 window" : `${lay.modelData.windows} windows`
+                            font.pointSize: Theme.font.size.small
+                            color: Theme.palette.secondaryLabel
+                        }
+                    }
+
+                    Row {
+                        id: layButtons
+
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 8
+
+                        PillButton {
+                            text: "Rename"
+                            onClicked: layoutSheet.edit(lay.modelData.name)
+                        }
+
+                        PillButton {
+                            text: "Remove"
+                            onClicked: lm.removeLayout(lay.modelData.name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Sheet {
+        id: layoutSheet
+
+        property string name
+
+        function edit(n: string): void {
+            name = n;
+            layoutName.text = n;
+            open();
+        }
+
+        width: 520
+        title: "Rename Window Layout"
+        action: "Rename"
+        ready: layoutName.text.trim() !== ""
+        onOpened: layoutName.focusField()
+        onSubmitted: {
+            lm.renameLayout(name, layoutName.text.trim());
+            close();
+        }
+
+        Field {
+            id: layoutName
+
+            implicitWidth: 460
+            onAccepted: if (layoutSheet.ready) layoutSheet.submitted()
         }
     }
 

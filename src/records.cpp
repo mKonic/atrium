@@ -16,11 +16,16 @@ const std::vector<RecordTable>& record_tables() {
         // Text with {placeholders}, typed where the cursor is; the keyword
         // types it too when snippet expansion is on.
         {"snippets", "snippet", "", {{"name", Text, ""}, {"text", Text, ""}, {"keyword", Text, ""}}},
-        // A named shell command. $1 $2 $3 are asked for; output shows what it
+        // A named shell command; {argument} is asked for; output shows what it
         // printed; confirm asks first; terminal runs it in the terminal.
         {"commands", "command", "",
          {{"name", Text, ""}, {"command", Text, ""}, {"directory", Text, ""}, {"icon", Text, ""},
           {"output", Bool, false}, {"confirm", Bool, false}, {"terminal", Bool, false}}},
+        // A window layout's windows, one row each: which app, on which screen,
+        // where as shares of that screen's usable area. A layout is its name.
+        {"layout_windows", "layout_window", "",
+         {{"layout", Text, ""}, {"app", Text, ""}, {"output", Text, ""}, {"x", Real, 0.0}, {"y", Real, 0.0},
+          {"width", Real, 0.5}, {"height", Real, 0.5}, {"maximized", Bool, false}}},
         // A window size of the user's own, as a share of the screen, centered.
         {"window_sizes", "window_size", "", {{"name", Text, ""}, {"width", Real, 0.6}, {"height", Real, 0.6}}},
     };
