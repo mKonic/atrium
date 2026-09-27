@@ -11,7 +11,7 @@ import shell.modules.settings
 ShellRoot {
     Settings {
         visible: true
-        page: Shell.env("ATRIUM_SETTINGS_PAGE") || "Appearance"
+        Component.onCompleted: openPage(Shell.env("ATRIUM_SETTINGS_PAGE") || "Appearance")
         onVisibleChanged: if (!visible) Qt.quit()
     }
 }

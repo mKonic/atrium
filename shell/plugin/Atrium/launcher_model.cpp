@@ -959,6 +959,64 @@ void LauncherModel::confirm(const QString& token) {
 
 // --- preferences ---------------------------------------------------------------------
 
+QVariantList LauncherModel::items(const QString& query) {
+    if (entries_.empty())
+        rebuildEntries();
+    QHash<QString, qint64> shortcutIds;
+    for (const QVariant& v : Compositor::instance()->shortcuts()) {
+        const QVariantMap m = v.toMap();
+        if (m.value("action") == "shell" && m.value("arg").toString().startsWith("run:"))
+            shortcutIds.insert(m.value("arg").toString().mid(4), m.value("id").toLongLong());
+    }
+    const std::u32string q = foldText(query);
+    std::vector<int> list;
+    for (size_t i = 0; i < entries_.size(); ++i) {
+        const Entry& e = entries_[i];
+        if (!persistent(e))
+            continue;
+        if (!q.empty()) {
+            const auto sc = rank::score(q, e.fields.title);
+            if (!sc || !rank::passes(*sc, rank::query_length(q), rank::Sensitivity::Medium))
+                continue;
+        }
+        list.push_back(int(i));
+    }
+    std::ranges::stable_sort(list, [this](int a, int b) {
+        const Entry &x = entries_[size_t(a)], &y = entries_[size_t(b)];
+        if (x.kind != y.kind)
+            return x.kind < y.kind;
+        return rank::compare_names(x.fields.title.folded, y.fields.title.folded) < 0;
+    });
+    QVariantList out;
+    for (int i : list) {
+        const Entry& e = entries_[size_t(i)];
+        const Prefs* p = prefs(e.key);
+        out.push_back(QVariantMap{
+            {"key", e.key},
+            {"title", e.title},
+            {"section", info(int(e.kind)).section},
+            {"label", info(int(e.kind)).label},
+            {"icon", e.icon},
+            {"glyph", e.glyph},
+            {"color", e.color},
+            {"alias", p ? p->alias : QString()},
+            {"hidden", p && p->hidden},
+            {"hideable", info(int(e.kind)).hideable},
+            {"keys", keysFor(e.key)},
+            {"shortcut", shortcutIds.value(e.key, -1)},
+        });
+    }
+    return out;
+}
+
+void LauncherModel::setAlias(const QString& key, const QString& alias) {
+    setPref(key, {{"alias", alias.trimmed()}});
+}
+
+void LauncherModel::setHidden(const QString& key, bool hidden) {
+    setPref(key, {{"hidden", hidden}});
+}
+
 void LauncherModel::setPref(const QString& key, const QVariantMap& fields) {
     Compositor::instance()->setRecord("launcher_entries", key, fields);
 }

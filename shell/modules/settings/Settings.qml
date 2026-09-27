@@ -21,8 +21,14 @@ FloatingWindow {
     }
 
     function openPage(name: string): void {
+        // "Launcher/quicklinks": a page, and where on it.
+        const sub = name.includes("/") ? name.slice(name.indexOf("/") + 1) : "";
+        if (sub)
+            name = name.slice(0, name.indexOf("/"));
         if (name)
             page = name;
+        if (sub && name === "Launcher")
+            launcherPage.show(sub);
         query = "";
         search.text = "";
         visible = true;
@@ -396,6 +402,14 @@ FloatingWindow {
             RulesEditor {
                 visible: root.query === "" && root.page === "Windows"
                 width: parent.width
+            }
+
+            LauncherPage {
+                id: launcherPage
+
+                visible: root.query === "" && root.page === "Launcher"
+                width: parent.width
+                window: root
             }
         }
     }

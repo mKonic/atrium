@@ -117,6 +117,13 @@ public:
     Q_INVOKABLE void run(const QString& key);
     // Answer to confirmRequested.
     Q_INVOKABLE void confirm(const QString& token);
+    // For Settings: every entry that can carry an alias, a shortcut or a
+    // hide, by kind then name, matching `query`: [{ key, title, section,
+    // label, icon, glyph, color, alias, hidden, hideable, keys, shortcut }]
+    // (`shortcut` is the id of its shortcut record, -1 none).
+    Q_INVOKABLE QVariantList items(const QString& query = {});
+    Q_INVOKABLE void setAlias(const QString& key, const QString& alias);
+    Q_INVOKABLE void setHidden(const QString& key, bool hidden);
     Q_INVOKABLE void stopOutput();
     Q_INVOKABLE void rerunOutput();
     Q_INVOKABLE void copyOutput() const;
