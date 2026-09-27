@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Fixed
+- The shell's fonts and icons missing on a system without caelestia's packages.
 
 ## [v0.1.0] - 2026-09-27
 ### Added
