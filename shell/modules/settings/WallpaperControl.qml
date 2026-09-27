@@ -1,6 +1,5 @@
 import QtCore
 import QtQuick
-import QtQuick.Dialogs
 import shell.components
 import shell.services
 import Atrium
@@ -42,12 +41,12 @@ Row {
         onClicked: picker.open()
     }
 
-    FileDialog {
+    FilePicker {
         id: picker
 
-        title: "Choose a wallpaper"
-        currentFolder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-        nameFilters: ["Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)"]
-        onAccepted: root.picked(selectedFile)
+        title: "Choose a Wallpaper"
+        folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
+        nameFilter: "Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)"
+        onPicked: file => root.picked(file)
     }
 }

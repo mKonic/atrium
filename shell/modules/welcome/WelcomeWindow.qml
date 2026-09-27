@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtCore
 import QtQuick
-import QtQuick.Dialogs
 import QtQuick.Layouts
 import Atrium.Shell
 import shell.components
@@ -238,13 +237,13 @@ FloatingWindow {
                 }
             }
 
-            FileDialog {
+            FilePicker {
                 id: picker
 
-                title: "Choose a wallpaper"
-                currentFolder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-                nameFilters: ["Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)"]
-                onAccepted: Wallpaper.set(selectedFile)
+                title: "Choose a Wallpaper"
+                folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
+                nameFilter: "Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)"
+                onPicked: file => Wallpaper.set(file)
             }
         }
 

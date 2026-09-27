@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtCore
 import QtQuick
-import QtQuick.Dialogs
 import shell.components
 import shell.services
 import Atrium
@@ -320,13 +319,13 @@ Column {
         }
     }
 
-    FileDialog {
+    FilePicker {
         id: picker
 
-        title: "Choose a picture"
-        currentFolder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-        nameFilters: ["Pictures (*.png *.jpg *.jpeg *.webp *.gif)"]
-        onAccepted: Accounts.setPicture(selectedFile.toString())
+        title: "Choose a Picture"
+        folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
+        nameFilter: "Pictures (*.png *.jpg *.jpeg *.webp *.gif)"
+        onPicked: file => Accounts.setPicture(file.toString())
     }
 
     Connections {

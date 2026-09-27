@@ -4,6 +4,7 @@
 #include "apps.hpp"
 #include "brightness.hpp"
 #include "desktop_files.hpp"
+#include "folder_model.hpp"
 #include "levels.hpp"
 #include "session.hpp"
 #include "greeter.hpp"
@@ -253,6 +254,7 @@ public:
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
         qmlRegisterType<DockApps>(uri, 1, 0, "DockApps");
         qmlRegisterType<DesktopFiles>(uri, 1, 0, "DesktopFiles");
+        qmlRegisterType<FolderModel>(uri, 1, 0, "FolderModel");
     }
 };
 

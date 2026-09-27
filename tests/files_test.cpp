@@ -31,6 +31,30 @@ TEST(Files, ParsesLaunchers) {
     EXPECT_EQ(none.icon, "");
 }
 
+TEST(Files, ResolvesTypedPaths) {
+    using atrium::files::resolve_typed;
+    EXPECT_EQ(resolve_typed("~", "/tmp", "/home/me"), "/home/me");
+    EXPECT_EQ(resolve_typed("~/Pictures/", "/tmp", "/home/me"), "/home/me/Pictures");
+    EXPECT_EQ(resolve_typed("Wallpapers", "/home/me/Pictures", "/home/me"), "/home/me/Pictures/Wallpapers");
+    EXPECT_EQ(resolve_typed("../Music", "/home/me/Pictures", "/home/me"), "/home/me/Music");
+    EXPECT_EQ(resolve_typed("/usr//share/./x/..", "/tmp", "/home/me"), "/usr/share");
+    EXPECT_EQ(resolve_typed("../../../..", "/home/me", "/home/me"), "/");
+    EXPECT_EQ(resolve_typed("  /etc  ", "/tmp", "/home/me"), "/etc");
+}
+
+TEST(Files, FiltersBySuffix) {
+    using namespace atrium::files;
+    const auto pictures = filter_suffixes("Pictures (*.png *.JPG *.jpeg)");
+    ASSERT_EQ(pictures.size(), 3u);
+    EXPECT_TRUE(has_suffix("sky.PNG", pictures));
+    EXPECT_TRUE(has_suffix("a.b.jpg", pictures));
+    EXPECT_FALSE(has_suffix("notes.txt", pictures));
+    EXPECT_FALSE(has_suffix("png", pictures));
+    EXPECT_FALSE(has_suffix(".png", pictures));  // a hidden file with no suffix
+    EXPECT_TRUE(filter_suffixes("All files (*)").empty());
+    EXPECT_TRUE(has_suffix("anything", {}));
+}
+
 TEST(Files, FreeNames) {
     std::set<std::string> have{"New Folder", "New Folder 2"};
     EXPECT_EQ(free_name("New Folder", [&](const std::string& n) { return have.contains(n); }), "New Folder 3");

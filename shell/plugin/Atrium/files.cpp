@@ -99,4 +99,64 @@ bool valid_name(std::string_view name) {
            name.find('\0') == std::string_view::npos;
 }
 
+std::string resolve_typed(std::string_view typed, const std::string& current, const std::string& home) {
+    std::string text(trim(typed));
+    if (text == "~" || text.starts_with("~/"))
+        text = home + text.substr(1);
+    else if (!text.starts_with("/"))
+        text = current + "/" + text;
+    // Take the steps: "." stays, ".." goes up (not past the root).
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (start <= text.size()) {
+        const size_t slash = text.find('/', start);
+        const std::string part = text.substr(start, slash == std::string::npos ? std::string::npos : slash - start);
+        if (part == "..") {
+            if (!parts.empty())
+                parts.pop_back();
+        } else if (!part.empty() && part != ".") {
+            parts.push_back(part);
+        }
+        if (slash == std::string::npos)
+            break;
+        start = slash + 1;
+    }
+    std::string out;
+    for (const std::string& p : parts)
+        out += "/" + p;
+    return out.empty() ? "/" : out;
+}
+
+bool has_suffix(std::string_view name, const std::vector<std::string>& suffixes) {
+    if (suffixes.empty())
+        return true;
+    const size_t dot = name.rfind('.');
+    if (dot == std::string_view::npos || dot == 0)
+        return false;
+    const std::string s = lower(name.substr(dot + 1));
+    return std::ranges::any_of(suffixes, [&](const std::string& x) { return lower(x) == s; });
+}
+
+std::vector<std::string> filter_suffixes(std::string_view filter) {
+    // Between the parentheses, if there are any.
+    if (const size_t open = filter.find('('); open != std::string_view::npos) {
+        const size_t close = filter.find(')', open);
+        filter = filter.substr(open + 1, close == std::string_view::npos ? std::string_view::npos : close - open - 1);
+    }
+    std::vector<std::string> out;
+    size_t start = 0;
+    while (start < filter.size()) {
+        size_t end = filter.find(' ', start);
+        if (end == std::string_view::npos)
+            end = filter.size();
+        std::string_view pattern = filter.substr(start, end - start);
+        if (pattern == "*" || pattern == "*.*")
+            return {};
+        if (pattern.starts_with("*."))
+            out.emplace_back(lower(pattern.substr(2)));
+        start = end + 1;
+    }
+    return out;
+}
+
 } // namespace atrium::files

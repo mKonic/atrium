@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace atrium::files {
 
@@ -27,5 +28,17 @@ std::string free_name(const std::string& base, const std::function<bool(const st
 
 // Whether `name` can rename a file in place: not empty, no slash, not . or ..
 bool valid_name(std::string_view name);
+
+// What a path typed into a file picker means: "~" is home, a relative path
+// is under `current`, and "." and ".." steps are taken. Always absolute.
+std::string resolve_typed(std::string_view typed, const std::string& current, const std::string& home);
+
+// Whether a file's name ends in one of `suffixes` ("png", any case); no
+// suffixes lets everything through.
+bool has_suffix(std::string_view name, const std::vector<std::string>& suffixes);
+
+// The suffixes a Qt-style name filter lists: "Pictures (*.png *.jpg)" gives
+// png and jpg; a filter of "*" or "*.*" gives none (everything).
+std::vector<std::string> filter_suffixes(std::string_view filter);
 
 } // namespace atrium::files

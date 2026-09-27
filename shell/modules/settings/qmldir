@@ -16,6 +16,7 @@ DisksPage 1.0 DisksPage.qml
 DisplaysEditor 1.0 DisplaysEditor.qml
 Dropdown 1.0 Dropdown.qml
 Field 1.0 Field.qml
+FilePicker 1.0 FilePicker.qml
 Group 1.0 Group.qml
 KeyCaps 1.0 KeyCaps.qml
 KeyboardPage 1.0 KeyboardPage.qml
