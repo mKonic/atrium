@@ -238,10 +238,6 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
-            UpdatesIndicator {
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
             Volume {
                 anchors.verticalCenter: parent.verticalCenter
             }

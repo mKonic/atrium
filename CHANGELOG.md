@@ -15,11 +15,13 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A screen shader setting: a GLSL file drawn over every screen.
 
 ### Changed
+- Updates no longer show in the menu bar; Software Update in Settings has them.
 - atrium draws with its own renderer: a full redraw with blur and Liquid Glass takes about half the time.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
 - A window launched or switched to over a fullscreen app staying hidden behind it.
+- The shell's text drawn in Rubik Light at every weight, with bold faked, since caelestia's fonts left.
 
 ## [v0.1.0] - 2026-09-27
 ### Added

@@ -16,7 +16,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QFontDatabase>
 #include <QIcon>
 #include <QSettings>
 #include <QQmlComponent>
@@ -25,6 +24,7 @@
 #include <QStandardPaths>
 
 #include <fcntl.h>
+#include <fontconfig/fontconfig.h>
 #include <sys/file.h>
 #include <unistd.h>
 
@@ -84,14 +84,15 @@ void pick_icon_theme() {
 }
 
 // The fonts atrium brings along (Rubik, which Arch only has in the AUR):
-// installed, else the source tree's.
+// installed, else the source tree's. Given to fontconfig before Qt starts,
+// not QFontDatabase::addApplicationFont: that registers a variable font's
+// first named instance only (Rubik's Light), so every weight was Light
+// with bold faked. fontconfig lists all of them, as a system install does.
 void load_fonts() {
     for (const QString& dir : {QStringLiteral(ATRIUM_DATADIR "/fonts"), QStringLiteral(ATRIUM_SOURCE_DIR "/data/share/atrium/fonts")}) {
-        const QStringList files = QDir(dir).entryList({"*.ttf", "*.otf"}, QDir::Files);
-        if (files.isEmpty())
+        if (QDir(dir).entryList({"*.ttf", "*.otf"}, QDir::Files).isEmpty())
             continue;
-        for (const QString& f : files)
-            QFontDatabase::addApplicationFont(dir + "/" + f);
+        FcConfigAppFontAddDir(nullptr, reinterpret_cast<const FcChar8*>(QFile::encodeName(dir).constData()));
         return;
     }
 }
@@ -139,6 +140,7 @@ int main(int argc, char** argv) {
 
     // Panels are see-through: every window gets an alpha channel.
     QQuickWindow::setDefaultAlphaBuffer(true);
+    load_fonts();  // before Qt reads fontconfig's font list
     QApplication app(argc, argv);
     app.setApplicationName("atrium-shell");
     const QString app_id = pragma(file, "AppId");
@@ -148,7 +150,6 @@ int main(int argc, char** argv) {
     app.setQuitOnLastWindowClosed(false);
     app.setProperty("atriumShellDir", info.absolutePath());
     pick_icon_theme();
-    load_fonts();
 
     QQmlEngine engine;
     // The Atrium modules: built next to this binary when it runs from the
