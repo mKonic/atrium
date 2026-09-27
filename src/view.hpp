@@ -98,6 +98,11 @@ public:
     // Apply windows.tiled_titlebars to a snapped window.
     void refresh_tiled_titlebar();
     void set_minimized(bool minimized);
+    // Fullscreen and in front: over the panels, with the backdrop behind it.
+    bool fullscreen_front() const { return fullscreen && !covered; }
+    // The tree its tree belongs under: its space's windows, or their
+    // fullscreen layer while it is fullscreen in front.
+    wlr_scene_tree* home_tree() const;
     // The app asks to be minimized. A fullscreen game asks on its own when
     // it loses focus (SDL does, in an exclusive fullscreen mode), and the
     // request lands late, after a space switch or Alt+Tab may have handed
@@ -147,6 +152,7 @@ public:
     uint32_t keyboard_layout = 0;  // with keyboard.per_window: the layout it was left in
     bool maximized = false;
     bool fullscreen = false;
+    bool covered = false;  // fullscreen, with another window brought in front of it
     int fullscreen_home = 0;  // the space it left for one of its own (windows.fullscreen_space)
     uint32_t snapped = 0;  // snap zone the window fills, 0 when free
     bool placed = false;   // put somewhere by a window command; restore takes it back

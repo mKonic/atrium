@@ -118,7 +118,7 @@ void Server::switch_space(Output* output, int number, View* carry) {
         // space's: it slides with the space whose window is fullscreen, or
         // it would black out the other space at once.
         auto has_fullscreen = [this](const Space* s) {
-            return std::ranges::any_of(views, [s](View* v) { return v->space == s && v->fullscreen && !v->minimized; });
+            return std::ranges::any_of(views, [s](View* v) { return v->space == s && v->fullscreen_front() && !v->minimized; });
         };
         const bool in = has_fullscreen(target), out = has_fullscreen(old);
         if (in || out)
@@ -241,7 +241,7 @@ void Server::move_to_space(View* view, Space* space) {
     Output* to = space->secret ? (space->output ? space->output : focused_output) : space->output;
     carry_to_output(view, to);
     view->space = space;
-    wlr_scene_node_reparent(&view->tree->node, view->fullscreen ? space->fullscreen_tree : space->tree);
+    wlr_scene_node_reparent(&view->tree->node, view->home_tree());
     if (space->secret)
         view->fit_secret();
     else if (old && old->secret)
@@ -260,6 +260,7 @@ void Server::move_to_space(View* view, Space* space) {
         view->output->refit_views();
     retile(old);
     retile(space);
+    restack_fullscreen();
     // The last window leaving a showing secret space takes the overlay with it.
     if (old && old == shown_secret && old->empty()) {
         hide_secret();

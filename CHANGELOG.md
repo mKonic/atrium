@@ -13,6 +13,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ## [Unreleased]
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
+- A window launched or switched to over a fullscreen app staying hidden behind it.
 
 ## [v0.1.0] - 2026-09-27
 ### Added

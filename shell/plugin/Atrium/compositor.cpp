@@ -299,7 +299,7 @@ bool Compositor::fullscreenOn(const QString& output) const {
     const QString label = QString::number(activeSpace(output));
     for (const QVariant& v : windows_) {
         const QVariantMap w = v.toMap();
-        if (w.value("fullscreen").toBool() && !w.value("minimized").toBool() && !w.value("secret").toBool() &&
+        if (w.value("fullscreen").toBool() && !w.value("covered").toBool() && !w.value("minimized").toBool() && !w.value("secret").toBool() &&
             w.value("output").toString() == output && w.value("space").toString() == label)
             return true;
     }

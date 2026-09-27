@@ -432,7 +432,7 @@ void Output::refit_views() {
     }
     wlr_scene_node_set_enabled(&fullscreen_bg->node,
         std::ranges::any_of(server.views, [this](View* v) {
-            return v->output == this && v->fullscreen && v->visible();
+            return v->output == this && v->fullscreen_front() && v->visible();
         }));
 }
 
