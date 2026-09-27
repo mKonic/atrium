@@ -34,7 +34,10 @@ Rectangle {
         font.pointSize: Theme.font.size.small
         clip: true
         selectByMouse: true
+        activeFocusOnTab: true  // Tab steps through a form's fields (a sheet's Popup doesn't on its own)
         onAccepted: root.accepted()
+        Keys.onTabPressed: nextItemInFocusChain(true)?.forceActiveFocus(Qt.TabFocusReason)
+        Keys.onBacktabPressed: nextItemInFocusChain(false)?.forceActiveFocus(Qt.BacktabFocusReason)
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
