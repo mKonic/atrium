@@ -98,6 +98,7 @@ struct Config {
     // Blur
     bool light = false;  // appearance.style: light chrome, shell and apps
     std::string accent = "multicolor";  // appearance.accent: accent::names()
+    std::string screen_shader;           // appearance.screen_shader: a GLSL file over every screen
     bool liquid_glass = false;           // appearance.liquid_glass: glass panels
     bool glass_tinted = false;           // appearance.glass_style: clear (false) or tinted
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill

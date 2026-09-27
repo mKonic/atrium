@@ -396,6 +396,8 @@ public:
         Timer* timer = nullptr;
         wlr_swapchain* swapchain = nullptr;
     };
+    // Everything drawn again next frame.
+    void damage_whole();
     bool needs_frame() const;
     bool commit(const StateOptions* options = nullptr);
     bool build_state(wlr_output_state* state, const StateOptions* options = nullptr);
@@ -418,7 +420,6 @@ private:
     SceneOutput(Scene* scene, wlr_output* output);
     ~SceneOutput();
     void damage(const pixman_region32_t* damage);
-    void damage_whole();
     void update_geometry(bool force);
     void attempt_gamma(wlr_output_state* state);
     render::OutputColor output_color(const wlr_output_image_description* desc) const;

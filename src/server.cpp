@@ -226,6 +226,8 @@ void Server::setup() {
         die("couldn't create renderer");
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
 
+    apply_screen_shader();
+
     wlr_renderer_init_wl_shm(renderer, display);
     if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
         wlr_drm_create(display, renderer);
@@ -857,6 +859,7 @@ void Server::gpu_reset() {
 
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
     wlr_compositor_set_renderer(compositor, renderer);
+    apply_screen_shader();
     for (Output* o : outputs)
         wlr_output_init_render(o->wlr, allocator, renderer);
 
@@ -1418,6 +1421,8 @@ void Server::setting_changed(const std::string& key) {
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
     if (is("appearance.blur") || key == "appearance.liquid_glass")
         apply_blur_settings();
+    if (key == "appearance.screen_shader")
+        apply_screen_shader();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
     if (key == "appearance.style" || key == "appearance.accent") {
@@ -1477,6 +1482,19 @@ void Server::setting_changed(const std::string& key) {
 
     if (ipc)
         ipc->broadcast("settings", {{"event", "setting.changed"}, {"key", key}, {"value", settings->get(key)}});
+}
+
+// The user's shader over every screen; one that doesn't compile leaves
+// the screens as they are (the log says why).
+void Server::apply_screen_shader() {
+    render::Renderer* r = render::Renderer::from(renderer);
+    if (!r)
+        return;
+    r->egl().make_current();
+    r->shaders().set_screen_shader(config.screen_shader);
+    for (Output* o : outputs)
+        if (o->scene_output)
+            o->scene_output->damage_whole();
 }
 
 void Server::apply_blur_settings() {

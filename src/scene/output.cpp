@@ -786,7 +786,8 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
     // Straight to the display: one buffer, nothing to adjust on the way
     // out (HDR's SDR white, colour intensity or a tint would be skipped).
     enum { Ineligible, Candidate, Success } scanout = Ineligible;
-    const bool adjusts = sdr_white_nits_ > 0 || sdr_primaries_set_ || !color.plain();
+    const bool adjusts = sdr_white_nits_ > 0 || sdr_primaries_set_ || !color.plain() ||
+                         (renderer && renderer->shaders().has_screen_shader());
     if (list.size() == 1 && !adjusts && scene->debug_damage != Scene::DebugDamage::Highlight &&
         scene->direct_scanout && list[0].node->type == Type::Buffer && list[0].walk.identity() &&
         !(state->committed & (WLR_OUTPUT_STATE_MODE | WLR_OUTPUT_STATE_ENABLED | WLR_OUTPUT_STATE_RENDER_FORMAT)) &&

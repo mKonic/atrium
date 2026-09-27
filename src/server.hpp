@@ -217,6 +217,7 @@ public:
     // panels), rendered once per frame and sampled by every window's blur.
     scene::BlurCache* background_blur = nullptr;
     void apply_blur_settings();
+    void apply_screen_shader();
 
     wlr_output_layout* output_layout = nullptr;
     wlr_box layout_box{};

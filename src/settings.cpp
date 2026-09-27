@@ -386,6 +386,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(choice("appearance.wallpaper_fit", "Appearance", "Wallpaper fit",
         "How the picture meets a screen of another shape.", {"fill", "fit", "stretch", "center", "tile"}, "fill",
         [](Config&, const json&) {}));
+    s.push_back(make("appearance.screen_shader", SettingType::String, "Appearance", "Screen shader",
+        "A GLSL ES 3.00 fragment shader drawn over every screen, as Hyprland's screen_shader: it samples the "
+        "frame from tex at v_texcoord (time counts seconds). Empty for none.",
+        "", [](Config& c, const json& v) { c.screen_shader = v.get<std::string>(); }));
     s.push_back(number("appearance.corner_radius", T::Int, "Appearance", "Corner radius",
         "Roundness of window corners, in pixels.", &Config::corner_radius, d, 0, 64));
     s.push_back(boolean("appearance.shadows", "Appearance", "Window shadows",
