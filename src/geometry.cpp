@@ -177,13 +177,15 @@ std::span<const std::string_view> place_names() {
     return kPlaceNames;
 }
 
-std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& cur, int gap) {
+std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& cur, int gap, bool again) {
     auto f = [&](double x0, double y0, double x1, double y1) { return fraction(area, x0, y0, x1, y1, gap); };
     // A half pressed again: two thirds, then one third, then back.
     auto cycle = [&](bool left) {
         const wlr_box half = left ? f(0, 0, 0.5, 1) : f(0.5, 0, 1, 1);
         const wlr_box two = left ? f(0, 0, 2.0 / 3, 1) : f(1.0 / 3, 0, 1, 1);
         const wlr_box third = left ? f(0, 0, 1.0 / 3, 1) : f(2.0 / 3, 0, 1, 1);
+        if (!again)
+            return half;
         return same_box(cur, half) ? two : same_box(cur, two) ? third : half;
     };
     const wlr_box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};

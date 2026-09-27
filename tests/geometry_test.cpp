@@ -343,3 +343,11 @@ TEST(NamedPlace, SizesAndMoves) {
     for (std::string_view n : place_names())
         EXPECT_TRUE(named_place(n, area, cur, 4)) << n;
 }
+
+TEST(NamedPlace, OnlyTheSameCommandAgainCycles) {
+    const wlr_box area{0, 0, 1200, 900};
+    const wlr_box two_thirds = *named_place("first-two-thirds", area, {}, 0);
+    // Left Half after First Two Thirds is a half, not the next step of a cycle.
+    EXPECT_EQ(named_place("left-half", area, two_thirds, 0, false)->width, 600);
+    EXPECT_EQ(named_place("left-half", area, two_thirds, 0, true)->width, 400);
+}

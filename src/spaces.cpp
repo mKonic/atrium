@@ -310,13 +310,24 @@ void Server::place_window(View* v, const std::string& name) {
         v->set_maximized(false, false);
     if (v->snapped)
         v->unsnap(false);
-    const auto box = geometry::named_place(name, v->output ? v->output->usable : layout_box, v->geom, config.snap_gap);
+    const wlr_box area = v->output ? v->output->usable : layout_box;
+    auto box = geometry::named_place(name, area, v->geom, config.snap_gap, v->placed && v->last_place == name);
     if (!box)
         return;
+    // A window that can't be that small stays on the screen: grown to its
+    // least size, then slid back inside.
+    wlr_box min{}, max{};
+    v->size_hints(min, max);
+    if (min.width > 0)
+        box->width = std::max(box->width, min.width);
+    if (min.height > 0)
+        box->height = std::max(box->height, min.height + v->top());
+    *box = geometry::fit_into(*box, area);
     if (!v->placed) {
         v->restore = v->geom;
         v->placed = true;
     }
+    v->last_place = name;
     v->request_geometry(*box);
     notify_window(*v, "changed");
 }

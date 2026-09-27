@@ -57,7 +57,8 @@ wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap);
 // the size), "size:0.6x0.5" (a share of the area, centered). Pressing a half
 // again steps it to two thirds, then one third. Nothing for an unknown name,
 // or one the window manager answers itself (maximize, restore, displays).
-std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& current, int gap);
+std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& current, int gap,
+                                   bool again = true);
 // Every name named_place() knows, in the palette's order.
 std::span<const std::string_view> place_names();
 
