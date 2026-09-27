@@ -1,6 +1,6 @@
 <div align = center>
 
-<img src="./assets/header.svg" width="750" height="300" alt="banner">
+<img src="./.github/readme/header.svg" width="750" height="300" alt="banner">
 
 <br>
 
@@ -76,9 +76,9 @@ It provides the latest Wayland features, has all the eyecandy and more...
 
 <!----------------------------------{ Images }--------------------------------->
 
-[Preview A]: ./assets/prev1.png
-[Preview B]: ./assets/prev2.png
-[Preview C]: ./assets/prev3.png
+[Preview A]: ./.github/readme/preview-1.png
+[Preview B]: ./.github/readme/preview-2.png
+[Preview C]: ./.github/readme/preview-3.png
 
 
 <!----------------------------------{ Badges }--------------------------------->
