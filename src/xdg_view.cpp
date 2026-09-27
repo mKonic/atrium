@@ -48,7 +48,7 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
     });
     request_minimize_.connect(&toplevel->events.request_minimize, [this](void*) {
         if (mapped && !layout_owned())
-            set_minimized(true);
+            request_minimized(true);
     });
     request_move_.connect(&toplevel->events.request_move, [this](wlr_xdg_toplevel_move_event* e) {
         if (mapped && !layout_owned() && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))

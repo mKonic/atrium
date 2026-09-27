@@ -98,6 +98,14 @@ public:
     // Apply windows.tiled_titlebars to a snapped window.
     void refresh_tiled_titlebar();
     void set_minimized(bool minimized);
+    // The app asks to be minimized. A fullscreen game asks on its own when
+    // it loses focus (SDL does, in an exclusive fullscreen mode), and the
+    // request lands late, after a space switch or Alt+Tab may have handed
+    // focus back; granted, it hides the game where only the Dock finds it.
+    // A fullscreen window's own requests are refused, as Hyprland and sway
+    // refuse every one; atrium's minimize (a shortcut, the Dock) still works.
+    // Returns whether it is minimized now.
+    bool request_minimized(bool m);
     void raise();
     bool visible() const;
 

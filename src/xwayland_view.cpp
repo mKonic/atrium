@@ -48,8 +48,8 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
             set_maximized(xsurface->maximized_horz || xsurface->maximized_vert);
     });
     request_minimize_.connect(&xsurface->events.request_minimize, [this](wlr_xwayland_minimize_event* e) {
-        if (mapped && !layout_owned())
-            set_minimized(e->minimize);
+        if (mapped && !layout_owned() && request_minimized(e->minimize) != e->minimize)
+            wlr_xwayland_surface_set_minimized(xsurface, minimized);  // it stays as it is
     });
     request_close_.connect(&xsurface->events.request_close, [this](void*) { close(); });
     request_move_.connect(&xsurface->events.request_move, [this](void*) {

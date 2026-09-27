@@ -797,6 +797,13 @@ void View::set_fullscreen(bool f) {
     server.fullscreen_space(this);
 }
 
+bool View::request_minimized(bool m) {
+    if (m && fullscreen)
+        return minimized;
+    set_minimized(m);
+    return minimized;
+}
+
 void View::set_minimized(bool m) {
     if (m == minimized || unmanaged() || !tree)
         return;
