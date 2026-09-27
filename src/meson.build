@@ -11,6 +11,7 @@ atrium_sources = files(
   'session_management.cpp',
   'toplevel_icon.cpp',
   'layer_surface.cpp',
+  'surface_blur.cpp',
   'main.cpp',
   'overview.cpp',
   'registry.cpp',

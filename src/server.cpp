@@ -15,6 +15,7 @@
 #include "ipc.hpp"
 #include "night_light.hpp"
 #include "layer_surface.hpp"
+#include "surface_blur.hpp"
 #include "output.hpp"
 #include "seat.hpp"
 #include "session_lock.hpp"
@@ -1445,6 +1446,8 @@ void Server::setting_changed(const std::string& key) {
         apply_blur_settings();
     if (key == "appearance.screen_shader")
         apply_screen_shader();
+    if (is("appearance.blur") || key == "appearance.transparency")
+        refresh_surface_blurs();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
     if (key == "appearance.style" || key == "appearance.accent") {

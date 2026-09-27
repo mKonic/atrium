@@ -2,6 +2,7 @@
 #include "layer_surface.hpp"
 #include "seat.hpp"
 #include "server.hpp"
+#include "surface_blur.hpp"
 #include "view.hpp"
 #include "geometry.hpp"
 #include "rules.hpp"
@@ -250,7 +251,7 @@ void XdgView::apply_decoration_mode() {
 
 // --- popups --------------------------------------------------------------------
 
-void handle_new_xdg_popup(Server&, wlr_xdg_popup* popup) {
+void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup) {
     // Lives until the popup's first commit (or its destruction, whichever
     // comes first); after that the scene helpers track the popup themselves.
     struct Watch {
@@ -260,7 +261,7 @@ void handle_new_xdg_popup(Server&, wlr_xdg_popup* popup) {
     auto* watch = new Watch;
 
     watch->destroy.connect(&popup->events.destroy, [watch](void*) { delete watch; });
-    watch->commit.connect(&popup->base->surface->events.commit, [popup, watch](void*) {
+    watch->commit.connect(&popup->base->surface->events.commit, [&server, popup, watch](void*) {
         if (!popup->base->initial_commit)
             return;
 
@@ -270,7 +271,9 @@ void handle_new_xdg_popup(Server&, wlr_xdg_popup* popup) {
             delete watch;
             return;
         }
-        popup->base->surface->data = scene::xdg_surface_create(parent_tree, popup->base);
+        auto* popup_tree = scene::xdg_surface_create(parent_tree, popup->base);
+        popup->base->surface->data = popup_tree;
+        attach_surface_blur(server, popup_tree, popup->base->surface);
 
         // Keep the popup on its output, in the toplevel's coordinate space.
         wlr_box box;

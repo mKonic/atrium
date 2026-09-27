@@ -5,6 +5,7 @@
 #include "output.hpp"
 #include "ipc.hpp"
 #include "server.hpp"
+#include "surface_blur.hpp"
 #include "seat.hpp"
 #include "view.hpp"
 
@@ -297,6 +298,7 @@ void InputMethodRelay::new_popup(wlr_input_popup_surface_v2* surface) {
     auto p = std::make_unique<Popup>(surface, scene::Tree::create(server_.layer(Layer::InputPopup)));
     Popup* pp = p.get();
     scene::subsurface_tree_create(pp->tree, surface->surface);
+    attach_surface_blur(server_, pp->tree, surface->surface);
     pp->commit.connect(&surface->surface->events.commit, [this, pp](void*) { place(*pp); });
     pp->destroy.connect(&surface->events.destroy, [this, pp](void*) {
         pp->tree->destroy();

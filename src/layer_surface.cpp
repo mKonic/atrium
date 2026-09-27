@@ -5,6 +5,7 @@
 #include "palette.hpp"
 #include "seat.hpp"
 #include "server.hpp"
+#include "surface_blur.hpp"
 #include "view.hpp"
 
 #include <algorithm>
@@ -163,19 +164,6 @@ bool namespace_matches(const std::string& ns, const std::vector<std::string>& pa
             return true;
     }
     return false;
-}
-
-scene::Buffer* main_buffer(scene::Tree* tree, wlr_surface* surface) {
-    struct Find {
-        wlr_surface* surface;
-        scene::Buffer* found = nullptr;
-    } find{surface};
-    tree->for_each_buffer([&](scene::Buffer* b_, int x_, int y_) { ([](scene::Buffer* b, int, int, void* data) {
-        auto* f = static_cast<Find*>(data);
-        if (scene::SurfaceNode* s = b->surface(); s && s->surface == f->surface)
-            f->found = b;
-    })(b_, x_, y_, &find); });
-    return find.found;
 }
 
 } // namespace
