@@ -60,6 +60,8 @@ void WindowCopy::refresh() {
         for (const Source& src : sources)
             pieces_.push_back({scene::Buffer::create(inner_, src.buffer->buffer), 0, 0, 0, 0, {}});
     }
+    frame_w_ = std::max(1, view_.geom.width);
+    frame_h_ = std::max(1, view_.geom.height);
     for (size_t i = 0; i < sources.size(); ++i) {
         const Source& src = sources[i];
         Piece& p = pieces_[i];
@@ -81,7 +83,7 @@ void WindowCopy::refresh() {
 void WindowCopy::place(int width, int height) {
     width_ = width;
     height_ = height;
-    const int fw = std::max(1, view_.geom.width), fh = std::max(1, view_.geom.height);
+    const int fw = frame_w_, fh = frame_h_;
     const double sx = width / double(fw);
     const double sy = height / double(fh);
     for (Piece& p : pieces_) {

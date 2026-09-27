@@ -1,4 +1,5 @@
 #include "view.hpp"
+#include "window_copy.hpp"
 #include "warp.hpp"
 
 #include "background_effect.hpp"
@@ -45,6 +46,7 @@ View::~View() {
     server.animator.cancel_owner(&ring_, false);
     server.animator.cancel_owner(&glide_dx_, false);
     server.animator.cancel_owner(&reveal_, false);
+    end_morph();
     destroy_toplevel_handles();
     std::erase(server.views, this);
 }
@@ -209,6 +211,7 @@ void View::handle_unmap() {
     if (server.switcher)
         server.switcher->view_unmapped(this);
     server.animator.cancel_owner(this, false);
+    end_morph();
     if (managed && visible())
         animate_close();
     alpha_ = 1.0f;
@@ -552,6 +555,7 @@ void View::request_geometry(wlr_box box) {
         place_tree();
         update_output_from_position();
     }
+    requested_ = box;
     configure(box);
 }
 
@@ -741,6 +745,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
         fit_secret(false);
         return;
     }
+    const wlr_box from = geom;
     if (m) {
         if (!snapped)
             restore = geom;  // a snapped window already remembers where it was
@@ -750,6 +755,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
     } else if (restore_geometry) {
         request_geometry(restore);
     }
+    morph_from(from);
     server.retile(space);
 }
 
@@ -764,19 +770,24 @@ void View::snap(uint32_t zone) {
         set_maximized(false, false);
     else if (!snapped)
         restore = geom;
+    const wlr_box from = geom;
     snapped = zone;
     set_tile_bar_hidden(!server.config.tiled_titlebars);
     request_geometry(geometry::snap_box(usable_area(), zone, server.config.snap_gap));
+    morph_from(from);
     server.notify_window(*this, "changed");
 }
 
 void View::unsnap(bool restore_geometry) {
     if (!snapped)
         return;
+    const wlr_box from = geom;
     snapped = 0;
     set_tile_bar_hidden(false);
-    if (restore_geometry)
+    if (restore_geometry) {
         request_geometry(restore);
+        morph_from(from);
+    }
     server.notify_window(*this, "changed");
 }
 
@@ -789,6 +800,48 @@ void View::refresh_tiled_titlebar() {
         return;
     set_tile_bar_hidden(!server.config.tiled_titlebars);
     request_geometry(geometry::snap_box(usable_area(), snapped, server.config.snap_gap));
+}
+
+void View::morph_from(const wlr_box& from) {
+    // The size comes when the app draws it; where it goes is known now.
+    const wlr_box to{geom.x, geom.y, requested_.width, requested_.height};
+    if (!server.config.animations || !tree || !tree->parent || !mapped || opening_ ||
+        (from.width == to.width && from.height == to.height))
+        return;
+    end_morph();
+    // The window itself goes straight to its new place, hidden: the copy
+    // makes the whole move, and the two cross-fade at the end.
+    server.animator.cancel_owner(&glide_dx_, false);
+    glide_dx_ = glide_dy_ = 0;
+    place_tree();
+    // What it showed at its old size, just over it.
+    morph_ = std::make_unique<WindowCopy>(*this, tree->parent);
+    scene::Tree* copy = morph_->tree();
+    copy->place_above(tree);
+    copy->set_position(from.x, from.y);
+    morph_->place(from.width, from.height);
+    server.animator.start(&morph_, 350, Ease::Standard, [this, from, to](double t) {
+        if (!morph_)
+            return;
+        const auto lerp = [t](int a, int b) { return int(std::lround(a + (b - a) * t)); };
+        morph_->tree()->set_position(lerp(from.x, to.x), lerp(from.y, to.y));
+        morph_->place(std::max(1, lerp(from.width, to.width)), std::max(1, lerp(from.height, to.height)));
+        // The window comes in under the copy before the copy goes, so what's
+        // behind never shows through the two.
+        set_alpha(float(std::clamp((t - 0.55) / 0.2, 0.0, 1.0)));
+        morph_->tree()->set_opacity(1 - float(std::clamp((t - 0.75) / 0.25, 0.0, 1.0)));
+    }, [this] {
+        morph_.reset();
+        set_alpha(1.0f);
+    });
+}
+
+void View::end_morph() {
+    server.animator.cancel_owner(&morph_, false);
+    if (morph_) {
+        morph_.reset();
+        alpha_ = 1.0f;
+    }
 }
 
 void View::set_tile_bar_hidden(bool hidden) {

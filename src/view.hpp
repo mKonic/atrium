@@ -236,6 +236,12 @@ protected:
     bool opening_ = false;             // its open animation is running
     bool listed_ = false;              // in server.views (managed when it mapped)
     void glide_from(int from_x, int from_y);
+    // A size atrium gives it (maximize, snap, restore): the old frame, as a
+    // copy, stretches into the new one while fading out over the window.
+    void morph_from(const wlr_box& from);
+    wlr_box requested_{};  // the frame last asked for (request_geometry)
+    void end_morph();
+    std::unique_ptr<class WindowCopy> morph_;
     int anchor_right_ = 0, anchor_bottom_ = 0;
 
 private:

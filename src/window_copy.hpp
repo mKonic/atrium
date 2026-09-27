@@ -40,6 +40,7 @@ private:
     scene::Tree* inner_ = nullptr;  // made again by refresh() when the pieces change
     std::vector<Piece> pieces_;
     int width_ = 0, height_ = 0;
+    int frame_w_ = 1, frame_h_ = 1;  // the window's frame when the pieces were taken
 };
 
 } // namespace atrium
