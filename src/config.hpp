@@ -106,6 +106,10 @@ struct Config {
     std::vector<std::string> blurred_panels{"atrium-*"};  // layer namespaces frosted behind (with transparency)
     int blur_radius = 6;
     int blur_passes = 3;
+    // Adjustments to the style's own look (1: as designed): frosted blur,
+    // and Liquid Glass's material.
+    float blur_noise = 1, blur_brightness = 1, blur_contrast = 1, blur_saturation = 1;
+    float glass_tint = 1, glass_refraction = 1, glass_highlight = 1, glass_shadow = 1;
 
     // Motion
     bool animations = true;

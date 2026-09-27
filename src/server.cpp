@@ -1419,7 +1419,7 @@ void Server::setting_changed(const std::string& key) {
     rebuild_from_registry();  // the modifier key changes what shortcuts mean
 
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
-    if (is("appearance.blur") || key == "appearance.liquid_glass")
+    if (is("appearance.blur") || is("appearance.glass") || key == "appearance.liquid_glass")
         apply_blur_settings();
     if (key == "appearance.screen_shader")
         apply_screen_shader();
@@ -1500,13 +1500,22 @@ void Server::apply_screen_shader() {
 void Server::apply_blur_settings() {
     // Liquid Glass lets the colours behind through, brighter and richer;
     // frosted glass dims and greys them a little.
-    if (config.liquid_glass)
-        scene->set_blur({config.blur_passes, float(config.blur_radius), 0.01f, 1.02f, 0.95f, 1.45f});
-    else
-        scene->set_blur({config.blur_passes, float(config.blur_radius), 0.02f, 0.9f, 0.9f, 1.1f});
+    render::BlurParams p = config.liquid_glass
+        ? render::BlurParams{config.blur_passes, float(config.blur_radius), 0.01f, 1.02f, 0.95f, 1.45f}
+        : render::BlurParams{config.blur_passes, float(config.blur_radius), 0.02f, 0.9f, 0.9f, 1.1f};
+    // The settings adjust the style's own look.
+    p.noise *= config.blur_noise;
+    p.brightness *= config.blur_brightness;
+    p.contrast *= config.blur_contrast;
+    p.saturation *= config.blur_saturation;
+    scene->set_blur(p);
     background_blur->set_enabled(config.blur);
     for (View* v : views)
         v->update_decorations();
+    for (Output* o : outputs)
+        for (auto& list : o->layers)
+            for (LayerSurface* l : list)
+                l->refresh_blur();
     background_blur->mark_dirty();
 }
 

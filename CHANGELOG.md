@@ -13,6 +13,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ## [Unreleased]
 ### Added
 - A screen shader setting: a GLSL file drawn over every screen.
+- Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
 
 ### Changed
 - Updates no longer show in the menu bar; Software Update in Settings has them.
