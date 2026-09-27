@@ -108,6 +108,8 @@ install_data('data/bin/atrium-askpass', install_dir: get_option('bindir'), insta
 install_data('data/lib/systemd/user/atrium-session.target', install_dir: get_option('prefix') / 'lib' / 'systemd' / 'user')
 # The greeter's memory is only for machines using greetd (its `greeter` user
 # comes with greetd): the config's comments say to install it.
+# The shell's own font (Rubik), for every user and the greeter.
+install_subdir('data/share/atrium/fonts', install_dir: get_option('datadir') / 'atrium')
 install_data('data/share/atrium/greetd-config.toml', 'data/share/atrium/greeter-tmpfiles.conf', install_dir: get_option('datadir') / 'atrium')
 subdir('shell/plugin/Atrium')
 subdir('shell/host')

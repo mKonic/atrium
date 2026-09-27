@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QIcon>
 #include <QSettings>
 #include <QQmlComponent>
@@ -82,6 +83,19 @@ void pick_icon_theme() {
     }
 }
 
+// The fonts atrium brings along (Rubik, which Arch only has in the AUR):
+// installed, else the source tree's.
+void load_fonts() {
+    for (const QString& dir : {QStringLiteral(ATRIUM_DATADIR "/fonts"), QStringLiteral(ATRIUM_SOURCE_DIR "/data/share/atrium/fonts")}) {
+        const QStringList files = QDir(dir).entryList({"*.ttf", "*.otf"}, QDir::Files);
+        if (files.isEmpty())
+            continue;
+        for (const QString& f : files)
+            QFontDatabase::addApplicationFont(dir + "/" + f);
+        return;
+    }
+}
+
 // Held for the process's life: a second instance of the file can't take it.
 bool first_instance(const QString& file) {
     QString dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
@@ -134,6 +148,7 @@ int main(int argc, char** argv) {
     app.setQuitOnLastWindowClosed(false);
     app.setProperty("atriumShellDir", info.absolutePath());
     pick_icon_theme();
+    load_fonts();
 
     QQmlEngine engine;
     // The Atrium modules: built next to this binary when it runs from the
