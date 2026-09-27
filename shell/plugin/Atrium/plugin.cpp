@@ -5,6 +5,7 @@
 #include "file_search.hpp"
 #include "launcher_model.hpp"
 #include "notes.hpp"
+#include "update_sources.hpp"
 #include "brightness.hpp"
 #include "desktop_files.hpp"
 #include "folder_model.hpp"
@@ -245,6 +246,18 @@ public:
         qmlRegisterSingletonType<Capture>(uri, 1, 0, "Capture",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Capture; });
         qmlRegisterType<MarkupCanvas>(uri, 1, 0, "MarkupCanvas");
+        // The system through pacman (no PackageKit), the AUR, and atrium's own releases.
+        qmlRegisterSingletonType<CliUpdates>(uri, 1, 0, "PacmanUpdates", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return new CliUpdates(CliUpdates::Kind::Pacman);
+        });
+        qmlRegisterSingletonType<CliUpdates>(uri, 1, 0, "AurUpdates", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return new CliUpdates(CliUpdates::Kind::Aur);
+        });
+        qmlRegisterSingletonType<AtriumRelease>(uri, 1, 0, "AtriumRelease", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = AtriumRelease::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
         qmlRegisterSingletonType<Updates>(uri, 1, 0, "Updates",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Updates; });
         qmlRegisterSingletonType<Accounts>(uri, 1, 0, "Accounts",

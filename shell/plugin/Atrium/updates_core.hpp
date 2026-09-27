@@ -40,4 +40,30 @@ bool needs_restart(std::string_view name);
 // "3 updates, 1 for security"; "No updates" for none.
 std::string summary(int count, int security);
 
+// checkupdates, `paru -Qua`, `yay -Qua`: "name 1.0-1 -> 1.1-1" per line
+// (anything else is skipped, colour codes too).
+struct Upgrade {
+    std::string name, from, to;
+};
+std::vector<Upgrade> parse_upgrades(std::string_view text);
+
+// pacman's "(3/10) upgrading firefox" progress lines: how far, and what.
+struct Step {
+    int done = 0, total = 0;
+    std::string what;  // "Upgrading firefox"
+};
+bool parse_pacman_step(std::string_view line, Step& step);
+
+// atrium's own releases: a tag "v0.2.0" and the running build's name as
+// version.sh gives it ("v0.1.0", "v0.1.0-5-gabc1234", a bare hash before any
+// tag). True when the release is newer than the build: a build past a tag is
+// newer than that tag, not than the next; one before any tag is older than all.
+bool release_newer(std::string_view tag, std::string_view build);
+// semver order of two tags ("v1.2.0" < "v1.10.0", "v1.4.0-rc.1" < "v1.4.0"): <0, 0, >0.
+int compare_tags(std::string_view a, std::string_view b);
+// The package version a build installs as (packaging/arch/PKGBUILD's pkgver):
+// "v0.1.0" → "0.1.0", "v0.1.0-5-gabc" → "0.1.0.r5.gabc", "v1.4.0-rc.1" →
+// "1.4.0rc.1", a bare hash → "0.rN.hash" (N = build - 10000).
+std::string pkgver(std::string_view name, long build);
+
 } // namespace atrium::updates

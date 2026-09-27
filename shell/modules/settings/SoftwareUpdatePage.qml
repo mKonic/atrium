@@ -5,23 +5,28 @@ import Atrium
 import shell.components
 import shell.services
 
-// Software Update, as on a Mac: whether the system is up to date, what's
-// newer, and one button that installs it all (with the password, where the
-// system wants one).
+// Software Update: atrium itself (its GitHub releases, installed for the
+// next login), the system (PackageKit, or pacman itself without it) and the
+// AUR (through paru or yay). Each says whether it's up to date and has one
+// button that updates it.
 Column {
     id: root
 
+    // The system through PackageKit when it's installed, else pacman itself.
+    readonly property var system: Updates.available ? Updates : PacmanUpdates
+
     spacing: 20
 
-    MissingNote {
-        needs: "packagekit"
-        explanation: "Updates are found and installed through PackageKit (the packagekit package)."
-    }
+    // A source's state and what to do about it.
+    component SourceCard: Rectangle {
+        id: card
 
-    // The state, and what to do about it.
-    Rectangle {
-        visible: !Requirements.missing.packagekit
-        width: parent.width
+        property var source
+        property string name
+        property string icon
+        property string idle: "Up to date"
+
+        width: parent?.width ?? 0
         height: head.implicitHeight + 36
         radius: 14
         color: Theme.palette.groupedBackground
@@ -41,31 +46,31 @@ Column {
                 spacing: 14
 
                 Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 14
-                    color: Updates.count > 0 ? Theme.palette.accent : Theme.palette.tertiaryFill
+                    width: 44
+                    height: 44
+                    radius: 12
+                    color: card.source.count > 0 ? Theme.palette.accent : Theme.palette.tertiaryFill
 
                     MaterialIcon {
                         anchors.centerIn: parent
-                        text: Updates.installing ? "downloading" : Updates.count > 0 ? "system_update_alt" : "check_circle"
+                        text: card.source.installing ? "downloading" : card.icon
                         fill: 1
-                        font.pointSize: Theme.font.size.large + 4
-                        color: Updates.count > 0 ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
+                        font.pointSize: Theme.font.size.large + 2
+                        color: card.source.count > 0 ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
                     }
                 }
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 62 - buttons.width
+                    width: parent.width - 58 - buttons.width
                     spacing: 2
 
                     StyledText {
                         width: parent.width
-                        text: Updates.installing ? "Installing updates…"
-                            : Updates.checking ? "Checking for updates…"
-                            : !Updates.known ? "Looking for updates…"
-                            : Updates.count > 0 ? Updates.summary : "Your computer is up to date"
+                        text: card.name + ": " + (card.source.installing ? "Updating…"
+                            : card.source.checking ? "Checking…"
+                            : !card.source.known ? "Not checked yet"
+                            : card.source.count > 0 ? card.source.summary : card.idle)
                         font.weight: Font.DemiBold
                         font.pointSize: Theme.font.size.larger
                         elide: Text.ElideRight
@@ -73,8 +78,9 @@ Column {
 
                     StyledText {
                         width: parent.width
-                        text: Updates.installing ? (Updates.doing || "Getting ready")
-                            : Updates.lastChecked ? `Last checked: ${Updates.lastChecked}` : "Not checked yet"
+                        text: card.source.installing ? (card.source.doing || "Getting ready")
+                            : card.source.lastChecked ? `Last checked: ${card.source.lastChecked}` : ""
+                        visible: text.length > 0
                         font.pointSize: Theme.font.size.small
                         color: Theme.palette.secondaryLabel
                         elide: Text.ElideRight
@@ -88,38 +94,31 @@ Column {
                     spacing: 8
 
                     PillButton {
-                        visible: !Updates.installing
-                        enabled: !Updates.checking
+                        visible: !card.source.installing
+                        enabled: !card.source.checking
                         opacity: enabled ? 1 : 0.5
                         text: "Check Now"
-                        onClicked: Updates.check()
+                        onClicked: card.source.check()
                     }
 
                     PillButton {
-                        visible: !Updates.installing && Updates.count > 0
+                        visible: !card.source.installing && card.source.count > 0
                         primary: true
-                        text: "Update Now"
-                        onClicked: Updates.install()
-                    }
-
-                    PillButton {
-                        visible: Updates.installing
-                        text: "Cancel"
-                        onClicked: Updates.cancel()
+                        text: card.source.inTerminal ? "Update in Terminal…" : "Update Now"
+                        onClicked: card.source.install()
                     }
                 }
             }
 
-            // How far along.
             Rectangle {
-                visible: Updates.installing
+                visible: card.source.installing && !card.source.inTerminal
                 width: parent.width
                 height: 6
                 radius: 3
                 color: Theme.palette.secondaryFill
 
                 Rectangle {
-                    width: parent.width * Updates.progress / 100
+                    width: parent.width * card.source.progress / 100
                     height: parent.height
                     radius: 3
                     color: Theme.palette.accent
@@ -131,17 +130,16 @@ Column {
             }
 
             StyledText {
-                visible: Updates.error !== ""
+                visible: card.source.error !== ""
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: Updates.error
+                text: card.source.error
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.red
             }
 
-            // Some of what was installed only takes effect after a restart.
             Row {
-                visible: Updates.restartNeeded && !Updates.installing
+                visible: card.source.restartNeeded && !card.source.installing
                 width: parent.width
                 spacing: 12
 
@@ -161,55 +159,241 @@ Column {
                     onClicked: Atrium.action("shell", "session:restart")
                 }
             }
-        }
-    }
 
-    // What's newer.
-    Group {
-        visible: !Requirements.missing.packagekit && Updates.count > 0
-        width: parent.width
-        title: "Updates"
+            // What's newer.
+            Column {
+                visible: card.source.count > 0 && !card.source.installing
+                width: parent.width
+                spacing: 0
 
-        Repeater {
-            model: Updates.packages
+                Repeater {
+                    model: card.source.packages
 
-            ControlRow {
-                id: update
+                    Item {
+                        id: pkg
 
-                required property var modelData
+                        required property var modelData
+                        required property int index
 
-                title: modelData.name
-                note: modelData.summary
+                        width: parent.width
+                        height: 34
 
-                Row {
-                    spacing: 8
-
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: update.modelData.security
-                        width: securityLabel.implicitWidth + 12
-                        height: 20
-                        radius: 6
-                        color: Theme.palette.tertiaryFill
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: Theme.palette.separator
+                        }
 
                         StyledText {
-                            id: securityLabel
-
-                            anchors.centerIn: parent
-                            text: "Security"
-                            font.pointSize: Theme.font.size.smaller
-                            color: Theme.palette.red
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: pkg.modelData.name
                         }
-                    }
 
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: update.modelData.version
-                        font.pointSize: Theme.font.size.small
-                        color: Theme.palette.secondaryLabel
+                        Row {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 8
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: pkg.modelData.security === true
+                                width: securityLabel.implicitWidth + 12
+                                height: 20
+                                radius: 6
+                                color: Theme.palette.tertiaryFill
+
+                                StyledText {
+                                    id: securityLabel
+
+                                    anchors.centerIn: parent
+                                    text: "Security"
+                                    font.pointSize: Theme.font.size.smaller
+                                    color: Theme.palette.red
+                                }
+                            }
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: pkg.modelData.from ? `${pkg.modelData.from} → ${pkg.modelData.version}` : pkg.modelData.version
+                                font.pointSize: Theme.font.size.small
+                                color: Theme.palette.secondaryLabel
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    // --- atrium ----------------------------------------------------------------------
+    Rectangle {
+        width: parent.width
+        height: atriumHead.implicitHeight + 36
+        radius: 14
+        color: Theme.palette.groupedBackground
+        border.width: 1
+        border.color: Theme.palette.separator
+
+        Column {
+            id: atriumHead
+
+            x: 18
+            y: 18
+            width: parent.width - 36
+            spacing: 12
+
+            Row {
+                width: parent.width
+                spacing: 14
+
+                Rectangle {
+                    width: 44
+                    height: 44
+                    radius: 12
+                    color: AtriumRelease.newer || AtriumRelease.staged ? Theme.palette.accent : Theme.palette.tertiaryFill
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        text: AtriumRelease.installing ? "downloading" : AtriumRelease.staged ? "restart_alt" : "desktop_windows"
+                        fill: 1
+                        font.pointSize: Theme.font.size.large + 2
+                        color: AtriumRelease.newer || AtriumRelease.staged ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
+                    }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 58 - atriumButtons.width
+                    spacing: 2
+
+                    StyledText {
+                        width: parent.width
+                        text: AtriumRelease.installing ? `Installing atrium ${AtriumRelease.latest}…`
+                            : AtriumRelease.staged ? `atrium ${AtriumRelease.stagedVersion} is installed`
+                            : AtriumRelease.newer ? `atrium ${AtriumRelease.latest} is available`
+                            : `atrium ${AtriumRelease.current}` + (AtriumRelease.latest ? " is up to date" : "")
+                        font.weight: Font.DemiBold
+                        font.pointSize: Theme.font.size.larger
+                        elide: Text.ElideRight
+                    }
+
+                    StyledText {
+                        width: parent.width
+                        text: AtriumRelease.installing ? AtriumRelease.doing
+                            : AtriumRelease.staged ? "It takes over when you log out and back in; this session keeps running as it is."
+                            : AtriumRelease.checking ? "Checking…"
+                            : AtriumRelease.lastChecked ? `Last checked: ${AtriumRelease.lastChecked}` : "From atrium's releases on GitHub"
+                        wrapMode: Text.WordWrap
+                        font.pointSize: Theme.font.size.small
+                        color: Theme.palette.secondaryLabel
+                    }
+                }
+
+                Row {
+                    id: atriumButtons
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+
+                    PillButton {
+                        visible: !AtriumRelease.installing && !AtriumRelease.staged
+                        enabled: !AtriumRelease.checking
+                        opacity: enabled ? 1 : 0.5
+                        text: "Check Now"
+                        onClicked: AtriumRelease.check()
+                    }
+
+                    PillButton {
+                        visible: !AtriumRelease.installing && AtriumRelease.newer && !AtriumRelease.staged
+                        primary: true
+                        text: "Install"
+                        onClicked: AtriumRelease.install()
+                    }
+
+                    PillButton {
+                        visible: AtriumRelease.staged
+                        primary: true
+                        text: "Log Out…"
+                        onClicked: Atrium.action("shell", "session:logout")
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: AtriumRelease.installing
+                width: parent.width
+                height: 6
+                radius: 3
+                color: Theme.palette.secondaryFill
+
+                Rectangle {
+                    width: parent.width * AtriumRelease.progress / 100
+                    height: parent.height
+                    radius: 3
+                    color: Theme.palette.accent
+
+                    Behavior on width {
+                        Anim {}
+                    }
+                }
+            }
+
+            StyledText {
+                visible: AtriumRelease.error !== ""
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: AtriumRelease.error
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.red
+            }
+
+            // What's new in it, as the release says.
+            Column {
+                visible: AtriumRelease.newer && AtriumRelease.notes !== "" && !AtriumRelease.staged
+                width: parent.width
+                spacing: 8
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: Theme.palette.separator
+                }
+
+                Text {
+                    width: parent.width
+                    text: AtriumRelease.notes
+                    textFormat: Text.MarkdownText
+                    wrapMode: Text.WordWrap
+                    color: Theme.palette.label
+                    linkColor: Theme.palette.accent
+                    font.family: Theme.font.sans
+                    font.pointSize: Theme.font.size.small
+                    onLinkActivated: link => Qt.openUrlExternally(link)
+                }
+            }
+        }
+    }
+
+    // --- the system --------------------------------------------------------------------
+    MissingNote {
+        visible: !Updates.available && !PacmanUpdates.available
+        message: "System updates need PackageKit (packagekit) or pacman's checkupdates (pacman-contrib)."
+    }
+
+    SourceCard {
+        visible: root.system.available
+        source: root.system
+        name: "System"
+        icon: "system_update_alt"
+        idle: "Up to date"
+    }
+
+    SourceCard {
+        visible: AurUpdates.available
+        source: AurUpdates
+        name: "AUR"
+        icon: "deployed_code"
+        idle: "Up to date"
     }
 }
