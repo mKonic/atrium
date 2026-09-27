@@ -39,7 +39,7 @@ Rectangle {
         })
 
     function add(): void {
-        Atrium.addShortcut({ keys: "Mod+F12", action: "terminal" });
+        addSheet.open();
     }
 
     width: parent?.width ?? 0
@@ -52,7 +52,7 @@ Rectangle {
     // The keys reach this window, not atrium's own shortcuts, while recording.
     ShortcutInhibitor {
         window: root.window
-        enabled: root.recording !== null
+        enabled: root.recording !== null || addSheet.recordingKeys
     }
 
     Item {
@@ -280,6 +280,135 @@ Rectangle {
                         onClicked: Atrium.removeShortcut(row.modelData.id)
                     }
                 }
+            }
+        }
+    }
+
+    // A new shortcut, written in a sheet: its keys (pressed as it opens),
+    // what it does, and what with.
+    Sheet {
+        id: addSheet
+
+        property string keys: ""
+        property string doing: "spawn"
+        property bool recordingKeys: false
+        readonly property string hint: root.argHints[doing] ?? ""
+        readonly property var clash: keys ? Atrium.shortcuts.find(s => s.keys === keys) : undefined
+
+        width: 480
+        title: "New Shortcut"
+        action: "Add"
+        ready: keys !== "" && (hint === "" || argField.text.trim() !== "")
+        onOpened: {
+            keys = "";
+            doing = "spawn";
+            argField.text = "";
+            recordingKeys = true;
+            keyCatcher.forceActiveFocus();
+        }
+        onClosed: recordingKeys = false
+        onSubmitted: {
+            Atrium.addShortcut({ keys: keys, action: doing, arg: hint ? argField.text.trim() : "" });
+            close();
+        }
+
+        Item {
+            id: keyCatcher
+
+            width: 1
+            height: 1
+            Keys.onPressed: event => {
+                event.accepted = true;
+                if (event.key === Qt.Key_Escape && event.modifiers === Qt.NoModifier) {
+                    addSheet.recordingKeys = false;
+                    return;
+                }
+                const keys = SettingsPages.chord(event.key, event.modifiers, Atrium.settings["shortcuts.modifier"] ?? "super");
+                if (!keys)
+                    return;  // a modifier on its own: wait for the key
+                addSheet.keys = keys;
+                addSheet.recordingKeys = false;
+            }
+        }
+
+        Row {
+            spacing: 12
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 90
+                text: "Keys"
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+
+            Item {
+                width: 230
+                height: 30
+
+                KeyCaps {
+                    anchors.verticalCenter: parent.verticalCenter
+                    keys: addSheet.keys || (addSheet.recordingKeys ? "" : "Click to set")
+                    recording: addSheet.recordingKeys
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        addSheet.recordingKeys = true;
+                        keyCatcher.forceActiveFocus();
+                    }
+                }
+            }
+        }
+
+        StyledText {
+            visible: !!addSheet.clash
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: addSheet.clash ? `Already “${root.labels[addSheet.clash.action] ?? addSheet.clash.action}”. Only one of them will work.` : ""
+            font.pointSize: Theme.font.size.smaller
+            color: Theme.palette.orange
+        }
+
+        Row {
+            spacing: 12
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 90
+                text: "Does"
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+
+            Dropdown {
+                fieldWidth: 260
+                value: addSheet.doing
+                options: Atrium.actions.filter(a => a !== "portal").map(a => ({ value: a, label: root.labels[a] ?? a }))
+                onPicked: v => addSheet.doing = v
+            }
+        }
+
+        Row {
+            visible: addSheet.hint !== ""
+            spacing: 12
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 90
+                text: "With"
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+
+            Field {
+                id: argField
+
+                implicitWidth: 330
+                placeholder: addSheet.hint
+                onAccepted: if (addSheet.ready) addSheet.submitted()
             }
         }
     }
