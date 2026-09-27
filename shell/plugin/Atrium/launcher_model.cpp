@@ -22,6 +22,7 @@
 #include <QJsonDocument>
 #include <QLocale>
 #include <QSaveFile>
+#include <QStandardPaths>
 #include <QTimeZone>
 #include <QRegularExpression>
 #include <QUrl>
@@ -994,6 +995,18 @@ void LauncherModel::run(const QString& key) {
         emit openRequested(e.title);
         return;
     }
+    // An app's own shortcut toggles it: in front, it goes out of the way.
+    if (e.kind == Kind::App && running(e)) {
+        const QVariant focused = Compositor::instance()->focusedWindow();
+        if (focused.isValid() && index_.idForApp(focused.toMap().value("app_id").toString()) == e.target) {
+            for (const QVariant& v : Compositor::instance()->windows()) {
+                const QVariantMap w = v.toMap();
+                if (index_.idForApp(w.value("app_id").toString()) == e.target && !w.value("minimized").toBool())
+                    Compositor::instance()->windowRequest(w.value("id").toInt(), "minimize", {{"value", true}});
+            }
+            return;
+        }
+    }
     runEntry(e, {}, false);
 }
 
@@ -1006,6 +1019,12 @@ void LauncherModel::confirm(const QString& token) {
     if (verb == "run") {
         e.confirm = false;
         runEntry(e, {}, true);
+    } else if (verb == "uninstall") {
+        const Uninstall u = uninstallFor(e);
+        if (u.trashFile.isEmpty())
+            runCustom({{"name", "Uninstall " + e.title}, {"command", u.command}, {"output", true}}, {});
+        else if (QFile::moveToTrash(u.trashFile))
+            emit feedback("delete_forever", e.title + " Removed", false);
     } else if (verb == "delete" && e.key.startsWith("window:layout:")) {
         WindowLayouts::instance()->remove(e.target.mid(7));
         if (prefs(e.key))
@@ -1060,6 +1079,43 @@ void LauncherModel::rememberCalc(const Row& r) {
                                      {"badge", r.badge}, {"label", r.label},
                                      {"when", QDateTime::currentSecsSinceEpoch()}});
     saveCalcHistory();
+}
+
+// --- uninstalling -----------------------------------------------------------------
+
+// How an app came to be here, and so how it goes: a Flatpak, a package, or
+// a launcher entry of the user's own (which only goes to the trash).
+LauncherModel::Uninstall LauncherModel::uninstallFor(const Entry& e) const {
+    Uninstall u;
+    auto* d = qobject_cast<shell::DesktopEntry*>(index_.byId(e.target));
+    if (!d)
+        return u;
+    const QString file = QFileInfo(d->file()).canonicalFilePath();
+    if (file.contains("/flatpak/")) {
+        const QString app = QFileInfo(file).completeBaseName();
+        u.command = "flatpak uninstall --noninteractive -y " + app;
+        u.says = QString("The Flatpak %1 goes; its data in ~/.var/app stays.").arg(app);
+        return u;
+    }
+    if (file.startsWith(QDir::homePath())) {
+        u.trashFile = d->file();
+        u.command = "trash";
+        u.says = "It's a launcher entry of your own: it goes to the Trash.";
+        return u;
+    }
+    if (QStandardPaths::findExecutable("pacman").isEmpty())
+        return u;
+    QProcess owner;
+    owner.start("pacman", {"-Qqo", file});
+    if (!owner.waitForFinished(3000) || owner.exitCode() != 0)
+        return u;
+    const QString pkg = QString::fromUtf8(owner.readAllStandardOutput()).trimmed();
+    if (pkg.isEmpty() || pkg.contains('\n'))
+        return u;
+    // -R alone: the package, not what it pulled in, and nothing that needs it.
+    u.command = "pkexec pacman -R --noconfirm " + pkg;
+    u.says = QString("The package %1 is removed (you'll be asked for your password). What it depends on stays.").arg(pkg);
+    return u;
 }
 
 // --- preferences ---------------------------------------------------------------------
@@ -1264,6 +1320,7 @@ QVariantList LauncherModel::allActions(int row) const {
         const bool pinned = Compositor::instance()->dockPins().contains(e.target);
         add(pinned ? "unpin" : "pin", pinned ? "Remove from Dock" : "Keep in Dock", "dock_to_bottom");
         add("reveal", "Show Desktop File", "folder_open", "Ctrl+Enter");
+        add("uninstall", "Uninstall…", "delete_forever");
         if (running(e)) {
             section();
             add("restart", "Restart App", "refresh", "Ctrl+R");
@@ -1396,6 +1453,13 @@ void LauncherModel::runAction(int row, const QString& id) {
             m << QStringList{QUrl::fromLocalFile(d->file()).toString()} << QString();
             QDBusConnection::sessionBus().asyncCall(m);
         }
+    } else if (id == "uninstall") {
+        const Uninstall u = uninstallFor(e);
+        if (u.command.isEmpty()) {
+            emit feedback("error", "Can't Tell What Installed It", true);
+            return;
+        }
+        emit confirmRequested(QString("Uninstall %1?").arg(e.title), u.says, "delete_forever", "uninstall|" + e.key);
     } else if (id == "quit" || id == "restart") {
         quitApp(e, id == "restart");
     } else if (id == "minimize") {

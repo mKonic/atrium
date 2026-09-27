@@ -41,6 +41,7 @@ constexpr CatalogItem kSystem[] = {
     {"restart", "Restart", "restart_alt", "reboot"},
     {"shutdown", "Shut Down", "power_settings_new", "power off poweroff halt"},
     {"logout", "Log Out", "logout", "sign out exit session"},
+    {"quit-all", "Quit All Apps", "cancel_presentation", "close everything windows", true},
     {"empty-trash", "Empty Trash", "delete_forever", "bin recycle", true},
     {"open-trash", "Open Trash", "delete", "bin recycle"},
     {"toggle-appearance", "Toggle System Appearance", "contrast", "dark light mode theme"},
@@ -156,6 +157,16 @@ QString runSystemAction(const QString& id, bool* noop) {
     }
     if (id == "empty-trash")
         return emptyTrash(noop);
+    if (id == "quit-all") {
+        int n = 0;
+        for (const QVariant& v : c->windows())
+            if (!v.toMap().value("skip_taskbar").toBool()) {
+                c->closeWindow(v.toMap().value("id").toInt());
+                ++n;
+            }
+        *noop = n == 0;
+        return n == 0 ? QStringLiteral("No Apps to Quit") : QString();
+    }
     if (id == "open-trash") {
         QProcess::startDetached("xdg-open", {"trash:///"});
         return {};

@@ -188,6 +188,12 @@ private:
     std::optional<Kind> screenKind() const;
 
     QVariantList allActions(int row) const;
+    struct Uninstall {
+        QString command;    // what removes it ("" can't tell)
+        QString says;       // what the confirmation explains
+        QString trashFile;  // a launcher entry of the user's own, trashed instead
+    };
+    Uninstall uninstallFor(const Entry& e) const;
     void rebuildEntries();
     void rebuildEntriesLater();
     void rebuildRows(bool keepSelection = false);
