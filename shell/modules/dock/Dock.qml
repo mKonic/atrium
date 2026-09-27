@@ -192,6 +192,8 @@ PanelWindow {
     exclusiveZone: autohide || empty || output.tiled || !home ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
+    // The keyboard while its menu is open, for Escape.
+    WlrLayershell.keyboardFocus: menuItem ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     mask: Region {
         item: dock.revealed ? reach : edge
@@ -411,6 +413,8 @@ PanelWindow {
         anchors.bottom: shelf.top
         anchors.bottomMargin: 10
         onClosed: dock.menuItem = null
+        focus: item !== null
+        Keys.onEscapePressed: dock.menuItem = null
     }
 
     // A press anywhere else closes the menu. (Not focus: the focused window's
