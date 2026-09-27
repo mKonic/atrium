@@ -139,6 +139,12 @@ struct EffectBuffers {
     Target saved;                     // pixels round the blur, put back over its artifacts
     Target blend;                     // the half-float frame (HDR)
     Target field, field_swapped;      // Liquid Glass's shape field
+
+    void release() {
+        for (Target* t : {&effects, &effects_swapped, &cache_blurred, &cache_plain, &saved, &blend, &field,
+                          &field_swapped})
+            t->release();
+    }
 };
 
 class RenderPass {
