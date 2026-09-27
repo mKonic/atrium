@@ -40,6 +40,8 @@ public:
     Q_INVOKABLE void clearApp(const QString& app);
     Q_INVOKABLE void clear();
     Q_INVOKABLE void markRead();
+    // One seen to: clicked, answered or swiped away from its popup.
+    Q_INVOKABLE void markEntryRead(int uid);
 
     // "now", "5m", "2h", "Yesterday", "Mon 3 Aug": how long ago, shortly.
     Q_INVOKABLE QString ago(qint64 ms) const;
@@ -54,6 +56,7 @@ private:
     void load();
     void save() const;
     void scheduleSave();
+    void recount();  // unread_: the entries not marked read
 
     QString file_;
     QVariantList items_;

@@ -339,8 +339,10 @@ Notification* NotificationServer::byUid(int uid) const {
 }
 
 void NotificationServer::dismiss(Notification* n) {
-    if (n)
-        close(n->id(), 2);
+    if (!n)
+        return;
+    NotificationHistory::instance()->markEntryRead(n->data().uid);
+    close(n->id(), 2);
 }
 
 namespace {
@@ -366,6 +368,7 @@ void raise_sender(const Notification::Data& d) {
 void NotificationServer::activate(Notification* n) {
     if (!n)
         return;
+    NotificationHistory::instance()->markEntryRead(n->data().uid);
     if (n->hasDefault()) {
         invoke(n, "default");
     } else {
@@ -395,6 +398,7 @@ void NotificationServer::invokeEntry(const QVariantMap& entry, const QString& ac
 void NotificationServer::invoke(Notification* n, const QString& action) {
     if (!n)
         return;
+    NotificationHistory::instance()->markEntryRead(n->data().uid);
     emit ActionInvoked(n->id(), action);
     raise_sender(n->data());
     // Done with, unless it stays by design.

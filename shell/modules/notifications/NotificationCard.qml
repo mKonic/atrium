@@ -64,6 +64,34 @@ Rectangle {
         }
     }
 
+    // Two fingers sideways on a touchpad (or a tilting wheel) swipe it too,
+    // as on a Mac: it follows, then goes or springs back once they stop.
+    WheelHandler {
+        enabled: root.swipeable
+        orientation: Qt.Horizontal
+        acceptedDevices: PointerDevice.TouchPad | PointerDevice.Mouse
+        onWheel: event => {
+            const dx = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x / 4;
+            if (dx === 0)
+                return;
+            back.stop();
+            root.x -= dx;
+            settle.restart();
+        }
+    }
+
+    Timer {
+        id: settle
+
+        interval: 120
+        onTriggered: {
+            if (Math.abs(root.x) > root.width * 0.3)
+                root.dismissed();
+            else
+                back.start();
+        }
+    }
+
     DragHandler {
         target: null
         xAxis.enabled: false

@@ -68,6 +68,11 @@ void NotificationHistory::load() {
             seen_.insert(v.toMap().value("app").toString(), v.toMap().value("icon"));
     for (const QVariant& v : items_)
         nextUid_ = std::max(nextUid_, v.toMap().value("uid").toInt() + 1);
+    recount();
+}
+
+void NotificationHistory::recount() {
+    unread_ = int(std::ranges::count_if(items_, [](const QVariant& v) { return !v.toMap().value("read", true).toBool(); }));
 }
 
 void NotificationHistory::save() const {
@@ -130,6 +135,7 @@ int NotificationHistory::add(const QVariantMap& entry) {
     const int uid = nextUid_++;
     e["uid"] = uid;
     e["time"] = QDateTime::currentMSecsSinceEpoch();
+    e["read"] = false;
     // Only files survive a restart; inline image data does not. Theme icons
     // (image://icon/name) are names, so they do.
     for (const char* key : {"image", "icon"}) {
@@ -143,7 +149,7 @@ int NotificationHistory::add(const QVariantMap& entry) {
         gone.append(items_.takeLast().toMap().value("uid").toInt());
     if (!gone.isEmpty())
         emit removed(gone);
-    ++unread_;
+    recount();
     emit changed();
     scheduleSave();
     return uid;
@@ -155,7 +161,7 @@ void NotificationHistory::remove(int uid) {
     if (items_.size() == before)
         return;
     emit removed({uid});
-    unread_ = std::min<int>(unread_, int(items_.size()));
+    recount();
     emit changed();
     scheduleSave();
 }
@@ -171,7 +177,7 @@ void NotificationHistory::clearApp(const QString& app) {
     });
     if (!gone.isEmpty())
         emit removed(gone);
-    unread_ = std::min<int>(unread_, int(items_.size()));
+    recount();
     emit changed();
     scheduleSave();
 }
@@ -193,8 +199,28 @@ void NotificationHistory::clear() {
 void NotificationHistory::markRead() {
     if (!unread_)
         return;
+    for (QVariant& v : items_) {
+        QVariantMap e = v.toMap();
+        e["read"] = true;
+        v = e;
+    }
     unread_ = 0;
     emit changed();
+    scheduleSave();
+}
+
+void NotificationHistory::markEntryRead(int uid) {
+    for (QVariant& v : items_) {
+        QVariantMap e = v.toMap();
+        if (e.value("uid").toInt() != uid || e.value("read", true).toBool())
+            continue;
+        e["read"] = true;
+        v = e;
+        recount();
+        emit changed();
+        scheduleSave();
+        return;
+    }
 }
 
 QVariantList NotificationHistory::groups() const {
