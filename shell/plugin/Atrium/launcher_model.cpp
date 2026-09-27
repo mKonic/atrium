@@ -1,10 +1,11 @@
 #include "launcher_model.hpp"
 
+#include "calc.hpp"
+#include "calc_rates.hpp"
 #include "compositor.hpp"
 #include "desktop_entries.hpp"
 #include "launcher_catalog.hpp"
 #include "placeholders.hpp"
-#include "search.hpp"
 #include "settings_pages.hpp"
 
 #include <QClipboard>
@@ -14,8 +15,13 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
+#include <QFile>
 #include <QGuiApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QLocale>
+#include <QSaveFile>
+#include <QTimeZone>
 #include <QRegularExpression>
 #include <QUrl>
 #include <QUuid>
@@ -107,6 +113,12 @@ LauncherModel::LauncherModel(QObject* parent)
     connect(c, &Compositor::settingsChanged, this, [this] { rebuildEntriesLater(); });
     connect(c, &Compositor::recordsChanged, this, [this](const QString&) { rebuildEntriesLater(); });
     connect(pages_.get(), &SettingsPages::changed, this, [this] { rebuildEntriesLater(); });
+    // Rates arriving answer a money sum that was silent a moment ago.
+    connect(CurrencyRates::instance(), &CurrencyRates::changed, this, [this] {
+        if (screen_ == "root" && !query_.trimmed().isEmpty())
+            rebuildRows(true);
+    });
+    loadCalcHistory();
 }
 
 LauncherModel::~LauncherModel() = default;
@@ -140,7 +152,7 @@ void LauncherModel::setQuery(const QString& query) {
 }
 
 bool LauncherModel::listScreen() const {
-    return screen_ == "root" || screenKind().has_value();
+    return screen_ == "root" || screen_ == "calculator" || screenKind().has_value();
 }
 
 std::optional<LauncherModel::Kind> LauncherModel::screenKind() const {
@@ -195,6 +207,7 @@ QVariant LauncherModel::data(const QModelIndex& index, int role) const {
     case KeysRole: return e ? keysFor(e->key) : QString();
     case SlotRole: return r.slot;
     case RunningRole: return e && running(*e);
+    case BadgeRole: return r.badge;
     default: return {};
     }
 }
@@ -203,7 +216,7 @@ QHash<int, QByteArray> LauncherModel::roleNames() const {
     return {{KindRole, "kind"},     {KeyRole, "key"},     {SectionRole, "section"}, {TitleRole, "title"},
             {DetailRole, "detail"}, {IconRole, "icon"},   {GlyphRole, "glyph"},     {ColorRole, "color"},
             {LabelRole, "label"},   {AliasRole, "alias"}, {KeysRole, "keys"},       {SlotRole, "slot"},
-            {RunningRole, "running"}};
+            {RunningRole, "running"}, {BadgeRole, "badge"}};
 }
 
 const LauncherModel::Prefs* LauncherModel::prefs(const QString& key) const {
@@ -399,7 +412,18 @@ void LauncherModel::rebuildRows(bool keepSelection) {
         std::ranges::stable_sort(list, [&](int a, int b) { return rank::before_idle(facts[size_t(a)], facts[size_t(b)]); });
     };
 
-    if (const auto only = screenKind()) {
+    if (screen_ == "calculator") {
+        // Calculator History, newest first, narrowed by what's typed.
+        for (const QVariant& v : calcHistory_) {
+            const QVariantMap m = v.toMap();
+            if (!trimmed.isEmpty() && !m.value("input").toString().contains(trimmed, Qt::CaseInsensitive) &&
+                !m.value("result").toString().contains(trimmed, Qt::CaseInsensitive))
+                continue;
+            rows.push_back({.kind = "calc", .title = m.value("result").toString(), .detail = m.value("input").toString(),
+                            .glyph = "calculate", .label = m.value("label").toString(),
+                            .target = m.value("copy").toString(), .badge = m.value("badge").toString()});
+        }
+    } else if (const auto only = screenKind()) {
         // One kind's own screen: all of it, ranked when something is typed.
         std::vector<int> list;
         std::vector<rank::Facts> facts(entries_.size());
@@ -479,12 +503,17 @@ void LauncherModel::rebuildRows(bool keepSelection) {
             rows.push_back({.kind = "fallback", .title = cmd, .detail = "Run in Shell", .glyph = "terminal",
                             .label = "Shell", .target = "shell"});
     } else {
-        // An inline answer first: a sum, or an address to open.
-        if (const auto sum = search::calculate(trimmed.toStdString())) {
-            const QString v = QString::fromStdString(search::format_number(*sum));
-            rows.push_back({.kind = "calc", .title = v, .detail = trimmed, .glyph = "calculate", .label = "Calculator",
-                            .target = v});
-        }
+        // An inline answer first: a sum, a conversion, a date, or an address to open.
+        calc::Context context;
+        context.zone = QString::fromUtf8(QTimeZone::systemTimeZoneId()).toStdString();
+        context.rates = CurrencyRates::instance()->rates();
+        if (const QString home = QLocale().currencySymbol(QLocale::CurrencyIsoCode); home.size() == 3)
+            context.home_currency = home.toStdString();
+        if (const auto a = calc::evaluate(trimmed.toStdString(), context))
+            rows.push_back({.kind = "calc", .title = QString::fromStdString(a->result),
+                            .detail = QString::fromStdString(a->input), .glyph = "calculate",
+                            .label = QString::fromStdString(a->result_badge), .target = QString::fromStdString(a->copy),
+                            .badge = QString::fromStdString(a->input_badge)});
         if (looksLikeAddress(trimmed))
             rows.push_back({.kind = "url", .title = "Open in Browser", .detail = trimmed, .glyph = "open_in_browser",
                             .label = "Command", .target = trimmed});
@@ -557,6 +586,7 @@ void LauncherModel::open(const QString& screen, const QString& query) {
     emit queryChanged();
     rebuildEntries();
     rebuildRows();
+    CurrencyRates::instance()->refresh();
 }
 
 void LauncherModel::push(const QString& screen, const QString& query) {
@@ -673,8 +703,9 @@ void LauncherModel::activate(int row, const QVariantList& args) {
 void LauncherModel::runRow(const Row& r, const QVariantList&) {
     if (r.kind == "calc") {
         QGuiApplication::clipboard()->setText(r.target);
+        rememberCalc(r);
         emit closeRequested();
-        emit feedback("content_copy", "Copied " + r.target, false);
+        emit feedback("content_copy", "Copied " + r.title, false);
     } else if (r.kind == "url") {
         emit closeRequested();
         QDesktopServices::openUrl(QUrl::fromUserInput(r.target));
@@ -957,6 +988,43 @@ void LauncherModel::confirm(const QString& token) {
     }
 }
 
+// --- calculator history ------------------------------------------------------------
+
+namespace {
+
+QString calcHistoryFile() {
+    QString dir = qEnvironmentVariable("XDG_STATE_HOME");
+    if (dir.isEmpty())
+        dir = QDir::homePath() + "/.local/state";
+    return dir + "/atrium/launcher-calculator.json";
+}
+
+} // namespace
+
+void LauncherModel::loadCalcHistory() {
+    QFile f(calcHistoryFile());
+    if (f.open(QIODevice::ReadOnly))
+        calcHistory_ = QJsonDocument::fromJson(f.readAll()).array().toVariantList();
+}
+
+void LauncherModel::saveCalcHistory() const {
+    QDir().mkpath(QFileInfo(calcHistoryFile()).path());
+    QSaveFile f(calcHistoryFile());
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(QJsonArray::fromVariantList(calcHistory_)).toJson(QJsonDocument::Compact));
+        f.commit();
+    }
+}
+
+void LauncherModel::rememberCalc(const Row& r) {
+    // One entry per question, the latest on top.
+    calcHistory_.removeIf([&](const QVariant& v) { return v.toMap().value("input") == r.detail; });
+    calcHistory_.prepend(QVariantMap{{"input", r.detail}, {"result", r.title}, {"copy", r.target},
+                                     {"badge", r.badge}, {"label", r.label},
+                                     {"when", QDateTime::currentSecsSinceEpoch()}});
+    saveCalcHistory();
+}
+
 // --- preferences ---------------------------------------------------------------------
 
 QVariantList LauncherModel::items(const QString& query) {
@@ -1121,7 +1189,12 @@ QVariantList LauncherModel::allActions(int row) const {
         if (r.kind == "calc") {
             add("open", "Copy Answer", "content_copy", "Enter");
             add("type", "Type Answer", "keyboard", "Ctrl+Enter");
-            add("copy-expression", "Copy Expression", "functions");
+            add("copy-expression", "Copy Question", "functions");
+            if (screen_ == "calculator") {
+                section();
+                add("forget", "Remove from History", "delete");
+                add("forget-all", "Clear History", "delete_sweep");
+            }
         } else {
             add("open", r.kind == "url" ? QStringLiteral("Open in Browser") : !r.detail.isEmpty() ? r.detail : r.title, r.glyph,
                 "Enter");
@@ -1207,11 +1280,19 @@ void LauncherModel::runAction(int row, const QString& id) {
     }
     if (r.entry < 0) {
         if (r.kind == "calc" && id == "type") {
+            rememberCalc(r);
             emit closeRequested();
             Compositor::instance()->insertText(r.target);
         } else if (r.kind == "calc" && id == "copy-expression") {
             QGuiApplication::clipboard()->setText(r.detail);
             emit closeRequested();
+        } else if (r.kind == "calc" && (id == "forget" || id == "forget-all")) {
+            if (id == "forget-all")
+                calcHistory_.clear();
+            else
+                calcHistory_.removeIf([&](const QVariant& v) { return v.toMap().value("input") == r.detail; });
+            saveCalcHistory();
+            rebuildRows(true);
         }
         return;
     }

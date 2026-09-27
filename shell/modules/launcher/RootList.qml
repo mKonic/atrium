@@ -102,10 +102,12 @@ ListView {
         required property string keys
         required property int slot
         required property bool running
+        required property string badge
         readonly property bool selected: index === list.launcherModel.current
+        readonly property bool card: kind === "calc"
 
         width: list.width
-        height: kind === "calc" ? 64 : 44
+        height: card ? 92 : 44
 
         Rectangle {
             anchors.fill: parent
@@ -115,10 +117,75 @@ ListView {
             color: row.selected ? Theme.palette.accentFill : "transparent"
         }
 
+        // A calculation: the question and what it is, the answer and what it is.
+        Row {
+            anchors.centerIn: parent
+            visible: row.card
+            spacing: 0
+
+            component Side: Column {
+                property string text
+                property string badge
+                property bool answer
+
+                width: (list.width - 90) / 2
+                spacing: 6
+
+                StyledText {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(implicitWidth, parent.width)
+                    text: parent.text
+                    elide: Text.ElideMiddle
+                    font.pointSize: parent.answer ? Theme.font.size.large + 2 : Theme.font.size.large
+                    font.weight: parent.answer ? Font.DemiBold : Font.Normal
+                    color: parent.answer ? Theme.palette.label : Theme.palette.secondaryLabel
+                }
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: parent.badge.length > 0
+                    width: badgeText.implicitWidth + 14
+                    height: 20
+                    radius: 10
+                    color: Theme.palette.tertiaryFill
+
+                    StyledText {
+                        id: badgeText
+
+                        anchors.centerIn: parent
+                        text: parent.parent.badge
+                        font.pointSize: Theme.font.size.small
+                        color: Theme.palette.secondaryLabel
+                    }
+                }
+            }
+
+            Side {
+                text: row.detail
+                badge: row.badge
+            }
+
+            MaterialIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 58
+                horizontalAlignment: Text.AlignHCenter
+                text: "arrow_forward"
+                font.pointSize: 16
+                color: Theme.palette.tertiaryLabel
+            }
+
+            Side {
+                text: row.title
+                badge: row.label
+                answer: true
+            }
+        }
+
         // The app's own icon, else a glyph (on its colour, for Settings pages).
         Item {
             id: art
 
+            visible: !row.card
             anchors.left: parent.left
             anchors.leftMargin: 20
             anchors.verticalCenter: parent.verticalCenter
@@ -163,6 +230,7 @@ ListView {
         Row {
             id: words
 
+            visible: !row.card
             anchors.left: art.right
             anchors.leftMargin: 12
             anchors.right: trailing.left
@@ -218,6 +286,7 @@ ListView {
         Item {
             id: trailing
 
+            visible: !row.card
             anchors.right: parent.right
             anchors.rightMargin: 20
             anchors.verticalCenter: parent.verticalCenter

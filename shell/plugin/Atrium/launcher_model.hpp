@@ -63,6 +63,7 @@ public:
         KeysRole,      // its global shortcut ("Mod+Shift+T"), "" none
         SlotRole,      // favorite number for Ctrl+N (1..10), 0 none
         RunningRole,   // an app with windows open
+        BadgeRole,     // a calculation's input badge ("Kilometres"); label is its answer's
     };
 
     explicit LauncherModel(QObject* parent = nullptr);
@@ -162,6 +163,7 @@ private:
         QString title, detail, icon, glyph, label;
         QString target;        // what a synthetic row acts on
         int slot = 0;
+        QString badge;
     };
     struct Prefs {
         QString alias;
@@ -218,6 +220,13 @@ private:
     QString screen_ = QStringLiteral("root");
     std::vector<Frame> stack_;
     QTimer rebuildTimer_;
+
+    // Calculator History: what was copied from a calculation, newest first
+    // ({ input, result, copy, badge, label }), kept in the state directory.
+    QVariantList calcHistory_;
+    void loadCalcHistory();
+    void rememberCalc(const Row& r);
+    void saveCalcHistory() const;
 
     // The custom command whose output shows.
     std::unique_ptr<QProcess> process_;

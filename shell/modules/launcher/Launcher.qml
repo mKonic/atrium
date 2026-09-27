@@ -15,7 +15,7 @@ import Atrium
 PanelWindow {
     id: launcher
 
-    readonly property bool listScreen: ["root", "windows", "snippets", "quicklinks"].includes(lm.screen)
+    readonly property bool listScreen: ["root", "windows", "snippets", "quicklinks", "calculator"].includes(lm.screen)
     // What the arguments beside the field hold, in the selected row's order.
     property var args: []
     property bool menuOpen: false
