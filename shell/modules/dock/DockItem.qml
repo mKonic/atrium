@@ -94,6 +94,7 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: bounce.offset + (mouse.pressed ? -2 : 0)
         implicitSize: size
+        largestSize: root.iconSize * 1.55  // the most the Dock magnifies
         scale: 0.6 + 0.4 * root.presence
         // A file URL is a picture the window sent itself.
         source: root.icon.startsWith("file:") ? root.icon : Shell.iconPath(root.icon, "application-x-executable")
