@@ -7,3 +7,4 @@ OutputScreen 1.0 OutputScreen.qml
 Keycap 1.0 Keycap.qml
 FeedbackPill 1.0 FeedbackPill.qml
 FilesScreen 1.0 FilesScreen.qml
+NotesScreen 1.0 NotesScreen.qml

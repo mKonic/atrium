@@ -1,0 +1,2 @@
+module shell.modules.notes
+NotesWindow 1.0 NotesWindow.qml

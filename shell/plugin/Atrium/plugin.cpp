@@ -4,6 +4,7 @@
 #include "apps.hpp"
 #include "file_search.hpp"
 #include "launcher_model.hpp"
+#include "notes.hpp"
 #include "brightness.hpp"
 #include "desktop_files.hpp"
 #include "folder_model.hpp"
@@ -256,6 +257,8 @@ public:
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
         qmlRegisterType<LauncherModel>(uri, 1, 0, "LauncherModel");
         qmlRegisterType<FileSearch>(uri, 1, 0, "FileSearch");
+        qmlRegisterType<Notes>(uri, 1, 0, "Notes");
+        qmlRegisterType<MarkdownHighlighter>(uri, 1, 0, "MarkdownHighlighter");
         qmlRegisterType<DockApps>(uri, 1, 0, "DockApps");
         qmlRegisterType<DesktopFiles>(uri, 1, 0, "DesktopFiles");
         qmlRegisterType<FolderModel>(uri, 1, 0, "FolderModel");

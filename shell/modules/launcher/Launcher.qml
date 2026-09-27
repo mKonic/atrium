@@ -35,6 +35,7 @@ PanelWindow {
             "quicklinks": "Search quicklinks…",
             "files": "Search files…",
             "calculator": "Search calculations…",
+            "notes": "Search notes…",
             "output": ""
         })
     readonly property var screenTitles: ({
@@ -45,6 +46,7 @@ PanelWindow {
             "quicklinks": "Quicklinks",
             "files": "Files",
             "calculator": "Calculator History",
+            "notes": "Notes",
             "output": ""
         })
 
@@ -513,6 +515,7 @@ PanelWindow {
                            : lm.screen === "emoji" ? emojiScreen
                            : lm.screen === "output" ? outputScreen
                            : lm.screen === "files" ? filesScreen
+                           : lm.screen === "notes" ? notesScreen
                            : notYet
         }
 
@@ -549,6 +552,15 @@ PanelWindow {
             id: filesScreen
 
             FilesScreen {
+                launcherModel: lm
+                onDone: launcher.close()
+            }
+        }
+
+        Component {
+            id: notesScreen
+
+            NotesScreen {
                 launcherModel: lm
                 onDone: launcher.close()
             }

@@ -94,6 +94,9 @@ ShellRoot {
             // "screenshot" (the toolbar), "screenshot-region", "-window", "-screen".
             if (name.startsWith("screenshot"))
                 Shell.launch("capture.qml", { ATRIUM_CAPTURE_MODE: name.slice(11) || "toolbar" });
+            // Notes, its own app; a running one hears the action itself.
+            if (name === "notes" || name.startsWith("notes:"))
+                Shell.launch("notes.qml", { ATRIUM_NOTES: name.slice(6) });
             if (name !== "settings" && !name.startsWith("settings:"))
                 return;
             Shell.launch("settings.qml", { ATRIUM_SETTINGS_PAGE: name.slice(9) });

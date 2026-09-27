@@ -644,6 +644,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "With nothing typed, list what you open most above everything else.", true, [](Config&, const json&) {}));
     s.push_back(boolean("launcher.snippet_expansion", "Launcher", "Expand snippet keywords",
         "Typing a snippet's keyword in any app replaces it with the snippet.", &Config::snippet_expansion, d));
+    s.push_back(make("notes.folder", SettingType::String, "Launcher", "Notes folder",
+        "Where Notes keeps its notes, one Markdown file each.", "~/Documents/Notes", [](Config&, const json&) {}));
     s.push_back(make("files.folders", SettingType::StringList, "Launcher", "Search Files looks in",
         "Folders Search Files finds files and folders in (~ is your home). Hidden ones are left out.",
         json::array({"~"}), [](Config&, const json&) {}));

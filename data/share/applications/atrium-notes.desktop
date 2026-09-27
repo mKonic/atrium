@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Notes
+Comment=Markdown notes, one file each, saved as you write
+Icon=atrium-notes
+Exec=atriumctl action shell notes
+Terminal=false
+Categories=Office;Utility;TextEditor;
+Keywords=note;notes;markdown;write;memo;
+StartupWMClass=atrium-notes
+OnlyShowIn=atrium;

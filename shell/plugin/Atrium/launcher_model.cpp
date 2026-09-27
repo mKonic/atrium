@@ -794,6 +794,10 @@ void LauncherModel::runCommand(const QString& id) {
         shellAction("settings:Launcher");
     else if (id == "screenshot" || id == "record" || id == "notifications" || id == "control" || id == "welcome")
         shellAction(id);
+    else if (id == "notes")
+        shellAction("notes");
+    else if (id == "new-note")
+        shellAction("notes:new");
     else if (id == "overview")
         Compositor::instance()->action("overview");
     else if (id == "reset-ranking") {
