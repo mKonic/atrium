@@ -845,11 +845,36 @@ void RenderPass::output_pass() {
     p.set("tex", 0);
     p.set_mat3("matrix", color_.matrix);
     p.set("out_tf", color_.tf);
+    ColorLut* lut = color_.lut;
+    if (lut && !lut->tex && lut->size > 1) {
+        glGenTextures(1, &lut->tex);
+        glBindTexture(GL_TEXTURE_3D, lut->tex);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        for (GLenum w : {GL_TEXTURE_WRAP_S, GL_TEXTURE_WRAP_T, GL_TEXTURE_WRAP_R})
+            glTexParameteri(GL_TEXTURE_3D, w, GL_CLAMP_TO_EDGE);
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB16F, lut->size, lut->size, lut->size, 0, GL_RGB, GL_FLOAT,
+                     lut->rgb.data());
+    }
+    const bool use_lut = lut && lut->tex;
+    p.set("has_lut", use_lut ? 1 : 0);
+    if (use_lut) {
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_3D, lut->tex);
+        p.set("lut", 1);
+        p.set("lut_size", float(lut->size));
+        glActiveTexture(GL_TEXTURE0);
+    }
     const FBox full{0, 0, double(width_), double(height_)};
     set_proj(p, full);
     set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, wlr_fbox{0, 0, 1, 1});
     draw(p, full, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
+    if (use_lut) {
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_3D, 0);
+        glActiveTexture(GL_TEXTURE0);
+    }
     glEnable(GL_BLEND);
 
     // Say what these pixels are, so copies (screenshots, screen sharing)

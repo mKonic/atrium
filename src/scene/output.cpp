@@ -209,6 +209,8 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
         // The effects buffers are the renderer's: gone before it is.
         so->renderer_destroy_.connect(&output->renderer->events.destroy, [so](void*) {
             so->fx_.release();
+            if (so->lut_)
+                so->lut_->tex = 0;  // went with its context
             so->renderer_destroy_.disconnect();
         });
     }
@@ -245,7 +247,25 @@ void SceneOutput::destroy() {
         wlr_drm_syncobj_timeline_unref(out_timeline_);
     }
     wlr_color_transform_unref(gamma_lut_transform_);
+    drop_lut_texture();
     delete this;
+}
+
+void SceneOutput::drop_lut_texture() {
+    if (!lut_ || !lut_->tex)
+        return;
+    if (render::Renderer* r = render::Renderer::from(output->renderer)) {
+        r->egl().make_current();
+        glDeleteTextures(1, &lut_->tex);
+    }
+    lut_->tex = 0;
+}
+
+void SceneOutput::set_color_lut(std::unique_ptr<render::ColorLut> lut) {
+    drop_lut_texture();
+    lut_ = std::move(lut);
+    color_changed_ = true;
+    damage_whole();
 }
 
 SceneOutput* Scene::output_for(wlr_output* o) {
@@ -361,6 +381,11 @@ render::OutputColor SceneOutput::output_color(const wlr_output_image_description
         for (float& v : m)
             v *= lum;
         c.tf = tf_index(desc->transfer_function);
+    }
+    // The display's profile, on SDR: the table expects gamma 2.2 in.
+    if (lut_ && lut_->size > 1 && (!desc || c.tf == 0 || c.tf == 3)) {
+        c.lut = lut_.get();
+        c.tf = 0;
     }
     // Columns take the tint: it applies to linear sRGB in.
     for (int i = 0; i < 9; ++i)

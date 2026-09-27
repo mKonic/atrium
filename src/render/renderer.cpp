@@ -17,7 +17,7 @@
 namespace atrium::render {
 
 bool OutputColor::plain() const {
-    return matrix::is_identity(matrix) && (tf == 0 || tf == 3);
+    return matrix::is_identity(matrix) && (tf == 0 || tf == 3) && !lut;
 }
 
 namespace {

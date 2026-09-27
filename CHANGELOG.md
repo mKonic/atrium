@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- A color profile (ICC) per display, in Displays.
 - Shake the pointer to find it: it grows for a moment.
 - Frosted blur behind menus and input-method popups when transparency is on.
 - A screen shader setting: a GLSL file drawn over every screen.

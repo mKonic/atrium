@@ -74,6 +74,7 @@ void Server::remember_displays() {
         d.hdr = o->hdr;
         d.sdr_brightness = o->sdr_brightness;
         d.sdr_color = o->sdr_color;
+        d.icc = o->icc;
         if (o->wlr->enabled) {
             d.width = o->wlr->width;
             d.height = o->wlr->height;
@@ -89,6 +90,7 @@ void Server::remember_displays() {
             d.hdr = o->hdr;
             d.sdr_brightness = o->sdr_brightness;
             d.sdr_color = o->sdr_color;
+            d.icc = o->icc;
         }
         registry->put_display(d);
     }
@@ -102,6 +104,8 @@ void Server::restore_display(Output* output) {
     output->hdr = d->hdr;
     output->sdr_brightness = d->sdr_brightness;
     output->sdr_color = d->sdr_color;
+    output->icc = d->icc;
+    output->apply_icc();
     wlr_output* w = output->wlr;
     wlr_output_state state;
     wlr_output_state_init(&state);
@@ -160,6 +164,18 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         if (!v.is_number() || v.get<double>() < 0 || v.get<double>() > 100)
             return "sdr_color goes from 0 to 100";
         target->sdr_color = int(std::lround(v.get<double>()));
+    }
+    if (req.contains("icc")) {
+        if (!req["icc"].is_string())
+            return "icc is the path of a colour profile, or empty for none";
+        const std::string before = target->icc;
+        target->icc = req["icc"];
+        std::string why;
+        if (!target->apply_icc(&why)) {
+            target->icc = before;
+            target->apply_icc();
+            return why;
+        }
     }
     if (req.contains("hdr")) {
         if (!req["hdr"].is_boolean())

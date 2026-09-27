@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import QtCore
 import QtQuick
 import shell.components
 import shell.services
@@ -328,6 +329,40 @@ Rectangle {
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel
         }
+
+        // A calibrated screen's own profile, for SDR (as KDE and GNOME
+        // take one per display).
+        Setting {
+            label: "Color profile"
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, 260)
+                elide: Text.ElideMiddle
+                text: (root.output?.icc ?? "") ? root.output.icc.split("/").pop() : "None"
+                font.pointSize: Theme.font.size.small
+            }
+
+            PillButton {
+                text: "Choose…"
+                onClicked: iccPicker.open()
+            }
+
+            PillButton {
+                visible: (root.output?.icc ?? "") !== ""
+                text: "None"
+                onClicked: root.configure({ icc: "" })
+            }
+        }
+    }
+
+    FilePicker {
+        id: iccPicker
+
+        title: "Choose a Color Profile"
+        folder: StandardPaths.writableLocation(StandardPaths.GenericDataLocation) + "/icc"
+        nameFilter: "Color profiles (*.icc *.icm)"
+        onPicked: file => root.configure({ icc: file.toString().replace(/^file:\/\//, "") })
     }
 
     component Setting: Row {

@@ -1,4 +1,6 @@
 #include "output.hpp"
+#include "icc.hpp"
+#include "render/renderer.hpp"
 
 #include "ipc.hpp"
 #include "layer_surface.hpp"
@@ -222,6 +224,30 @@ bool Output::apply_hdr() {
     }
     wlr_output_schedule_frame(wlr);
     return ok;
+}
+
+bool Output::apply_icc(std::string* error) {
+    if (!scene_output)
+        return false;
+    if (icc.empty()) {
+        scene_output->set_color_lut(nullptr);
+        return true;
+    }
+    std::string why;
+    auto table = icc::load(icc, &why);
+    if (!table) {
+        wlr_log(WLR_ERROR, "%s: colour profile: %s", wlr->name, why.c_str());
+        if (error)
+            *error = why;
+        scene_output->set_color_lut(nullptr);
+        return false;
+    }
+    auto lut = std::make_unique<render::ColorLut>();
+    lut->size = table->size;
+    lut->rgb = std::move(table->rgb);
+    scene_output->set_color_lut(std::move(lut));
+    wlr_log(WLR_INFO, "%s: colour profile %s", wlr->name, table->description.c_str());
+    return true;
 }
 
 namespace {

@@ -12,6 +12,10 @@ uniform sampler2D tex;
 uniform mat3 matrix;
 // 0: gamma 2.2, 1: PQ, 2: linear, 3: sRGB
 uniform int out_tf;
+// The display's colour profile (SDR): the encoded frame looked up in it.
+uniform int has_lut;
+uniform highp sampler3D lut;
+uniform float lut_size;
 
 #include "pq.glsl"
 
@@ -35,5 +39,7 @@ void main() {
 	} else {
 		e = pow(min(lin, 1.0), vec3(1.0 / 2.2));
 	}
+	if (has_lut == 1 && (out_tf == 0 || out_tf == 3))
+		e = texture(lut, e * ((lut_size - 1.0) / lut_size) + 0.5 / lut_size).rgb;
 	frag_color = vec4(e, 1.0);
 }

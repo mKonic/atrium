@@ -59,11 +59,14 @@ public:
     // 0-100: SDR content in HDR from plain sRGB (0) to the screen's own gamut
     // (100), as the screen itself stretches it outside HDR.
     int sdr_color = 100;
+    std::string icc;  // colour profile (ICC file) for SDR, empty for none
     std::optional<HdrCaps> hdr_caps;  // from the screen's EDID (real screens only)
     bool hdr_supported() const;
     bool hdr_active() const;
     // Signal and compositing as set; false when the screen refused HDR.
     bool apply_hdr();
+    // Loads `icc` into the renderer's colour pass; false (and none) if it can't.
+    bool apply_icc(std::string* error = nullptr);
     // SDR brightness 0-100 as the nits white is shown at in HDR: 80 (what
     // SDR is mastered for) up to the screen's peak, never past it. Content
     // that says what it is (Chromium, HDR video) has its reference white

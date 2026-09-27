@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <unordered_set>
+#include <vector>
 
 namespace atrium::render {
 
@@ -93,9 +94,18 @@ struct Texture {
 // transfer function (output.frag's out_tf: 0 gamma 2.2, 1 PQ, 2 linear,
 // 3 sRGB). Anything but plain gamma 2.2/sRGB draws through a half-float
 // blend buffer and converts at submit.
+// A display's colour profile as a 3D table (icc::Lut), looked up after the
+// SDR encode: `size`³ RGB, red fastest. Uploaded on first use.
+struct ColorLut {
+    int size = 0;
+    std::vector<float> rgb;
+    GLuint tex = 0;
+};
+
 struct OutputColor {
     float matrix[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     int tf = 0;
+    ColorLut* lut = nullptr;  // SDR only
     bool plain() const;
 };
 

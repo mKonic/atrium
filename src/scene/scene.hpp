@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 
 namespace atrium::scene {
 
@@ -426,6 +427,8 @@ public:
     void set_sdr_primaries(const wlr_color_primaries* primaries);
     // A white point tint in linear light (night light); 1, 1, 1 for none.
     void set_tint(float r, float g, float b);
+    // The display's colour profile as a 3D table (SDR), or none.
+    void set_color_lut(std::unique_ptr<render::ColorLut> lut);
 
     struct StateOptions {
         Timer* timer = nullptr;
@@ -461,6 +464,8 @@ private:
 
     wlr_addon addon_{};
     render::EffectBuffers fx_;
+    std::unique_ptr<render::ColorLut> lut_;
+    void drop_lut_texture();
     uint8_t dmabuf_feedback_debounce_ = 0;
     bool prev_scanout_ = false;
     bool gamma_lut_changed_ = false;
