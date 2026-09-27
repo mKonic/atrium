@@ -181,6 +181,9 @@ bool Output::apply_hdr() {
             ok = false;
             for (uint32_t format : {DRM_FORMAT_XRGB2101010, DRM_FORMAT_XBGR2101010, DRM_FORMAT_ARGB2101010,
                                     DRM_FORMAT_ABGR2101010, DRM_FORMAT_XBGR16161616F, DRM_FORMAT_ABGR16161616F}) {
+                // Only the plane's own (testing any other logs an error).
+                if (!wlr_drm_format_set_get(wlr_output_get_primary_formats(wlr, wlr->allocator->buffer_caps), format))
+                    continue;
                 wlr_output_state_set_render_format(&state, format);
                 if (wlr_output_test_state(wlr, &state)) {
                     wlr_log(WLR_INFO, "%s: HDR in %s", wlr->name, format_name(format).c_str());
