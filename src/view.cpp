@@ -58,6 +58,12 @@ void View::set_alpha(float a) {
     update_decorations();  // shadow, outline, title bar and content all follow alpha_
 }
 
+wlr_scene_tree* View::home_tree() const {
+    if (fullscreen_front())
+        return space ? space->fullscreen_tree : server.layer(Layer::Fullscreen);
+    return space ? space->tree : server.layer(Layer::Views);
+}
+
 bool View::visible() const {
     return mapped && !minimized && (!space || space->shown());
 }
@@ -216,7 +222,7 @@ void View::handle_unmap() {
     surface()->data = nullptr;
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
-    minimized = maximized = fullscreen = activated = activate_on_map = false;
+    minimized = maximized = fullscreen = covered = activated = activate_on_map = false;
     snapped = 0;
     tile_bar_hidden_ = false;
     resize_edges_ = 0;
@@ -236,6 +242,7 @@ void View::handle_unmap() {
         server.prune_space(old_space);
     if (was_focused || (unmanaged() && wants_focus()))
         server.focus_top();
+    server.restack_fullscreen();
     server.seat->refresh_pointer();
 }
 
@@ -363,7 +370,7 @@ void View::animate_close() {
     auto* g = new Ghost;
     // Straight under the layer, not the space: the space may be pruned while
     // the ghost is still fading.
-    g->tree = wlr_scene_tree_create(server.layer(fullscreen ? Layer::Fullscreen : Layer::Views));
+    g->tree = wlr_scene_tree_create(server.layer(fullscreen_front() ? Layer::Fullscreen : Layer::Views));
     g->x = tree->node.x;
     g->y = tree->node.y;
     wlr_scene_node_set_position(&g->tree->node, g->x, g->y);
@@ -784,14 +791,15 @@ void View::set_fullscreen(bool f) {
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_fullscreen(handle_, f);
 
+    covered = false;
+    wlr_scene_node_reparent(&tree->node, home_tree());
     if (f) {
-        wlr_scene_node_reparent(&tree->node, space ? space->fullscreen_tree : server.layer(Layer::Fullscreen));
         if (output)
             request_geometry(output->box);
     } else {
-        wlr_scene_node_reparent(&tree->node, space ? space->tree : server.layer(Layer::Views));
         request_geometry(maximized ? usable_area() : restore);
     }
+    server.restack_fullscreen();
     update_decorations();
     if (output)
         output->refit_views();
@@ -836,6 +844,7 @@ void View::set_minimized(bool m) {
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_minimized(handle_, m);
     server.notify_window(*this, "changed");
+    server.restack_fullscreen();
     if (fullscreen && output)
         output->refit_views();
 

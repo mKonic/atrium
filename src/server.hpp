@@ -104,6 +104,10 @@ public:
     void focus_top();
     // The focused window stops being focused (and IPC subscribers hear so).
     void drop_focus();
+    // Fullscreen windows go over the panels only while in front: one with
+    // another window brought over it (alt-tab, an app launched) drops back
+    // among the windows, under that one.
+    void restack_fullscreen();
     View* top_view(Output* output) const;
     void cycle_focus(int direction);
 

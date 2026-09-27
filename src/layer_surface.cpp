@@ -136,7 +136,7 @@ void LayerSurface::commit() {
         const bool over = mapped && wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
         const int bottom = tree->node.y - output->box.y + int(wlr->current.actual_height);
         for (View* v : server.views)
-            if (v->output == output && v->fullscreen && v->visible())
+            if (v->output == output && v->fullscreen_front() && v->visible())
                 v->reveal_titlebar(over, bottom);
     }
 

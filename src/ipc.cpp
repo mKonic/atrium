@@ -333,6 +333,7 @@ json Ipc::window_json(const View& v) {
         {"minimized", v.minimized},
         {"maximized", v.maximized},
         {"fullscreen", v.fullscreen},
+        {"covered", v.covered},
         {"urgent", v.urgent},
         {"xwayland", v.kind == View::Kind::X11},
         {"space", v.space ? v.space->label() : ""},

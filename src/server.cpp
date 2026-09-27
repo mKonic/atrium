@@ -1051,6 +1051,7 @@ void Server::focus_view(View* view, bool raise) {
             focused_output = view->output;
         view->urgent = false;
     }
+    restack_fullscreen();
 
     wlr_surface* old = seat->wlr->keyboard_state.focused_surface;
     if (view && view->surface() == old)
@@ -1107,6 +1108,35 @@ void Server::keyboard_layout_changed() {
         focused_view->keyboard_layout = seat->layout();
     if (ipc)
         ipc->broadcast("keyboard", {{"event", "keyboard.changed"}, {"keyboard", Ipc::keyboard_json(*this)}});
+}
+
+// As on Windows, macOS and KDE: a fullscreen window is over everything only
+// while it's the front window of its screen and space.
+void Server::restack_fullscreen() {
+    for (View* f : views) {
+        if (!f->fullscreen || !f->tree || f->minimized || f->unmanaged())
+            continue;
+        View* front = nullptr;
+        for (View* v : views) {
+            if (v == f)
+                break;
+            if (v->mapped && v->tree && !v->minimized && !v->unmanaged() && v->output == f->output &&
+                v->space == f->space) {
+                front = v;
+                break;
+            }
+        }
+        if ((front != nullptr) == f->covered)
+            continue;
+        f->covered = front != nullptr;
+        wlr_scene_node_reparent(&f->tree->node, f->home_tree());
+        if (front && front->tree->node.parent == f->tree->node.parent)
+            wlr_scene_node_place_below(&f->tree->node, &front->tree->node);
+        f->update_decorations();
+        if (f->output)
+            f->output->refit_views();  // the backdrop behind it
+        notify_window(*f, "changed");
+    }
 }
 
 void Server::drop_focus() {
