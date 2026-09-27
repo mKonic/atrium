@@ -85,6 +85,15 @@ ShellWindow::ShellWindow(QWindow* parent) : QQuickWindow(parent) {
     });
 }
 
+bool ShellWindow::event(QEvent* e) {
+    const bool handled = QQuickWindow::event(e);
+    if (e->type() == QEvent::Close && e->isAccepted()) {
+        visible_ = false;
+        emit visibleChanged(false);
+    }
+    return handled;
+}
+
 void ShellWindow::componentComplete() {
     complete_ = true;
     if (screen_ && screen_->screen())

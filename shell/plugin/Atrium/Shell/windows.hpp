@@ -90,6 +90,9 @@ protected:
     // Before the window first shows (and again after a screen change).
     virtual void prepare() {}
     virtual void implicitSizeChanged();
+    // A close from the compositor (Super+Q, the Dock's Quit) is a hide the
+    // `visible` property hears: Qt tears the window down without saying so.
+    bool event(QEvent* e) override;
     bool complete() const { return complete_; }
     QSize implicitSize() const { return implicit_; }
 
