@@ -101,6 +101,9 @@ public:
     Q_INVOKABLE void setApp(const QString& appId, const QVariantMap& fields);
     Q_INVOKABLE void forgetApp(const QString& appId);
     Q_INVOKABLE void setDock(const QStringList& appIds);
+    // Where the Dock on `output` shows each app ({x, y, width, height, windows}):
+    // minimised windows shrink into their icon.
+    Q_INVOKABLE void setDockIcons(const QString& output, const QVariantList& icons);
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
     // A display's mode, scale, rotation, place or power: { width, height,
     // refresh, scale, transform, x, y, enabled }.

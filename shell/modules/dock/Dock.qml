@@ -279,6 +279,25 @@ PanelWindow {
             // them grow and shrink; a transition here would restart on every
             // frame of that and stutter.
 
+            // Where each icon is, for windows minimising into it: again once
+            // the row settles after a change.
+            onWidthChanged: iconReport.restart()
+            onXChanged: iconReport.restart()
+
+            Timer {
+                id: iconReport
+
+                interval: 150
+                onTriggered: dockApps.reportIcons(row, dock.screen?.name ?? "")
+            }
+
+            Connections {
+                target: dockApps
+
+                function onDataChanged() { iconReport.restart(); }
+                function onCountChanged() { iconReport.restart(); }
+            }
+
             Repeater {
                 id: apps
 

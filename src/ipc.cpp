@@ -757,6 +757,23 @@ json Ipc::handle(Client& c, const json& req) {
 
     if (cmd == "keyboard")
         return ok(keyboard_json(server_));
+    if (cmd == "dock.icons") {
+        // {output, icons: [{x, y, width, height, windows: [ids]}]}
+        if (!req.contains("output") || !req["output"].is_string() || !req.contains("icons") || !req["icons"].is_array())
+            return fail("dock.icons needs \"output\" and \"icons\"");
+        std::vector<Server::DockIcon> icons;
+        for (const json& e : req["icons"]) {
+            if (!e.is_object() || !e.contains("windows") || !e["windows"].is_array())
+                return fail("each dock icon needs x, y, width, height and windows");
+            Server::DockIcon icon{{e.value("x", 0), e.value("y", 0), e.value("width", 0), e.value("height", 0)}, {}};
+            for (const json& w : e["windows"])
+                if (w.is_number_unsigned())
+                    icon.windows.push_back(w.get<uint64_t>());
+            icons.push_back(std::move(icon));
+        }
+        server_.dock_icons[req["output"].get<std::string>()] = std::move(icons);
+        return ok();
+    }
     if (cmd == "night_light")
         return server_.night_light ? ok(server_.night_light->state()) : fail("no night light here");
     if (cmd == "night_light.set") {

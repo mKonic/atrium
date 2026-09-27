@@ -447,6 +447,28 @@ bool DockApps::activate(const QString& appId) {
     return false;
 }
 
+void DockApps::reportIcons(QQuickItem* row, const QString& output) {
+    if (!row || output.isEmpty())
+        return;
+    QVariantList icons;
+    for (QQuickItem* item : row->childItems()) {
+        const App* a = find(item->property("appId").toString());
+        if (!a || a->windows.isEmpty() || !item->isVisible())
+            continue;
+        const QRectF r = item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
+        QVariantList windows;
+        for (int id : a->windows)
+            windows.push_back(id);
+        icons.push_back(QVariantMap{{"x", qRound(r.x())}, {"y", qRound(r.y())}, {"width", qRound(r.width())},
+                                    {"height", qRound(r.height())}, {"windows", windows}});
+    }
+    if (icons == reported_ && output == reported_output_)
+        return;
+    reported_ = icons;
+    reported_output_ = output;
+    Compositor::instance()->setDockIcons(output, icons);
+}
+
 void DockApps::launch(const QString& appId) {
     execute(index_.byId(appId));
 }

@@ -850,12 +850,14 @@ void View::set_minimized(bool m) {
     // tree stays enabled while it animates out.
     server.animator.cancel_owner(this, false);
     tree->set_enabled(true);
-    // Shrink into the Dock, at the bottom middle of the screen, and grow
-    // back out of it (macOS's Scale effect).
+    // Shrink into the Dock and grow back out of it (macOS's Scale effect).
+    // Into its own icon when the Dock shows one, else the Dock's middle.
     int to_x = 0, to_y = 0;
     if (output) {
-        to_x = output->box.x + output->box.width / 2 - (geom.x + geom.width / 2);
-        to_y = output->box.y + output->box.height - kDockReach - (geom.y + geom.height / 2);
+        auto [tx, ty] = server.dock_icon_of(*this).value_or(
+            std::pair{output->box.x + output->box.width / 2, output->box.y + output->box.height - kDockReach});
+        to_x = tx - (geom.x + geom.width / 2);
+        to_y = ty - (geom.y + geom.height / 2);
     }
     const auto step = [this, to_x, to_y](double k) {  // 0: in place, 1: in the Dock
         set_anim_scale(float(1 - (1 - kMinimizedScale) * k));
