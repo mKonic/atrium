@@ -33,8 +33,7 @@ struct Harness {
     uint32_t bind_version = 2;
 
     explicit Harness(uint32_t version = 2) : bind_version(version) {
-        global = std::make_unique<wl::Global>(
-            server, AtriumTestManagerV1::interface(), AtriumTestManagerV1::kVersion,
+        global = wl::Global::create<AtriumTestManagerV1>(server, AtriumTestManagerV1::kVersion,
             [this](wl_client* c, uint32_t v, uint32_t id) {
                 if (auto* m = wl::make<AtriumTestManagerV1>(c, v, id)) {
                     managers.push_back(m);

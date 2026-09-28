@@ -15,8 +15,7 @@ using wl::XdgToplevelDragManagerV1;
 using wl::XdgToplevelDragV1;
 
 ToplevelDrags::ToplevelDrags(Server& server) : server_(server) {
-    global_ = std::make_unique<wl::Global>(
-        server.display, XdgToplevelDragManagerV1::interface(), 1,
+    global_ = wl::Global::create<XdgToplevelDragManagerV1>(server.display, 1,
         [this](wl_client* client, uint32_t version, uint32_t id) {
             auto* m = wl::make<XdgToplevelDragManagerV1>(client, version, id);
             if (!m)

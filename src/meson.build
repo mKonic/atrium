@@ -60,7 +60,11 @@ atrium_sources = files(
   'render/renderer.cpp',
   'render/shaders.cpp',
   'render/shaders_embedded.cpp',
+  'wl/buffer.cpp',
+  'wl/compositor.cpp',
+  'wl/output.cpp',
   'wl/resource.cpp',
+  'wl/shm.cpp',
 )
 
 # Everything but main(): the compositor as a library, which the unit tests

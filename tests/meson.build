@@ -20,6 +20,14 @@ if gtest.found()
       command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
     ),
   ]
+  # Client sides of what the protocol layer serves.
+  foreach xml : [wl_protocol_dir / 'unstable/xdg-output/xdg-output-unstable-v1.xml']
+    test_protocol += custom_target(xml.underscorify() + '_client_h',
+      input: xml,
+      output: '@BASENAME@-client-protocol.h',
+      command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+    )
+  endforeach
 
   unit = executable('unit',
     'geometry_test.cpp',
@@ -55,6 +63,7 @@ if gtest.found()
     'stacking_test.cpp',
     'warp_test.cpp',
     'wlscanner_test.cpp',
+    'wl_core_test.cpp',
     test_protocol,
     files('../shell/plugin/Atrium/search.cpp', '../shell/plugin/Atrium/rank.cpp', '../shell/plugin/Atrium/placeholders.cpp', '../shell/plugin/Atrium/file_search_core.cpp', '../shell/plugin/Atrium/calc.cpp', '../shell/plugin/Atrium/notes_core.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/levels.cpp', '../shell/plugin/Atrium/sysinfo_core.cpp', '../shell/plugin/Atrium/netspeed_core.cpp', '../shell/plugin/Atrium/passwd_core.cpp', '../shell/plugin/Atrium/emoji_core.cpp', '../shell/plugin/Atrium/Shell/desktop_entry_core.cpp', '../shell/plugin/Atrium/wallpaper_core.cpp', '../shell/plugin/Atrium/mimeapps_core.cpp', '../shell/plugin/Atrium/ini_core.cpp', '../shell/plugin/Atrium/battery_core.cpp', '../shell/plugin/Atrium/printers_core.cpp', '../shell/plugin/Atrium/keyboard_core.cpp', '../shell/plugin/Atrium/share_core.cpp', '../shell/plugin/Atrium/capture_core.cpp', '../shell/plugin/Atrium/updates_core.cpp', '../shell/clipsync/clipsync_core.cpp'),
     include_directories: include_directories('..', '../src', '../shell/plugin/Atrium', '../shell/plugin/Atrium/Shell', '../shell/clipsync'),

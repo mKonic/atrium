@@ -17,8 +17,7 @@ using wl::AtriumGlassManagerV1;
 using wl::AtriumGlassV1;
 
 GlassShapes::GlassShapes(Server& server) : server_(server) {
-    global_ = std::make_unique<wl::Global>(
-        server.display, AtriumGlassManagerV1::interface(), 2,
+    global_ = wl::Global::create<AtriumGlassManagerV1>(server.display, 2,
         [this](wl_client* client, uint32_t version, uint32_t id) {
             auto* m = wl::make<AtriumGlassManagerV1>(client, version, id);
             if (!m)

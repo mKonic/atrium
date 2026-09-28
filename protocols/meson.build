@@ -46,9 +46,19 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/xdg-toplevel-drag/xdg-toplevel-drag-v1.xml',
   wl_protocol_dir / 'staging/xdg-session-management/xdg-session-management-v1.xml',
   wl_protocol_dir / 'staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml',
+  wl_protocol_dir / 'unstable/xdg-output/xdg-output-unstable-v1.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []
+# The core protocol: its interface tables are libwayland-server's own.
+wl_core = custom_target(
+  'wayland_wl',
+  input: wayland_dir / 'wayland.xml',
+  output: ['wayland-server.hpp', 'wayland-server.cpp'],
+  command: [wlscanner, '@INPUT@', '@OUTPUT0@', '@OUTPUT1@'],
+)
+wl_protocol_sources += wl_core
+wl_protocol_headers += wl_core[0]
 foreach xml : wl_protocol_xmls
   wl = custom_target(
     xml.underscorify() + '_wl',

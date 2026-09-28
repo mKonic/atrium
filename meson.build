@@ -29,6 +29,7 @@ add_project_arguments(
 wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
 wayland_protos = dependency('wayland-protocols')
+wayland_dir = dependency('wayland-scanner', native: true).get_variable(pkgconfig: 'pkgdatadir')
 xkbcommon = dependency('xkbcommon')
 libinput = dependency('libinput')
 pixman = dependency('pixman-1')

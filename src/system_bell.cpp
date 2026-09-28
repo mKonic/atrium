@@ -11,8 +11,7 @@ namespace atrium {
 
 SystemBell::SystemBell(Server& server) : server_(server) {
     using wl::XdgSystemBellV1;
-    global_ = std::make_unique<wl::Global>(
-        server.display, XdgSystemBellV1::interface(), XdgSystemBellV1::kVersion,
+    global_ = wl::Global::create<XdgSystemBellV1>(server.display, XdgSystemBellV1::kVersion,
         [this](wl_client* client, uint32_t version, uint32_t id) {
             auto* bell = wl::make<XdgSystemBellV1>(client, version, id);
             if (!bell)

@@ -116,12 +116,20 @@ private:
 };
 
 // A wl_global whose binds construct objects through `bind`. Removing it (the
-// destructor) stops new binds; objects already bound live on.
+// destructor) stops new binds; objects already bound live on. A bind already
+// on its way as it goes gets an inert object, so its client doesn't fail.
 class Global {
 public:
     using Bind = std::function<void(wl_client* client, uint32_t version, uint32_t id)>;
 
-    Global(wl_display* display, const wl_interface* interface, uint32_t version, Bind bind);
+    template <class T>
+    static std::unique_ptr<Global> create(wl_display* display, uint32_t version, Bind bind) {
+        return std::unique_ptr<Global>(new Global(display, T::interface(), version, std::move(bind),
+                                                  [](wl_client* c, uint32_t v, uint32_t id) {
+                                                      if (T* o = make<T>(c, v, id))
+                                                          o->detach();
+                                                  }));
+    }
     ~Global();
     Global(const Global&) = delete;
     Global& operator=(const Global&) = delete;
@@ -129,10 +137,12 @@ public:
     wl_global* global() const { return global_; }
 
 private:
+    struct State;
+    Global(wl_display* display, const wl_interface* interface, uint32_t version, Bind bind, Bind inert);
     static void bound(wl_client* client, void* data, uint32_t version, uint32_t id);
 
     wl_global* global_ = nullptr;
-    Bind bind_;
+    State* state_;
 };
 
 } // namespace atrium::wl

@@ -130,8 +130,7 @@ std::string save_icon(const Icon& icon, uint64_t view_id) {
 } // namespace
 
 ToplevelIcons::ToplevelIcons(Server& server) : server_(server) {
-    global_ = std::make_unique<wl::Global>(
-        server.display, XdgToplevelIconManagerV1::interface(), 1,
+    global_ = wl::Global::create<XdgToplevelIconManagerV1>(server.display, 1,
         [this](wl_client* client, uint32_t version, uint32_t id) {
             auto* m = wl::make<XdgToplevelIconManagerV1>(client, version, id);
             if (!m)
