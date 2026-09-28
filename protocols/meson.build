@@ -69,6 +69,15 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/ext-idle-notify/ext-idle-notify-v1.xml',
   wl_protocol_dir / 'staging/pointer-warp/pointer-warp-v1.xml',
   wl_protocol_dir / 'stable/tablet/tablet-v2.xml',
+  wl_protocol_dir / 'staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml',
+  'wlr-foreign-toplevel-management-unstable-v1.xml',
+  wl_protocol_dir / 'staging/ext-workspace/ext-workspace-v1.xml',
+  'wlr-output-management-unstable-v1.xml',
+  'wlr-output-power-management-unstable-v1.xml',
+  'wlr-gamma-control-unstable-v1.xml',
+  wl_protocol_dir / 'unstable/xdg-foreign/xdg-foreign-unstable-v2.xml',
+  'hyprland-global-shortcuts-v1.xml',
+  wl_protocol_dir / 'staging/security-context/security-context-v1.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []
