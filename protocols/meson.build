@@ -47,6 +47,9 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/xdg-session-management/xdg-session-management-v1.xml',
   wl_protocol_dir / 'staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml',
   wl_protocol_dir / 'unstable/xdg-output/xdg-output-unstable-v1.xml',
+  wl_protocol_dir / 'unstable/primary-selection/primary-selection-unstable-v1.xml',
+  wl_protocol_dir / 'staging/ext-data-control/ext-data-control-v1.xml',
+  'wlr-data-control-unstable-v1.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []
