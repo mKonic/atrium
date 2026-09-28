@@ -1,6 +1,26 @@
 gtest = dependency('gtest', main: true, required: get_option('tests'))
 
 if gtest.found()
+  # The scanner's own test protocol: server bindings, and a real client.
+  test_xml = files('protocols/atrium-test-v1.xml')
+  test_protocol = [
+    custom_target('atrium_test_wl',
+      input: test_xml,
+      output: ['@BASENAME@-server.hpp', '@BASENAME@-server.cpp'],
+      command: [wlscanner, '@INPUT@', '@OUTPUT0@', '@OUTPUT1@'],
+    ),
+    custom_target('atrium_test_client_h',
+      input: test_xml,
+      output: '@BASENAME@-client-protocol.h',
+      command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+    ),
+    custom_target('atrium_test_code',
+      input: test_xml,
+      output: '@BASENAME@-protocol.c',
+      command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+    ),
+  ]
+
   unit = executable('unit',
     'geometry_test.cpp',
     'config_test.cpp',
@@ -34,9 +54,11 @@ if gtest.found()
     'icc_test.cpp',
     'stacking_test.cpp',
     'warp_test.cpp',
+    'wlscanner_test.cpp',
+    test_protocol,
     files('../shell/plugin/Atrium/search.cpp', '../shell/plugin/Atrium/rank.cpp', '../shell/plugin/Atrium/placeholders.cpp', '../shell/plugin/Atrium/file_search_core.cpp', '../shell/plugin/Atrium/calc.cpp', '../shell/plugin/Atrium/notes_core.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/levels.cpp', '../shell/plugin/Atrium/sysinfo_core.cpp', '../shell/plugin/Atrium/netspeed_core.cpp', '../shell/plugin/Atrium/passwd_core.cpp', '../shell/plugin/Atrium/emoji_core.cpp', '../shell/plugin/Atrium/Shell/desktop_entry_core.cpp', '../shell/plugin/Atrium/wallpaper_core.cpp', '../shell/plugin/Atrium/mimeapps_core.cpp', '../shell/plugin/Atrium/ini_core.cpp', '../shell/plugin/Atrium/battery_core.cpp', '../shell/plugin/Atrium/printers_core.cpp', '../shell/plugin/Atrium/keyboard_core.cpp', '../shell/plugin/Atrium/share_core.cpp', '../shell/plugin/Atrium/capture_core.cpp', '../shell/plugin/Atrium/updates_core.cpp', '../shell/clipsync/clipsync_core.cpp'),
     include_directories: include_directories('..', '../src', '../shell/plugin/Atrium', '../shell/plugin/Atrium/Shell', '../shell/clipsync'),
-    dependencies: [atrium_dep, gtest, dependency('libxcrypt')],
+    dependencies: [atrium_dep, gtest, dependency('libxcrypt'), dependency('wayland-client')],
   )
   test('unit', unit)
 endif

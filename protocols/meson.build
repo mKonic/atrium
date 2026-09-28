@@ -58,3 +58,28 @@ foreach xml : own_protocol_xmls
     command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
   )
 endforeach
+
+# Protocols on atrium's own bindings (tools/wlscanner.py: a C++ class per
+# interface over libwayland), with wayland-scanner's interface tables.
+wlscanner = find_program('../tools/wlscanner.py')
+wl_protocol_xmls = [
+  wl_protocol_dir / 'staging/xdg-system-bell/xdg-system-bell-v1.xml',
+]
+wl_protocol_sources = []
+wl_protocol_headers = []
+foreach xml : wl_protocol_xmls
+  wl = custom_target(
+    xml.underscorify() + '_wl',
+    input: xml,
+    output: ['@BASENAME@-server.hpp', '@BASENAME@-server.cpp'],
+    command: [wlscanner, '@INPUT@', '@OUTPUT0@', '@OUTPUT1@'],
+  )
+  wl_protocol_sources += wl
+  wl_protocol_headers += wl[0]
+  protocol_code += custom_target(
+    xml.underscorify() + '_code',
+    input: xml,
+    output: '@BASENAME@-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+  )
+endforeach

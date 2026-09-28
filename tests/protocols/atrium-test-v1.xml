@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="atrium_test_v1">
+  <!-- Every argument type, versioned events, destructors and enums: the
+       scanner's unit tests (tests/wlscanner_test.cpp) run a client against it. -->
+  <interface name="atrium_test_manager_v1" version="2">
+    <enum name="error">
+      <entry name="bad_value" value="1"/>
+    </enum>
+    <enum name="flags" bitfield="true">
+      <entry name="none" value="0"/>
+      <entry name="first" value="1"/>
+      <entry name="second" value="2"/>
+    </enum>
+    <enum name="rotation">
+      <entry name="90" value="1"/>
+    </enum>
+    <request name="destroy" type="destructor"/>
+    <request name="scalars">
+      <arg name="i" type="int"/>
+      <arg name="u" type="uint" enum="flags"/>
+      <arg name="f" type="fixed"/>
+    </request>
+    <request name="text">
+      <arg name="s" type="string" allow-null="true"/>
+      <arg name="a" type="array"/>
+    </request>
+    <request name="pass_fd">
+      <arg name="fd" type="fd"/>
+    </request>
+    <request name="make_item">
+      <arg name="id" type="new_id" interface="atrium_test_item_v1"/>
+      <arg name="count" type="uint"/>
+    </request>
+    <request name="poke">
+      <arg name="item" type="object" interface="atrium_test_item_v1" allow-null="true"/>
+      <arg name="other" type="object" interface="wl_registry" allow-null="true"/>
+    </request>
+    <event name="echo">
+      <arg name="i" type="int"/>
+      <arg name="f" type="fixed"/>
+      <arg name="s" type="string"/>
+    </event>
+    <event name="item_made">
+      <arg name="item" type="object" interface="atrium_test_item_v1"/>
+    </event>
+    <event name="later" since="2">
+      <arg name="u" type="uint"/>
+    </event>
+  </interface>
+
+  <interface name="atrium_test_item_v1" version="2">
+    <request name="destroy" type="destructor"/>
+    <request name="ping"/>
+    <event name="pong">
+      <arg name="n" type="uint"/>
+    </event>
+  </interface>
+</protocol>

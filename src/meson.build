@@ -59,17 +59,18 @@ atrium_sources = files(
   'render/renderer.cpp',
   'render/shaders.cpp',
   'render/shaders_embedded.cpp',
+  'wl/resource.cpp',
 )
 
 # Everything but main(): the compositor as a library, which the unit tests
 # link too, so they test the real code (as Hyprland's hyprland_lib).
 atrium_lib = static_library('atrium',
-  atrium_sources, protocol_headers, protocol_code, version_h, paths_h,
+  atrium_sources, protocol_headers, protocol_code, wl_protocol_sources, version_h, paths_h,
   dependencies: deps,
 )
 atrium_dep = declare_dependency(
   link_with: atrium_lib,
-  sources: [protocol_headers, version_h, paths_h],
+  sources: [protocol_headers, wl_protocol_headers, version_h, paths_h],
   include_directories: include_directories('.'),
   dependencies: deps,
 )
