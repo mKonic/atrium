@@ -7,53 +7,62 @@
 
 namespace atrium::wl {
 
+namespace detail {
+struct SlotBase {
+    bool live = true;
+};
+} // namespace detail
+
+// A slot's handle: disconnects when it is destroyed. One type for every
+// Signal, so an object can keep its connections in one place.
+class Connection {
+public:
+    Connection() = default;
+    explicit Connection(std::weak_ptr<detail::SlotBase> slot) : slot_(std::move(slot)) {}
+    Connection(Connection&&) noexcept = default;
+    Connection& operator=(Connection&& other) noexcept {
+        disconnect();
+        slot_ = std::move(other.slot_);
+        return *this;
+    }
+    ~Connection() { disconnect(); }
+
+    void disconnect() {
+        if (auto s = slot_.lock())
+            s->live = false;
+        slot_.reset();
+    }
+    bool connected() const {
+        auto s = slot_.lock();
+        return s && s->live;
+    }
+
+private:
+    std::weak_ptr<detail::SlotBase> slot_;
+};
+
 // A C++ signal for the protocol layer's own objects (a surface's commit, a
 // seat's focus). connect() returns a Connection that disconnects when it is
 // destroyed, so a listener that goes can never be called; a slot may destroy
 // its own connection, or the signal's owner, while being called.
 template <class... Args>
 class Signal {
-    struct Slot {
+    struct Slot : detail::SlotBase {
+        explicit Slot(std::function<void(Args...)> f) : fn(std::move(f)) {}
         std::function<void(Args...)> fn;
-        bool live = true;
     };
 
 public:
-    class Connection {
-    public:
-        Connection() = default;
-        Connection(Connection&&) noexcept = default;
-        Connection& operator=(Connection&& other) noexcept {
-            disconnect();
-            slot_ = std::move(other.slot_);
-            return *this;
-        }
-        ~Connection() { disconnect(); }
-
-        void disconnect() {
-            if (auto s = slot_.lock())
-                s->live = false;
-            slot_.reset();
-        }
-        bool connected() const {
-            auto s = slot_.lock();
-            return s && s->live;
-        }
-
-    private:
-        friend class Signal;
-        explicit Connection(std::weak_ptr<Slot> slot) : slot_(std::move(slot)) {}
-        std::weak_ptr<Slot> slot_;
-    };
+    using Connection = wl::Connection;
 
     Signal() = default;
     Signal(const Signal&) = delete;
     Signal& operator=(const Signal&) = delete;
 
     [[nodiscard]] Connection connect(std::function<void(Args...)> fn) {
-        auto slot = std::make_shared<Slot>(Slot{std::move(fn)});
+        auto slot = std::make_shared<Slot>(std::move(fn));
         slots_->push_back(slot);
-        return Connection(slot);
+        return Connection(std::weak_ptr<detail::SlotBase>(slot));
     }
 
     // Slots connected during the emit are not called by it.

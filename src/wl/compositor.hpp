@@ -43,6 +43,7 @@ struct SurfaceState {
         XdgGeometry = 1 << 10,
         XdgAck = 1 << 11,
         XdgSizeLimits = 1 << 12,
+        Layer = 1 << 13,
     };
     uint32_t committed = 0;
 
@@ -69,6 +70,20 @@ struct SurfaceState {
     } xdg_geometry;
     uint32_t xdg_configure_serial = 0;  // the configure acked before this commit
     int min_width = 0, min_height = 0, max_width = 0, max_height = 0;
+
+    // zwlr_layer_surface_v1 state, double-buffered the same way.
+    struct LayerState {
+        uint32_t anchor = 0;  // edge bits: 1 top, 2 bottom, 4 left, 8 right
+        int32_t exclusive_zone = 0;
+        uint32_t exclusive_edge = 0;
+        int32_t margin_top = 0, margin_right = 0, margin_bottom = 0, margin_left = 0;
+        uint32_t keyboard_interactive = 0;  // 0 none, 1 exclusive, 2 on demand
+        uint32_t desired_width = 0, desired_height = 0;
+        uint32_t layer = 0;  // background, bottom, top, overlay
+        uint32_t configure_serial = 0;
+        uint32_t actual_width = 0, actual_height = 0;  // what the acked configure said
+        bool operator==(const LayerState&) const = default;
+    } layer;
 
     // A child in stacking order, where it sits relative to its parent;
     // `sub` null is the parent surface itself.

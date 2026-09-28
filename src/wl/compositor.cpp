@@ -100,6 +100,8 @@ void SurfaceState::merge(SurfaceState&& later) {
         max_width = later.max_width;
         max_height = later.max_height;
     }
+    if (later.committed & Layer)
+        layer = later.layer;
     committed |= later.committed;
 }
 
@@ -255,19 +257,17 @@ void Surface::commit() {
             return;
         }
     }
-    // The pending order of subsurfaces is edited in place (added, placed),
-    // so it carries over to the next commit.
-    std::vector<SurfaceState::Placement> order = pending_.subsurfaces;
-    // Size limits are set once and hold: the next pending state starts from them.
-    const int limits[4] = {pending_.min_width, pending_.min_height, pending_.max_width, pending_.max_height};
-    auto next = std::make_unique<SurfaceState>();
-    next->merge(std::move(pending_));
-    pending_ = SurfaceState{};
-    pending_.subsurfaces = std::move(order);
-    pending_.min_width = limits[0];
-    pending_.min_height = limits[1];
-    pending_.max_width = limits[2];
-    pending_.max_height = limits[3];
+    // Pending state is sticky (a scale, an input region, the subsurface
+    // order stay as set); only the one-shot parts start over. What applies is
+    // what the committed bits say.
+    auto next = std::make_unique<SurfaceState>(pending_);
+    pending_.committed = 0;
+    pending_.buffer.reset();
+    pending_.dx = pending_.dy = 0;
+    pending_.surface_damage.clear();
+    pending_.buffer_damage.clear();
+    pending_.frames.clear();
+    pending_.locks = 0;
     if (synchronized())
         next->locks |= SurfaceState::LockSync;
     queue_.push_back(std::move(next));
@@ -336,6 +336,8 @@ void Surface::apply(SurfaceState& s) {
         current_.max_width = s.max_width;
         current_.max_height = s.max_height;
     }
+    if (s.committed & SurfaceState::Layer)
+        current_.layer = s.layer;
     current_.committed = s.committed;
     const int old_w = current_.buffer_width, old_h = current_.buffer_height;
     size_state(current_);

@@ -41,6 +41,13 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/ext-data-control/ext-data-control-v1.xml',
   'wlr-data-control-unstable-v1.xml',
   wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
+  wl_protocol_dir / 'unstable/xdg-decoration/xdg-decoration-unstable-v1.xml',
+  'server-decoration.xml',
+  wl_protocol_dir / 'staging/xdg-dialog/xdg-dialog-v1.xml',
+  wl_protocol_dir / 'staging/xdg-activation/xdg-activation-v1.xml',
+  wl_protocol_dir / 'staging/xdg-toplevel-tag/xdg-toplevel-tag-v1.xml',
+  'wlr-layer-shell-unstable-v1.xml',
+  wl_protocol_dir / 'staging/ext-session-lock/ext-session-lock-v1.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []

@@ -296,6 +296,10 @@ void Seat::keyboard_key(uint32_t time_ms, uint32_t key, bool pressed) {
     if (!keyboard_focus_)
         return;
     const uint32_t serial = next_serial();
+    // A key press is input the client really got: it may start an
+    // activation with it.
+    if (pressed)
+        remember_serial(keyboard_focus_->client(), serial);
     each_keyboard(keyboard_focus_->client(), [&](WlKeyboard* k) {
         k->send_key(serial, time_ms, key,
                     uint32_t(pressed ? WlKeyboard::KeyState::Pressed : WlKeyboard::KeyState::Released));
