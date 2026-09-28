@@ -212,6 +212,7 @@ TEST(WlIme, VirtualKeyboardNeedsAKeymapFirst) {
     EXPECT_EQ(t.protocol_error(), uint32_t(ZWP_VIRTUAL_KEYBOARD_V1_ERROR_NO_KEYMAP));
     zwp_virtual_keyboard_v1_destroy(bare);
     zwp_virtual_keyboard_v1_destroy(vk);
+    wl_proxy_destroy(reinterpret_cast<wl_proxy*>(m));  // the manager has no destroy request
 }
 
 TEST(WlIme, VirtualPointerMoves) {
