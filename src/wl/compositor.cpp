@@ -102,6 +102,27 @@ void SurfaceState::merge(SurfaceState&& later) {
     }
     if (later.committed & Layer)
         layer = later.layer;
+    if (later.committed & Sync)
+        sync = std::move(later.sync);
+    if (later.committed & Alpha)
+        alpha = later.alpha;
+    if (later.committed & ContentType)
+        content_type = later.content_type;
+    if (later.committed & Tearing)
+        presentation_hint = later.presentation_hint;
+    if (later.committed & Fifo) {
+        fifo_barrier = fifo_barrier || later.fifo_barrier;
+        fifo_wait = later.fifo_wait;
+    }
+    if (later.committed & Timing)
+        target_ns = later.target_ns;
+    // Content superseded before it was shown: its feedback is discarded.
+    if (later.committed & (Buffer | Presentation)) {
+        if (later.committed & Buffer)
+            feedbacks.clear();
+        for (auto& f : later.feedbacks)
+            feedbacks.push_back(std::move(f));
+    }
     committed |= later.committed;
 }
 
@@ -268,9 +289,19 @@ void Surface::commit() {
     pending_.buffer_damage.clear();
     pending_.frames.clear();
     pending_.locks = 0;
+    pending_.sync = {};
+    pending_.fifo_barrier = pending_.fifo_wait = false;
+    pending_.target_ns = 0;
+    pending_.feedbacks.clear();
     if (synchronized())
         next->locks |= SurfaceState::LockSync;
+    SurfaceState* queued = next.get();
     queue_.push_back(std::move(next));
+    events.queued.emit(queued);
+    if (queued->rejected) {
+        std::erase_if(queue_, [queued](const auto& q) { return q.get() == queued; });
+        return;
+    }
     process_queue();
 }
 
@@ -278,6 +309,15 @@ void Surface::unlock(SurfaceState* state, uint32_t lock) {
     for (auto& s : queue_)
         if (s.get() == state)
             s->locks &= ~lock;
+    process_queue();
+}
+
+void Surface::unlock_first(uint32_t lock) {
+    for (auto& s : queue_)
+        if (s->locks & lock) {
+            s->locks &= ~lock;
+            break;
+        }
     process_queue();
 }
 
@@ -338,6 +378,22 @@ void Surface::apply(SurfaceState& s) {
     }
     if (s.committed & SurfaceState::Layer)
         current_.layer = s.layer;
+    if (s.committed & SurfaceState::Sync)
+        current_.sync = std::move(s.sync);
+    else if (buffer_changed)
+        current_.sync = {};
+    if (s.committed & SurfaceState::Alpha)
+        current_.alpha = s.alpha;
+    if (s.committed & SurfaceState::ContentType)
+        current_.content_type = s.content_type;
+    if (s.committed & SurfaceState::Tearing)
+        current_.presentation_hint = s.presentation_hint;
+    current_.fifo_barrier = s.fifo_barrier;
+    current_.fifo_wait = s.fifo_wait;
+    if (buffer_changed)
+        current_.feedbacks.clear();
+    for (auto& f : s.feedbacks)
+        current_.feedbacks.push_back(std::move(f));
     current_.committed = s.committed;
     const int old_w = current_.buffer_width, old_h = current_.buffer_height;
     size_state(current_);

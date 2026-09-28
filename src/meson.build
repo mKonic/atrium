@@ -63,6 +63,7 @@ atrium_sources = files(
   'wl/buffer.cpp',
   'wl/compositor.cpp',
   'wl/data_device.cpp',
+  'wl/dmabuf.cpp',
   'wl/layer_shell.cpp',
   'wl/output.cpp',
   'wl/positioner.cpp',
@@ -71,6 +72,8 @@ atrium_sources = files(
   'wl/selection.cpp',
   'wl/session_lock.cpp',
   'wl/shm.cpp',
+  'wl/surface_ext.cpp',
+  'wl/timing.cpp',
   'wl/xdg_extras.cpp',
   'wl/xdg_shell.cpp',
 )

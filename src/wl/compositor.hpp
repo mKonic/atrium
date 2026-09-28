@@ -44,6 +44,13 @@ struct SurfaceState {
         XdgAck = 1 << 11,
         XdgSizeLimits = 1 << 12,
         Layer = 1 << 13,
+        Sync = 1 << 14,
+        Alpha = 1 << 15,
+        ContentType = 1 << 16,
+        Tearing = 1 << 17,
+        Fifo = 1 << 18,
+        Timing = 1 << 19,
+        Presentation = 1 << 20,
     };
     uint32_t committed = 0;
 
@@ -58,7 +65,7 @@ struct SurfaceState {
 
     // wp_viewporter: the crop, in buffer coordinates after scale and
     // transform, and the size to show it at.
-    struct Viewport {
+    struct ViewportState {
         bool has_source = false, has_destination = false;
         double sx = 0, sy = 0, sw = 0, sh = 0;
         int dw = 0, dh = 0;
@@ -84,6 +91,23 @@ struct SurfaceState {
         uint32_t actual_width = 0, actual_height = 0;  // what the acked configure said
         bool operator==(const LayerState&) const = default;
     } layer;
+
+    // wp_linux_drm_syncobj_surface_v1: when the buffer may be read, and the
+    // point to signal once it no longer is (this commit's only).
+    struct Sync {
+        std::shared_ptr<wlr_drm_syncobj_timeline> acquire, release;
+        uint64_t acquire_point = 0, release_point = 0;
+    } sync;
+    float alpha = 1;  // wp_alpha_modifier
+    uint32_t content_type = 0;  // wp_content_type: none, photo, video, game
+    uint32_t presentation_hint = 0;  // wp_tearing_control: 0 vsync, 1 async
+    bool fifo_barrier = false, fifo_wait = false;  // wp_fifo (this commit's only)
+    int64_t target_ns = 0;  // wp_commit_timing: not before (CLOCK_MONOTONIC), 0 none
+    // wp_presentation feedbacks for this content: dropped unsent, they say
+    // "discarded".
+    std::vector<std::shared_ptr<void>> feedbacks;
+    // An extension found this commit invalid (and posted an error).
+    bool rejected = false;
 
     // A child in stacking order, where it sits relative to its parent;
     // `sub` null is the parent surface itself.
@@ -175,10 +199,18 @@ public:
     SurfaceState& pending_state() { return pending_; }
     // Holds or releases a queued state (fences, fifo barriers).
     SurfaceState* newest_queued() { return queue_.empty() ? nullptr : queue_.back().get(); }
+    const std::deque<std::unique_ptr<SurfaceState>>& queued_states() const { return queue_; }
     void unlock(SurfaceState* state, uint32_t lock);
+    // Releases `lock` on the oldest queued state that holds it.
+    void unlock_first(uint32_t lock);
+    // The shown content's presentation feedbacks, to send.
+    std::vector<std::shared_ptr<void>> take_feedbacks() { return std::exchange(current_.feedbacks, {}); }
 
     struct {
         Signal<> precommit;  // pending state about to be committed
+        // A committed state joined the queue: extensions check it (setting
+        // `rejected`) or hold it (adding a lock), before it can apply.
+        Signal<SurfaceState*> queued;
         Signal<> commit;  // a state was applied
         Signal<> map, unmap;
         Signal<Subsurface*> new_subsurface;

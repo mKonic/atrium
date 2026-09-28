@@ -48,6 +48,18 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/xdg-toplevel-tag/xdg-toplevel-tag-v1.xml',
   'wlr-layer-shell-unstable-v1.xml',
   wl_protocol_dir / 'staging/ext-session-lock/ext-session-lock-v1.xml',
+  wl_protocol_dir / 'stable/linux-dmabuf/linux-dmabuf-v1.xml',
+  wl_protocol_dir / 'stable/viewporter/viewporter.xml',
+  wl_protocol_dir / 'staging/fractional-scale/fractional-scale-v1.xml',
+  wl_protocol_dir / 'staging/alpha-modifier/alpha-modifier-v1.xml',
+  wl_protocol_dir / 'staging/content-type/content-type-v1.xml',
+  wl_protocol_dir / 'staging/tearing-control/tearing-control-v1.xml',
+  wl_protocol_dir / 'staging/single-pixel-buffer/single-pixel-buffer-v1.xml',
+  wl_protocol_dir / 'stable/presentation-time/presentation-time.xml',
+  wl_protocol_dir / 'staging/fifo/fifo-v1.xml',
+  wl_protocol_dir / 'staging/commit-timing/commit-timing-v1.xml',
+  wl_protocol_dir / 'staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml',
+  'drm.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []
