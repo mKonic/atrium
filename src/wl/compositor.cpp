@@ -90,6 +90,16 @@ void SurfaceState::merge(SurfaceState&& later) {
         viewport = later.viewport;
     if (later.committed & Subsurfaces)
         subsurfaces = std::move(later.subsurfaces);
+    if (later.committed & XdgGeometry)
+        xdg_geometry = later.xdg_geometry;
+    if (later.committed & XdgAck)
+        xdg_configure_serial = later.xdg_configure_serial;
+    if (later.committed & XdgSizeLimits) {
+        min_width = later.min_width;
+        min_height = later.min_height;
+        max_width = later.max_width;
+        max_height = later.max_height;
+    }
     committed |= later.committed;
 }
 
@@ -248,10 +258,16 @@ void Surface::commit() {
     // The pending order of subsurfaces is edited in place (added, placed),
     // so it carries over to the next commit.
     std::vector<SurfaceState::Placement> order = pending_.subsurfaces;
+    // Size limits are set once and hold: the next pending state starts from them.
+    const int limits[4] = {pending_.min_width, pending_.min_height, pending_.max_width, pending_.max_height};
     auto next = std::make_unique<SurfaceState>();
     next->merge(std::move(pending_));
     pending_ = SurfaceState{};
     pending_.subsurfaces = std::move(order);
+    pending_.min_width = limits[0];
+    pending_.min_height = limits[1];
+    pending_.max_width = limits[2];
+    pending_.max_height = limits[3];
     if (synchronized())
         next->locks |= SurfaceState::LockSync;
     queue_.push_back(std::move(next));
@@ -310,6 +326,16 @@ void Surface::apply(SurfaceState& s) {
             current_.frames.push_back(std::move(f));
     if (s.committed & SurfaceState::Subsurfaces)
         current_.subsurfaces = std::move(s.subsurfaces);
+    if (s.committed & SurfaceState::XdgGeometry)
+        current_.xdg_geometry = s.xdg_geometry;
+    if (s.committed & SurfaceState::XdgAck)
+        current_.xdg_configure_serial = s.xdg_configure_serial;
+    if (s.committed & SurfaceState::XdgSizeLimits) {
+        current_.min_width = s.min_width;
+        current_.min_height = s.min_height;
+        current_.max_width = s.max_width;
+        current_.max_height = s.max_height;
+    }
     current_.committed = s.committed;
     const int old_w = current_.buffer_width, old_h = current_.buffer_height;
     size_state(current_);

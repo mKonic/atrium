@@ -40,6 +40,9 @@ struct SurfaceState {
         Frame = 1 << 7,
         Viewport = 1 << 8,
         Subsurfaces = 1 << 9,
+        XdgGeometry = 1 << 10,
+        XdgAck = 1 << 11,
+        XdgSizeLimits = 1 << 12,
     };
     uint32_t committed = 0;
 
@@ -59,6 +62,13 @@ struct SurfaceState {
         double sx = 0, sy = 0, sw = 0, sh = 0;
         int dw = 0, dh = 0;
     } viewport;
+
+    // xdg_surface / xdg_toplevel state, double-buffered with the surface's.
+    struct {
+        int x = 0, y = 0, width = 0, height = 0;  // window geometry; 0 wide: unset
+    } xdg_geometry;
+    uint32_t xdg_configure_serial = 0;  // the configure acked before this commit
+    int min_width = 0, min_height = 0, max_width = 0, max_height = 0;
 
     // A child in stacking order, where it sits relative to its parent;
     // `sub` null is the parent surface itself.

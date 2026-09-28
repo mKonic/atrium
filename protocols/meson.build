@@ -25,16 +25,6 @@ foreach xml : protocol_xmls
 endforeach
 
 protocol_code = []
-# Interfaces the own protocols refer to (xdg-toplevel-drag names
-# xdg_toplevel), which wlroots keeps to itself.
-foreach xml : [wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml']
-  protocol_code += custom_target(
-    xml.underscorify() + '_code',
-    input: xml,
-    output: '@BASENAME@-protocol.c',
-    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
-  )
-endforeach
 
 # Protocols on atrium's own bindings (tools/wlscanner.py: a C++ class per
 # interface over libwayland), with wayland-scanner's interface tables.
@@ -50,6 +40,7 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'unstable/primary-selection/primary-selection-unstable-v1.xml',
   wl_protocol_dir / 'staging/ext-data-control/ext-data-control-v1.xml',
   'wlr-data-control-unstable-v1.xml',
+  wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []

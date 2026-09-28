@@ -64,10 +64,12 @@ atrium_sources = files(
   'wl/compositor.cpp',
   'wl/data_device.cpp',
   'wl/output.cpp',
+  'wl/positioner.cpp',
   'wl/resource.cpp',
   'wl/seat.cpp',
   'wl/selection.cpp',
   'wl/shm.cpp',
+  'wl/xdg_shell.cpp',
 )
 
 # Everything but main(): the compositor as a library, which the unit tests
