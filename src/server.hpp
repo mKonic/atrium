@@ -26,6 +26,7 @@ class Titlebar;
 class Seat;
 class InputMethodRelay;
 class BackgroundEffects;
+class SystemBell;
 class GlassShapes;
 class ToplevelDrags;
 class SessionManagement;
@@ -268,6 +269,7 @@ public:
     std::unique_ptr<Seat> seat;
     std::unique_ptr<InputMethodRelay> input_method;
     std::unique_ptr<BackgroundEffects> background_effects;
+    std::unique_ptr<SystemBell> system_bell;
     std::unique_ptr<GlassShapes> glass_shapes;
     std::unique_ptr<ToplevelDrags> toplevel_drags;
     std::unique_ptr<SessionManagement> sessions;

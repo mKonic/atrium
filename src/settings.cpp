@@ -455,6 +455,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Windows
     s.push_back(boolean("windows.wobbly", "Windows", "Wobbly windows",
         "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
+    s.push_back(boolean("windows.system_bell", "Windows", "Alert sound",
+        "Apps can ring a bell (a terminal does on a Tab with nothing to complete). Off, it only marks "
+        "the window as wanting attention.", &Config::system_bell, d));
     s.push_back(choice("windows.minimize_effect", "Windows", "Minimize effect",
         "How a window goes into the Dock: Genie pours it in, as on a Mac; Scale shrinks it.",
         {"genie", "scale"}, d.minimize_genie ? "genie" : "scale",

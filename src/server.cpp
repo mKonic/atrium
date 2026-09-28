@@ -4,6 +4,7 @@
 #include "terminal.hpp"
 #include "input_method.hpp"
 #include "background_effect.hpp"
+#include "system_bell.hpp"
 #include "glass.hpp"
 #include "session_management.hpp"
 #include "toplevel_icon.hpp"
@@ -379,6 +380,7 @@ void Server::setup() {
     seat = std::make_unique<Seat>(*this);
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
+    system_bell = std::make_unique<SystemBell>(*this);
     glass_shapes = std::make_unique<GlassShapes>(*this);
     toplevel_drags = std::make_unique<ToplevelDrags>(*this);
     sessions = std::make_unique<SessionManagement>(*this);
@@ -568,6 +570,7 @@ void Server::teardown() {
     spaces.clear();
     input_method.reset();  // hooked to the seat
     background_effects.reset();
+    system_bell.reset();
     glass_shapes.reset();
     toplevel_drags.reset();
     sessions.reset();
