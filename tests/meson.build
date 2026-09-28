@@ -55,6 +55,10 @@ if gtest.found()
     wl_protocol_dir / 'unstable/xdg-foreign/xdg-foreign-unstable-v2.xml',
     '../protocols/hyprland-global-shortcuts-v1.xml',
     wl_protocol_dir / 'staging/security-context/security-context-v1.xml',
+    wl_protocol_dir / 'unstable/text-input/text-input-unstable-v3.xml',
+    '../protocols/input-method-unstable-v2.xml',
+    '../protocols/virtual-keyboard-unstable-v1.xml',
+    '../protocols/wlr-virtual-pointer-unstable-v1.xml',
   ]
     test_protocol += custom_target(xml.underscorify() + '_client_h',
       input: xml,
@@ -104,6 +108,7 @@ if gtest.found()
     'wl_buffers_test.cpp',
     'wl_input_test.cpp',
     'wl_desktop_test.cpp',
+    'wl_ime_test.cpp',
     test_protocol,
     files('../shell/plugin/Atrium/search.cpp', '../shell/plugin/Atrium/rank.cpp', '../shell/plugin/Atrium/placeholders.cpp', '../shell/plugin/Atrium/file_search_core.cpp', '../shell/plugin/Atrium/calc.cpp', '../shell/plugin/Atrium/notes_core.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/levels.cpp', '../shell/plugin/Atrium/sysinfo_core.cpp', '../shell/plugin/Atrium/netspeed_core.cpp', '../shell/plugin/Atrium/passwd_core.cpp', '../shell/plugin/Atrium/emoji_core.cpp', '../shell/plugin/Atrium/Shell/desktop_entry_core.cpp', '../shell/plugin/Atrium/wallpaper_core.cpp', '../shell/plugin/Atrium/mimeapps_core.cpp', '../shell/plugin/Atrium/ini_core.cpp', '../shell/plugin/Atrium/battery_core.cpp', '../shell/plugin/Atrium/printers_core.cpp', '../shell/plugin/Atrium/keyboard_core.cpp', '../shell/plugin/Atrium/share_core.cpp', '../shell/plugin/Atrium/capture_core.cpp', '../shell/plugin/Atrium/updates_core.cpp', '../shell/clipsync/clipsync_core.cpp'),
     include_directories: include_directories('..', '../src', '../shell/plugin/Atrium', '../shell/plugin/Atrium/Shell', '../shell/clipsync'),
