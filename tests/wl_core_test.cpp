@@ -122,6 +122,8 @@ TEST(WlCore, BufferNotAMultipleOfItsScaleIsAnError) {
     c.pump();
     EXPECT_EQ(c.error(), EPROTO);
     EXPECT_EQ(c.protocol_error(), uint32_t(WL_SURFACE_ERROR_INVALID_SIZE));
+    wl_surface_destroy(s);
+    wl_buffer_destroy(b);
 }
 
 TEST(WlCore, ReplacedBufferIsReleased) {
@@ -313,19 +315,27 @@ TEST(WlCore, SubsurfaceRoleErrors) {
         Core c;
         wl_surface* a = wl_compositor_create_surface(c.wl_comp);
         wl_surface* b = wl_compositor_create_surface(c.wl_comp);
-        wl_subcompositor_get_subsurface(c.wl_sub, b, a);
-        wl_subcompositor_get_subsurface(c.wl_sub, a, b);  // a loop
+        wl_subsurface* s1 = wl_subcompositor_get_subsurface(c.wl_sub, b, a);
+        wl_subsurface* s2 = wl_subcompositor_get_subsurface(c.wl_sub, a, b);  // a loop
         c.pump();
         EXPECT_EQ(c.protocol_error(), uint32_t(WL_SUBCOMPOSITOR_ERROR_BAD_PARENT));
+        for (wl_subsurface* x : {s1, s2})
+            wl_subsurface_destroy(x);
+        wl_surface_destroy(a);
+        wl_surface_destroy(b);
     }
     {
         Core c;
         wl_surface* a = wl_compositor_create_surface(c.wl_comp);
         wl_surface* b = wl_compositor_create_surface(c.wl_comp);
-        wl_subcompositor_get_subsurface(c.wl_sub, b, a);
-        wl_subcompositor_get_subsurface(c.wl_sub, b, a);  // already has the role
+        wl_subsurface* s1 = wl_subcompositor_get_subsurface(c.wl_sub, b, a);
+        wl_subsurface* s2 = wl_subcompositor_get_subsurface(c.wl_sub, b, a);  // already has the role
         c.pump();
         EXPECT_EQ(c.protocol_error(), uint32_t(WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE));
+        for (wl_subsurface* x : {s1, s2})
+            wl_subsurface_destroy(x);
+        wl_surface_destroy(a);
+        wl_surface_destroy(b);
     }
 }
 
@@ -369,6 +379,8 @@ TEST(WlCore, ShrunkPoolDoesNotCrashTheServer) {
     c.pump();
     EXPECT_EQ(c.error(), EPROTO);  // the client hears about it
     close(fd);
+    wl_surface_destroy(s);
+    wl_buffer_destroy(b);
 }
 
 TEST(WlCore, OutputsDescribeAndUpdate) {
