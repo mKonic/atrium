@@ -61,6 +61,7 @@ atrium_sources = files(
   'render/shaders.cpp',
   'render/shaders_embedded.cpp',
   'wl/buffer.cpp',
+  'wl/capture.cpp',
   'wl/compositor.cpp',
   'wl/data_device.cpp',
   'wl/desktop.cpp',

@@ -82,6 +82,11 @@ wl_protocol_xmls = [
   'input-method-unstable-v2.xml',
   'virtual-keyboard-unstable-v1.xml',
   'wlr-virtual-pointer-unstable-v1.xml',
+  'wlr-screencopy-unstable-v1.xml',
+  'wlr-export-dmabuf-unstable-v1.xml',
+  wl_protocol_dir / 'staging/ext-image-capture-source/ext-image-capture-source-v1.xml',
+  wl_protocol_dir / 'staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml',
+  'hyprland-toplevel-export-v1.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []
