@@ -116,6 +116,10 @@ void SurfaceState::merge(SurfaceState&& later) {
     }
     if (later.committed & Timing)
         target_ns = later.target_ns;
+    if (later.committed & ColorDescription) {
+        image_description = std::move(later.image_description);
+        render_intent = later.render_intent;
+    }
     // Content superseded before it was shown: its feedback is discarded.
     if (later.committed & (Buffer | Presentation)) {
         if (later.committed & Buffer)
@@ -388,6 +392,10 @@ void Surface::apply(SurfaceState& s) {
         current_.content_type = s.content_type;
     if (s.committed & SurfaceState::Tearing)
         current_.presentation_hint = s.presentation_hint;
+    if (s.committed & SurfaceState::ColorDescription) {
+        current_.image_description = std::move(s.image_description);
+        current_.render_intent = s.render_intent;
+    }
     current_.fifo_barrier = s.fifo_barrier;
     current_.fifo_wait = s.fifo_wait;
     if (buffer_changed)

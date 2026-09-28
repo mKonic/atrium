@@ -3,7 +3,9 @@
 #include "wl/region.hpp"
 #include "wl/signal.hpp"
 
+#include <array>
 #include <deque>
+#include <optional>
 #include <memory>
 #include <vector>
 
@@ -12,6 +14,25 @@ namespace atrium::wl {
 class Output;
 class Subsurface;
 class Surface;
+
+// A colour space (wp_color_manager_v1's parametric image description):
+// named or custom primaries, a transfer function, luminances. Chromaticities
+// are in 1/1000000, luminances as the protocol has them.
+struct ImageDescription {
+    struct Primaries {
+        int32_t rx = 0, ry = 0, gx = 0, gy = 0, bx = 0, by = 0, wx = 0, wy = 0;
+        bool operator==(const Primaries&) const = default;
+    };
+    uint32_t tf_named = 0;  // wp_color_manager_v1.transfer_function; 0 with tf_power set
+    uint32_t tf_power = 0;  // exponent x 10000
+    uint32_t primaries_named = 0;  // wp_color_manager_v1.primaries; 0 with custom primaries
+    std::optional<Primaries> primaries;
+    std::optional<std::array<uint32_t, 3>> luminances;  // min (x 10000), max, reference, cd/m²
+    std::optional<Primaries> mastering_primaries;
+    std::optional<std::array<uint32_t, 2>> mastering_luminance;  // min (x 10000), max
+    uint32_t max_cll = 0, max_fall = 0;
+    bool operator==(const ImageDescription&) const = default;
+};
 
 // What a surface is for: an xdg toplevel, a subsurface, a cursor, a layer
 // surface. A surface takes one kind of role for life; the object that gives
@@ -51,6 +72,7 @@ struct SurfaceState {
         Fifo = 1 << 18,
         Timing = 1 << 19,
         Presentation = 1 << 20,
+        ColorDescription = 1 << 21,
     };
     uint32_t committed = 0;
 
@@ -106,6 +128,9 @@ struct SurfaceState {
     // wp_presentation feedbacks for this content: dropped unsent, they say
     // "discarded".
     std::vector<std::shared_ptr<void>> feedbacks;
+    // wp_color_management_surface_v1: what the content is (null: sRGB).
+    std::shared_ptr<const ImageDescription> image_description;
+    uint32_t render_intent = 0;
     // An extension found this commit invalid (and posted an error).
     bool rejected = false;
 
