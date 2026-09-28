@@ -60,6 +60,15 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/commit-timing/commit-timing-v1.xml',
   wl_protocol_dir / 'staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml',
   'drm.xml',
+  wl_protocol_dir / 'unstable/relative-pointer/relative-pointer-unstable-v1.xml',
+  wl_protocol_dir / 'unstable/pointer-constraints/pointer-constraints-unstable-v1.xml',
+  wl_protocol_dir / 'unstable/pointer-gestures/pointer-gestures-unstable-v1.xml',
+  wl_protocol_dir / 'unstable/keyboard-shortcuts-inhibit/keyboard-shortcuts-inhibit-unstable-v1.xml',
+  wl_protocol_dir / 'staging/cursor-shape/cursor-shape-v1.xml',
+  wl_protocol_dir / 'unstable/idle-inhibit/idle-inhibit-unstable-v1.xml',
+  wl_protocol_dir / 'staging/ext-idle-notify/ext-idle-notify-v1.xml',
+  wl_protocol_dir / 'staging/pointer-warp/pointer-warp-v1.xml',
+  wl_protocol_dir / 'stable/tablet/tablet-v2.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []

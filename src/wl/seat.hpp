@@ -84,6 +84,9 @@ public:
     static Seat* from(wl_resource* resource);
     static Seat* from(WlSeat* resource);
     std::vector<SeatResource*> resources_for(wl_client* client) const;
+    // Whether a wl_pointer / wl_keyboard came from this seat.
+    bool has_pointer(wl_resource* pointer) const;
+    bool has_keyboard(wl_resource* keyboard) const;
     // The keyboard-focused client's wl_keyboard objects.
     std::vector<WlKeyboard*> keyboards_for(wl_client* client) const;
 

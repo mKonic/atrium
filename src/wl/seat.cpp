@@ -156,6 +156,24 @@ std::vector<SeatResource*> Seat::resources_for(wl_client* client) const {
     return out;
 }
 
+bool Seat::has_pointer(wl_resource* pointer) const {
+    for (const auto& w : resources_)
+        if (SeatResource* r = w.get())
+            for (const auto& p : r->pointers)
+                if (p && p->resource() == pointer)
+                    return true;
+    return false;
+}
+
+bool Seat::has_keyboard(wl_resource* keyboard) const {
+    for (const auto& w : resources_)
+        if (SeatResource* r = w.get())
+            for (const auto& k : r->keyboards)
+                if (k && k->resource() == keyboard)
+                    return true;
+    return false;
+}
+
 std::vector<WlKeyboard*> Seat::keyboards_for(wl_client* client) const {
     std::vector<WlKeyboard*> out;
     for (SeatResource* r : resources_for(client))

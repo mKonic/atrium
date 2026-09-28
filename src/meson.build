@@ -64,6 +64,7 @@ atrium_sources = files(
   'wl/compositor.cpp',
   'wl/data_device.cpp',
   'wl/dmabuf.cpp',
+  'wl/input_ext.cpp',
   'wl/layer_shell.cpp',
   'wl/output.cpp',
   'wl/positioner.cpp',
