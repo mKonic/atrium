@@ -3,7 +3,7 @@
 #include "server.hpp"
 #include "view.hpp"
 
-#include "xdg-session-management-v1-protocol.h"
+#include "xdg-session-management-v1-server.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -29,11 +29,26 @@ std::string new_session_id() {
 
 } // namespace
 
+using wl::XdgSessionManagerV1;
+using wl::XdgSessionV1;
+using wl::XdgToplevelSessionV1;
+
 SessionManagement::SessionManagement(Server& server) : server_(server) {
     const int64_t now = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
     server.registry->drop_sessions_before(now - kKeepSeconds);
-    global_ = wl_global_create(server.display, &xdg_session_manager_v1_interface, 1, this, &bind);
+    global_ = std::make_unique<wl::Global>(
+        server.display, XdgSessionManagerV1::interface(), 1,
+        [this](wl_client* client, uint32_t version, uint32_t id) {
+            auto* m = wl::make<XdgSessionManagerV1>(client, version, id);
+            if (!m)
+                return;
+            m->on_get_session([this](XdgSessionManagerV1* self, uint32_t id, uint32_t reason, const char* session_id) {
+                get_session(self, id, reason, session_id);
+            });
+            std::erase_if(managers_, [](const auto& w) { return !w; });
+            managers_.push_back(m);
+        });
     save_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
         auto* self = static_cast<SessionManagement*>(data);
         for (const View* v : std::exchange(self->dirty_, {}))
@@ -50,98 +65,70 @@ SessionManagement::~SessionManagement() {
             save(*t);
     if (save_timer_)
         wl_event_source_remove(save_timer_);
-    for (wl_resource* m : managers_) {
-        wl_resource_set_user_data(m, nullptr);
-        wl_resource_set_destructor(m, nullptr);
+    global_.reset();
+    for (auto& m : managers_)
+        if (m)
+            m->detach();
+    for (ToplevelSession* t : toplevels_) {
+        if (t->resource)
+            t->resource->detach();
+        delete t;
     }
     for (Session* s : sessions_) {
-        for (ToplevelSession* t : s->toplevels) {
-            wl_resource_set_user_data(t->resource, nullptr);
-            wl_resource_set_destructor(t->resource, nullptr);
-            delete t;
-        }
-        wl_resource_set_user_data(s->resource, nullptr);
-        wl_resource_set_destructor(s->resource, nullptr);
+        if (s->resource)
+            s->resource->detach();
         delete s;
     }
-    if (global_)
-        wl_global_destroy(global_);
 }
 
 // --- manager ---------------------------------------------------------------------------
 
-void SessionManagement::bind(wl_client* client, void* data, uint32_t version, uint32_t id) {
-    auto* self = static_cast<SessionManagement*>(data);
-    wl_resource* r = wl_resource_create(client, &xdg_session_manager_v1_interface, int(version), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct xdg_session_manager_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .get_session = &get_session,
-    };
-    wl_resource_set_implementation(r, &impl, self, &manager_gone);
-    self->managers_.push_back(r);
-}
-
-void SessionManagement::destroy_resource(wl_client*, wl_resource* resource) {
-    wl_resource_destroy(resource);
-}
-
-void SessionManagement::manager_gone(wl_resource* resource) {
-    if (auto* self = static_cast<SessionManagement*>(wl_resource_get_user_data(resource)))
-        std::erase(self->managers_, resource);
-}
-
-void SessionManagement::get_session(wl_client* client, wl_resource* manager, uint32_t id, uint32_t reason,
+void SessionManagement::get_session(XdgSessionManagerV1* manager, uint32_t id, uint32_t reason,
                                     const char* session_id) {
-    auto* self = static_cast<SessionManagement*>(wl_resource_get_user_data(manager));
-    if (reason < XDG_SESSION_MANAGER_V1_REASON_LAUNCH || reason > XDG_SESSION_MANAGER_V1_REASON_SESSION_RESTORE) {
-        wl_resource_post_error(manager, XDG_SESSION_MANAGER_V1_ERROR_INVALID_REASON, "unknown reason %u", reason);
+    using Reason = XdgSessionManagerV1::Reason;
+    if (reason < uint32_t(Reason::Launch) || reason > uint32_t(Reason::SessionRestore)) {
+        manager->post_error(uint32_t(XdgSessionManagerV1::Error::InvalidReason), "unknown reason");
         return;
     }
-    wl_resource* r = wl_resource_create(client, &xdg_session_v1_interface, wl_resource_get_version(manager), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct xdg_session_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .remove = &remove_session,
-        .add_toplevel = &add_toplevel,
-        .restore_toplevel = &restore_toplevel,
-        .remove_toplevel = &remove_toplevel,
-    };
-    if (!self) {
-        wl_resource_set_implementation(r, &impl, nullptr, nullptr);
-        return;
-    }
-
-    const bool known = session_id && self->server_.registry->has_session(session_id);
+    wl_client* client = manager->client();
+    const bool known = session_id && server_.registry->has_session(session_id);
     if (known) {
-        for (Session* s : self->sessions_)
+        for (Session* s : sessions_)
             if (s->id == session_id) {
                 if (s->client == client) {
-                    wl_resource_destroy(r);
-                    wl_resource_post_error(manager, XDG_SESSION_MANAGER_V1_ERROR_IN_USE,
-                                           "session %s is already in use", session_id);
+                    manager->post_error(uint32_t(XdgSessionManagerV1::Error::InUse), "the session is already in use");
                     return;
                 }
                 // Another client takes it over.
-                xdg_session_v1_send_replaced(s->resource);
-                self->make_inert(s);
+                if (s->resource)
+                    s->resource->send_replaced();
+                make_inert(s);
                 break;
             }
     }
-    auto* s = new Session{self, r, client, known ? std::string(session_id) : new_session_id()};
-    wl_resource_set_implementation(r, &impl, s, &session_gone);
-    self->sessions_.push_back(s);
-    self->server_.registry->touch_session(s->id, "");
+    auto* r = wl::make<XdgSessionV1>(client, manager->version(), id);
+    if (!r)
+        return;
+    auto* s = new Session{r, client, known ? std::string(session_id) : new_session_id()};
+    r->on_remove([this, s](XdgSessionV1*) {
+        const std::string sid = s->id;
+        make_inert(s);
+        server_.registry->remove_session(sid);
+    });
+    r->on_add_toplevel([this, s](XdgSessionV1* self, uint32_t id, wl_resource* toplevel, const char* name) {
+        track(s, self, id, toplevel, name, false);
+    });
+    r->on_restore_toplevel([this, s](XdgSessionV1* self, uint32_t id, wl_resource* toplevel, const char* name) {
+        track(s, self, id, toplevel, name, true);
+    });
+    r->on_remove_toplevel([this, s](XdgSessionV1*, const char* name) { remove_toplevel(s, name); });
+    r->on_gone([this, s] { session_gone(s); });
+    sessions_.push_back(s);
+    server_.registry->touch_session(s->id, "");
     if (known)
-        xdg_session_v1_send_restored(r);
+        r->send_restored();
     else
-        xdg_session_v1_send_created(r, s->id.c_str());
+        r->send_created(s->id.c_str());
 }
 
 // --- session -----------------------------------------------------------------------------
@@ -152,62 +139,50 @@ void SessionManagement::make_inert(Session* s) {
         t->toplevel_destroy.disconnect();
     }
     s->toplevels.clear();
-    wl_resource_set_user_data(s->resource, nullptr);
+    if (s->resource)
+        s->resource->detach();
     std::erase(sessions_, s);
     delete s;
 }
 
-void SessionManagement::session_gone(wl_resource* resource) {
+void SessionManagement::session_gone(Session* s) {
     // Destroyed: what was saved stays for next time; nothing more is saved.
-    if (auto* s = static_cast<Session*>(wl_resource_get_user_data(resource))) {
-        for (ToplevelSession* t : s->toplevels)
-            if (View* v = s->owner->view_of(*t); v && v->mapped)
-                s->owner->save(*t);
-        s->owner->make_inert(s);
-    }
+    for (ToplevelSession* t : s->toplevels)
+        if (View* v = view_of(*t); v && v->mapped)
+            save(*t);
+    make_inert(s);
 }
 
-void SessionManagement::remove_session(wl_client*, wl_resource* resource) {
-    if (auto* s = static_cast<Session*>(wl_resource_get_user_data(resource))) {
-        SessionManagement* self = s->owner;
-        const std::string id = s->id;
-        self->make_inert(s);
-        self->server_.registry->remove_session(id);
-    }
-    wl_resource_destroy(resource);
-}
-
-SessionManagement::ToplevelSession* SessionManagement::track(Session* s, uint32_t id, wl_resource* toplevel_resource,
-                                                             const char* name, bool restore) {
-    wl_resource* session_resource = s->resource;
+void SessionManagement::track(Session* s, XdgSessionV1* session, uint32_t id, wl_resource* toplevel_resource,
+                              const char* name, bool restore) {
     wlr_xdg_toplevel* toplevel = wlr_xdg_toplevel_from_resource(toplevel_resource);
     for (ToplevelSession* t : s->toplevels) {
         if (t->name == name) {
-            wl_resource_post_error(session_resource, XDG_SESSION_V1_ERROR_NAME_IN_USE, "name %s is in use", name);
-            return nullptr;
+            session->post_error(uint32_t(XdgSessionV1::Error::NameInUse), "the name is in use");
+            return;
         }
         if (t->toplevel == toplevel) {
-            wl_resource_post_error(session_resource, XDG_SESSION_V1_ERROR_ALREADY_ADDED, "toplevel already added");
-            return nullptr;
+            session->post_error(uint32_t(XdgSessionV1::Error::AlreadyAdded), "toplevel already added");
+            return;
         }
     }
     if (restore && toplevel && toplevel->base->initialized) {
-        wl_resource_post_error(session_resource, XDG_SESSION_V1_ERROR_ALREADY_MAPPED,
-                               "restore_toplevel after the toplevel's first commit");
-        return nullptr;
+        session->post_error(uint32_t(XdgSessionV1::Error::AlreadyMapped),
+                            "restore_toplevel after the toplevel's first commit");
+        return;
     }
-    wl_resource* r = wl_resource_create(wl_resource_get_client(session_resource), &xdg_toplevel_session_v1_interface,
-                                        wl_resource_get_version(session_resource), id);
-    if (!r) {
-        wl_client_post_no_memory(wl_resource_get_client(session_resource));
-        return nullptr;
-    }
-    static const struct xdg_toplevel_session_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .rename = &rename,
-    };
+    auto* r = wl::make<XdgToplevelSessionV1>(session->client(), session->version(), id);
+    if (!r)
+        return;
     auto* t = new ToplevelSession{s, r, toplevel, name};
-    wl_resource_set_implementation(r, &impl, t, &toplevel_session_gone);
+    r->on_rename([this, t](XdgToplevelSessionV1*, const char* name) { rename(t, name); });
+    r->on_gone([this, t] {
+        if (t->session)
+            std::erase(t->session->toplevels, t);
+        std::erase(toplevels_, t);
+        delete t;
+    });
+    toplevels_.push_back(t);
     if (toplevel)
         t->toplevel_destroy.connect(&toplevel->events.destroy, [t](void*) {
             t->toplevel = nullptr;
@@ -215,40 +190,16 @@ SessionManagement::ToplevelSession* SessionManagement::track(Session* s, uint32_
         });
     s->toplevels.push_back(t);
     if (toplevel && toplevel->app_id)
-        s->owner->server_.registry->touch_session(s->id, toplevel->app_id);
+        server_.registry->touch_session(s->id, toplevel->app_id);
     if (restore)
-        if (auto w = s->owner->server_.registry->session_window(s->id, name)) {
+        if (auto w = server_.registry->session_window(s->id, name)) {
             t->restore = *w;
             // Before the first configure, which the first commit brings.
-            xdg_toplevel_session_v1_send_restored(r);
+            r->send_restored();
         }
-    return t;
 }
 
-void SessionManagement::add_toplevel(wl_client*, wl_resource* session, uint32_t id, wl_resource* toplevel,
-                                     const char* name) {
-    if (auto* s = static_cast<Session*>(wl_resource_get_user_data(session)))
-        s->owner->track(s, id, toplevel, name, false);
-    else
-        wl_resource_set_implementation(
-            wl_resource_create(wl_resource_get_client(session), &xdg_toplevel_session_v1_interface, 1, id), nullptr,
-            nullptr, nullptr);
-}
-
-void SessionManagement::restore_toplevel(wl_client*, wl_resource* session, uint32_t id, wl_resource* toplevel,
-                                         const char* name) {
-    if (auto* s = static_cast<Session*>(wl_resource_get_user_data(session)))
-        s->owner->track(s, id, toplevel, name, true);
-    else
-        wl_resource_set_implementation(
-            wl_resource_create(wl_resource_get_client(session), &xdg_toplevel_session_v1_interface, 1, id), nullptr,
-            nullptr, nullptr);
-}
-
-void SessionManagement::remove_toplevel(wl_client*, wl_resource* session, const char* name) {
-    auto* s = static_cast<Session*>(wl_resource_get_user_data(session));
-    if (!s)
-        return;
+void SessionManagement::remove_toplevel(Session* s, const char* name) {
     for (ToplevelSession* t : s->toplevels)
         if (t->name == name) {
             t->session = nullptr;
@@ -256,30 +207,21 @@ void SessionManagement::remove_toplevel(wl_client*, wl_resource* session, const 
             std::erase(s->toplevels, t);
             break;
         }
-    s->owner->server_.registry->remove_session_window(s->id, name);
+    server_.registry->remove_session_window(s->id, name);
 }
 
 // --- toplevel session --------------------------------------------------------------------
 
-void SessionManagement::toplevel_session_gone(wl_resource* resource) {
-    auto* t = static_cast<ToplevelSession*>(wl_resource_get_user_data(resource));
-    if (!t)
-        return;
-    if (t->session)
-        std::erase(t->session->toplevels, t);
-    delete t;
-}
-
-void SessionManagement::rename(wl_client*, wl_resource* resource, const char* name) {
-    auto* t = static_cast<ToplevelSession*>(wl_resource_get_user_data(resource));
-    if (!t || !t->session)
+void SessionManagement::rename(ToplevelSession* t, const char* name) {
+    if (!t->session)
         return;
     for (ToplevelSession* other : t->session->toplevels)
         if (other != t && other->name == name) {
-            wl_resource_post_error(t->session->resource, XDG_SESSION_V1_ERROR_NAME_IN_USE, "name %s is in use", name);
+            if (t->session->resource)
+                t->session->resource->post_error(uint32_t(XdgSessionV1::Error::NameInUse), "the name is in use");
             return;
         }
-    t->session->owner->server_.registry->rename_session_window(t->session->id, t->name, name);
+    server_.registry->rename_session_window(t->session->id, t->name, name);
     t->name = name;
 }
 

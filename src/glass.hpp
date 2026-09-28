@@ -1,6 +1,9 @@
 #pragma once
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "wl/resource.hpp"
+
+#include <memory>
 
 #include <unordered_map>
 #include <vector>
@@ -10,6 +13,10 @@ namespace atrium {
 
 class Server;
 struct Config;
+namespace wl {
+class AtriumGlassManagerV1;
+class AtriumGlassV1;
+}
 
 // One piece of Liquid Glass on a surface: a rounded rectangle in surface
 // coordinates, and how opaque the glass is (it fades with its panel).
@@ -46,28 +53,22 @@ public:
 
 private:
     struct Glass {
-        GlassShapes* owner;
-        wl_resource* resource;
+        wl::Weak<wl::AtriumGlassV1> resource;
         wlr_surface* surface;
         std::vector<GlassShape> pending, current;
         bool committed = false;
         Listener<> commit, destroy;
     };
 
-    static void bind(wl_client* client, void* data, uint32_t version, uint32_t id);
-    static void get_glass(wl_client* client, wl_resource* manager, uint32_t id, wl_resource* surface);
-    static void set_shapes(wl_client* client, wl_resource* resource, wl_array* shapes);
-    static void set_clipped_shapes(wl_client* client, wl_resource* resource, wl_array* shapes);
-    static void take_shapes(wl_resource* resource, wl_array* shapes, size_t stride);
-    static void destroy_resource(wl_client* client, wl_resource* resource);
-    static void glass_gone(wl_resource* resource);
-    static void manager_gone(wl_resource* resource);
+    void get_glass(wl::AtriumGlassManagerV1* manager, uint32_t id, wl_resource* surface);
+    static void take_shapes(Glass* glass, wl_array* shapes, size_t stride);
     void surface_gone(Glass* glass);
+    void glass_gone(Glass* glass);
     static void refresh(wlr_surface* surface);
 
     Server& server_;
-    wl_global* global_ = nullptr;
-    std::vector<wl_resource*> managers_;
+    std::unique_ptr<wl::Global> global_;
+    std::vector<wl::Weak<wl::AtriumGlassManagerV1>> managers_;
     std::unordered_map<wlr_surface*, Glass*> glass_;
     std::vector<Glass*> all_;  // including ones whose surface is gone
 };

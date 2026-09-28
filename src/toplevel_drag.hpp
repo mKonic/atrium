@@ -1,12 +1,18 @@
 #pragma once
 #include "listener.hpp"
+#include "wl/resource.hpp"
 
+#include <memory>
 #include <vector>
 
 namespace atrium {
 
 class Server;
 class View;
+namespace wl {
+class XdgToplevelDragManagerV1;
+class XdgToplevelDragV1;
+}
 
 // xdg-toplevel-drag-v1: a window that rides a drag and drop, the way a
 // browser tab torn out of its window drags its new window along until it is
@@ -29,27 +35,22 @@ public:
 
 private:
     struct Drag {
-        ToplevelDrags* owner;
-        wl_resource* resource;
+        wl::Weak<wl::XdgToplevelDragV1> resource;
         wlr_data_source* source;
         wlr_xdg_toplevel* toplevel = nullptr;
         int dx = 0, dy = 0;  // pointer in the window's geometry
         Listener<> source_destroy, toplevel_unmap, toplevel_destroy;
     };
 
-    static void bind(wl_client* client, void* data, uint32_t version, uint32_t id);
-    static void get_drag(wl_client* client, wl_resource* manager, uint32_t id, wl_resource* source);
-    static void attach(wl_client* client, wl_resource* resource, wl_resource* toplevel, int32_t dx, int32_t dy);
-    static void destroy_resource(wl_client* client, wl_resource* resource);
-    static void drag_gone(wl_resource* resource);
-    static void manager_gone(wl_resource* resource);
+    void get_drag(wl::XdgToplevelDragManagerV1* manager, uint32_t id, wl_resource* source);
+    void attach(Drag* drag, wl::XdgToplevelDragV1* resource, wl_resource* toplevel, int32_t dx, int32_t dy);
     Drag* current() const;
     View* view_of(const Drag& drag) const;
     void detach(Drag& drag);
 
     Server& server_;
-    wl_global* global_ = nullptr;
-    std::vector<wl_resource*> managers_;
+    std::unique_ptr<wl::Global> global_;
+    std::vector<wl::Weak<wl::XdgToplevelDragManagerV1>> managers_;
     std::vector<Drag*> drags_;
 };
 

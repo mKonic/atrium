@@ -3,97 +3,89 @@
 #include "server.hpp"
 #include "view.hpp"
 
-#include "ext-background-effect-v1-protocol.h"
+#include "ext-background-effect-v1-server.hpp"
 
 #include <algorithm>
 
 namespace atrium {
 
+using wl::ExtBackgroundEffectManagerV1;
+using wl::ExtBackgroundEffectSurfaceV1;
+
 BackgroundEffects::BackgroundEffects(Server& server) : server_(server) {
-    global_ = wl_global_create(server.display, &ext_background_effect_manager_v1_interface, 1, this, &bind);
+    global_ = std::make_unique<wl::Global>(
+        server.display, ExtBackgroundEffectManagerV1::interface(), 1,
+        [this](wl_client* client, uint32_t version, uint32_t id) {
+            auto* m = wl::make<ExtBackgroundEffectManagerV1>(client, version, id);
+            if (!m)
+                return;
+            m->on_get_background_effect([this](ExtBackgroundEffectManagerV1* self, uint32_t id, wl_resource* surface) {
+                get_background_effect(self, id, surface);
+            });
+            std::erase_if(managers_, [](const auto& w) { return !w; });
+            managers_.push_back(m);
+            m->send_capabilities(capabilities());
+        });
 }
 
+// Clients may outlive us by a moment (the display goes after): what they
+// hold turns inert, so nothing calls back into freed memory.
 BackgroundEffects::~BackgroundEffects() {
-    // Clients may outlive us by a moment (the display goes after): cut every
-    // resource loose so nothing calls back into freed memory.
-    for (wl_resource* m : managers_) {
-        wl_resource_set_user_data(m, nullptr);
-        wl_resource_set_destructor(m, nullptr);
-    }
+    global_.reset();
+    for (auto& m : managers_)
+        if (m)
+            m->detach();
     for (Effect* e : all_) {
-        wl_resource_set_user_data(e->resource, nullptr);
-        wl_resource_set_destructor(e->resource, nullptr);
+        if (e->resource)
+            e->resource->detach();
         pixman_region32_fini(&e->pending);
         pixman_region32_fini(&e->current);
         delete e;
     }
-    if (global_)
-        wl_global_destroy(global_);
 }
 
 uint32_t BackgroundEffects::capabilities() const {
-    return server_.config.blur && server_.config.transparency ? EXT_BACKGROUND_EFFECT_MANAGER_V1_CAPABILITY_BLUR : 0;
+    return server_.config.blur && server_.config.transparency
+               ? uint32_t(ExtBackgroundEffectManagerV1::Capability::Blur)
+               : 0;
 }
 
 void BackgroundEffects::announce() {
-    for (wl_resource* m : managers_)
-        ext_background_effect_manager_v1_send_capabilities(m, capabilities());
+    for (auto& m : managers_)
+        if (m)
+            m->send_capabilities(capabilities());
     for (View* v : server_.views)
         v->update_decorations();
 }
 
-void BackgroundEffects::bind(wl_client* client, void* data, uint32_t version, uint32_t id) {
-    auto* self = static_cast<BackgroundEffects*>(data);
-    wl_resource* r = wl_resource_create(client, &ext_background_effect_manager_v1_interface, int(version), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct ext_background_effect_manager_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .get_background_effect = &get_background_effect,
-    };
-    wl_resource_set_implementation(r, &impl, self, &manager_gone);
-    self->managers_.push_back(r);
-    ext_background_effect_manager_v1_send_capabilities(r, self->capabilities());
-}
-
-void BackgroundEffects::destroy_resource(wl_client*, wl_resource* resource) {
-    wl_resource_destroy(resource);
-}
-
-void BackgroundEffects::manager_gone(wl_resource* resource) {
-    if (auto* self = static_cast<BackgroundEffects*>(wl_resource_get_user_data(resource)))
-        std::erase(self->managers_, resource);
-}
-
-void BackgroundEffects::get_background_effect(wl_client* client, wl_resource* manager, uint32_t id,
+void BackgroundEffects::get_background_effect(ExtBackgroundEffectManagerV1* manager, uint32_t id,
                                               wl_resource* surface_resource) {
-    auto* self = static_cast<BackgroundEffects*>(wl_resource_get_user_data(manager));
     wlr_surface* surface = wlr_surface_from_resource(surface_resource);
-    if (!self)
-        return;
-    if (self->effects_.contains(surface)) {
-        wl_resource_post_error(manager, EXT_BACKGROUND_EFFECT_MANAGER_V1_ERROR_BACKGROUND_EFFECT_EXISTS,
-                               "this surface already has a background effect");
+    if (effects_.contains(surface)) {
+        manager->post_error(uint32_t(ExtBackgroundEffectManagerV1::Error::BackgroundEffectExists),
+                            "this surface already has a background effect");
         return;
     }
-    wl_resource* r = wl_resource_create(client, &ext_background_effect_surface_v1_interface,
-                                        wl_resource_get_version(manager), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
+    auto* r = wl::make<ExtBackgroundEffectSurfaceV1>(manager->client(), manager->version(), id);
+    if (!r)
         return;
-    }
-    static const struct ext_background_effect_surface_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .set_blur_region = &set_blur_region,
-    };
-    auto* e = new Effect{self, r, surface, {}, {}, false, {}, {}};
+    auto* e = new Effect{r, surface, {}, {}, false, {}, {}};
     pixman_region32_init(&e->pending);
     pixman_region32_init(&e->current);
-    wl_resource_set_implementation(r, &impl, e, &effect_gone);
-    self->effects_[surface] = e;
-    self->all_.push_back(e);
+    effects_[surface] = e;
+    all_.push_back(e);
+
+    r->on_set_blur_region([e](ExtBackgroundEffectSurfaceV1* self, wl_resource* region) {
+        if (!e->surface) {
+            self->post_error(uint32_t(ExtBackgroundEffectSurfaceV1::Error::SurfaceDestroyed), "the surface is gone");
+            return;
+        }
+        if (region)
+            pixman_region32_copy(&e->pending, wlr_region_from_resource(region));
+        else
+            pixman_region32_clear(&e->pending);
+    });
+    r->on_gone([this, e] { effect_gone(e); });
 
     // Double-buffered: what was asked takes effect with the surface's commit.
     e->commit.connect(&surface->events.commit, [e](void*) {
@@ -102,22 +94,7 @@ void BackgroundEffects::get_background_effect(wl_client* client, wl_resource* ma
         if (Owner o = Server::owner_of(e->surface); o.view)
             o.view->update_decorations();
     });
-    e->destroy.connect(&surface->events.destroy, [e](void*) { e->owner->surface_gone(e); });
-}
-
-void BackgroundEffects::set_blur_region(wl_client*, wl_resource* resource, wl_resource* region) {
-    auto* e = static_cast<Effect*>(wl_resource_get_user_data(resource));
-    if (!e)
-        return;
-    if (!e->surface) {
-        wl_resource_post_error(resource, EXT_BACKGROUND_EFFECT_SURFACE_V1_ERROR_SURFACE_DESTROYED,
-                               "the surface is gone");
-        return;
-    }
-    if (region)
-        pixman_region32_copy(&e->pending, wlr_region_from_resource(region));
-    else
-        pixman_region32_clear(&e->pending);
+    e->destroy.connect(&surface->events.destroy, [this, e](void*) { surface_gone(e); });
 }
 
 void BackgroundEffects::surface_gone(Effect* e) {
@@ -127,15 +104,11 @@ void BackgroundEffects::surface_gone(Effect* e) {
     e->surface = nullptr;
 }
 
-void BackgroundEffects::effect_gone(wl_resource* resource) {
-    auto* e = static_cast<Effect*>(wl_resource_get_user_data(resource));
-    if (!e)
-        return;
-    BackgroundEffects* self = e->owner;
+void BackgroundEffects::effect_gone(Effect* e) {
     wlr_surface* surface = e->surface;
     if (surface)
-        self->surface_gone(e);
-    std::erase(self->all_, e);
+        surface_gone(e);
+    std::erase(all_, e);
     pixman_region32_fini(&e->pending);
     pixman_region32_fini(&e->current);
     delete e;

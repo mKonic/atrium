@@ -253,12 +253,20 @@ def source(protocol, hpp, ifaces, own):
                     out.append('                self->destroy();')
                     out.append('        }')
                 else:
-                    out.append(f'        if (self->{m.name}_ && !self->inert())')
+                    out.append(f'        if (self->{m.name}_ && !self->inert()) {{')
                     out.append(f'            self->{m.name}_({call});')
-                    if fds:
-                        # Nobody took the descriptors: don't leak them.
-                        out.append('        else')
-                        out.append('            ' + ' '.join(f'close(a[{i}].h);' for i in fds))
+                    # Nobody took it: an object the client made still has to
+                    # exist (inert), and descriptors must not leak.
+                    news = [(i, arg.interface) for i, arg in enumerate(m.args)
+                            if arg.type == 'new_id' and arg.interface in own]
+                    if fds or news:
+                        out.append('        } else {')
+                        for i in fds:
+                            out.append(f'            close(a[{i}].h);')
+                        for i, name in news:
+                            out.append(f'            if (auto* o = make<{own[name]}>(self->client(), self->version(), a[{i}].n))')
+                            out.append('                o->detach();')
+                    out.append('        }')
                 out.append('        break;')
             out.append('    }')
         out.append('    return 0;')

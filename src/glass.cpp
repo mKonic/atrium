@@ -7,29 +7,41 @@
 #include "wlr.hpp"
 #include "server.hpp"
 
-#include "atrium-glass-v1-protocol.h"
+#include "atrium-glass-v1-server.hpp"
 
 #include <algorithm>
 
 namespace atrium {
 
+using wl::AtriumGlassManagerV1;
+using wl::AtriumGlassV1;
+
 GlassShapes::GlassShapes(Server& server) : server_(server) {
-    global_ = wl_global_create(server.display, &atrium_glass_manager_v1_interface, 2, this, &bind);
+    global_ = std::make_unique<wl::Global>(
+        server.display, AtriumGlassManagerV1::interface(), 2,
+        [this](wl_client* client, uint32_t version, uint32_t id) {
+            auto* m = wl::make<AtriumGlassManagerV1>(client, version, id);
+            if (!m)
+                return;
+            m->on_get_glass([this](AtriumGlassManagerV1* self, uint32_t id, wl_resource* surface) {
+                get_glass(self, id, surface);
+            });
+            std::erase_if(managers_, [](const auto& w) { return !w; });
+            managers_.push_back(m);
+        });
 }
 
+// Clients may outlive us by a moment: what they hold turns inert.
 GlassShapes::~GlassShapes() {
-    // Clients may outlive us by a moment: cut every resource loose.
-    for (wl_resource* m : managers_) {
-        wl_resource_set_user_data(m, nullptr);
-        wl_resource_set_destructor(m, nullptr);
-    }
+    global_.reset();
+    for (auto& m : managers_)
+        if (m)
+            m->detach();
     for (Glass* g : all_) {
-        wl_resource_set_user_data(g->resource, nullptr);
-        wl_resource_set_destructor(g->resource, nullptr);
+        if (g->resource)
+            g->resource->detach();
         delete g;
     }
-    if (global_)
-        wl_global_destroy(global_);
 }
 
 const std::vector<GlassShape>* GlassShapes::shapes_for(wlr_surface* surface) const {
@@ -84,72 +96,31 @@ void apply_glass(scene::Blur* blur, const std::vector<GlassShape>& given, float 
     blur->set_glass_shapes(shapes.data(), int(shapes.size()));
 }
 
-void GlassShapes::bind(wl_client* client, void* data, uint32_t version, uint32_t id) {
-    auto* self = static_cast<GlassShapes*>(data);
-    wl_resource* r = wl_resource_create(client, &atrium_glass_manager_v1_interface, int(version), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct atrium_glass_manager_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .get_glass = &get_glass,
-    };
-    wl_resource_set_implementation(r, &impl, self, &manager_gone);
-    self->managers_.push_back(r);
-}
-
-void GlassShapes::destroy_resource(wl_client*, wl_resource* resource) {
-    wl_resource_destroy(resource);
-}
-
-void GlassShapes::manager_gone(wl_resource* resource) {
-    if (auto* self = static_cast<GlassShapes*>(wl_resource_get_user_data(resource)))
-        std::erase(self->managers_, resource);
-}
-
-void GlassShapes::get_glass(wl_client* client, wl_resource* manager, uint32_t id, wl_resource* surface_resource) {
-    auto* self = static_cast<GlassShapes*>(wl_resource_get_user_data(manager));
+void GlassShapes::get_glass(AtriumGlassManagerV1* manager, uint32_t id, wl_resource* surface_resource) {
     wlr_surface* surface = wlr_surface_from_resource(surface_resource);
-    if (!self)
+    auto* r = wl::make<AtriumGlassV1>(manager->client(), manager->version(), id);
+    if (!r)
         return;
-    wl_resource* r = wl_resource_create(client, &atrium_glass_v1_interface, wl_resource_get_version(manager), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct atrium_glass_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .set_shapes = &set_shapes,
-        .set_clipped_shapes = &set_clipped_shapes,
-    };
     // A second glass for a surface replaces the first.
-    if (auto it = self->glass_.find(surface); it != self->glass_.end())
-        self->surface_gone(it->second);
-    auto* g = new Glass{self, r, surface, {}, {}, false, {}, {}};
-    wl_resource_set_implementation(r, &impl, g, &glass_gone);
-    self->glass_[surface] = g;
-    self->all_.push_back(g);
+    if (auto it = glass_.find(surface); it != glass_.end())
+        surface_gone(it->second);
+    auto* g = new Glass{r, surface, {}, {}, false, {}, {}};
+    glass_[surface] = g;
+    all_.push_back(g);
+    r->on_set_shapes([g](AtriumGlassV1*, wl_array* shapes) { take_shapes(g, shapes, 6); });
+    r->on_set_clipped_shapes([g](AtriumGlassV1*, wl_array* shapes) { take_shapes(g, shapes, 10); });
+    r->on_gone([this, g] { glass_gone(g); });
 
     g->commit.connect(&surface->events.commit, [g](void*) {
         g->current = g->pending;
         g->committed = true;
         refresh(g->surface);
     });
-    g->destroy.connect(&surface->events.destroy, [g](void*) { g->owner->surface_gone(g); });
+    g->destroy.connect(&surface->events.destroy, [this, g](void*) { surface_gone(g); });
 }
 
-void GlassShapes::set_shapes(wl_client*, wl_resource* resource, wl_array* shapes) {
-    take_shapes(resource, shapes, 6);
-}
-
-void GlassShapes::set_clipped_shapes(wl_client*, wl_resource* resource, wl_array* shapes) {
-    take_shapes(resource, shapes, 10);
-}
-
-void GlassShapes::take_shapes(wl_resource* resource, wl_array* shapes, size_t stride) {
-    auto* g = static_cast<Glass*>(wl_resource_get_user_data(resource));
-    if (!g || !g->surface)
+void GlassShapes::take_shapes(Glass* g, wl_array* shapes, size_t stride) {
+    if (!g->surface)
         return;
     const size_t n = shapes->size / (stride * sizeof(wl_fixed_t));
     const auto* v = static_cast<const wl_fixed_t*>(shapes->data);
@@ -176,15 +147,11 @@ void GlassShapes::surface_gone(Glass* g) {
     g->surface = nullptr;
 }
 
-void GlassShapes::glass_gone(wl_resource* resource) {
-    auto* g = static_cast<Glass*>(wl_resource_get_user_data(resource));
-    if (!g)
-        return;
-    GlassShapes* self = g->owner;
+void GlassShapes::glass_gone(Glass* g) {
     wlr_surface* surface = g->surface;
-    if (surface && self->glass_.contains(surface) && self->glass_[surface] == g)
-        self->surface_gone(g);
-    std::erase(self->all_, g);
+    if (surface && glass_.contains(surface) && glass_[surface] == g)
+        surface_gone(g);
+    std::erase(all_, g);
     delete g;
     if (surface)
         refresh(surface);

@@ -368,3 +368,17 @@ TEST(WlScanner, DetachedObjectsIgnoreRequestsButStillGo) {
     EXPECT_FALSE(gone);  // detach dropped on_gone too
     EXPECT_FALSE(weak);
 }
+
+TEST(WlScanner, DetachedObjectsStillMakeWhatTheClientAsksFor) {
+    Harness h;
+    wl::Weak<AtriumTestManagerV1> weak;
+    h.setup = [&](AtriumTestManagerV1* m) { weak = m; };
+    ASSERT_NE(h.bind(), nullptr);
+    weak->detach();
+    // Using the new object would be a protocol error if it didn't exist.
+    atrium_test_item_v1* item = atrium_test_manager_v1_make_item(h.manager, 0);
+    atrium_test_item_v1_ping(item);
+    atrium_test_item_v1_destroy(item);
+    h.pump();
+    EXPECT_EQ(wl_display_get_error(h.client), 0);
+}

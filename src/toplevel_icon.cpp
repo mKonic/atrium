@@ -3,7 +3,7 @@
 #include "server.hpp"
 #include "view.hpp"
 
-#include "xdg-toplevel-icon-v1-protocol.h"
+#include "xdg-toplevel-icon-v1-server.hpp"
 
 #include <cairo.h>
 #include <drm_fourcc.h>
@@ -19,6 +19,9 @@ namespace {
 
 namespace fs = std::filesystem;
 
+using wl::XdgToplevelIconManagerV1;
+using wl::XdgToplevelIconV1;
+
 struct Icon;
 
 // A picture an app gave an icon, held (locked) from add_buffer until the app
@@ -30,19 +33,30 @@ struct Held {
     wl_listener destroy{};
 };
 
-struct Icon {
+struct Icon : XdgToplevelIconV1 {
+    Icon(wl_client* client, uint32_t version, uint32_t id) : XdgToplevelIconV1(client, version, id) {
+        on_set_name([this](XdgToplevelIconV1*, const char* n) {
+            if (mutable_())
+                name = n;
+        });
+        on_add_buffer([this](XdgToplevelIconV1*, wl_resource* buffer, int32_t scale) { add_buffer(buffer, scale); });
+    }
+    ~Icon() override {
+        for (Held* h : pictures)
+            h->icon = nullptr;
+    }
+
+    bool mutable_() {
+        if (immutable)
+            post_error(uint32_t(Error::Immutable), "the icon was already assigned to a toplevel");
+        return !immutable;
+    }
+    void add_buffer(wl_resource* buffer_resource, int32_t scale);
+
     std::string name;
     std::vector<Held*> pictures;
     bool immutable = false;  // assigned to a toplevel
 };
-
-Icon* icon_from(wl_resource* resource) {
-    return static_cast<Icon*>(wl_resource_get_user_data(resource));
-}
-
-void destroy_resource(wl_client*, wl_resource* resource) {
-    wl_resource_destroy(resource);
-}
 
 void buffer_gone(wl_listener* listener, void*) {
     Held* h = wl_container_of(listener, h, destroy);
@@ -53,51 +67,29 @@ void buffer_gone(wl_listener* listener, void*) {
     delete h;
 }
 
-void icon_set_name(wl_client*, wl_resource* resource, const char* name) {
-    Icon* icon = icon_from(resource);
-    if (icon->immutable) {
-        wl_resource_post_error(resource, XDG_TOPLEVEL_ICON_V1_ERROR_IMMUTABLE,
-                               "the icon was already assigned to a toplevel");
+void Icon::add_buffer(wl_resource* buffer_resource, int32_t scale) {
+    if (!mutable_())
         return;
-    }
-    icon->name = name;
-}
-
-void icon_add_buffer(wl_client*, wl_resource* resource, wl_resource* buffer_resource, int32_t scale) {
-    Icon* icon = icon_from(resource);
-    if (icon->immutable) {
-        wl_resource_post_error(resource, XDG_TOPLEVEL_ICON_V1_ERROR_IMMUTABLE,
-                               "the icon was already assigned to a toplevel");
-        return;
-    }
     wlr_buffer* buffer = wlr_buffer_try_from_resource(buffer_resource);
     wlr_shm_attributes shm{};
     if (!buffer || !wlr_buffer_get_shm(buffer, &shm) || buffer->width != buffer->height) {
         if (buffer)
             wlr_buffer_unlock(buffer);
-        wl_resource_post_error(resource, XDG_TOPLEVEL_ICON_V1_ERROR_INVALID_BUFFER,
-                               "icon buffers must be square and backed by wl_shm");
+        post_error(uint32_t(Error::InvalidBuffer), "icon buffers must be square and backed by wl_shm");
         return;
     }
     // The same size and scale again replaces the picture; the old buffer
     // stays held until the app destroys it.
-    for (Held*& h : icon->pictures)
+    for (Held*& h : pictures)
         if (h->buffer->width == buffer->width && h->scale == scale) {
             h->icon = nullptr;
             h = nullptr;
         }
-    std::erase(icon->pictures, nullptr);
-    auto* h = new Held{.buffer = buffer, .scale = scale, .icon = icon};
+    std::erase(pictures, nullptr);
+    auto* h = new Held{.buffer = buffer, .scale = scale, .icon = this};
     h->destroy.notify = buffer_gone;
     wl_resource_add_destroy_listener(buffer_resource, &h->destroy);
-    icon->pictures.push_back(h);
-}
-
-void icon_gone(wl_resource* resource) {
-    Icon* icon = icon_from(resource);
-    for (Held* h : icon->pictures)
-        h->icon = nullptr;
-    delete icon;
+    pictures.push_back(h);
 }
 
 fs::path icon_dir() {
@@ -138,63 +130,41 @@ std::string save_icon(const Icon& icon, uint64_t view_id) {
 } // namespace
 
 ToplevelIcons::ToplevelIcons(Server& server) : server_(server) {
-    global_ = wl_global_create(server.display, &xdg_toplevel_icon_manager_v1_interface, 1, this, &bind);
+    global_ = std::make_unique<wl::Global>(
+        server.display, XdgToplevelIconManagerV1::interface(), 1,
+        [this](wl_client* client, uint32_t version, uint32_t id) {
+            auto* m = wl::make<XdgToplevelIconManagerV1>(client, version, id);
+            if (!m)
+                return;
+            // Icons live on their own: they need nothing of ours.
+            m->on_create_icon([](XdgToplevelIconManagerV1* self, uint32_t id) {
+                wl::make<Icon>(self->client(), self->version(), id);
+            });
+            m->on_set_icon([this](XdgToplevelIconManagerV1*, wl_resource* toplevel, XdgToplevelIconV1* icon) {
+                set_icon(toplevel, icon);
+            });
+            std::erase_if(managers_, [](const auto& w) { return !w; });
+            managers_.push_back(m);
+            for (int size : {32, 48, 64, 128})
+                m->send_icon_size(size);
+            m->send_done();
+        });
 }
 
 ToplevelIcons::~ToplevelIcons() {
-    for (wl_resource* m : managers_) {
-        wl_resource_set_user_data(m, nullptr);
-        wl_resource_set_destructor(m, nullptr);
-    }
-    if (global_)
-        wl_global_destroy(global_);
+    global_.reset();
+    for (auto& m : managers_)
+        if (m)
+            m->detach();
 }
 
-void ToplevelIcons::bind(wl_client* client, void* data, uint32_t version, uint32_t id) {
-    auto* self = static_cast<ToplevelIcons*>(data);
-    wl_resource* r = wl_resource_create(client, &xdg_toplevel_icon_manager_v1_interface, int(version), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct xdg_toplevel_icon_manager_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .create_icon = &create_icon,
-        .set_icon = &set_icon,
-    };
-    wl_resource_set_implementation(r, &impl, self, &manager_gone);
-    self->managers_.push_back(r);
-    for (int size : {32, 48, 64, 128})
-        xdg_toplevel_icon_manager_v1_send_icon_size(r, size);
-    xdg_toplevel_icon_manager_v1_send_done(r);
-}
-
-void ToplevelIcons::manager_gone(wl_resource* resource) {
-    if (auto* self = static_cast<ToplevelIcons*>(wl_resource_get_user_data(resource)))
-        std::erase(self->managers_, resource);
-}
-
-void ToplevelIcons::create_icon(wl_client* client, wl_resource* manager, uint32_t id) {
-    wl_resource* r = wl_resource_create(client, &xdg_toplevel_icon_v1_interface, wl_resource_get_version(manager), id);
-    if (!r) {
-        wl_client_post_no_memory(client);
-        return;
-    }
-    static const struct xdg_toplevel_icon_v1_interface impl = {
-        .destroy = &destroy_resource,
-        .set_name = &icon_set_name,
-        .add_buffer = &icon_add_buffer,
-    };
-    wl_resource_set_implementation(r, &impl, new Icon, &icon_gone);
-}
-
-void ToplevelIcons::set_icon(wl_client*, wl_resource* manager, wl_resource* toplevel_resource, wl_resource* icon_resource) {
-    auto* self = static_cast<ToplevelIcons*>(wl_resource_get_user_data(manager));
-    Icon* icon = icon_resource ? icon_from(icon_resource) : nullptr;
+void ToplevelIcons::set_icon(wl_resource* toplevel_resource, XdgToplevelIconV1* icon_resource) {
+    // Only an inert icon (made after we went) is not one of ours.
+    auto* icon = dynamic_cast<Icon*>(icon_resource);
     if (icon)
         icon->immutable = true;
     wlr_xdg_toplevel* toplevel = wlr_xdg_toplevel_from_resource(toplevel_resource);
-    View* v = (self && toplevel && toplevel->base) ? static_cast<View*>(toplevel->base->data) : nullptr;
+    View* v = (toplevel && toplevel->base) ? static_cast<View*>(toplevel->base->data) : nullptr;
     if (!v)
         return;
     std::error_code ec;
@@ -203,7 +173,7 @@ void ToplevelIcons::set_icon(wl_client*, wl_resource* manager, wl_resource* topl
     if (icon)
         v->icon = !icon->name.empty() ? icon->name : save_icon(*icon, v->id);
     if (v->mapped)
-        self->server_.notify_window(*v, "changed");
+        server_.notify_window(*v, "changed");
 }
 
 } // namespace atrium

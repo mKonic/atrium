@@ -1,12 +1,17 @@
 #pragma once
 
-#include <wayland-server-core.h>
+#include "wl/resource.hpp"
 
+#include <memory>
 #include <vector>
 
 namespace atrium {
 
 class Server;
+namespace wl {
+class XdgToplevelIconManagerV1;
+class XdgToplevelIconV1;
+}
 
 // xdg-toplevel-icon-v1, atrium's own: wlroots' sends wl_buffer.release when
 // an app adds a second picture of the same size, which the protocol says is
@@ -22,14 +27,11 @@ public:
     ToplevelIcons& operator=(const ToplevelIcons&) = delete;
 
 private:
-    static void bind(wl_client* client, void* data, uint32_t version, uint32_t id);
-    static void manager_gone(wl_resource* resource);
-    static void create_icon(wl_client* client, wl_resource* manager, uint32_t id);
-    static void set_icon(wl_client* client, wl_resource* manager, wl_resource* toplevel, wl_resource* icon);
+    void set_icon(wl_resource* toplevel, wl::XdgToplevelIconV1* icon);
 
     Server& server_;
-    wl_global* global_ = nullptr;
-    std::vector<wl_resource*> managers_;
+    std::unique_ptr<wl::Global> global_;
+    std::vector<wl::Weak<wl::XdgToplevelIconManagerV1>> managers_;
 };
 
 } // namespace atrium
