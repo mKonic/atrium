@@ -320,13 +320,15 @@ TEST(WlScanner, DisconnectDeletesEverything) {
         });
     };
     ASSERT_NE(h.bind(), nullptr);
-    atrium_test_manager_v1_make_item(h.manager, 0);
+    atrium_test_item_v1* proxy = atrium_test_manager_v1_make_item(h.manager, 0);
     h.pump();
     ASSERT_TRUE(item);
     wl_client_destroy(h.peer);
     EXPECT_EQ(gone, 2);
     EXPECT_FALSE(manager);
     EXPECT_FALSE(item);
+    atrium_test_item_v1_destroy(proxy);
+    atrium_test_manager_v1_destroy(h.manager);
     wl_display_disconnect(h.client);
     h.client = nullptr;
     h.manager = nullptr;
