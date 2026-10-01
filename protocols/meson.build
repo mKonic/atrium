@@ -87,6 +87,7 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'staging/ext-image-capture-source/ext-image-capture-source-v1.xml',
   wl_protocol_dir / 'staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml',
   'hyprland-toplevel-export-v1.xml',
+  'xx-pip-v1.xml',
   wl_protocol_dir / 'staging/color-management/color-management-v1.xml',
 ]
 wl_protocol_sources = []

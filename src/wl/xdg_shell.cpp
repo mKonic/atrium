@@ -214,11 +214,11 @@ ShellSurface::ShellSurface(wl_client* client, uint32_t version, uint32_t id, She
             post_error(code, message);
     };
     on_destroy([this](XdgSurface*) {
-        if (toplevel_ || popup_)
+        if (toplevel_ || popup_ || pip_)
             post_error(uint32_t(Error::DefunctRoleObject), "xdg_surface destroyed before its role object");
     });
     on_get_toplevel([this, wm_error](XdgSurface*, uint32_t id) {
-        if ((kind_ != Kind::None && kind_ != Kind::Toplevel) || toplevel_ || popup_) {
+        if ((kind_ != Kind::None && kind_ != Kind::Toplevel) || toplevel_ || popup_ || pip_) {
             wm_error(uint32_t(XdgWmBase::Error::Role), "the xdg_surface has another role");
             return;
         }
@@ -236,7 +236,7 @@ ShellSurface::ShellSurface(wl_client* client, uint32_t version, uint32_t id, She
             wm_error(uint32_t(XdgWmBase::Error::InvalidPositioner), "the positioner is incomplete");
             return;
         }
-        if ((kind_ != Kind::None && kind_ != Kind::Popup) || toplevel_ || popup_) {
+        if ((kind_ != Kind::None && kind_ != Kind::Popup) || toplevel_ || popup_ || pip_) {
             wm_error(uint32_t(XdgWmBase::Error::Role), "the xdg_surface has another role");
             return;
         }
@@ -282,6 +282,8 @@ ShellSurface::ShellSurface(wl_client* client, uint32_t version, uint32_t id, She
             toplevel_->acked(acked);
         if (popup_)
             popup_->acked_ = acked.popup;
+        if (pip_)
+            pip_->acked_ = acked.pip;
         configured_ = true;
         if (surface_) {
             auto& p = surface_->pending_state();
@@ -304,6 +306,10 @@ ShellSurface::~ShellSurface() {
         popup_->base_ = nullptr;
         popup_->gone();
     }
+    if (pip_) {
+        pip_->base_ = nullptr;
+        pip_->gone();
+    }
     for (Popup* p : std::vector(popups_))
         p->dismiss();
     events.destroy.emit();
@@ -323,6 +329,8 @@ void ShellSurface::surface_gone() {
         toplevel_->gone();
     if (popup_)
         popup_->gone();
+    if (pip_)
+        pip_->gone();
     surface_ = nullptr;
 }
 
@@ -337,6 +345,8 @@ void ShellSurface::reset() {
     }
     if (toplevel_)
         toplevel_->reset();
+    if (pip_)
+        pip_->reset();
 }
 
 uint32_t ShellSurface::schedule_configure() {
@@ -353,9 +363,11 @@ uint32_t ShellSurface::schedule_configure() {
 
 void ShellSurface::flush_configure() {
     idle_ = nullptr;
-    Sent s{scheduled_serial_, {}, {}};
+    Sent s{scheduled_serial_, {}, {}, {}};
     if (toplevel_)
         toplevel_->sent(s);
+    if (pip_)
+        pip_->sent(s);
     if (popup_) {
         if (popup_->reposition_token_ && popup_->version() >= 3)
             popup_->send_repositioned(*popup_->reposition_token_);
@@ -379,7 +391,7 @@ bool ShellSurface::precommit(Surface& s) {
         post_error(uint32_t(Error::UnconfiguredBuffer), "a buffer before the first configure was acked");
         return false;
     }
-    if (!toplevel_ && !popup_) {
+    if (!toplevel_ && !popup_ && !pip_) {
         post_error(uint32_t(Error::NotConstructed), "the xdg_surface has no role object");
         return false;
     }
@@ -412,10 +424,22 @@ void ShellSurface::commit(Surface& s) {
         popup_->current_ = popup_->acked_;
         if (initial)
             schedule_configure();
+    } else if (pip_) {
+        pip_->committed();
+        if (initial) {
+            pip_->events.initial_commit.emit();
+            schedule_configure();
+        }
     } else {
         return;
     }
     update_geometry();
+    // Past the bounds it was sent: an error (xx_pip_v1.configure_bounds).
+    if (pip_ && pip_->sent_bounds_ && has_content(&s) &&
+        (geometry_.width > pip_->sent_bounds_->first || geometry_.height > pip_->sent_bounds_->second)) {
+        pip_->post_error(uint32_t(XxPipV1::Error::InvalidSize), "the surface is bigger than its bounds");
+        return;
+    }
     if (!s.mapped() && has_content(&s) && configured_)
         s.map();
 }
@@ -776,6 +800,166 @@ void Popup::dismiss() {
     if (base_ && base_->surface())
         base_->surface()->unmap();
     gone();
+}
+
+// ---- Pip ---------------------------------------------------------------------------------
+
+Pip::Pip(wl_client* client, uint32_t version, uint32_t id, ShellSurface* base)
+    : XxPipV1(client, version, id), base_(base) {
+    auto configured = [this]() {
+        if (base_ && base_->configured())
+            return true;
+        if (base_)
+            base_->post_error(uint32_t(XdgSurface::Error::NotConstructed), "the surface isn't configured yet");
+        return false;
+    };
+    on_set_app_id([this](XxPipV1*, const char* app_id) {
+        app_id_ = app_id;
+        events.set_app_id.emit();
+    });
+    on_set_origin([this](XxPipV1*, wl_resource* origin) {
+        Surface* o = Surface::from(origin);
+        if (base_ && o == base_->surface()) {
+            post_error(uint32_t(Error::InvalidOrigin), "a pip can't be its own origin");
+            return;
+        }
+        pending_origin_gone_.disconnect();
+        pending_origin_ = o;
+        origin_pending_ = true;
+        if (o)
+            pending_origin_gone_ = o->events.destroy.connect([this] {
+                pending_origin_ = nullptr;
+                pending_origin_gone_.disconnect();
+            });
+    });
+    on_set_origin_rect([this](XxPipV1*, int32_t x, int32_t y, uint32_t w, uint32_t h) {
+        if (w == 0 || h == 0) {
+            post_error(uint32_t(Error::InvalidOrigin), "an origin rect needs a size");
+            return;
+        }
+        pending_origin_rect_ = Box{x, y, int(w), int(h)};
+        origin_rect_pending_ = true;
+    });
+    on_move([this, configured](XxPipV1*, wl_resource* seat, uint32_t serial) {
+        if (configured())
+            events.request_move.emit({Seat::from(seat), serial});
+    });
+    on_resize([this, configured](XxPipV1*, wl_resource* seat, uint32_t serial, uint32_t edges) {
+        if (edges > uint32_t(ResizeEdge::BottomRight) || edges == 3 || edges == 7) {
+            post_error(uint32_t(Error::InvalidResizeEdge), "no such edge");
+            return;
+        }
+        if (configured())
+            events.request_resize.emit({Seat::from(seat), serial, edges});
+    });
+}
+
+Pip::~Pip() {
+    gone();
+    if (base_) {
+        base_->pip_ = nullptr;
+        if (Surface* s = base_->surface())
+            s->unmap();
+        base_->reset();
+    }
+}
+
+void Pip::gone() {
+    if (gone_)
+        return;
+    gone_ = true;
+    pending_origin_gone_.disconnect();
+    origin_gone_.disconnect();
+    pending_origin_ = origin_ = nullptr;
+    events.destroy.emit();
+}
+
+Pip* Pip::from(Surface* surface) {
+    ShellSurface* s = ShellSurface::from(surface);
+    return s ? s->pip() : nullptr;
+}
+
+void Pip::reset() {
+    // Unmapped: back to how it was made (the protocol's words).
+    scheduled_ = acked_ = current_ = {};
+    bounds_.reset();
+    sent_bounds_.reset();
+}
+
+uint32_t Pip::set_size(int width, int height) {
+    scheduled_ = {width, height};
+    return base_ ? base_->schedule_configure() : 0;
+}
+
+uint32_t Pip::set_bounds(int width, int height) {
+    bounds_ = {width, height};
+    return base_ ? base_->schedule_configure() : 0;
+}
+
+void Pip::sent(ShellSurface::Sent& s) {
+    if (bounds_) {
+        send_configure_bounds(bounds_->first, bounds_->second);
+        sent_bounds_ = bounds_;
+        bounds_.reset();
+    }
+    send_configure_size(scheduled_.first, scheduled_.second);
+    s.pip = scheduled_;
+}
+
+void Pip::committed() {
+    current_ = acked_;
+    if (origin_pending_) {
+        origin_pending_ = false;
+        origin_gone_.disconnect();
+        origin_ = pending_origin_;
+        if (origin_)
+            origin_gone_ = origin_->events.destroy.connect([this] {
+                origin_ = nullptr;
+                origin_gone_.disconnect();
+            });
+    }
+    if (origin_rect_pending_) {
+        origin_rect_pending_ = false;
+        origin_rect_ = pending_origin_rect_;
+    }
+}
+
+// ---- PipShell ----------------------------------------------------------------------------
+
+PipShell::PipShell(wl_display* display) {
+    global_ = Global::create<XxPipShellV1>(display, 1, [this](wl_client* client, uint32_t version, uint32_t id) {
+        auto* m = make<XxPipShellV1>(client, version, id);
+        if (!m)
+            return;
+        m->on_get_pip([this](XxPipShellV1* self, uint32_t id, wl_resource* xdg_surface) {
+            auto* base = dynamic_cast<ShellSurface*>(XdgSurface::from(xdg_surface));
+            if (!base || base->kind_ != ShellSurface::Kind::None || base->toplevel_ || base->popup_ || base->pip_) {
+                self->post_error(uint32_t(XxPipShellV1::Error::Role), "the xdg_surface has another role");
+                return;
+            }
+            Surface* s = base->surface();
+            if (base->initialized_ || (s && (s->buffer() || s->pending().buffer))) {
+                self->post_error(uint32_t(XxPipShellV1::Error::AlreadyConstructed),
+                                 "the surface already has a buffer or was committed");
+                return;
+            }
+            auto* p = make<Pip>(self->client(), self->version(), id, base);
+            if (!p)
+                return;
+            base->kind_ = ShellSurface::Kind::Pip;
+            base->pip_ = p;
+            events.new_pip.emit(p);
+        });
+        std::erase_if(managers_, [](const auto& w) { return !w; });
+        managers_.push_back(m);
+    });
+}
+
+PipShell::~PipShell() {
+    global_.reset();
+    for (auto& w : managers_)
+        if (w)
+            w->detach();
 }
 
 } // namespace atrium::wl

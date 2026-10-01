@@ -3,6 +3,7 @@
 #include "wl/positioner.hpp"
 
 #include "xdg-shell-server.hpp"
+#include "xx-pip-v1-server.hpp"
 
 #include <optional>
 #include <string>
@@ -25,10 +26,12 @@ struct ToplevelState {
 
 // xdg_surface: a surface that is a window or a popup. It is the surface's
 // role; the toplevel or popup object is what it becomes.
+class Pip;
+
 class ShellSurface : public XdgSurface, public Role {
 public:
     static constexpr const char* kRole = "xdg_surface";
-    enum class Kind { None, Toplevel, Popup };
+    enum class Kind { None, Toplevel, Popup, Pip };
 
     ShellSurface(wl_client* client, uint32_t version, uint32_t id, Shell& shell, Surface* surface);
     ~ShellSurface() override;
@@ -44,6 +47,7 @@ public:
     Kind kind() const { return kind_; }
     Toplevel* toplevel() const { return toplevel_; }
     Popup* popup() const { return popup_; }
+    Pip* pip() const { return pip_; }
     // The client has committed once, and is waiting for a first configure.
     bool initialized() const { return initialized_; }
     bool configured() const { return configured_; }
@@ -68,7 +72,9 @@ public:
 private:
     friend class Toplevel;
     friend class Popup;
+    friend class Pip;
     friend class Shell;
+    friend class PipShell;
     void flush_configure();
     void reset();
     void update_geometry();
@@ -79,6 +85,7 @@ private:
     Kind kind_ = Kind::None;
     Toplevel* toplevel_ = nullptr;
     Popup* popup_ = nullptr;
+    Pip* pip_ = nullptr;
     bool initialized_ = false, configured_ = false;
     Box geometry_;
     std::vector<Popup*> popups_;
@@ -86,6 +93,7 @@ private:
         uint32_t serial;
         ToplevelState toplevel;
         Box popup;
+        std::pair<int, int> pip;
     };
     std::vector<Sent> sent_;
     wl_event_source* idle_ = nullptr;
@@ -221,6 +229,83 @@ private:
     std::optional<uint32_t> reposition_token_;
     bool gone_ = false;
     bool dismissed_ = false;
+};
+
+// xx_pip_v1: a picture-in-picture window (a video popped out of its
+// page), kept above the others where the compositor likes.
+class Pip : public XxPipV1 {
+public:
+    Pip(wl_client* client, uint32_t version, uint32_t id, ShellSurface* base);
+    ~Pip() override;
+
+    static Pip* from(Surface* surface);
+
+    ShellSurface* base() const { return base_; }
+    const std::string& app_id() const { return app_id_; }
+    // Where it was launched from, for an animation (committed state).
+    Surface* origin() const { return origin_; }
+    const std::optional<Box>& origin_rect() const { return origin_rect_; }
+    // The size in effect (acked, then committed); 0: the client's choice.
+    std::pair<int, int> size() const { return current_; }
+
+    uint32_t set_size(int width, int height);
+    // The most it may grow to: sent with the next configure.
+    uint32_t set_bounds(int width, int height);
+    // It won't be shown again: the client should destroy it.
+    void close() { send_closed(); }
+
+    struct MoveRequest {
+        Seat* seat;
+        uint32_t serial;
+    };
+    struct ResizeRequest {
+        Seat* seat;
+        uint32_t serial;
+        uint32_t edges;  // xx_pip_v1.resize_edge
+    };
+    struct {
+        Signal<const MoveRequest&> request_move;
+        Signal<const ResizeRequest&> request_resize;
+        Signal<> set_app_id;
+        Signal<> initial_commit;  // before the first configure goes out
+        Signal<> destroy;
+    } events;
+
+private:
+    friend class ShellSurface;
+    void sent(ShellSurface::Sent& s);
+    void committed();
+    void reset();
+    void gone();
+
+    ShellSurface* base_;
+    std::string app_id_;
+    // Double-buffered with the surface's commit.
+    Surface* pending_origin_ = nullptr;
+    bool origin_pending_ = false;
+    std::optional<Box> pending_origin_rect_;
+    bool origin_rect_pending_ = false;
+    Surface* origin_ = nullptr;
+    std::optional<Box> origin_rect_;
+    Signal<>::Connection pending_origin_gone_, origin_gone_;
+    std::pair<int, int> scheduled_{}, acked_{}, current_{};
+    std::optional<std::pair<int, int>> bounds_, sent_bounds_;
+    bool gone_ = false;
+};
+
+// xx_pip_shell_v1: makes xdg_surfaces picture-in-picture windows.
+class PipShell {
+public:
+    explicit PipShell(wl_display* display);
+    ~PipShell();
+
+    struct {
+        Signal<Pip*> new_pip;
+    } events;
+
+private:
+    std::unique_ptr<Global> global_;
+    std::vector<Weak<Resource>> managers_;
 };
 
 class Positioner : public XdgPositioner {
