@@ -118,7 +118,7 @@ TEST(WlDmabuf, ParamsMakeBuffersAndCheckBounds) {
     zwp_linux_buffer_params_v1_add(p, fake_plane(64 * 4), 0, 0, 64 * 4, 0, 0);
     wl_buffer* bad = zwp_linux_buffer_params_v1_create_immed(p, 64, 64, DRM_FORMAT_ARGB8888, 0);
     b.pump();
-    EXPECT_EQ(b.protocol_error(), uint32_t(ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_OUT_OF_BOUNDS));
+    EXPECT_TRUE(b.posted("zwp_linux_buffer_params_v1", ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_OUT_OF_BOUNDS));
     wl_buffer_destroy(bad);
     zwp_linux_buffer_params_v1_destroy(p);
     zwp_linux_dmabuf_v1_destroy(m);
@@ -231,7 +231,7 @@ TEST(WlSurfaceExt, ViewportCropsAndScales) {
     wp_viewport_set_destination(v2, 10, 10);
     wl_surface_commit(s);
     b.pump();
-    EXPECT_EQ(b.protocol_error(), uint32_t(WP_VIEWPORT_ERROR_OUT_OF_BUFFER));
+    EXPECT_TRUE(b.posted("wp_viewport", WP_VIEWPORT_ERROR_OUT_OF_BUFFER));
     wp_viewport_destroy(v2);
     wp_viewporter_destroy(m);
     wl_surface_destroy(s);
@@ -268,7 +268,7 @@ TEST(WlSurfaceExt, HintsApplyWithTheCommitAndResetWhenGone) {
     // A second object for the surface is an error.
     wp_fractional_scale_v1* second = wp_fractional_scale_manager_v1_get_fractional_scale(fm, s);
     b.pump();
-    EXPECT_EQ(b.protocol_error(), uint32_t(WP_FRACTIONAL_SCALE_MANAGER_V1_ERROR_FRACTIONAL_SCALE_EXISTS));
+    EXPECT_TRUE(b.posted("wp_fractional_scale_manager_v1", WP_FRACTIONAL_SCALE_MANAGER_V1_ERROR_FRACTIONAL_SCALE_EXISTS));
     wp_fractional_scale_v1_destroy(second);
     wp_fractional_scale_v1_destroy(f);
     wp_fractional_scale_manager_v1_destroy(fm);
@@ -422,7 +422,7 @@ TEST(WlTiming, SyncobjNeedsPointsWithADmabuf) {
     wp_linux_drm_syncobj_surface_v1_set_release_point(so, tl, 0, 2);
     wl_surface_commit(s);
     b.pump();
-    EXPECT_EQ(b.protocol_error(), uint32_t(WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_UNSUPPORTED_BUFFER));
+    EXPECT_TRUE(b.posted("wp_linux_drm_syncobj_surface_v1", WP_LINUX_DRM_SYNCOBJ_SURFACE_V1_ERROR_UNSUPPORTED_BUFFER));
     EXPECT_EQ(applied, 0);  // rejected: never applied (and the client is gone)
     wp_linux_drm_syncobj_surface_v1_destroy(so);
     wp_linux_drm_syncobj_timeline_v1_destroy(tl);

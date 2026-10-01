@@ -121,7 +121,7 @@ TEST(WlCore, BufferNotAMultipleOfItsScaleIsAnError) {
     wl_surface_commit(s);
     c.pump();
     EXPECT_EQ(c.error(), EPROTO);
-    EXPECT_EQ(c.protocol_error(), uint32_t(WL_SURFACE_ERROR_INVALID_SIZE));
+    EXPECT_TRUE(c.posted("wl_surface", WL_SURFACE_ERROR_INVALID_SIZE));
     wl_surface_destroy(s);
     wl_buffer_destroy(b);
 }
@@ -318,7 +318,7 @@ TEST(WlCore, SubsurfaceRoleErrors) {
         wl_subsurface* s1 = wl_subcompositor_get_subsurface(c.wl_sub, b, a);
         wl_subsurface* s2 = wl_subcompositor_get_subsurface(c.wl_sub, a, b);  // a loop
         c.pump();
-        EXPECT_EQ(c.protocol_error(), uint32_t(WL_SUBCOMPOSITOR_ERROR_BAD_PARENT));
+        EXPECT_TRUE(c.posted("wl_subcompositor", WL_SUBCOMPOSITOR_ERROR_BAD_PARENT));
         for (wl_subsurface* x : {s1, s2})
             wl_subsurface_destroy(x);
         wl_surface_destroy(a);
@@ -331,7 +331,7 @@ TEST(WlCore, SubsurfaceRoleErrors) {
         wl_subsurface* s1 = wl_subcompositor_get_subsurface(c.wl_sub, b, a);
         wl_subsurface* s2 = wl_subcompositor_get_subsurface(c.wl_sub, b, a);  // already has the role
         c.pump();
-        EXPECT_EQ(c.protocol_error(), uint32_t(WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE));
+        EXPECT_TRUE(c.posted("wl_subcompositor", WL_SUBCOMPOSITOR_ERROR_BAD_SURFACE));
         for (wl_subsurface* x : {s1, s2})
             wl_subsurface_destroy(x);
         wl_surface_destroy(a);

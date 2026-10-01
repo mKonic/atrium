@@ -209,7 +209,7 @@ TEST(WlIme, VirtualKeyboardNeedsAKeymapFirst) {
     zwp_virtual_keyboard_v1* bare = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(m, t.wseat);
     zwp_virtual_keyboard_v1_key(bare, 1, 44, WL_KEYBOARD_KEY_STATE_PRESSED);
     t.pump();
-    EXPECT_EQ(t.protocol_error(), uint32_t(ZWP_VIRTUAL_KEYBOARD_V1_ERROR_NO_KEYMAP));
+    EXPECT_TRUE(t.posted("zwp_virtual_keyboard_v1", ZWP_VIRTUAL_KEYBOARD_V1_ERROR_NO_KEYMAP));
     zwp_virtual_keyboard_v1_destroy(bare);
     zwp_virtual_keyboard_v1_destroy(vk);
     wl_proxy_destroy(reinterpret_cast<wl_proxy*>(m));  // the manager has no destroy request

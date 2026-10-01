@@ -444,7 +444,7 @@ TEST(WlSeat, DataControlSeesAndSetsBothSelections) {
     // A source goes in once.
     ext_data_control_device_v1_set_primary_selection(dev, src);
     w.pump();
-    EXPECT_EQ(w.protocol_error(), uint32_t(EXT_DATA_CONTROL_DEVICE_V1_ERROR_USED_SOURCE));
+    EXPECT_TRUE(w.posted("ext_data_control_device_v1", EXT_DATA_CONTROL_DEVICE_V1_ERROR_USED_SOURCE));
     for (auto* o : {log.selection, log.primary})
         if (o)
             ext_data_control_offer_v1_destroy(o);

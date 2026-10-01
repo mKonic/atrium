@@ -7,6 +7,7 @@
 #include <poll.h>
 #include <sys/socket.h>
 
+#include <cerrno>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -87,6 +88,18 @@ struct Harness {
         const wl_interface* iface = nullptr;
         uint32_t id = 0;
         return wl_display_get_protocol_error(client, &iface, &id);
+    }
+    // Whether the client was killed by `code` on an object of `interface`:
+    // unlike protocol_error() alone, true only if an error was posted (many
+    // codes are 0). An object the client already destroyed (an error on a
+    // destructor request) comes back without its interface.
+    bool posted(const char* interface, uint32_t code) const {
+        if (!client || wl_display_get_error(client) != EPROTO)
+            return false;
+        const wl_interface* iface = nullptr;
+        uint32_t id = 0;
+        const uint32_t got = wl_display_get_protocol_error(client, &iface, &id);
+        return got == code && (!iface || std::strcmp(iface->name, interface) == 0);
     }
 
     // Binds `interface` at `version` (the advertised one when 0).

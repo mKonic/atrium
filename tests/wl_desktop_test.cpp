@@ -422,7 +422,7 @@ TEST(WlDesktop, GlobalShortcutsRegisterAndFire) {
     EXPECT_EQ(pressed, 1);
     auto* dup = hyprland_global_shortcuts_manager_v1_register_shortcut(m, "mute", "org.voice", "Mute", "");
     d.pump();
-    EXPECT_EQ(d.protocol_error(), uint32_t(HYPRLAND_GLOBAL_SHORTCUTS_MANAGER_V1_ERROR_ALREADY_TAKEN));
+    EXPECT_TRUE(d.posted("hyprland_global_shortcuts_manager_v1", HYPRLAND_GLOBAL_SHORTCUTS_MANAGER_V1_ERROR_ALREADY_TAKEN));
     hyprland_global_shortcut_v1_destroy(dup);
     hyprland_global_shortcut_v1_destroy(s);
     hyprland_global_shortcuts_manager_v1_destroy(m);

@@ -123,7 +123,7 @@ TEST(WlInput, OneShotLockIsSpentOnceReleased) {
     zwp_confined_pointer_v1* again = zwp_pointer_constraints_v1_confine_pointer(
         m, s, in.pointer, nullptr, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
     in.pump();
-    EXPECT_EQ(in.protocol_error(), uint32_t(ZWP_POINTER_CONSTRAINTS_V1_ERROR_ALREADY_CONSTRAINED));
+    EXPECT_TRUE(in.posted("zwp_pointer_constraints_v1", ZWP_POINTER_CONSTRAINTS_V1_ERROR_ALREADY_CONSTRAINED));
     zwp_confined_pointer_v1_destroy(again);
     zwp_locked_pointer_v1_destroy(lock);
     zwp_pointer_constraints_v1_destroy(m);

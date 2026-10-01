@@ -124,7 +124,7 @@ TEST(WlCapture, ScreencopyOffersThenCopies) {
     zwlr_screencopy_frame_v1_add_listener(g, &kFrame, &log);
     zwlr_screencopy_frame_v1_copy(g, c.buffer(10, 10));
     c.pump();
-    EXPECT_EQ(c.protocol_error(), uint32_t(ZWLR_SCREENCOPY_FRAME_V1_ERROR_INVALID_BUFFER));
+    EXPECT_TRUE(c.posted("zwlr_screencopy_frame_v1", ZWLR_SCREENCOPY_FRAME_V1_ERROR_INVALID_BUFFER));
     zwlr_screencopy_frame_v1_destroy(g);
     zwlr_screencopy_manager_v1_destroy(m);
 }

@@ -216,7 +216,7 @@ TEST(WlXdg, BufferBeforeConfigureIsAnError) {
     wl_surface_attach(w.surface, w.buf, 0, 0);
     wl_surface_commit(w.surface);
     s.pump();
-    EXPECT_EQ(s.protocol_error(), uint32_t(XDG_SURFACE_ERROR_UNCONFIGURED_BUFFER));
+    EXPECT_TRUE(s.posted("xdg_surface", XDG_SURFACE_ERROR_UNCONFIGURED_BUFFER));
 }
 
 TEST(WlXdg, ConfigureStatesAckAndCommit) {
@@ -249,7 +249,7 @@ TEST(WlXdg, ConfigureStatesAckAndCommit) {
     // An unknown serial is an error.
     xdg_surface_ack_configure(w.xdg, serial + 999);
     s.pump();
-    EXPECT_EQ(s.protocol_error(), uint32_t(XDG_WM_BASE_ERROR_INVALID_SURFACE_STATE));
+    EXPECT_TRUE(s.posted("xdg_wm_base", XDG_WM_BASE_ERROR_INVALID_SURFACE_STATE));
 }
 
 TEST(WlXdg, RequestsReachTheCompositor) {
@@ -282,7 +282,7 @@ TEST(WlXdg, RequestsReachTheCompositor) {
     xdg_toplevel_set_max_size(w.toplevel, 100, 0);  // max below min
     wl_surface_commit(w.surface);
     s.pump();
-    EXPECT_EQ(s.protocol_error(), uint32_t(XDG_TOPLEVEL_ERROR_INVALID_SIZE));
+    EXPECT_TRUE(s.posted("xdg_toplevel", XDG_TOPLEVEL_ERROR_INVALID_SIZE));
 }
 
 TEST(WlXdg, SizeLimitsHoldAcrossCommits) {
@@ -361,7 +361,7 @@ TEST(WlXdg, ParentLoopsAreRefused) {
     EXPECT_EQ(s.toplevels[1]->parent(), s.toplevels[0]);
     xdg_toplevel_set_parent(a.toplevel, b.toplevel);
     s.pump();
-    EXPECT_EQ(s.protocol_error(), uint32_t(XDG_TOPLEVEL_ERROR_INVALID_PARENT));
+    EXPECT_TRUE(s.posted("xdg_toplevel", XDG_TOPLEVEL_ERROR_INVALID_PARENT));
 }
 
 TEST(WlXdg, PopupsPlaceUnconstrainAndDismiss) {
@@ -436,7 +436,7 @@ TEST(WlXdg, IncompletePositionerIsAnError) {
     xdg_surface* pxdg = xdg_wm_base_get_xdg_surface(s.base, ps);
     xdg_popup* popup = xdg_surface_get_popup(pxdg, w.xdg, pos);
     s.pump();
-    EXPECT_EQ(s.protocol_error(), uint32_t(XDG_WM_BASE_ERROR_INVALID_POSITIONER));
+    EXPECT_TRUE(s.posted("xdg_wm_base", XDG_WM_BASE_ERROR_INVALID_POSITIONER));
     xdg_popup_destroy(popup);
     xdg_surface_destroy(pxdg);
     wl_surface_destroy(ps);

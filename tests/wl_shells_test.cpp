@@ -162,7 +162,7 @@ TEST(WlLayer, ZeroWidthNeedsBothSideAnchors) {
     zwlr_layer_surface_v1_set_anchor(ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP);
     wl_surface_commit(s);
     d.pump();
-    EXPECT_EQ(d.protocol_error(), uint32_t(ZWLR_LAYER_SURFACE_V1_ERROR_INVALID_SIZE));
+    EXPECT_TRUE(d.posted("zwlr_layer_surface_v1", ZWLR_LAYER_SURFACE_V1_ERROR_INVALID_SIZE));
     zwlr_layer_surface_v1_destroy(ls);
     wl_surface_destroy(s);
     zwlr_layer_shell_v1_destroy(shell);
@@ -243,7 +243,7 @@ TEST(WlLock, WrongSizeIsAnError) {
     wl_surface_attach(s, d.buffer(640, 480), 0, 0);
     wl_surface_commit(s);
     d.pump();
-    EXPECT_EQ(d.protocol_error(), uint32_t(EXT_SESSION_LOCK_SURFACE_V1_ERROR_DIMENSIONS_MISMATCH));
+    EXPECT_TRUE(d.posted("ext_session_lock_surface_v1", EXT_SESSION_LOCK_SURFACE_V1_ERROR_DIMENSIONS_MISMATCH));
     ext_session_lock_surface_v1_destroy(ls);
     wl_surface_destroy(s);
     ext_session_lock_v1_destroy(l);
@@ -256,7 +256,7 @@ TEST(WlLock, UnlockBeforeLockedIsAnError) {
     ext_session_lock_v1* l = ext_session_lock_manager_v1_lock(m);
     ext_session_lock_v1_unlock_and_destroy(l);
     d.pump();
-    EXPECT_EQ(d.protocol_error(), uint32_t(EXT_SESSION_LOCK_V1_ERROR_INVALID_UNLOCK));
+    EXPECT_TRUE(d.posted("ext_session_lock_v1", EXT_SESSION_LOCK_V1_ERROR_INVALID_UNLOCK));
     ext_session_lock_manager_v1_destroy(m);
 }
 
@@ -321,7 +321,7 @@ TEST(WlXdgExtras, DecorationModeGoesWithTheConfigure) {
     // A second decoration object for the same window is an error.
     auto* second = zxdg_decoration_manager_v1_get_toplevel_decoration(mgr, w.toplevel);
     d.pump();
-    EXPECT_EQ(d.protocol_error(), uint32_t(ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ALREADY_CONSTRUCTED));
+    EXPECT_TRUE(d.posted("zxdg_toplevel_decoration_v1", ZXDG_TOPLEVEL_DECORATION_V1_ERROR_ALREADY_CONSTRUCTED));
     zxdg_toplevel_decoration_v1_destroy(second);
     zxdg_toplevel_decoration_v1_destroy(deco);
     zxdg_decoration_manager_v1_destroy(mgr);

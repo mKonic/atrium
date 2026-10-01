@@ -122,7 +122,7 @@ TEST(WlColor, IncompleteOrUnsupportedIsAnError) {
         wp_image_description_creator_params_v1_set_tf_named(creator, WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22);
         wp_image_description_v1* desc = wp_image_description_creator_params_v1_create(creator);
         c.pump();
-        EXPECT_EQ(c.protocol_error(), uint32_t(WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INCOMPLETE_SET));
+        EXPECT_TRUE(c.posted("wp_image_description_creator_params_v1", WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INCOMPLETE_SET));
         wp_image_description_v1_destroy(desc);  // create consumed the creator
     }
     {
@@ -130,7 +130,7 @@ TEST(WlColor, IncompleteOrUnsupportedIsAnError) {
         auto* creator = wp_color_manager_v1_create_parametric_creator(c.cm);
         wp_image_description_creator_params_v1_set_tf_named(creator, WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_BT1886);
         c.pump();
-        EXPECT_EQ(c.protocol_error(), uint32_t(WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_TF));
+        EXPECT_TRUE(c.posted("wp_image_description_creator_params_v1", WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_TF));
         wp_image_description_creator_params_v1_destroy(creator);
     }
 }
