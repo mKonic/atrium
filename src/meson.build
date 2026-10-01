@@ -69,6 +69,7 @@ atrium_sources = files(
   'wl/dmabuf.cpp',
   'wl/ime.cpp',
   'wl/input_ext.cpp',
+  'wl/tablet.cpp',
   'wl/layer_shell.cpp',
   'wl/misc.cpp',
   'wl/output.cpp',

@@ -33,6 +33,9 @@ public:
     // Whether `serial` is one this seat sent `client` for a pointer button
     // press or touch down, recently: what a move, resize or drag must quote.
     bool validate_grab_serial(wl_client* client, uint32_t serial) const;
+    // Records a grab serial sent to `client` by another input source (a
+    // tablet tool's down, say).
+    void remember_serial(wl_client* client, uint32_t serial);
 
     // ---- keyboard ----
     // The keymap as text (xkb_keymap_get_as_string), and key repeat.
@@ -100,7 +103,6 @@ private:
     void each_keyboard(wl_client* client, Fn fn);
     template <class Fn>
     void each_touch(wl_client* client, Fn fn);
-    void remember_serial(wl_client* client, uint32_t serial);
 
     wl_display* display_;
     std::string name_;
