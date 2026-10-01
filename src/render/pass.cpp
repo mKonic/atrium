@@ -295,11 +295,19 @@ void RenderPass::bind(Framebuffer* fb) {
 }
 
 TexRef RenderPass::sampler(Framebuffer* fb) {
-    if (!fb->tex && fb->buffer && !fb->external_only) {
-        glGenTextures(1, &fb->tex);
+    if (fb->buffer && !fb->external_only) {
+        // Bound to the image again on every read, as texture_from_buffer
+        // does: a texture made once needn't see what was drawn into the
+        // buffer since (NVIDIA's scanout buffers keep showing their old
+        // contents, and the blur and its padding read those).
+        const bool fresh = !fb->tex;
+        if (fresh)
+            glGenTextures(1, &fb->tex);
         glBindTexture(GL_TEXTURE_2D, fb->tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        if (fresh) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        }
         r_.procs.glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, fb->image);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -578,6 +586,9 @@ Framebuffer* RenderPass::blur_into(const BlurParams& params, Framebuffer* source
     pixman_region32_t scaled;
     pixman_region32_init(&scaled);
     Framebuffer* current = source;
+    // The screen's buffer is read through its framebuffer (see copy).
+    if (source->buffer && blit(&damage, fx_->effects.get(), source))
+        current = fx_->effects.get();
     glDisable(GL_BLEND);
     glDisable(GL_STENCIL_TEST);
 
@@ -702,8 +713,28 @@ bool RenderPass::render_blur_cache(const FBox& box) {
     return blurred != nullptr;
 }
 
+bool RenderPass::blit(const pixman_region32_t* region, Framebuffer* dst, Framebuffer* src) {
+    const GLuint read = src->get_fbo(), write = dst->get_fbo();
+    if (!read || !write || src->width != dst->width || src->height != dst->height)
+        return false;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, write);
+    glDisable(GL_SCISSOR_TEST);
+    int n = 0;
+    const pixman_box32_t* rects = pixman_region32_rectangles(region, &n);
+    for (int i = 0; i < n; ++i)
+        glBlitFramebuffer(rects[i].x1, rects[i].y1, rects[i].x2, rects[i].y2, rects[i].x1, rects[i].y1,
+                          rects[i].x2, rects[i].y2, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    bind(fb_);
+    return true;
+}
+
 void RenderPass::copy(const pixman_region32_t* region, Framebuffer* dst, Framebuffer* src) {
     if (!region || !pixman_region32_not_empty(region) || !dst || !src)
+        return;
+    // A buffer we draw into (the screen's) is read through its framebuffer,
+    // which always has what was just drawn.
+    if (src->buffer && blit(region, dst, src))
         return;
     bind(dst);
     Framebuffer* keep = fb_;

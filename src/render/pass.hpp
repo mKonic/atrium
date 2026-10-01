@@ -204,6 +204,10 @@ private:
     void set_proj(Program& p, const FBox& box);
     // What GL samples to read a framebuffer.
     TexRef sampler(Framebuffer* fb);
+    // Copies `region` of `src` over `dst` through their framebuffers (same
+    // size): how a buffer GL draws into is read back (see copy). False if
+    // either has no framebuffer.
+    bool blit(const pixman_region32_t* region, Framebuffer* dst, Framebuffer* src);
     void bind(Framebuffer* fb);
 
     struct Hook {
