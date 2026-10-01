@@ -325,6 +325,12 @@ void Compositor::focusWindow(int id) {
     request({{"cmd", "window.focus"}, {"window", id}});
 }
 
+void Compositor::activationToken(std::function<void(const QString&)> done) {
+    requestFull({{"cmd", "activation.token"}}, [done = std::move(done)](const QJsonObject& reply) {
+        done(reply.value("ok").toBool() ? reply.value("result").toString() : QString());
+    });
+}
+
 void Compositor::windowRequest(int id, const QString& command, const QVariantMap& fields) {
     QJsonObject req = QJsonObject::fromVariantMap(fields);
     req["cmd"] = "window." + command;

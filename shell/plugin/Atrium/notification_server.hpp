@@ -138,6 +138,9 @@ public slots:
 signals:
     Q_SCRIPTABLE void NotificationClosed(uint id, uint reason);
     Q_SCRIPTABLE void ActionInvoked(uint id, const QString& action_key);
+    // Sent just before ActionInvoked: the token the app raises its window
+    // with (Notifications spec 1.2).
+    Q_SCRIPTABLE void ActivationToken(uint id, const QString& activation_token);
     void popupsChanged();
 
 private:
