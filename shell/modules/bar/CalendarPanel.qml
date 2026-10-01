@@ -213,7 +213,10 @@ PanelWindow {
                     id: cell
 
                     required property var model
-                    readonly property bool isToday: model.today
+                    // Not model.today: MonthGrid works that out once, as it
+                    // builds the month, and never moves it past midnight.
+                    readonly property bool isToday: model.day === root.today.getDate()
+                        && model.month === root.today.getMonth() && model.year === root.today.getFullYear()
                     readonly property bool inMonth: model.month === root.month
 
                     implicitWidth: 36
