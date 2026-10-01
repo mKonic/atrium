@@ -83,6 +83,9 @@ public:
     Q_INVOKABLE void switchSpace(int number);
     Q_INVOKABLE void toggleSecret(const QString& name);
     Q_INVOKABLE void focusWindow(int id);
+    // An xdg-activation token minted as from the user's input (empty if
+    // atrium couldn't make one), for an app to raise its own window with.
+    void activationToken(std::function<void(const QString&)> done);
     Q_INVOKABLE void closeWindow(int id);
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.

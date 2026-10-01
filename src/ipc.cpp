@@ -610,6 +610,17 @@ json Ipc::handle(Client& c, const json& req) {
     if (cmd == "version")
         return ok({{"version", ATRIUM_VERSION}, {"build", ATRIUM_BUILD}, {"protocol", kIpcProtocol}});
 
+    // A token for xdg-activation, as from the user's input: the shell hands
+    // it to an app whose notification was clicked, so the app raises the
+    // window it came from (Notifications spec 1.2, ActivationToken).
+    if (cmd == "activation.token") {
+        wlr_xdg_activation_token_v1* token = wlr_xdg_activation_token_v1_create(server_.activation);
+        if (!token)
+            return fail("couldn't make a token");
+        token->seat = server_.seat->wlr;
+        return ok(std::string(wlr_xdg_activation_token_v1_get_name(token)));
+    }
+
     if (cmd == "windows") {
         json list = json::array();
         for (View* v : server_.views)

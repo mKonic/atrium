@@ -12,6 +12,8 @@
 #include <QFileInfo>
 #include <QIcon>
 #include <QMutex>
+#include <QPointer>
+#include <QTimer>
 #include <QUrl>
 
 namespace atrium {
@@ -347,17 +349,19 @@ void NotificationServer::dismiss(Notification* n) {
 
 namespace {
 
+// Whether `window` (a Compositor::windows() entry) is the sending app's.
+bool from_sender(const Notification::Data& d, const QVariant& window) {
+    const QString wanted = (d.desktopEntry.isEmpty() ? d.app : d.desktopEntry).toLower();
+    const QString id = window.toMap().value("app_id").toString().toLower();
+    return !wanted.isEmpty() && (id == wanted || id.endsWith("." + wanted));
+}
+
 // A click brings the app that sent it forward, as on a Mac: the action it
 // answers (an updater, a chat) is in its window, maybe in a hidden space.
 void raise_sender(const Notification::Data& d) {
-    const QString wanted = (d.desktopEntry.isEmpty() ? d.app : d.desktopEntry).toLower();
-    if (wanted.isEmpty())
-        return;
     for (const QVariant& w : Compositor::instance()->windows()) {
-        const QVariantMap m = w.toMap();
-        const QString id = m.value("app_id").toString().toLower();
-        if (id == wanted || id.endsWith("." + wanted)) {
-            Compositor::instance()->focusWindow(m.value("id").toInt());
+        if (from_sender(d, w)) {
+            Compositor::instance()->focusWindow(w.toMap().value("id").toInt());
             return;
         }
     }
@@ -399,11 +403,27 @@ void NotificationServer::invoke(Notification* n, const QString& action) {
     if (!n)
         return;
     NotificationHistory::instance()->markEntryRead(n->data().uid);
-    emit ActionInvoked(n->id(), action);
-    raise_sender(n->data());
-    // Done with, unless it stays by design.
-    if (!n->data().resident)
-        close(n->id(), 2);
+    const uint id = n->id();
+    const Notification::Data data = n->data();
+    QPointer<NotificationServer> self(this);
+    // A token first, so the app can raise the very window the notification
+    // came from (a terminal's tab, a chat): it knows which, atrium doesn't.
+    Compositor::instance()->activationToken([self, id, action, data](const QString& token) {
+        if (!self)
+            return;
+        if (!token.isEmpty())
+            emit self->ActivationToken(id, token);
+        emit self->ActionInvoked(id, action);
+        // An app that doesn't raise anything itself is brought forward
+        // after a moment, its first window.
+        QTimer::singleShot(400, self, [data] {
+            if (!from_sender(data, Compositor::instance()->focusedWindow()))
+                raise_sender(data);
+        });
+        // Done with, unless it stays by design.
+        if (!data.resident)
+            self->close(id, 2);
+    });
 }
 
 } // namespace atrium
