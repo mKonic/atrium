@@ -83,16 +83,15 @@ InputMethodRelay::InputMethodRelay(Server& server)
     }));
     c.push_back(im.grab.connect([this](bool taken) {
         grab_keymap_.clear();
-        wlr_keyboard* kb = server_.seat->physical_keyboard();
+        const input::Keys& kb = server_.seat->physical_keyboard()->keys;
+        const input::Modifiers& m = kb.modifiers();
         if (taken) {
             // Start it off with the keymap and modifiers in use right now.
             grab_for(kb, nullptr);
-            methods_.grab_modifiers({kb->modifiers.depressed, kb->modifiers.latched, kb->modifiers.locked,
-                                     kb->modifiers.group});
+            methods_.grab_modifiers({m.depressed, m.latched, m.locked, m.group});
         } else {
             // The app gets the modifier state back.
-            server_.wl->seat->keyboard_modifiers({kb->modifiers.depressed, kb->modifiers.latched,
-                                                  kb->modifiers.locked, kb->modifiers.group});
+            server_.wl->seat->keyboard_modifiers({m.depressed, m.latched, m.locked, m.group});
         }
     }));
     c.push_back(im.new_popup.connect([this](wl::InputMethods::Popup* p) {
@@ -138,14 +137,14 @@ InputMethodRelay::~InputMethodRelay() {
 // Every keyboard is grabbed but the IME's own: it types back through a
 // virtual keyboard of its own, which must reach the app, not loop. Another
 // client's (an on-screen keyboard, wtype) is typing like a real one.
-bool InputMethodRelay::grab_for(wlr_keyboard* keyboard, wl_client* virtual_owner) {
+bool InputMethodRelay::grab_for(const input::Keys& keys, wl_client* virtual_owner) {
     const auto* m = methods_.current();
     if (!m || !methods_.grabbed())
         return false;
     if (virtual_owner && m->resource && virtual_owner == m->resource->client())
         return false;
-    if (keyboard && keyboard->keymap) {
-        char* text = xkb_keymap_get_as_string(keyboard->keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
+    if (keys.keymap()) {
+        char* text = xkb_keymap_get_as_string(keys.keymap(), XKB_KEYMAP_FORMAT_TEXT_V1);
         if (text && grab_keymap_ != text) {
             grab_keymap_ = text;
             methods_.grab_keymap(grab_keymap_);
@@ -155,17 +154,18 @@ bool InputMethodRelay::grab_for(wlr_keyboard* keyboard, wl_client* virtual_owner
     return true;
 }
 
-bool InputMethodRelay::forward_key(wlr_keyboard* keyboard, wl_client* virtual_owner, const wlr_keyboard_key_event* e) {
-    if (!grab_for(keyboard, virtual_owner))
+bool InputMethodRelay::forward_key(const input::Keys& keys, wl_client* virtual_owner, uint32_t time_ms,
+                                   uint32_t keycode, bool pressed) {
+    if (!grab_for(keys, virtual_owner))
         return false;
-    methods_.grab_key(e->time_msec, e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED);
+    methods_.grab_key(time_ms, keycode, pressed);
     return true;
 }
 
-bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, wl_client* virtual_owner) {
-    if (!grab_for(keyboard, virtual_owner))
+bool InputMethodRelay::forward_modifiers(const input::Keys& keys, wl_client* virtual_owner) {
+    if (!grab_for(keys, virtual_owner))
         return false;
-    const wlr_keyboard_modifiers& m = keyboard->modifiers;
+    const input::Modifiers& m = keys.modifiers();
     methods_.grab_modifiers({m.depressed, m.latched, m.locked, m.group});
     return true;
 }

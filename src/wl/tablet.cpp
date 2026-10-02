@@ -346,6 +346,12 @@ void Tablets::each_focused(Tool* tool, Fn fn) {
             fn(b.resource.get());
 }
 
+bool Tablets::bound_by(const Tool* tool, wl_client* client) const {
+    return std::ranges::any_of(tool->bound, [client](const auto& b) {
+        return b.resource && b.resource->client() == client;
+    });
+}
+
 void Tablets::proximity_in(Tool* tool, Tablet* tablet, Surface* surface, double sx, double sy) {
     if (tool->focus == surface && tool->tablet == tablet) {
         motion(tool, sx, sy);

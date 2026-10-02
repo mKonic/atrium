@@ -131,7 +131,9 @@ void TextInputs::focus(Surface* surface) {
         if (t->focus && t->focus != surface) {
             if (t->current.enabled)
                 events.disable.emit(t.get());
-            r->send_leave(t->focus->resource());
+            // A surface going away can't be named; the client knows it went.
+            if (wl_resource* gone = t->focus->resource())
+                r->send_leave(gone);
             t->focus = nullptr;
             t->focus_gone.disconnect();
         }

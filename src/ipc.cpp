@@ -355,13 +355,11 @@ json Ipc::devices_json(const Server& server) {
     json list = json::array();
     std::vector<std::string> seen;
     auto opt = [](const auto& v) { return v ? json(*v) : json(nullptr); };
-    for (wlr_pointer* p : server.seat->pointer_devices()) {
-        const std::string name = p->base.name ? p->base.name : "";
+    for (const auto& [name, dev] : server.seat->pointer_devices()) {
         // One entry per device: a mouse can show up as several nodes.
         if (name.empty() || std::ranges::find(seen, name) != seen.end())
             continue;
         seen.push_back(name);
-        libinput_device* dev = wlr_input_device_is_libinput(&p->base) ? wlr_libinput_get_device_handle(&p->base) : nullptr;
         const auto own = server.registry->device(name);
         list.push_back({
             {"name", name},

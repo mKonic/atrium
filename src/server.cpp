@@ -200,7 +200,12 @@ void Server::setup() {
     display = wl_display_create();
     loop = wl_display_get_event_loop(display);
 
-    // Picks DRM+libinput on a TTY, or a window when WAYLAND_DISPLAY/DISPLAY is set.
+    // DRM on a TTY, or a window when WAYLAND_DISPLAY/DISPLAY is set. Input
+    // on a TTY is atrium's own, from libinput (the seat's): wlroots' libinput
+    // backend stays out unless WLR_BACKENDS asks for it.
+    const bool nested_session = getenv("WAYLAND_DISPLAY") || getenv("DISPLAY");
+    if (!getenv("WLR_BACKENDS") && !nested_session)
+        setenv("WLR_BACKENDS", "drm", 1);
     backend = wlr_backend_autocreate(loop, &session);
     if (!backend)
         die("couldn't create backend");
@@ -256,6 +261,10 @@ void Server::setup() {
     setup_window_hints();
 
     seat = std::make_unique<Seat>(*this);
+    // Another VT took the session: libinput lets go of the devices, and
+    // takes them back on return.
+    if (session)
+        session_active_.connect(&session->events.active, [this](void*) { seat->session_active(session->active); });
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
     system_bell = std::make_unique<SystemBell>(*this);
@@ -506,6 +515,7 @@ void Server::disconnect_listeners() {
     new_output_.disconnect();
     layout_change_.disconnect();
     gpu_reset_.disconnect();
+    session_active_.disconnect();
     connections_.clear();
 #ifdef ATRIUM_XWAYLAND
     xwayland_start_.disconnect();

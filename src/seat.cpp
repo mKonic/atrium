@@ -28,13 +28,6 @@ namespace atrium {
 
 namespace {
 
-xkb_keysym_t sym_at_level(xkb_keymap* keymap, xkb_keycode_t key, xkb_layout_index_t layout,
-                          xkb_level_index_t level) {
-    const xkb_keysym_t* syms;
-    int n = xkb_keymap_key_get_syms_by_level(keymap, key, layout, level, &syms);
-    return n ? syms[0] : XKB_KEY_NoSymbol;
-}
-
 xkb_keymap* compile_keymap(const Config& c) {
     auto opt = [](const std::string& s) { return s.empty() ? nullptr : s.c_str(); };
     // No layout set: the system's keyboard, as a whole.
@@ -73,57 +66,34 @@ uint32_t now_ms() {
 // --- keyboard groups -------------------------------------------------------------
 
 KeyboardGroup::KeyboardGroup(Seat& s, bool virt) : seat(s), is_virtual(virt) {
-    group = wlr_keyboard_group_create();
-    group->data = this;
-
     xkb_keymap* keymap = compile_keymap(seat.server.config);
-    wlr_keyboard_set_keymap(&group->keyboard, keymap);
+    keys.set_keymap(keymap);
     xkb_keymap_unref(keymap);
-    wlr_keyboard_set_repeat_info(&group->keyboard, seat.server.config.repeat_rate,
-                                 seat.server.config.repeat_delay);
-
-    key.connect(&group->keyboard.events.key, [this](wlr_keyboard_key_event* e) { seat.key(*this, e); });
-    modifiers.connect(&group->keyboard.events.modifiers, [this](void*) { seat.modifiers(*this); });
+    keys.set_repeat(seat.server.config.repeat_rate, seat.server.config.repeat_delay);
+    keys.on_key = [this](uint32_t time, uint32_t keycode, bool pressed) { seat.key(*this, time, keycode, pressed); };
+    keys.on_modifiers = [this] { seat.modifiers(*this); };
     repeat_source = wl_event_loop_add_timer(seat.server.loop, [](void* data) {
         auto* g = static_cast<KeyboardGroup*>(data);
         return g->seat.key_repeat(*g);
     }, this);
-
-    // A new keymap (a layout change): clients get it when this one speaks.
-    this->keymap.connect(&group->keyboard.events.keymap, [this](void*) {
-        if (seat.seat_kb_ == &group->keyboard)
-            seat.use_keyboard(&group->keyboard, true);
-    });
 }
 
 KeyboardGroup::~KeyboardGroup() {
     wl_event_source_remove(repeat_source);
-    key.disconnect();
-    modifiers.disconnect();
-    keymap.disconnect();
     connections.clear();
-    if (seat.seat_kb_ == &group->keyboard)
+    if (seat.seat_kb_ == this)
         seat.seat_kb_ = nullptr;
-    if (device) {
-        wlr_keyboard_group_remove_keyboard(group, device.get());
-        wlr_keyboard_finish(device.get());
-    }
-    wlr_keyboard_group_destroy(group);
 }
 
 // --- seat ----------------------------------------------------------------------
 
-// A virtual pointer's device, as a backend's would be.
-struct Seat::VirtualPointer {
-    wlr_pointer pointer{};
-    wl::VirtualInputs::Pointer* vp = nullptr;
-    uint32_t axis_source = WL_POINTER_AXIS_SOURCE_WHEEL;
-    std::vector<wl::Connection> connections;
-};
-
 namespace {
-const wlr_keyboard_impl kVirtualKeyboard = {.name = "atrium-virtual-keyboard", .led_update = nullptr};
-const wlr_pointer_impl kVirtualPointer = {.name = "atrium-virtual-pointer"};
+
+AxisEvent axis_of(const wlr_pointer_axis_event* e) {
+    return {e->time_msec, uint32_t(e->orientation), e->delta, e->delta_discrete, uint32_t(e->source),
+            e->relative_direction == WL_POINTER_AXIS_RELATIVE_DIRECTION_INVERTED};
+}
+
 } // namespace
 
 Seat::Seat(Server& srv) : server(srv) {
@@ -145,8 +115,11 @@ Seat::Seat(Server& srv) : server(srv) {
             double dx = lx - cursor->x, dy = ly - cursor->y;
             motion(e->time_msec, &e->pointer->base, dx, dy, dx, dy);
         });
-    cursor_button_.connect(&cursor->events.button, [this](wlr_pointer_button_event* e) { button(e); });
-    cursor_axis_.connect(&cursor->events.axis, [this](wlr_pointer_axis_event* e) { axis(e); });
+    // A nested backend's pointers (the host's) come through the cursor.
+    cursor_button_.connect(&cursor->events.button, [this](wlr_pointer_button_event* e) {
+        button(ButtonEvent{e->time_msec, e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED});
+    });
+    cursor_axis_.connect(&cursor->events.axis, [this](wlr_pointer_axis_event* e) { axis(axis_of(e)); });
     cursor_frame_.connect(&cursor->events.frame, [this](void*) { server.wl->seat->pointer_frame(); });
 
     auto& c = connections_;
@@ -191,7 +164,14 @@ Seat::Seat(Server& srv) : server(srv) {
 
     keyboards_ = std::make_unique<KeyboardGroup>(*this, false);
     use_keyboard(physical_keyboard(), true);
+    // On a real session, input straight from libinput.
+    libinput_ = input::Libinput::create(server.session, server.loop, *this);
     update_capabilities();
+}
+
+void Seat::session_active(bool active) {
+    if (libinput_)
+        libinput_->set_active(active);
 }
 
 void Seat::new_virtual_keyboard(wl::VirtualInputs::Keyboard* vk) {
@@ -200,115 +180,95 @@ void Seat::new_virtual_keyboard(wl::VirtualInputs::Keyboard* vk) {
     auto group = std::make_unique<KeyboardGroup>(*this, true);
     KeyboardGroup* g = group.get();
     g->owner = vk->resource ? vk->resource->client() : nullptr;
-    g->device = std::make_unique<wlr_keyboard>();
-    wlr_keyboard* kb = g->device.get();
-    wlr_keyboard_init(kb, &kVirtualKeyboard, "virtual keyboard");
-    auto set_keymap = [kb, vk] {
+    auto set_keymap = [g, vk] {
         xkb_context* ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
         if (xkb_keymap* km = xkb_keymap_new_from_string(ctx, vk->keymap.c_str(), XKB_KEYMAP_FORMAT_TEXT_V1,
                                                         XKB_KEYMAP_COMPILE_NO_FLAGS)) {
-            wlr_keyboard_set_keymap(kb, km);
+            g->keys.set_keymap(km);
             xkb_keymap_unref(km);
         }
         xkb_context_unref(ctx);
+        // Its keymap goes to clients when it next speaks.
+        if (g->seat.seat_kb_ == g)
+            g->seat.use_keyboard(g, true);
     };
-    if (vk->keymap.empty())
-        wlr_keyboard_set_keymap(kb, g->group->keyboard.keymap);
-    else
+    if (!vk->keymap.empty())
         set_keymap();
-    wlr_keyboard_group_add_keyboard(g->group, kb);
     g->connections.push_back(vk->keymap_changed.connect(set_keymap));
-    g->connections.push_back(vk->key.connect([kb](uint32_t time, uint32_t key, bool pressed) {
-        wlr_keyboard_key_event e{};
-        e.time_msec = time;
-        e.keycode = key;
-        e.update_state = false;
-        e.state = pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED;
-        wlr_keyboard_notify_key(kb, &e);
-    }));
-    g->connections.push_back(vk->modifiers.connect([kb](const wl::Seat::Modifiers& m) {
-        wlr_keyboard_notify_modifiers(kb, m.depressed, m.latched, m.locked, m.group);
+    // It sends its modifiers itself: keys don't change them.
+    g->connections.push_back(vk->key.connect(
+        [g](uint32_t time, uint32_t key, bool pressed) { g->keys.key(time, key, pressed, false); }));
+    g->connections.push_back(vk->modifiers.connect([g](const wl::Seat::Modifiers& m) {
+        g->keys.set_modifiers({m.depressed, m.latched, m.locked, m.group});
     }));
     g->connections.push_back(vk->destroy.connect([this, g] {
         std::erase_if(virtual_keyboards_, [g](auto& p) { return p.get() == g; });
         // Gone (the IME quit): the seat's keyboard is the real one again.
         if (!seat_kb_)
             use_keyboard(physical_keyboard());
+        update_capabilities();
     }));
     virtual_keyboards_.push_back(std::move(group));
     update_capabilities();
 }
 
 void Seat::new_virtual_pointer(wl::VirtualInputs::Pointer* vp) {
-    auto p = std::make_unique<VirtualPointer>();
-    VirtualPointer* v = p.get();
-    v->vp = vp;
-    wlr_pointer_init(&v->pointer, &kVirtualPointer, "virtual pointer");
-    wlr_input_device* dev = &v->pointer.base;
-    wlr_cursor_attach_input_device(cursor, dev);
-    if (vp->output && vp->output->data)
-        wlr_cursor_map_input_to_output(cursor, dev, static_cast<Output*>(vp->output->data)->wlr);
-    auto& c = v->connections;
-    c.push_back(vp->motion.connect([v](uint32_t time, double dx, double dy) {
-        wlr_pointer_motion_event e{&v->pointer, time, dx, dy, dx, dy};
-        wl_signal_emit_mutable(&v->pointer.events.motion, &e);
+    // Its screen: absolute motion spans it (else every screen).
+    auto layout = [this, vp](double x, double y, double* lx, double* ly) {
+        const Output* o = vp->output ? static_cast<Output*>(vp->output->data) : nullptr;
+        const wlr_box b = o ? o->box : server.layout_box;
+        *lx = b.x + x * b.width;
+        *ly = b.y + y * b.height;
+    };
+    auto source = std::make_shared<uint32_t>(WL_POINTER_AXIS_SOURCE_WHEEL);
+    std::vector<wl::Connection> c;
+    c.push_back(vp->motion.connect([this](uint32_t time, double dx, double dy) { motion(time, nullptr, dx, dy, dx, dy); }));
+    c.push_back(vp->motion_absolute.connect([this, layout](uint32_t time, double x, double y) {
+        double lx, ly;
+        layout(x, y, &lx, &ly);
+        motion_absolute(time, lx, ly);
     }));
-    c.push_back(vp->motion_absolute.connect([v](uint32_t time, double x, double y) {
-        wlr_pointer_motion_absolute_event e{&v->pointer, time, x, y};
-        wl_signal_emit_mutable(&v->pointer.events.motion_absolute, &e);
+    c.push_back(vp->button.connect(
+        [this](uint32_t time, uint32_t b, bool pressed) { button(ButtonEvent{time, b, pressed}); }));
+    c.push_back(vp->axis_source.connect([source](uint32_t s) { *source = s; }));
+    c.push_back(vp->axis.connect([this, source](uint32_t time, uint32_t a, double value, int32_t discrete) {
+        axis(AxisEvent{time, a, value, discrete * 120, *source, false});
     }));
-    c.push_back(vp->button.connect([v](uint32_t time, uint32_t button, bool pressed) {
-        wlr_pointer_button_event e{&v->pointer, time, button,
-                                   pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED};
-        wl_signal_emit_mutable(&v->pointer.events.button, &e);
+    c.push_back(vp->axis_stop.connect(
+        [this, source](uint32_t time, uint32_t a) { axis(AxisEvent{time, a, 0, 0, *source, false}); }));
+    c.push_back(vp->frame.connect([this] { server.wl->seat->pointer_frame(); }));
+    auto* list = &virtual_pointers_.emplace_back();
+    c.push_back(vp->destroy.connect([this, list] {
+        // Off its signals after this one returns: it is calling us.
+        wl_event_loop_add_idle(server.loop, [](void* data) {
+            auto* seat = static_cast<Seat*>(data);
+            std::erase_if(seat->virtual_pointers_, [](const auto& v) {
+                return std::ranges::none_of(v, [](const wl::Connection& k) { return k.connected(); });
+            });
+        }, this);
+        for (auto& k : *list)
+            k.disconnect();
     }));
-    c.push_back(vp->axis_source.connect([v](uint32_t source) { v->axis_source = source; }));
-    c.push_back(vp->axis.connect([v](uint32_t time, uint32_t axis, double value, int32_t discrete) {
-        wlr_pointer_axis_event e{};
-        e.pointer = &v->pointer;
-        e.time_msec = time;
-        e.source = wl_pointer_axis_source(v->axis_source);
-        e.orientation = wl_pointer_axis(axis);
-        e.relative_direction = WL_POINTER_AXIS_RELATIVE_DIRECTION_IDENTICAL;
-        e.delta = value;
-        e.delta_discrete = discrete * 120;
-        wl_signal_emit_mutable(&v->pointer.events.axis, &e);
-    }));
-    c.push_back(vp->axis_stop.connect([v](uint32_t time, uint32_t axis) {
-        wlr_pointer_axis_event e{};
-        e.pointer = &v->pointer;
-        e.time_msec = time;
-        e.source = wl_pointer_axis_source(v->axis_source);
-        e.orientation = wl_pointer_axis(axis);
-        wl_signal_emit_mutable(&v->pointer.events.axis, &e);
-    }));
-    c.push_back(vp->frame.connect([v] { wl_signal_emit_mutable(&v->pointer.events.frame, &v->pointer); }));
-    c.push_back(vp->destroy.connect([this, v] {
-        wlr_cursor_detach_input_device(cursor, &v->pointer.base);
-        v->connections.clear();
-        wlr_pointer_finish(&v->pointer);
-        std::erase_if(virtual_pointers_, [v](auto& p) { return p.get() == v; });
-    }));
-    virtual_pointers_.push_back(std::move(p));
+    *list = std::move(c);
 }
 
 // The keyboard clients hear: its keymap goes out when it changes.
-void Seat::use_keyboard(wlr_keyboard* kb, bool force) {
+void Seat::use_keyboard(KeyboardGroup* kb, bool force) {
     if (!kb || (kb == seat_kb_ && !force))
         return;
     seat_kb_ = kb;
-    if (kb->keymap) {
-        char* text = xkb_keymap_get_as_string(kb->keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
+    if (xkb_keymap* keymap = kb->keys.keymap()) {
+        char* text = xkb_keymap_get_as_string(keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
         if (text && sent_keymap_ != text) {
             sent_keymap_ = text;
             server.wl->seat->set_keymap(sent_keymap_);
             // Clients start this keymap with no modifiers: its own go along.
-            const wlr_keyboard_modifiers& m = kb->modifiers;
+            const input::Modifiers& m = kb->keys.modifiers();
             server.wl->seat->keyboard_modifiers({m.depressed, m.latched, m.locked, m.group});
         }
         free(text);
     }
-    server.wl->seat->set_repeat_info(kb->repeat_info.rate, kb->repeat_info.delay);
+    server.wl->seat->set_repeat_info(kb->keys.repeat_rate, kb->keys.repeat_delay);
 }
 
 void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
@@ -388,12 +348,8 @@ Seat::~Seat() {
     cursor_gone_.disconnect();
     drag_ended_.disconnect();
     drag_icon_gone_.disconnect();
-    for (auto& v : virtual_pointers_) {
-        v->connections.clear();
-        wlr_cursor_detach_input_device(cursor, &v->pointer.base);
-        wlr_pointer_finish(&v->pointer);
-    }
     virtual_pointers_.clear();
+    libinput_.reset();
     pointers_.clear();
     virtual_keyboards_.clear();
     keyboards_.reset();
@@ -422,19 +378,13 @@ void Seat::set_x11_cursor() {
 
 void Seat::apply_keyboard_config() {
     xkb_keymap* keymap = compile_keymap(server.config);
-    auto apply = [&](KeyboardGroup& g) {
-        wlr_keyboard_set_keymap(&g.group->keyboard, keymap);
-        wlr_keyboard_set_repeat_info(&g.group->keyboard, server.config.repeat_rate,
-                                     server.config.repeat_delay);
-    };
-    // The keyboards themselves too: a group only takes keymaps from its
-    // members, never gives one to them, and it's their state (the layout a
-    // switch key picks) it copies.
-    for (auto& k : physical_)
-        wlr_keyboard_set_keymap(k->wlr, keymap);
-    apply(*keyboards_);
+    for (KeyboardGroup* g : {keyboards_.get()}) {
+        g->keys.set_keymap(keymap);
+        g->keys.set_repeat(server.config.repeat_rate, server.config.repeat_delay);
+    }
+    // Virtual keyboards keep the keymap their client gave; repeat is ours.
     for (auto& g : virtual_keyboards_)
-        apply(*g);
+        g->keys.set_repeat(server.config.repeat_rate, server.config.repeat_delay);
     xkb_keymap_unref(keymap);
     use_keyboard(physical_keyboard(), true);
     // A new keymap starts at its first layout, and the names may differ.
@@ -506,6 +456,7 @@ void Seat::set_default_cursor() {
 
 // --- devices -----------------------------------------------------------------
 
+// A nested backend's devices: the host's keyboard and pointer.
 void Seat::new_input(wlr_input_device* device) {
     switch (device->type) {
     case WLR_INPUT_DEVICE_KEYBOARD:
@@ -515,33 +466,34 @@ void Seat::new_input(wlr_input_device* device) {
         add_pointer(wlr_pointer_from_input_device(device));
         break;
     default:
-        break;  // touch, tablets, switches: not yet
+        break;
     }
     update_capabilities();
 }
 
 void Seat::add_keyboard(wlr_keyboard* keyboard) {
-    wlr_keyboard_set_keymap(keyboard, keyboards_->group->keyboard.keymap);
-    wlr_keyboard_group_add_keyboard(keyboards_->group, keyboard);
-    auto kb = std::make_unique<PhysicalKeyboard>(keyboard);
+    auto kb = std::make_unique<PhysicalKeyboard>();
     PhysicalKeyboard* raw = kb.get();
+    raw->wlr = keyboard;
+    // Its keys go through atrium's own state; the host's modifiers (and the
+    // host's layout in them) are not ours.
+    raw->key.connect(&keyboard->events.key, [this](wlr_keyboard_key_event* e) {
+        keyboards_->keys.key(e->time_msec, e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED);
+    });
     raw->destroy.connect(&keyboard->base.events.destroy, [this, raw](void*) {
         std::erase_if(physical_, [raw](auto& k) { return k.get() == raw; });
+        update_capabilities();
     });
     physical_.push_back(std::move(kb));
-    // A keyboard plugged in types in the layout already in use.
-    if (last_layout_)
-        set_layout(last_layout_);
 }
 
 uint32_t Seat::layout() const {
-    const wlr_keyboard* kb = &keyboards_->group->keyboard;
-    return kb->xkb_state ? xkb_state_serialize_layout(kb->xkb_state, XKB_STATE_LAYOUT_EFFECTIVE) : 0;
+    return keyboards_->keys.layout();
 }
 
 std::vector<std::string> Seat::layout_names() const {
     std::vector<std::string> names;
-    if (xkb_keymap* keymap = keyboards_->group->keyboard.keymap)
+    if (xkb_keymap* keymap = keyboards_->keys.keymap())
         for (xkb_layout_index_t i = 0; i < xkb_keymap_num_layouts(keymap); ++i) {
             const char* name = xkb_keymap_layout_get_name(keymap, i);
             names.emplace_back(name ? name : "");
@@ -550,31 +502,20 @@ std::vector<std::string> Seat::layout_names() const {
 }
 
 void Seat::set_layout(uint32_t index) {
-    wlr_keyboard* group = &keyboards_->group->keyboard;
-    const uint32_t count = group->keymap ? xkb_keymap_num_layouts(group->keymap) : 0;
+    xkb_keymap* keymap = keyboards_->keys.keymap();
+    const uint32_t count = keymap ? xkb_keymap_num_layouts(keymap) : 0;
     if (count == 0)
         return;
     index %= count;
     const bool changed = index != last_layout_;
     last_layout_ = index;
-    for (auto& k : physical_)
-        wlr_keyboard_notify_modifiers(k->wlr, k->wlr->modifiers.depressed, k->wlr->modifiers.latched,
-                                      k->wlr->modifiers.locked, index);
-    // No keyboard at all (nested, or unplugged): the group itself.
-    if (physical_.empty())
-        wlr_keyboard_notify_modifiers(group, group->modifiers.depressed, group->modifiers.latched,
-                                      group->modifiers.locked, index);
+    keyboards_->keys.set_layout(index);
     if (changed)
         server.keyboard_layout_changed();
 }
 
 void Seat::add_pointer(wlr_pointer* pointer) {
-    if (wlr_input_device_is_libinput(&pointer->base))
-        if (libinput_device* dev = wlr_libinput_get_device_handle(&pointer->base))
-            configure_libinput(dev);
     wlr_cursor_attach_input_device(cursor, &pointer->base);
-
-    // Remembered so settings changes can reach devices already plugged in.
     auto dev = std::make_unique<PointerDevice>(pointer);
     PointerDevice* raw = dev.get();
     raw->destroy.connect(&pointer->base.events.destroy, [this, raw](void*) {
@@ -583,18 +524,22 @@ void Seat::add_pointer(wlr_pointer* pointer) {
     pointers_.push_back(std::move(dev));
 }
 
-std::vector<wlr_pointer*> Seat::pointer_devices() const {
-    std::vector<wlr_pointer*> out;
+std::vector<std::pair<std::string, libinput_device*>> Seat::pointer_devices() const {
+    std::vector<std::pair<std::string, libinput_device*>> out;
+    if (libinput_)
+        for (const auto& d : libinput_->devices())
+            if (d->pointer)
+                out.emplace_back(d->name, d->handle);
     for (const auto& p : pointers_)
-        out.push_back(p->wlr);
+        out.emplace_back(p->wlr->base.name ? p->wlr->base.name : "", nullptr);
     return out;
 }
 
 void Seat::apply_pointer_config() {
-    for (auto& p : pointers_)
-        if (wlr_input_device_is_libinput(&p->wlr->base))
-            if (libinput_device* dev = wlr_libinput_get_device_handle(&p->wlr->base))
-                configure_libinput(dev);
+    if (libinput_)
+        for (const auto& d : libinput_->devices())
+            if (d->pointer)
+                configure_libinput(d->handle);
 }
 
 void Seat::configure_libinput(libinput_device* dev) {
@@ -629,10 +574,13 @@ void Seat::configure_libinput(libinput_device* dev) {
 }
 
 void Seat::update_capabilities() {
-    // Always advertise a pointer: there is always a cursor.
-    uint32_t caps = wl::Seat::Pointer;
-    if (!wl_list_empty(&keyboards_->group->devices) || !virtual_keyboards_.empty())
-        caps |= wl::Seat::Keyboard;
+    // Always a pointer (there is always a cursor) and a keyboard: keys come
+    // from virtual keyboards too, which come and go with each use (vc, an
+    // on-screen keyboard), and a capability that went takes the app's
+    // wl_keyboard with it.
+    uint32_t caps = wl::Seat::Pointer | wl::Seat::Keyboard;
+    if (libinput_ && std::ranges::any_of(libinput_->devices(), [](const auto& d) { return d->touch; }))
+        caps |= wl::Seat::Touch;
     server.wl->seat->set_capabilities(caps);
 }
 
@@ -640,8 +588,8 @@ void Seat::update_capabilities() {
 
 // What was typed, for snippet keywords: characters count, Backspace takes
 // one back, anything that moves the caret starts over.
-bool Seat::watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym) {
-    const uint32_t mods = wlr_keyboard_get_modifiers(kb);
+bool Seat::watch_keyword(KeyboardGroup& g, uint32_t keycode, xkb_keysym_t sym) {
+    const uint32_t mods = g.keys.mod_mask();
     if (sym == XKB_KEY_Shift_L || sym == XKB_KEY_Shift_R || sym == XKB_KEY_Caps_Lock || sym == XKB_KEY_ISO_Level3_Shift)
         return false;
     if (mods & (WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO)) {
@@ -652,7 +600,7 @@ bool Seat::watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym) {
         server.keywords.backspace();
         return false;
     }
-    const uint32_t c = xkb_state_key_get_utf32(kb->xkb_state, keycode);
+    const uint32_t c = xkb_state_key_get_utf32(g.keys.state(), keycode);
     if (c < 0x20 || c == 0x7f) {
         server.keywords.reset();
         return false;
@@ -673,14 +621,13 @@ void Seat::keyboard_enter(wl::Surface* surface) {
     // Never enter with no keyboard (and so no keymap) while a real one exists.
     if (!seat_kb_)
         use_keyboard(physical_keyboard());
-    wlr_keyboard* kb = seat_kb_;
+    const input::Keys& keys = seat_kb_->keys;
     std::vector<uint32_t> held;
-    for (size_t i = 0; i < kb->num_keycodes; ++i)
-        if (!consumed_[kb->keycodes[i]])
-            held.push_back(kb->keycodes[i]);
-    server.wl->seat->keyboard_enter(surface, held,
-                                    {kb->modifiers.depressed, kb->modifiers.latched, kb->modifiers.locked,
-                                     kb->modifiers.group});
+    for (uint32_t k : keys.pressed())
+        if (!consumed_[k])
+            held.push_back(k);
+    const input::Modifiers& m = keys.modifiers();
+    server.wl->seat->keyboard_enter(surface, held, {m.depressed, m.latched, m.locked, m.group});
 }
 
 void Seat::clear_keyboard_focus() {
@@ -709,21 +656,18 @@ bool Seat::shortcuts_inhibited() const {
     return i && i->active;
 }
 
-void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
-    const uint32_t keycode = e->keycode + 8;  // evdev → xkb
-    wlr_keyboard* kb = &g.group->keyboard;
-    xkb_layout_index_t layout = xkb_state_key_get_layout(kb->xkb_state, keycode);
-
+void Seat::key(KeyboardGroup& g, uint32_t time_ms, uint32_t code, bool pressed) {
+    const uint32_t keycode = code + 8;  // evdev → xkb
     // Match bindings on the unshifted and shifted symbol, so Super+Shift+E
     // is written with `e` and punctuation binds still work.
     for (int level = 0; level < 2; ++level)
-        g.syms[level] = sym_at_level(kb->keymap, keycode, layout, level);
-    g.mods = wlr_keyboard_get_modifiers(kb);
+        g.syms[level] = g.keys.sym_at(code, xkb_level_index_t(level));
+    g.mods = g.keys.mod_mask();
 
     server.wl->idle_notifier->activity();
 
     const Keybind* bind = nullptr;
-    if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
+    if (pressed)
         for (xkb_keysym_t sym : g.syms)
             if ((bind = find_binding(g.mods, sym)))
                 break;
@@ -731,28 +675,28 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     // An app's shortcut is held, not repeated.
     if (bind && bind->action == Action::Portal) {
         wl_event_source_timer_update(g.repeat_source, 0);
-        consumed_[e->keycode] = true;
-        portal_held_[e->keycode] = bind->arg;
+        consumed_[code] = true;
+        portal_held_[code] = bind->arg;
         server.run_action(*bind);
         return;
     }
 
-    if (bind && kb->repeat_info.delay > 0)
-        wl_event_source_timer_update(g.repeat_source, kb->repeat_info.delay);
+    if (bind && g.keys.repeat_delay > 0)
+        wl_event_source_timer_update(g.repeat_source, g.keys.repeat_delay);
     else
         wl_event_source_timer_update(g.repeat_source, 0);
 
     if (bind) {
-        consumed_[e->keycode] = true;
+        consumed_[code] = true;
         server.run_action(*bind);
         return;
     }
 
     // The release of a key whose press ran a binding is not the client's.
-    if (consumed_[e->keycode]) {
-        if (e->state == WL_KEYBOARD_KEY_STATE_RELEASED) {
-            consumed_[e->keycode] = false;
-            if (auto held = portal_held_.find(e->keycode); held != portal_held_.end()) {
+    if (consumed_[code]) {
+        if (!pressed) {
+            consumed_[code] = false;
+            if (auto held = portal_held_.find(code); held != portal_held_.end()) {
                 server.portal_shortcut(held->second, false);
                 portal_held_.erase(held);
             }
@@ -760,16 +704,16 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
-    if (server.switcher->active() && e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-        consumed_[e->keycode] = true;
+    if (server.switcher->active() && pressed) {
+        consumed_[code] = true;
         server.switcher->key(g.syms[0]);
         return;
     }
 
     // The overview takes key presses; releases still reach the client, which
     // may have seen the press before the overview opened.
-    if (server.overview->active() && e->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-        consumed_[e->keycode] = true;
+    if (server.overview->active() && pressed) {
+        consumed_[code] = true;
         server.overview->key(g.syms[0]);
         return;
     }
@@ -777,18 +721,18 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     // The key that completes a snippet keyword never reaches the app: what it
     // did get of the keyword is taken back and the snippet typed instead, in
     // one go, with no keystroke still on its way to race the replacement.
-    if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED && server.config.snippet_expansion && !server.keywords.empty() &&
-        watch_keyword(kb, keycode, g.syms[0])) {
-        consumed_[e->keycode] = true;
+    if (pressed && server.config.snippet_expansion && !server.keywords.empty() &&
+        watch_keyword(g, keycode, g.syms[0])) {
+        consumed_[code] = true;
         return;
     }
 
     // An input method composing text takes the keys first.
-    if (server.input_method && server.input_method->forward_key(kb, g.owner, e))
+    if (server.input_method && server.input_method->forward_key(g.keys, g.owner, time_ms, code, pressed))
         return;
 
-    use_keyboard(kb);
-    server.wl->seat->keyboard_key(e->time_msec, e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED);
+    use_keyboard(&g);
+    server.wl->seat->keyboard_key(time_ms, code, pressed);
     // A virtual keyboard (an IME typing) speaks for itself only for its own
     // keys: the seat goes back to the real one, whose keymap every client
     // gets. Left on a virtual one, a client connecting later gets no keymap
@@ -800,44 +744,33 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 // Held on any keyboard: the seat speaks for the real one between a virtual
 // keyboard's keys, but Super held on an on-screen keyboard still counts.
 uint32_t Seat::held_modifiers() const {
-    uint32_t mods = wlr_keyboard_get_modifiers(physical_keyboard());
+    uint32_t mods = keyboards_->keys.mod_mask();
     for (const auto& g : virtual_keyboards_)
-        mods |= wlr_keyboard_get_modifiers(&g->group->keyboard);
+        mods |= g->keys.mod_mask();
     return mods;
 }
 
-wlr_keyboard* Seat::physical_keyboard() const {
-    return &keyboards_->group->keyboard;
-}
-
 void Seat::modifiers(KeyboardGroup& g) {
-    if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.owner)) {
-        const wlr_keyboard_modifiers& m = g.group->keyboard.modifiers;
-        use_keyboard(&g.group->keyboard);
+    if (!server.input_method || !server.input_method->forward_modifiers(g.keys, g.owner)) {
+        const input::Modifiers& m = g.keys.modifiers();
+        use_keyboard(&g);
         server.wl->seat->keyboard_modifiers({m.depressed, m.latched, m.locked, m.group});
         if (g.is_virtual)
             use_keyboard(physical_keyboard());
     }
     // Letting go of Alt picks the window the switcher is on.
-    server.switcher->modifiers(wlr_keyboard_get_modifiers(&g.group->keyboard));
+    server.switcher->modifiers(g.keys.mod_mask());
+    // A layout switch key (grp:...) on the physical keyboards.
     if (!g.is_virtual && layout() != last_layout_) {
-        // Nested, the host's modifiers carry the host's layout: atrium's
-        // own stays (a switch key then only works on real keyboards).
-        const bool nested = std::ranges::any_of(physical_, [](auto& k) { return wlr_input_device_is_wl(&k->wlr->base); });
-        if (nested) {
-            set_layout(last_layout_);
-        } else {
-            last_layout_ = layout();
-            server.keyboard_layout_changed();
-        }
+        last_layout_ = layout();
+        server.keyboard_layout_changed();
     }
 }
 
 int Seat::key_repeat(KeyboardGroup& g) {
-    wlr_keyboard* kb = &g.group->keyboard;
-    if (kb->repeat_info.rate <= 0)
+    if (g.keys.repeat_rate <= 0)
         return 0;
-    wl_event_source_timer_update(g.repeat_source, 1000 / kb->repeat_info.rate);
+    wl_event_source_timer_update(g.repeat_source, 1000 / g.keys.repeat_rate);
     for (xkb_keysym_t sym : g.syms)
         if (const Keybind* bind = find_binding(g.mods, sym)) {
             server.run_action(*bind);
@@ -1049,6 +982,18 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     pointer_focus(hit.view, hit.surface, hit.sx, hit.sy, time);
 }
 
+// The pointer to a point in the layout (a tablet, a touchscreen pointer, a
+// virtual pointer's absolute motion).
+void Seat::motion_absolute(uint32_t time, double lx, double ly) {
+    if (!time) {  // virtual pointers send time 0 and expect a warp
+        wlr_cursor_warp_closest(cursor, nullptr, lx, ly);
+        motion(0, nullptr, 0, 0, 0, 0);
+        return;
+    }
+    const double dx = lx - cursor->x, dy = ly - cursor->y;
+    motion(time, nullptr, dx, dy, dx, dy);
+}
+
 void Seat::pointer_focus(View*, wl::Surface* surface, double sx, double sy, uint32_t time) {
     wl::Seat& ws = *server.wl->seat;
     if (!surface) {
@@ -1068,22 +1013,23 @@ void Seat::pointer_focus(View*, wl::Surface* surface, double sx, double sy, uint
     ws.pointer_motion(time, sx, sy);
 }
 
-void Seat::button(wlr_pointer_button_event* e) {
-    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED)
+void Seat::button(const ButtonEvent& event) {
+    const ButtonEvent* e = &event;
+    if (e->pressed)
         server.keywords.reset();  // a click moves the caret
     server.wl->idle_notifier->activity();
 
     // A drag and drop ends with the button: dropped where it is.
     if (wl::Drag* drag = server.wl->data->drag()) {
-        if (e->state == WL_POINTER_BUTTON_STATE_RELEASED)
-            drag->drop(e->time_msec);
+        if (!e->pressed)
+            drag->drop(e->time_ms);
         mode = Mode::Normal;
         return;
     }
 
     // A press on the overview is the overview's, and so is its release, even
     // when the overview has gone by then.
-    const bool pressed = e->state == WL_POINTER_BUTTON_STATE_PRESSED;
+    const bool pressed = e->pressed;
     if (server.overview->active() || (!pressed && overview_press_)) {
         overview_press_ = pressed;
         server.overview->button(cursor->x, cursor->y, e->button, pressed);
@@ -1095,12 +1041,12 @@ void Seat::button(wlr_pointer_button_event* e) {
         return;
     }
 
-    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+    if (e->pressed) {
         mode = Mode::Pressed;
         if (Output* o = server.output_at(cursor->x, cursor->y))
             server.focused_output = o;
         if (server.locked) {
-            server.wl->seat->pointer_button(e->time_msec, e->button, true);
+            server.wl->seat->pointer_button(e->time_ms, e->button, true);
             return;
         }
 
@@ -1121,7 +1067,7 @@ void Seat::button(wlr_pointer_button_event* e) {
                 begin_resize(zone.view, zone.edges);
             return;
         }
-        if (hit.titlebar && titlebar_button(e, hit))
+        if (hit.titlebar && titlebar_button(*e, hit))
             return;
         // Clicking the dimmed screen puts a secret space away.
         if (hit.backdrop) {
@@ -1149,7 +1095,7 @@ void Seat::button(wlr_pointer_button_event* e) {
         }
     } else {
         if (press_bar_) {
-            titlebar_button(e, server.hit_test(cursor->x, cursor->y));
+            titlebar_button(*e, server.hit_test(cursor->x, cursor->y));
             return;
         }
         if (!server.locked && (mode == Mode::Move || mode == Mode::Resize)) {
@@ -1171,7 +1117,7 @@ void Seat::button(wlr_pointer_button_event* e) {
         }
         mode = Mode::Normal;
     }
-    server.wl->seat->pointer_button(e->time_msec, e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED);
+    server.wl->seat->pointer_button(e->time_ms, e->button, e->pressed);
 }
 
 // --- title bars and frame edges -----------------------------------------------------
@@ -1224,9 +1170,10 @@ void Seat::set_titlebar_hover(Titlebar* bar, int part) {
 }
 
 // Returns true when the event was the title bar's.
-bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
+bool Seat::titlebar_button(const ButtonEvent& event, const Hit& hit) {
+    const ButtonEvent* e = &event;
     using Part = Titlebar::Part;
-    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
+    if (e->pressed) {
         const Part part = hit.titlebar->part_at(hit.sx, hit.sy);
         if (e->button != BTN_LEFT) {
             server.focus_view(hit.view);
@@ -1237,9 +1184,9 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
         if (part == Part::Bar) {
             server.focus_view(hit.view);
             // Double-click zooms, like macOS.
-            const bool twice = last_bar_click_view_ == hit.view && e->time_msec - last_bar_click_ms_ < 400;
+            const bool twice = last_bar_click_view_ == hit.view && e->time_ms - last_bar_click_ms_ < 400;
             last_bar_click_view_ = twice ? nullptr : hit.view;
-            last_bar_click_ms_ = e->time_msec;
+            last_bar_click_ms_ = e->time_ms;
             // A tile or a secret window moves only with Mod + drag.
             if (hit.view->layout_owned())
                 ;
@@ -1289,7 +1236,8 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
     return true;
 }
 
-void Seat::axis(wlr_pointer_axis_event* e) {
+void Seat::axis(const AxisEvent& event) {
+    const AxisEvent* e = &event;
     server.wl->idle_notifier->activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a
@@ -1297,8 +1245,8 @@ void Seat::axis(wlr_pointer_axis_event* e) {
     const uint32_t mods = clean_mods(held_modifiers());
     if (!server.locked && e->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL &&
         (mods == server.config.mod || mods == (server.config.mod | WLR_MODIFIER_ALT))) {
-        const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->delta_discrete != 0;
-        space_scroll_ += wheel ? e->delta_discrete / 120.0 : e->delta / 40.0;
+        const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->value120 != 0;
+        space_scroll_ += wheel ? e->value120 / 120.0 : e->delta / 40.0;
         while (std::abs(space_scroll_) >= 1) {
             const int step = space_scroll_ > 0 ? 1 : -1;
             space_scroll_ -= step;
@@ -1312,9 +1260,8 @@ void Seat::axis(wlr_pointer_axis_event* e) {
         return;
     }
     space_scroll_ = 0;
-    server.wl->seat->pointer_axis(e->time_msec, e->orientation, e->delta, e->delta_discrete,
-                                  wl::Seat::AxisSource(e->source),
-                                  e->relative_direction == WL_POINTER_AXIS_RELATIVE_DIRECTION_INVERTED);
+    server.wl->seat->pointer_axis(e->time_ms, e->orientation, e->delta, e->value120, wl::Seat::AxisSource(e->source),
+                                  e->inverted);
 }
 
 // --- interactive move / resize ---------------------------------------------------

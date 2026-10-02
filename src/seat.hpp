@@ -1,13 +1,17 @@
 #pragma once
 #include "config.hpp"
+#include "input/keys.hpp"
+#include "input/libinput.hpp"
 #include "scene/scene.hpp"
 #include "listener.hpp"
 #include "shake.hpp"
 #include "wl/data_device.hpp"
 #include "wl/ime.hpp"
 #include "wl/input_ext.hpp"
+#include "wl/tablet.hpp"
 
 #include <array>
+#include <list>
 #include <string>
 #include <unordered_map>
 #include <memory>
@@ -30,20 +34,29 @@ struct KeyboardGroup {
     class Seat& seat;
     const bool is_virtual;
     wl_client* owner = nullptr;  // a virtual keyboard's client
-    wlr_keyboard_group* group = nullptr;
+    input::Keys keys;
     wl_event_source* repeat_source = nullptr;
     xkb_keysym_t syms[2]{};  // level 0 and level 1 of the last key pressed
     uint32_t mods = 0;
-
-    Listener<wlr_keyboard_key_event> key;
-    Listener<> modifiers;
-    Listener<> keymap;
-    // A virtual keyboard's own: the device the client types through.
-    std::unique_ptr<wlr_keyboard> device;
-    std::vector<wl::Connection> connections;
+    std::vector<wl::Connection> connections;  // a virtual keyboard's
 };
 
-class Seat {
+// A pointer button or a scroll, from whichever device.
+struct ButtonEvent {
+    uint32_t time_ms;
+    uint32_t button;
+    bool pressed;
+};
+struct AxisEvent {
+    uint32_t time_ms;
+    uint32_t orientation;  // wl_pointer.axis
+    double delta;
+    int32_t value120;      // wheel clicks x120 (0: none)
+    uint32_t source;       // wl_pointer.axis_source
+    bool inverted;         // natural scrolling
+};
+
+class Seat : private input::Libinput::Handler {
 public:
     explicit Seat(Server& server);
     ~Seat();
@@ -54,7 +67,7 @@ public:
     void backend_gone() { new_input_.disconnect(); }
 
     // The physical keyboards, as one (what an input method grabs).
-    wlr_keyboard* physical_keyboard() const;
+    KeyboardGroup* physical_keyboard() const { return keyboards_.get(); }
     uint32_t held_modifiers() const;
 
     enum class Mode { Normal, Pressed, Move, Resize };
@@ -80,8 +93,11 @@ public:
     std::vector<std::string> layout_names() const;
     void set_layout(uint32_t index);
     void apply_pointer_config();
-    // Pointing devices plugged in now.
-    std::vector<wlr_pointer*> pointer_devices() const;
+    // Pointing devices plugged in now, with their libinput device (null
+    // nested).
+    std::vector<std::pair<std::string, libinput_device*>> pointer_devices() const;
+    // The session switched VT (true: back to ours).
+    void session_active(bool active);
     void apply_cursor_theme();
     void set_default_cursor();
 #ifdef ATRIUM_XWAYLAND
@@ -89,7 +105,7 @@ public:
     void set_x11_cursor();
 #endif
     // The keyboard whose keymap and modifiers clients get.
-    void use_keyboard(wlr_keyboard* kb, bool force = false);
+    void use_keyboard(KeyboardGroup* kb, bool force = false);
 
     Server& server;
     wlr_cursor* cursor = nullptr;
@@ -111,13 +127,39 @@ private:
     void new_input(wlr_input_device* device);
     void add_keyboard(wlr_keyboard* keyboard);
     void add_pointer(wlr_pointer* pointer);
+
+    // libinput's devices and events (seat_input.cpp).
+    void device_added(input::Device& d) override;
+    void device_removed(input::Device& d) override;
+    void key(input::Device& d, uint32_t time_ms, uint32_t keycode, bool pressed) override;
+    void motion(input::Device& d, uint32_t time_ms, double dx, double dy, double dx_unaccel,
+                double dy_unaccel) override;
+    void motion_absolute(input::Device& d, uint32_t time_ms, double x, double y) override;
+    void button(input::Device& d, uint32_t time_ms, uint32_t button, bool pressed) override;
+    void scroll(input::Device& d, const input::Scroll& s) override;
+    void frame(input::Device& d) override;
+    void swipe(input::Device& d, libinput_event_gesture* e, libinput_event_type type) override;
+    void pinch(input::Device& d, libinput_event_gesture* e, libinput_event_type type) override;
+    void hold(input::Device& d, libinput_event_gesture* e, libinput_event_type type) override;
+    void touch(input::Device& d, libinput_event_touch* e, libinput_event_type type) override;
+    void tablet_tool(input::Device& d, libinput_event_tablet_tool* e, libinput_event_type type) override;
+    void tablet_pad(input::Device& d, libinput_event_tablet_pad* e, libinput_event_type type) override;
+    void toggle(input::Device& d, libinput_switch which, bool on) override;
+    // A point 0..1 on the device's screen (or all of them) in the layout.
+    void to_layout(const input::Device& d, double x, double y, double* lx, double* ly) const;
+    // A touch or tablet's point: the surface there, and where on it.
+    struct SurfaceAt {
+        wl::Surface* surface = nullptr;
+        double sx = 0, sy = 0;
+    };
+    SurfaceAt surface_at(double lx, double ly) const;
     void update_capabilities();
     void configure_libinput(libinput_device* device);
 
-    void key(KeyboardGroup& group, wlr_keyboard_key_event* event);
+    void key(KeyboardGroup& group, uint32_t time_ms, uint32_t keycode, bool pressed);
     // A snippet keyword being typed; true when this key completed one (and
     // the shell was asked to type the snippet instead of it).
-    bool watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym);
+    bool watch_keyword(KeyboardGroup& g, uint32_t keycode, xkb_keysym_t sym);
     void modifiers(KeyboardGroup& group);
     int key_repeat(KeyboardGroup& group);
     // While locked, only bindings marked for the lock screen.
@@ -126,8 +168,9 @@ private:
 
     void motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                 double dx_unaccel, double dy_unaccel);
-    void button(wlr_pointer_button_event* event);
-    void axis(wlr_pointer_axis_event* event);
+    void motion_absolute(uint32_t time, double lx, double ly);
+    void button(const ButtonEvent& event);
+    void axis(const AxisEvent& event);
     double space_scroll_ = 0;  // Mod + scroll, toward the next space step
     void pointer_focus(View* view, wl::Surface* surface, double sx, double sy, uint32_t time);
 
@@ -173,7 +216,7 @@ private:
     };
     ResizeZone resize_zone(double lx, double ly, const Hit& hit) const;
     void set_titlebar_hover(Titlebar* bar, int part);
-    bool titlebar_button(wlr_pointer_button_event* e, const Hit& hit);
+    bool titlebar_button(const ButtonEvent& e, const Hit& hit);
 
     Titlebar* hover_bar_ = nullptr;   // title bar showing hover state
     Titlebar* press_bar_ = nullptr;   // title bar whose button is held
@@ -181,24 +224,38 @@ private:
     View* last_bar_click_view_ = nullptr;
     uint32_t last_bar_click_ms_ = 0;
 
+    // Pointers and keyboards of a nested backend (the host's).
     struct PointerDevice {
         wlr_pointer* wlr;
         Listener<> destroy;
     };
     std::vector<std::unique_ptr<PointerDevice>> pointers_;
-
-    // The physical keyboards, each told when the layout is picked for them
-    // (the group copies its members' state).
     struct PhysicalKeyboard {
         wlr_keyboard* wlr;
+        Listener<wlr_keyboard_key_event> key;
         Listener<> destroy;
     };
     std::vector<std::unique_ptr<PhysicalKeyboard>> physical_;
     uint32_t last_layout_ = 0;
 
+    // libinput's, on a real session.
+    std::unique_ptr<input::Libinput> libinput_;
+    size_t libinput_keyboards_ = 0;
+    // A swipe in progress: how far it went, with how many fingers.
+    struct Swipe {
+        uint32_t fingers = 0;
+        double dx = 0, dy = 0;
+        bool ours = false;  // atrium's (spaces, overview), or the client's
+    } swipe_;
+    // Touch points down, by id: what they touched.
+    std::unordered_map<int32_t, wl::Surface*> touches_;
+    // Tablets' and tools' protocol objects, by libinput's.
+    std::unordered_map<libinput_tablet_tool*, wl::Tablets::Tool*> tools_;
+    bool lid_closed_ = false;
+
     wl::PointerConstraints::Constraint* active_constraint_ = nullptr;
 
-    wlr_keyboard* seat_kb_ = nullptr;  // see use_keyboard
+    KeyboardGroup* seat_kb_ = nullptr;  // see use_keyboard
     std::string sent_keymap_;
     wl::Surface* cursor_surface_ = nullptr;
     int cursor_hot_x_ = 0, cursor_hot_y_ = 0;
@@ -206,8 +263,7 @@ private:
     scene::Node* drag_icon_ = nullptr;
     Listener<> drag_icon_gone_;
     wl::Connection drag_ended_;
-    struct VirtualPointer;
-    std::vector<std::unique_ptr<VirtualPointer>> virtual_pointers_;
+    std::list<std::vector<wl::Connection>> virtual_pointers_;  // each one's connections
 
     Listener<wlr_input_device> new_input_;
     Listener<wlr_pointer_motion_event> cursor_motion_;

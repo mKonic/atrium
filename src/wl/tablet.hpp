@@ -64,6 +64,9 @@ public:
     void button(Tool* tool, uint32_t button, bool pressed);
     void frame(Tool* tool, uint32_t time_ms);
     Surface* focus(const Tool* tool) const;
+    // Whether `client` has this tool (bound the tablet seat): if not, the
+    // compositor moves the pointer for it.
+    bool bound_by(const Tool* tool, wl_client* client) const;
 
     // ---- pads ----
     void pad_enter(Pad* pad, Tablet* tablet, Surface* surface);

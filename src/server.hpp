@@ -346,6 +346,7 @@ private:
     Listener<wlr_output> new_output_;
     Listener<> layout_change_;
     Listener<> gpu_reset_;
+    Listener<> session_active_;
     Listener<> backend_destroy_;
     // On the protocols' signals.
     std::vector<wl::Connection> connections_;

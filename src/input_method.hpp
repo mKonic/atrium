@@ -1,6 +1,7 @@
 #pragma once
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "input/keys.hpp"
 #include "wl/ime.hpp"
 
 #include <memory>
@@ -26,8 +27,9 @@ public:
     InputMethodRelay& operator=(const InputMethodRelay&) = delete;
 
     // A key or modifier change from `keyboard`: true when the IME took it.
-    bool forward_key(wlr_keyboard* keyboard, wl_client* virtual_owner, const wlr_keyboard_key_event* event);
-    bool forward_modifiers(wlr_keyboard* keyboard, wl_client* virtual_owner);
+    bool forward_key(const input::Keys& keys, wl_client* virtual_owner, uint32_t time_ms, uint32_t keycode,
+                     bool pressed);
+    bool forward_modifiers(const input::Keys& keys, wl_client* virtual_owner);
     // Type `text` into the focused text field, as an IME would: now, or as
     // soon as a field is active again (a picker had the keyboard). Nothing
     // within a moment: the shell hears "text.not_inserted".
@@ -51,7 +53,7 @@ private:
     void commit_pending();
     bool takes_text(const TextInput* t) const;
     // Sends the IME the keymap of the keyboard it is about to hear.
-    bool grab_for(wlr_keyboard* keyboard, wl_client* virtual_owner);
+    bool grab_for(const input::Keys& keys, wl_client* virtual_owner);
 
     TextInput* find_active() const;
     void update_active();
