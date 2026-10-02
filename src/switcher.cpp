@@ -293,7 +293,7 @@ void Switcher::render_title() {
     g_object_unref(layout);
     cairo_destroy(cr);
     cairo_surface_flush(surface);
-    wlr_buffer_unlock(set_cairo_buffer(title_, surface, w, h));
+    buffer_unlock(set_cairo_buffer(title_, surface, w, h));
     title_->set_position(panel_box_.x + kPad, panel_box_.y + panel_box_.height - kPad - kTitleHeight + 4);
 }
 

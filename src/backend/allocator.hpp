@@ -1,6 +1,8 @@
 #pragma once
 // Buffers to render frames into: GBM buffer objects on the render device,
 // handed around as wlr_buffers (the renderer and the backends take those).
+#include "render/fwd.hpp"
+#include "util/buffer.hpp"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -11,7 +13,6 @@ extern "C" {
 }
 
 struct gbm_device;
-struct wlr_buffer;
 
 namespace atrium::backend {
 
@@ -27,12 +28,12 @@ public:
 
     // A buffer of `format` with one of `modifiers` (empty: implicit), not
     // locked: the caller locks it, and drops it when done.
-    wlr_buffer* allocate(int width, int height, uint32_t format, const std::vector<uint64_t>& modifiers);
+    Buffer* allocate(int width, int height, uint32_t format, const std::vector<uint64_t>& modifiers);
     int fd() const { return fd_; }
 
 private:
     Allocator() = default;
-    wlr_buffer* allocate_dumb(int width, int height, uint32_t format);
+    Buffer* allocate_dumb(int width, int height, uint32_t format);
     int fd_ = -1;
     gbm_device* gbm_ = nullptr;
 };
@@ -46,8 +47,8 @@ public:
     Swapchain& operator=(const Swapchain&) = delete;
 
     // A buffer nobody holds, locked for the caller (null if none can be made).
-    wlr_buffer* acquire();
-    bool has(const wlr_buffer* buffer) const;
+    Buffer* acquire();
+    bool has(const Buffer* buffer) const;
 
     const int width, height;
     const uint32_t format;
@@ -56,7 +57,7 @@ public:
 private:
     static constexpr size_t kSlots = 4;
     struct Slot {
-        wlr_buffer* buffer = nullptr;
+        Buffer* buffer = nullptr;
         bool acquired = false;
         wl_listener release{};
         Swapchain* owner = nullptr;

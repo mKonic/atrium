@@ -122,7 +122,7 @@ Viewporter::Viewporter(wl_display* display) {
                     st->rejected = true;
                     return;
                 }
-                wlr_buffer* b = (st->committed & SurfaceState::Buffer) ? st->buffer.get() : s->current().buffer.get();
+                Buffer* b = (st->committed & SurfaceState::Buffer) ? st->buffer.get() : s->current().buffer.get();
                 int bw = b ? b->width : s->current().buffer_width, bh = b ? b->height : s->current().buffer_height;
                 if (st->transform & WL_OUTPUT_TRANSFORM_90)
                     std::swap(bw, bh);
@@ -305,29 +305,29 @@ SurfaceHints::~SurfaceHints() {
 namespace {
 
 struct PixelStorage {
-    wlr_buffer base;
+    Buffer base;
     uint32_t rgba[4];  // straight, 0..UINT32_MAX
     uint8_t argb8888[4];  // premultiplied, as a 1x1 ARGB8888 image (b, g, r, a)
 };
 
-const wlr_buffer_impl kPixelImpl = {
+const BufferImpl kPixelImpl = {
     .destroy =
-        [](wlr_buffer* b) {
-            wlr_buffer_finish(b);
+        [](Buffer* b) {
+            buffer_finish(b);
             delete reinterpret_cast<PixelStorage*>(b);
         },
     .get_dmabuf = nullptr,
     .get_shm = nullptr,
     .begin_data_ptr_access =
-        [](wlr_buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
-            if (flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE)
+        [](Buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
+            if (flags & BUFFER_DATA_PTR_ACCESS_WRITE)
                 return false;
             *data = reinterpret_cast<PixelStorage*>(b)->argb8888;
             *format = DRM_FORMAT_ARGB8888;
             *stride = 4;
             return true;
         },
-    .end_data_ptr_access = [](wlr_buffer*) {},
+    .end_data_ptr_access = [](Buffer*) {},
 };
 
 class PixelBuffer : public ClientBuffer {
@@ -352,9 +352,9 @@ SinglePixelBuffers::SinglePixelBuffers(wl_display* display) {
             s->argb8888[1] = uint8_t(g >> 24);
             s->argb8888[2] = uint8_t(r >> 24);
             s->argb8888[3] = uint8_t(a >> 24);
-            wlr_buffer_init(&s->base, &kPixelImpl, 1, 1);
+            buffer_init(&s->base, &kPixelImpl, 1, 1);
             if (!make<PixelBuffer>(self->client(), 1, id, s))
-                wlr_buffer_drop(&s->base);
+                buffer_drop(&s->base);
         });
         std::erase_if(managers_, [](const auto& w) { return !w; });
         managers_.push_back(m);
@@ -368,7 +368,7 @@ SinglePixelBuffers::~SinglePixelBuffers() {
             m->detach();
 }
 
-bool SinglePixelBuffers::color_of(wlr_buffer* buffer, float rgba[4]) {
+bool SinglePixelBuffers::color_of(Buffer* buffer, float rgba[4]) {
     if (!buffer || buffer->impl != &kPixelImpl)
         return false;
     const auto* s = reinterpret_cast<PixelStorage*>(buffer);

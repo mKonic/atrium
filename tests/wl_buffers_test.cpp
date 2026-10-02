@@ -92,7 +92,7 @@ TEST(WlDmabuf, ParamsMakeBuffersAndCheckBounds) {
     fb.main_device = makedev(226, 128);
     fb.tranches.push_back({makedev(226, 128), false, {{DRM_FORMAT_ARGB8888, DRM_FORMAT_MOD_LINEAR}}});
     int checks = 0;
-    wl::LinuxDmabuf dmabuf(b.server, fb, [&](const wlr_dmabuf_attributes&) {
+    wl::LinuxDmabuf dmabuf(b.server, fb, [&](const DmabufAttributes&) {
         ++checks;
         return true;
     });
@@ -126,7 +126,7 @@ TEST(WlDmabuf, ParamsMakeBuffersAndCheckBounds) {
 
 TEST(WlDmabuf, RefusedImportFails) {
     Buffers b;
-    wl::LinuxDmabuf dmabuf(b.server, {}, [](const wlr_dmabuf_attributes&) { return false; });
+    wl::LinuxDmabuf dmabuf(b.server, {}, [](const DmabufAttributes&) { return false; });
     auto* m = b.bind<zwp_linux_dmabuf_v1>(&zwp_linux_dmabuf_v1_interface, 5);
     zwp_linux_buffer_params_v1* p = zwp_linux_dmabuf_v1_create_params(m);
     zwp_linux_buffer_params_v1_add(p, fake_plane(16 * 16 * 4), 0, 0, 16 * 4, 0, 0);

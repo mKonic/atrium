@@ -20,7 +20,7 @@ struct Server::CaptureState {
         PerOutput(const PerOutput&) = delete;
         ~PerOutput() {
             for (auto& p : copies)
-                wlr_buffer_unlock(p.copy.buffer);
+                buffer_unlock(p.copy.buffer);
         }
     };
     struct PerView {
@@ -34,7 +34,7 @@ struct Server::CaptureState {
             if (idle)
                 wl_event_source_remove(idle);
             for (auto& c : copies)
-                wlr_buffer_unlock(c.buffer);
+                buffer_unlock(c.buffer);
         }
     };
     std::unordered_map<Output*, PerOutput> outputs;

@@ -61,12 +61,12 @@ int open_any_render_node() {
     return fd;
 }
 
-void framebuffer_addon_destroy(wlr_addon* addon) {
+void framebuffer_addon_destroy(Addon* addon) {
     Framebuffer* fb = wl_container_of(addon, fb, addon);
     delete fb;
 }
 
-const wlr_addon_interface kFramebufferAddon = {
+const AddonInterface kFramebufferAddon = {
     .name = "atrium_framebuffer",
     .destroy = framebuffer_addon_destroy,
 };
@@ -117,7 +117,7 @@ TexRef Framebuffer::texture() const {
 Framebuffer::~Framebuffer() {
     renderer->framebuffers.erase(this);
     if (buffer)
-        wlr_addon_finish(&addon);
+        addon_finish(&addon);
     renderer->egl().make_current();
     if (fbo)
         glDeleteFramebuffers(1, &fbo);
@@ -182,18 +182,16 @@ bool Target::ensure(Renderer& r, int width, int height, GLenum internal_format) 
 
 TexRef Texture::ref() const {
     const Framebuffer* enc = buffer && buffer->encoded_tf ? buffer : nullptr;
-    return {target, tex, int(base.width), int(base.height), has_alpha, enc};
+    return {target, tex, width, height, has_alpha, enc};
 }
 
 namespace {
-
-Texture* tex_of(wlr_texture* t) { return reinterpret_cast<Texture*>(t); }
 
 void texture_destroy(Texture* t) {
     Renderer* r = t->renderer;
     r->textures.erase(t);
     if (t->buffer) {
-        wlr_buffer_unlock(t->buffer->buffer);
+        buffer_unlock(t->buffer->buffer);
     } else {
         r->egl().make_current();
         if (t->tex)
@@ -206,19 +204,18 @@ void texture_destroy(Texture* t) {
     delete t;
 }
 
-bool texture_update(wlr_texture* wt, wlr_buffer* buffer, const pixman_region32_t* damage) {
-    Texture* t = tex_of(wt);
+bool texture_update(Texture* t, Buffer* buffer, const pixman_region32_t* damage) {
     if (!t->drm_format)
         return false;
     void* data;
     uint32_t format;
     size_t stride;
-    if (!wlr_buffer_begin_data_ptr_access(buffer, WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
+    if (!buffer_begin_data_ptr_access(buffer, BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
         return false;
     const PixelFormat* f = format_from_drm(t->drm_format);
     if (format != t->drm_format || !f || stride % f->bytes_per_pixel ||
         stride < size_t(buffer->width) * f->bytes_per_pixel) {
-        wlr_buffer_end_data_ptr_access(buffer);
+        buffer_end_data_ptr_access(buffer);
         return false;
     }
     t->renderer->egl().make_current();
@@ -236,7 +233,7 @@ bool texture_update(wlr_texture* wt, wlr_buffer* buffer, const pixman_region32_t
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
     glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
-    wlr_buffer_end_data_ptr_access(buffer);
+    buffer_end_data_ptr_access(buffer);
     return true;
 }
 
@@ -301,27 +298,36 @@ void pack_row(uint32_t format, const uint32_t* row, int width, unsigned char* ou
 
 // An HDR screen's pixels read as SDR (screenshots): drawn, converted, into
 // a temporary target first, then read from there.
-bool read_hdr_as_sdr(Texture* t, const wlr_texture_read_pixels_options* o, bool deep) {
+// The rectangle `o` reads (all of `t` when its box is empty), and where in
+// its data the first pixel goes.
+Box read_box(const Texture* t, const ReadPixelsOptions* o) {
+    return o->src_box.empty() ? Box{0, 0, t->width, t->height} : o->src_box;
+}
+unsigned char* read_data(const ReadPixelsOptions* o) {
+    const PixelFormat* f = format_from_drm(o->format);
+    const size_t bpp = f ? f->bytes_per_pixel : 4;
+    return static_cast<unsigned char*>(o->data) + size_t(o->dst_y) * o->stride + o->dst_x * bpp;
+}
+
+bool read_hdr_as_sdr(Texture* t, const ReadPixelsOptions* o, bool deep) {
     Renderer& r = *t->renderer;
     r.egl().make_current();
     Target tmp;
-    if (!tmp.ensure(r, int(t->base.width), int(t->base.height), deep ? GL_RGB10_A2 : GL_RGBA8))
+    if (!tmp.ensure(r, t->width, t->height, deep ? GL_RGB10_A2 : GL_RGBA8))
         return false;
     RenderPass* pass = r.begin(tmp.get(), {});
     if (!pass)
         return false;
     TextureDraw d;
     d.tex = t->ref();
-    d.dst = {0, 0, double(t->base.width), double(t->base.height)};
+    d.dst = {0, 0, double(t->width), double(t->height)};
     d.blend = false;
     pass->add_texture(d);
     if (!pass->submit())
         return false;
 
-    wlr_box wsrc;
-    wlr_texture_read_pixels_options_get_src_box(o, &t->base, &wsrc);
-    const Box src = from_wlr(wsrc);
-    auto* p = static_cast<unsigned char*>(wlr_texture_read_pixel_options_get_data(o));
+    const Box src = read_box(t, o);
+    auto* p = read_data(o);
     std::vector<uint32_t> row(src.width);
     r.egl().make_current();
     glBindFramebuffer(GL_FRAMEBUFFER, tmp->fbo);
@@ -337,8 +343,7 @@ bool read_hdr_as_sdr(Texture* t, const wlr_texture_read_pixels_options* o, bool 
     return ok;
 }
 
-bool texture_read_pixels(wlr_texture* wt, const wlr_texture_read_pixels_options* o) {
-    Texture* t = tex_of(wt);
+bool texture_read_pixels(Texture* t, const ReadPixelsOptions* o) {
     Renderer& r = *t->renderer;
     if (t->buffer && t->buffer->encoded_tf) {
         switch (o->format) {
@@ -368,14 +373,12 @@ bool texture_read_pixels(wlr_texture* wt, const wlr_texture_read_pixels_options*
     if (f->gl_format == GL_BGRA_EXT && !r.caps().EXT_read_format_bgra)
         return false;
 
-    wlr_box wsrc;
-    wlr_texture_read_pixels_options_get_src_box(o, wt, &wsrc);
-    const Box src = from_wlr(wsrc);
+    const Box src = read_box(t, o);
     if (!r.egl().make_current() || !texture_bind_for_read(t))
         return false;
     glFinish();
     glGetError();
-    auto* p = static_cast<unsigned char*>(wlr_texture_read_pixel_options_get_data(o));
+    auto* p = read_data(o);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     const uint32_t packed = uint32_t(src.width) * f->bytes_per_pixel;
     if (packed == o->stride && o->dst_x == 0) {
@@ -388,8 +391,7 @@ bool texture_read_pixels(wlr_texture* wt, const wlr_texture_read_pixels_options*
     return glGetError() == GL_NO_ERROR;
 }
 
-uint32_t texture_preferred_read_format(wlr_texture* wt) {
-    Texture* t = tex_of(wt);
+uint32_t texture_preferred_read_format(Texture* t) {
     Renderer& r = *t->renderer;
     if (!r.egl().make_current() || !texture_bind_for_read(t))
         return DRM_FORMAT_INVALID;
@@ -402,124 +404,96 @@ uint32_t texture_preferred_read_format(wlr_texture* wt) {
     return r.caps().EXT_read_format_bgra ? DRM_FORMAT_XRGB8888 : DRM_FORMAT_INVALID;
 }
 
-void texture_impl_destroy(wlr_texture* wt) { texture_destroy(tex_of(wt)); }
-
-const wlr_texture_impl kTextureImpl = {
-    .update_from_buffer = texture_update,
-    .read_pixels = texture_read_pixels,
-    .preferred_read_format = texture_preferred_read_format,
-    .destroy = texture_impl_destroy,
-};
-
 } // namespace
 
-// ---- wlr_renderer glue -------------------------------------------------
+void Texture::destroy() {
+    texture_destroy(this);
+}
 
-struct RendererImpl {
-    static Renderer* self(wlr_renderer* r) { return reinterpret_cast<Renderer::Hook*>(r)->self; }
+bool Texture::read_pixels(const ReadPixelsOptions* o) {
+    return texture_read_pixels(this, o);
+}
 
-    static const wlr_drm_format_set* texture_formats(wlr_renderer* wr, uint32_t caps) {
-        Renderer* r = self(wr);
-        if (caps & WLR_BUFFER_CAP_DMABUF)
-            return r->egl_->texture_formats();
-        if (caps & WLR_BUFFER_CAP_DATA_PTR)
-            return &r->shm_formats_;
+uint32_t Texture::preferred_read_format() {
+    return texture_preferred_read_format(this);
+}
+
+bool Texture::update_from_buffer(Buffer* b, const pixman_region32_t* damage) {
+    return texture_update(this, b, damage);
+}
+
+// ---- RenderTimer ----------------------------------------------------------
+
+int RenderTimer::duration_ns() {
+    Renderer* r = renderer;
+    r->egl().make_current();
+    GLint64 disjoint = 0;
+    r->procs.glGetInteger64vEXT(GL_GPU_DISJOINT_EXT, &disjoint);
+    if (disjoint)
+        return -1;
+    GLint available = 0;
+    r->procs.glGetQueryObjectivEXT(query, GL_QUERY_RESULT_AVAILABLE_EXT, &available);
+    if (!available)
+        return -1;
+    GLuint64 gl_end = 0;
+    r->procs.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT_EXT, &gl_end);
+    return int(int64_t(gl_end) - gl_cpu_end + ns(cpu_end) - ns(cpu_start));
+}
+
+void RenderTimer::destroy() {
+    renderer->egl().make_current();
+    renderer->procs.glDeleteQueriesEXT(1, &query);
+    delete this;
+}
+
+// ---- Renderer -------------------------------------------------------------
+
+const wlr_drm_format_set* Renderer::texture_formats(uint32_t caps) {
+    if (caps & BUFFER_CAP_DMABUF)
+        return egl_->texture_formats();
+    if (caps & BUFFER_CAP_DATA_PTR)
+        return &shm_formats_;
+    return nullptr;
+}
+
+const wlr_drm_format_set* Renderer::render_formats() {
+    return egl_->render_formats();
+}
+
+int Renderer::drm_fd() {
+    if (drm_fd_ < 0)
+        drm_fd_ = egl_->dup_drm_fd();
+    return drm_fd_;
+}
+
+RenderPass* Renderer::begin_buffer_pass(Buffer* b, const BufferPassOptions* o) {
+    if (!egl_->make_current())
         return nullptr;
-    }
-
-    static const wlr_drm_format_set* render_formats(wlr_renderer* wr) {
-        return self(wr)->egl_->render_formats();
-    }
-
-    static int drm_fd(wlr_renderer* wr) {
-        Renderer* r = self(wr);
-        if (r->drm_fd_ < 0)
-            r->drm_fd_ = r->egl_->dup_drm_fd();
-        return r->drm_fd_;
-    }
-
-    static wlr_texture* texture_from_buffer(wlr_renderer* wr, wlr_buffer* b) {
-        return self(wr)->texture_from_buffer(b);
-    }
-
-    static wlr_render_pass* begin_buffer_pass(wlr_renderer* wr, wlr_buffer* b, const wlr_buffer_pass_options* o) {
-        Renderer* r = self(wr);
-        if (!r->egl_->make_current())
-            return nullptr;
-        Framebuffer* fb = r->framebuffer_for(b);
-        if (!fb)
-            return nullptr;
-        PassOptions po;
+    Framebuffer* fb = framebuffer_for(b);
+    if (!fb)
+        return nullptr;
+    PassOptions po;
+    if (o) {
         po.timer = o->timer;
         po.signal_timeline = o->signal_timeline;
         po.signal_point = o->signal_point;
-        if (o->color_transform) {
-            // wlroots' transforms are opaque to us; atrium's own scene
-            // hands its colour work over as PassOptions::color.
-            static bool logged = false;
-            if (!logged) {
-                alog(Log::Info, "renderer: output color transforms from wlroots are not applied");
-                logged = true;
-            }
-        }
-        RenderPass* pass = r->begin(fb, po);
-        return pass ? pass->wlr() : nullptr;
     }
+    return begin(fb, po);
+}
 
-    static wlr_render_timer* timer_create(wlr_renderer* wr) {
-        Renderer* r = self(wr);
-        if (!r->caps_.EXT_disjoint_timer_query)
-            return nullptr;
-        auto* t = new RenderTimer();
-        t->base.impl = &timer_impl;
-        t->renderer = r;
-        r->egl_->make_current();
-        r->procs.glGenQueriesEXT(1, &t->query);
-        return &t->base;
-    }
+RenderTimer* Renderer::timer_create() {
+    if (!caps_.EXT_disjoint_timer_query)
+        return nullptr;
+    auto* t = new RenderTimer();
+    t->renderer = this;
+    egl_->make_current();
+    procs.glGenQueriesEXT(1, &t->query);
+    return t;
+}
 
-    static int timer_duration(wlr_render_timer* wt) {
-        auto* t = reinterpret_cast<RenderTimer*>(wt);
-        Renderer* r = t->renderer;
-        r->egl_->make_current();
-        GLint64 disjoint = 0;
-        r->procs.glGetInteger64vEXT(GL_GPU_DISJOINT_EXT, &disjoint);
-        if (disjoint)
-            return -1;
-        GLint available = 0;
-        r->procs.glGetQueryObjectivEXT(t->query, GL_QUERY_RESULT_AVAILABLE_EXT, &available);
-        if (!available)
-            return -1;
-        GLuint64 gl_end = 0;
-        r->procs.glGetQueryObjectui64vEXT(t->query, GL_QUERY_RESULT_EXT, &gl_end);
-        return int(int64_t(gl_end) - t->gl_cpu_end + ns(t->cpu_end) - ns(t->cpu_start));
-    }
-
-    static void timer_destroy(wlr_render_timer* wt) {
-        auto* t = reinterpret_cast<RenderTimer*>(wt);
-        t->renderer->egl_->make_current();
-        t->renderer->procs.glDeleteQueriesEXT(1, &t->query);
-        delete t;
-    }
-
-    static void destroy(wlr_renderer* wr) { delete self(wr); }
-
-    static constexpr wlr_render_timer_impl timer_impl = {
-        .get_duration_ns = timer_duration,
-        .destroy = timer_destroy,
-    };
-    static constexpr wlr_renderer_impl impl = {
-        .get_texture_formats = texture_formats,
-        .get_render_formats = render_formats,
-        .destroy = destroy,
-        .get_drm_fd = drm_fd,
-        .texture_from_buffer = texture_from_buffer,
-        .begin_buffer_pass = begin_buffer_pass,
-        .render_timer_create = timer_create,
-    };
-};
-
-// ---- Renderer ----------------------------------------------------------
+void Renderer::destroy() {
+    delete this;
+}
 
 Renderer* Renderer::create(const backend::Backend& backend) {
     int drm_fd = -1;
@@ -532,7 +506,7 @@ Renderer* Renderer::create(const backend::Backend& backend) {
     }
     if (drm_fd < 0)
         drm_fd = backend.drm_fd();
-    if (drm_fd < 0 && (backend.buffer_caps() & WLR_BUFFER_CAP_DMABUF)) {
+    if (drm_fd < 0 && (backend.buffer_caps() & BUFFER_CAP_DMABUF)) {
         drm_fd = open_any_render_node();
         own_fd = drm_fd >= 0;
     }
@@ -553,21 +527,13 @@ Renderer* Renderer::create_on(int drm_fd, bool software_ok) {
 
     auto* r = new Renderer();
     r->egl_ = std::move(egl);
-    r->hook_.self = r;
-    wlr_renderer_init(&r->hook_.base, &RendererImpl::impl, WLR_BUFFER_CAP_DMABUF);
+    wl_signal_init(&r->events.lost);
+    wl_signal_init(&r->events.destroy);
     if (!r->init()) {
-        wlr_renderer_destroy(&r->hook_.base);
+        delete r;
         return nullptr;
     }
     return r;
-}
-
-Renderer* Renderer::from(wlr_renderer* r) {
-    return r && r->WLR_PRIVATE.impl == &RendererImpl::impl ? RendererImpl::self(r) : nullptr;
-}
-
-Texture* Renderer::texture(wlr_texture* t) {
-    return t && t->impl == &kTextureImpl ? tex_of(t) : nullptr;
 }
 
 bool Renderer::init() {
@@ -641,14 +607,15 @@ bool Renderer::init() {
 
     shm_formats(caps_, &shm_formats_);
 
-    int fd = wlr_renderer_get_drm_fd(&hook_.base);
+    int fd = drm_fd();
     uint64_t cap = 0;
     if (fd >= 0 && drmGetCap(fd, DRM_CAP_SYNCOBJ_TIMELINE, &cap) == 0)
-        hook_.base.features.timeline = egl_->has_fences() && cap != 0;
+        features.timeline = egl_->has_fences() && cap != 0;
     return true;
 }
 
 Renderer::~Renderer() {
+    wl_signal_emit_mutable(&events.destroy, nullptr);
     egl_->make_current();
     while (!textures.empty())
         texture_destroy(*textures.begin());
@@ -679,15 +646,15 @@ bool Renderer::check_reset() {
     if (status == GL_NO_ERROR)
         return false;
     alog(Log::Error, "GPU reset (%s)", reset_status(status));
-    wl_signal_emit_mutable(&hook_.base.events.lost, nullptr);
+    wl_signal_emit_mutable(&events.lost, nullptr);
     return true;
 }
 
-Framebuffer* Renderer::framebuffer_for(wlr_buffer* buffer) {
-    if (wlr_addon* a = wlr_addon_find(&buffer->addons, this, &kFramebufferAddon))
+Framebuffer* Renderer::framebuffer_for(Buffer* buffer) {
+    if (Addon* a = addon_find(&buffer->addons, this, &kFramebufferAddon))
         return wl_container_of(a, static_cast<Framebuffer*>(nullptr), addon);
-    wlr_dmabuf_attributes dmabuf{};
-    if (!wlr_buffer_get_dmabuf(buffer, &dmabuf))
+    DmabufAttributes dmabuf{};
+    if (!buffer_get_dmabuf(buffer, &dmabuf))
         return nullptr;
     auto* fb = new Framebuffer();
     fb->renderer = this;
@@ -701,24 +668,25 @@ Framebuffer* Renderer::framebuffer_for(wlr_buffer* buffer) {
         delete fb;
         return nullptr;
     }
-    wlr_addon_init(&fb->addon, &buffer->addons, this, &kFramebufferAddon);
+    addon_init(&fb->addon, &buffer->addons, this, &kFramebufferAddon);
     framebuffers.insert(fb);
     return fb;
 }
 
-wlr_texture* Renderer::texture_from_buffer(wlr_buffer* buffer) {
+Texture* Renderer::texture_from_buffer(Buffer* buffer) {
     if (!egl_->make_current())
         return nullptr;
     void* data;
     uint32_t format;
     size_t stride;
-    wlr_dmabuf_attributes dmabuf{};
-    if (wlr_buffer_get_dmabuf(buffer, &dmabuf)) {
+    DmabufAttributes dmabuf{};
+    if (buffer_get_dmabuf(buffer, &dmabuf)) {
         Framebuffer* fb = framebuffer_for(buffer);
         if (!fb || !procs.glEGLImageTargetTexture2DOES)
             return nullptr;
         auto* t = new Texture();
-        wlr_texture_init(&t->base, &hook_.base, &kTextureImpl, dmabuf.width, dmabuf.height);
+        t->width = dmabuf.width;
+        t->height = dmabuf.height;
         t->renderer = this;
         t->target = fb->external_only ? GL_TEXTURE_EXTERNAL_OES : GL_TEXTURE_2D;
         t->buffer = fb;
@@ -735,21 +703,22 @@ wlr_texture* Renderer::texture_from_buffer(wlr_buffer* buffer) {
             glBindTexture(t->target, 0);
         }
         t->tex = fb->tex;
-        wlr_buffer_lock(buffer);
+        buffer_lock(buffer);
         textures.insert(t);
-        return &t->base;
+        return t;
     }
-    if (!wlr_buffer_begin_data_ptr_access(buffer, WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
+    if (!buffer_begin_data_ptr_access(buffer, BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
         return nullptr;
     const PixelFormat* f = format_from_drm(format);
     if (!f || !format_supported(caps_, *f) || stride % f->bytes_per_pixel ||
         stride < size_t(buffer->width) * f->bytes_per_pixel) {
-        wlr_buffer_end_data_ptr_access(buffer);
+        buffer_end_data_ptr_access(buffer);
         alog(Log::Error, "Can't upload shm format 0x%08x", format);
         return nullptr;
     }
     auto* t = new Texture();
-    wlr_texture_init(&t->base, &hook_.base, &kTextureImpl, buffer->width, buffer->height);
+    t->width = buffer->width;
+    t->height = buffer->height;
     t->renderer = this;
     t->target = GL_TEXTURE_2D;
     t->has_alpha = f->has_alpha;
@@ -763,9 +732,80 @@ wlr_texture* Renderer::texture_from_buffer(wlr_buffer* buffer) {
                  0, f->gl_format, f->gl_type, data);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
-    wlr_buffer_end_data_ptr_access(buffer);
+    buffer_end_data_ptr_access(buffer);
     textures.insert(t);
-    return &t->base;
+    return t;
+}
+
+namespace {
+
+// Memory or a dmabuf as a Buffer for a moment: what texture_from_pixels
+// and texture_from_dmabuf hand to texture_from_buffer.
+struct TempBuffer {
+    Buffer base;
+    const void* data = nullptr;
+    uint32_t format = 0;
+    size_t stride = 0;
+    DmabufAttributes dmabuf{};
+    bool has_dmabuf = false;
+};
+
+const BufferImpl kTempBuffer = {
+    .destroy =
+        [](Buffer* b) {
+            auto* t = reinterpret_cast<TempBuffer*>(b);
+            buffer_finish(b);
+            if (t->has_dmabuf)
+                dmabuf_attributes_finish(&t->dmabuf);
+            delete t;
+        },
+    .get_dmabuf =
+        [](Buffer* b, DmabufAttributes* out) {
+            auto* t = reinterpret_cast<TempBuffer*>(b);
+            if (!t->has_dmabuf)
+                return false;
+            *out = t->dmabuf;
+            return true;
+        },
+    .get_shm = nullptr,
+    .begin_data_ptr_access =
+        [](Buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
+            auto* t = reinterpret_cast<TempBuffer*>(b);
+            if (!t->data || (flags & BUFFER_DATA_PTR_ACCESS_WRITE))
+                return false;
+            *data = const_cast<void*>(t->data);
+            *format = t->format;
+            *stride = t->stride;
+            return true;
+        },
+    .end_data_ptr_access = [](Buffer*) {},
+};
+
+} // namespace
+
+Texture* Renderer::texture_from_pixels(uint32_t drm_format, uint32_t stride, uint32_t width, uint32_t height,
+                                       const void* data) {
+    auto* b = new TempBuffer();
+    buffer_init(&b->base, &kTempBuffer, int(width), int(height));
+    b->data = data;
+    b->format = drm_format;
+    b->stride = stride;
+    Texture* t = texture_from_buffer(&b->base);  // an upload: nothing keeps `data`
+    buffer_drop(&b->base);
+    return t;
+}
+
+Texture* Renderer::texture_from_dmabuf(const DmabufAttributes* attribs) {
+    auto* b = new TempBuffer();
+    buffer_init(&b->base, &kTempBuffer, attribs->width, attribs->height);
+    if (!dmabuf_attributes_copy(&b->dmabuf, attribs)) {
+        buffer_drop(&b->base);
+        return nullptr;
+    }
+    b->has_dmabuf = true;
+    Texture* t = texture_from_buffer(&b->base);  // the texture's lock keeps it
+    buffer_drop(&b->base);
+    return t;
 }
 
 } // namespace atrium::render

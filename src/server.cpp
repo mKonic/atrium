@@ -332,14 +332,14 @@ void Server::setup() {
 
     // atrium's own GLES 3 renderer: rounded corners, shadows, blur and glass.
     if (render::Renderer* r = render::Renderer::create(*backend))
-        renderer = r->wlr();
+        renderer = r;
     if (!renderer)
         die("couldn't create renderer");
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
 
     apply_screen_shader();
 
-    allocator_ = backend::Allocator::create(wlr_renderer_get_drm_fd(renderer));
+    allocator_ = backend::Allocator::create(renderer->drm_fd());
     allocator = allocator_.get();
     if (!allocator)
         die("couldn't create allocator");
@@ -347,7 +347,7 @@ void Server::setup() {
     output_layout_ = std::make_unique<OutputLayout>();
     output_layout = output_layout_.get();
     cursor = std::make_unique<Cursor>(*output_layout, loop);
-    scene->draw_cursor = [this](const backend::Output* o, wlr_render_pass* pass, const pixman_region32_t* damage) {
+    scene->draw_cursor = [this](const backend::Output* o, render::RenderPass* pass, const pixman_region32_t* damage) {
         cursor->render(o, pass, damage);
     };
     layout_change_conn_ = output_layout->change.connect([this] { update_outputs(); });
@@ -415,17 +415,17 @@ void Server::setup() {
 
 // What a client should allocate for a surface: for scan-out on `scanout`
 // first (when it could go straight there), then for rendering.
-static wl::DmabufFeedback dmabuf_feedback(wlr_renderer* renderer, backend::Output* scanout) {
+static wl::DmabufFeedback dmabuf_feedback(render::Renderer* renderer, backend::Output* scanout) {
     wl::DmabufFeedback fb;
     struct stat st{};
-    if (int fd = wlr_renderer_get_drm_fd(renderer); fd >= 0 && fstat(fd, &st) == 0)
+    if (int fd = renderer->drm_fd(); fd >= 0 && fstat(fd, &st) == 0)
         fb.main_device = st.st_rdev;
-    const wlr_drm_format_set* texture = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF);
+    const wlr_drm_format_set* texture = renderer->texture_formats(BUFFER_CAP_DMABUF);
     auto has = [](const wlr_drm_format_set* set, uint32_t format, uint64_t modifier) {
         return set && wlr_drm_format_set_has(set, format, modifier);
     };
     if (scanout) {
-        if (const wlr_drm_format_set* primary = scanout->primary_formats(WLR_BUFFER_CAP_DMABUF)) {
+        if (const wlr_drm_format_set* primary = scanout->primary_formats(BUFFER_CAP_DMABUF)) {
             wl::DmabufFeedback::Tranche t;
             t.target_device = fb.main_device;
             t.scanout = true;
@@ -454,29 +454,29 @@ void Server::setup_protocols() {
 
     // Buffers and surfaces.
     std::vector<uint32_t> shm_formats;
-    if (const wlr_drm_format_set* f = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DATA_PTR))
+    if (const wlr_drm_format_set* f = renderer->texture_formats(BUFFER_CAP_DATA_PTR))
         for (size_t i = 0; i < f->len; ++i)
             shm_formats.push_back(f->formats[i].format);
     p.shm = std::make_unique<wl::Shm>(display, shm_formats);
-    if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
+    if (renderer->texture_formats(BUFFER_CAP_DMABUF)) {
         // A dmabuf the renderer can't import is refused as it is made.
-        auto check = [this](const wlr_dmabuf_attributes& attrs) {
-            wlr_texture* t = wlr_texture_from_dmabuf(renderer, const_cast<wlr_dmabuf_attributes*>(&attrs));
+        auto check = [this](const DmabufAttributes& attrs) {
+            render::Texture* t = renderer->texture_from_dmabuf(const_cast<DmabufAttributes*>(&attrs));
             if (t)
-                wlr_texture_destroy(t);
+                t->destroy();
             return t != nullptr;
         };
         p.dmabuf = std::make_unique<wl::LinuxDmabuf>(display, dmabuf_feedback(renderer, nullptr), check);
         std::vector<uint32_t> formats;
-        const wlr_drm_format_set* f = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF);
+        const wlr_drm_format_set* f = renderer->texture_formats(BUFFER_CAP_DMABUF);
         for (size_t i = 0; i < f->len; ++i)
             formats.push_back(f->formats[i].format);
-        if (char* node = drmGetRenderDeviceNameFromFd(wlr_renderer_get_drm_fd(renderer))) {
+        if (char* node = drmGetRenderDeviceNameFromFd(renderer->drm_fd())) {
             p.drm = std::make_unique<wl::LegacyDrm>(display, node, formats, check);
             free(node);
         }
     }
-    if (int drm_fd = wlr_renderer_get_drm_fd(renderer);
+    if (int drm_fd = renderer->drm_fd();
         drm_fd >= 0 && renderer->features.timeline && backend->supports_timelines())
         p.syncobj = std::make_unique<wl::Syncobj>(display, drm_fd);
     p.compositor = std::make_unique<wl::Compositor>(display, renderer);
@@ -1091,14 +1091,14 @@ void Server::update_outputs() {
 }
 
 void Server::gpu_reset() {
-    wlr_renderer* old_renderer = renderer;
+    render::Renderer* old_renderer = renderer;
     std::unique_ptr<backend::Allocator> old_allocator = std::move(allocator_);
 
     render::Renderer* r = render::Renderer::create(*backend);
-    renderer = r ? r->wlr() : nullptr;
+    renderer = r ? r : nullptr;
     if (!renderer)
         die("couldn't recreate renderer");
-    allocator_ = backend::Allocator::create(wlr_renderer_get_drm_fd(renderer));
+    allocator_ = backend::Allocator::create(renderer->drm_fd());
     allocator = allocator_.get();
     if (!allocator)
         die("couldn't recreate allocator");
@@ -1111,7 +1111,7 @@ void Server::gpu_reset() {
     cursor->reset_render();  // its textures and plane buffers were the old ones'
 
     old_allocator.reset();
-    wlr_renderer_destroy(old_renderer);
+    old_renderer->destroy();
 }
 
 // --- focus and hit testing -------------------------------------------------
@@ -1673,7 +1673,7 @@ void Server::setting_changed(const std::string& key) {
 // The user's shader over every screen; one that doesn't compile leaves
 // the screens as they are (the log says why).
 void Server::apply_screen_shader() {
-    render::Renderer* r = render::Renderer::from(renderer);
+    render::Renderer* r = renderer;
     if (!r)
         return;
     r->egl().make_current();

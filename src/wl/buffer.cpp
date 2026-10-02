@@ -2,7 +2,7 @@
 
 namespace atrium::wl {
 
-// Follows the wlr_buffer, which can outlive us: release tells the client,
+// Follows the Buffer, which can outlive us: release tells the client,
 // while there is one.
 struct ClientBuffer::Tracker {
     ClientBuffer* owner;
@@ -10,7 +10,7 @@ struct ClientBuffer::Tracker {
     wl_listener destroy;
 };
 
-ClientBuffer::ClientBuffer(wl_client* client, uint32_t version, uint32_t id, wlr_buffer* buffer)
+ClientBuffer::ClientBuffer(wl_client* client, uint32_t version, uint32_t id, Buffer* buffer)
     : WlBuffer(client, version, id), buffer_(buffer), tracker_(new Tracker{this, {}, {}}) {
     tracker_->release.notify = [](wl_listener* l, void*) {
         Tracker* t = wl_container_of(l, t, release);
@@ -32,7 +32,7 @@ ClientBuffer::ClientBuffer(wl_client* client, uint32_t version, uint32_t id, wlr
 ClientBuffer::~ClientBuffer() {
     if (tracker_)
         tracker_->owner = nullptr;
-    wlr_buffer_drop(buffer_);
+    buffer_drop(buffer_);
 }
 
 ClientBuffer* ClientBuffer::from(wl_resource* resource) {

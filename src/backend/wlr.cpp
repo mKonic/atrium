@@ -29,6 +29,110 @@ wlr_output_image_description to_wlr(const ImageDescription& d) {
     return out;
 }
 
+// atrium's buffers as wlroots' (its DRM backend scans them out): one
+// wlr_buffer per buffer, kept on it so wlroots' framebuffer cache holds. It
+// locks ours while wlroots holds it.
+struct Proxy {
+    wlr_buffer base;
+    Buffer* ours = nullptr;
+    bool holding = false;
+    Addon addon{};
+    wl_listener release{};
+};
+
+const wlr_buffer_impl kProxyImpl = {
+    .destroy =
+        [](wlr_buffer* b) {
+            auto* p = reinterpret_cast<Proxy*>(b);
+            wl_list_remove(&p->release.link);
+            wlr_buffer_finish(b);
+            delete p;
+        },
+    .get_dmabuf =
+        [](wlr_buffer* b, wlr_dmabuf_attributes* out) {
+            auto* p = reinterpret_cast<Proxy*>(b);
+            DmabufAttributes a;
+            if (!p->ours || !buffer_get_dmabuf(p->ours, &a))
+                return false;
+            *out = {};
+            out->width = a.width;
+            out->height = a.height;
+            out->format = a.format;
+            out->modifier = a.modifier;
+            out->n_planes = a.n_planes;
+            for (int i = 0; i < a.n_planes; ++i) {
+                out->offset[i] = a.offset[i];
+                out->stride[i] = a.stride[i];
+                out->fd[i] = a.fd[i];
+            }
+            return true;
+        },
+    .get_shm =
+        [](wlr_buffer* b, wlr_shm_attributes* out) {
+            auto* p = reinterpret_cast<Proxy*>(b);
+            ShmAttributes a;
+            if (!p->ours || !buffer_get_shm(p->ours, &a))
+                return false;
+            *out = {a.fd, a.format, a.width, a.height, a.stride, a.offset};
+            return true;
+        },
+    .begin_data_ptr_access =
+        [](wlr_buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
+            auto* p = reinterpret_cast<Proxy*>(b);
+            return p->ours && buffer_begin_data_ptr_access(p->ours, flags, data, format, stride);
+        },
+    .end_data_ptr_access = [](wlr_buffer* b) { buffer_end_data_ptr_access(reinterpret_cast<Proxy*>(b)->ours); },
+};
+
+const AddonInterface kProxyAddon = {
+    .name = "atrium_wlr_proxy",
+    .destroy =
+        [](Addon* a) {
+            // Ours is going (so wlroots holds the proxy no longer).
+            Proxy* p = wl_container_of(a, p, addon);
+            addon_finish(&p->addon);
+            p->ours = nullptr;
+            wlr_buffer_drop(&p->base);
+        },
+};
+
+// The wlr_buffer for `b`, ours locked while wlroots holds it.
+wlr_buffer* proxy_for(Buffer* b) {
+    if (!b)
+        return nullptr;
+    Proxy* p;
+    if (Addon* a = addon_find(&b->addons, &kProxyImpl, &kProxyAddon)) {
+        p = wl_container_of(a, p, addon);
+    } else {
+        p = new Proxy();
+        wlr_buffer_init(&p->base, &kProxyImpl, b->width, b->height);
+        p->ours = b;
+        addon_init(&p->addon, &b->addons, &kProxyImpl, &kProxyAddon);
+        p->release.notify = [](wl_listener* l, void*) {
+            Proxy* proxy = wl_container_of(l, proxy, release);
+            if (proxy->holding) {
+                proxy->holding = false;
+                buffer_unlock(proxy->ours);  // may destroy ours, and with it the proxy's addon
+            }
+        };
+        wl_signal_add(&p->base.events.release, &p->release);
+    }
+    if (!p->holding) {
+        buffer_lock(b);
+        p->holding = true;
+    }
+    return &p->base;
+}
+
+// wlroots didn't keep it (a refused cursor): no release will come.
+void let_go_unless_held(wlr_buffer* b) {
+    auto* p = reinterpret_cast<Proxy*>(b);
+    if (p && p->base.n_locks == 0 && p->holding) {
+        p->holding = false;
+        buffer_unlock(p->ours);
+    }
+}
+
 } // namespace
 
 class WlrBackend::WlrOutput final : public Output {
@@ -104,7 +208,7 @@ public:
         // The render format is ours (it picks the swapchain): wlroots never
         // sees it, as it never renders for these outputs.
         if (s.committed & OutputState::Buffer) {
-            wlr_output_state_set_buffer(out, s.buffer);
+            wlr_output_state_set_buffer(out, proxy_for(s.buffer));
             out->buffer_src_box = to_wlr(s.buffer_src_box);
             out->buffer_dst_box = to_wlr(s.buffer_dst_box);
             out->tearing_page_flip = s.tearing_page_flip;
@@ -145,9 +249,7 @@ public:
             s.set_transform(w.transform);
         if (w.committed & WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED)
             s.set_adaptive_sync_enabled(w.adaptive_sync_enabled);
-        if (w.committed & WLR_OUTPUT_STATE_BUFFER)
-            s.set_buffer(w.buffer);
-        return s;
+        return s;  // (a buffer in a request isn't ours to show)
     }
 
     const Mode* mode_of(const wlr_output_mode* m) const {
@@ -184,8 +286,13 @@ public:
     const wlr_drm_format_set* cursor_formats(uint32_t caps) const override {
         return wlr->impl->get_cursor_formats ? wlr->impl->get_cursor_formats(wlr, caps) : nullptr;
     }
-    bool set_cursor(wlr_buffer* b, int hx, int hy) override {
-        return wlr->impl->set_cursor && wlr->impl->set_cursor(wlr, b, hx, hy);
+    bool set_cursor(Buffer* b, int hx, int hy) override {
+        if (!wlr->impl->set_cursor)
+            return false;
+        wlr_buffer* p = proxy_for(b);
+        const bool ok = wlr->impl->set_cursor(wlr, p, hx, hy);
+        let_go_unless_held(p);
+        return ok;
     }
     bool move_cursor(int x, int y) override { return wlr->impl->move_cursor && wlr->impl->move_cursor(wlr, x, y); }
 

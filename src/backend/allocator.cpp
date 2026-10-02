@@ -23,76 +23,76 @@ namespace atrium::backend {
 namespace {
 
 struct GbmBuffer {
-    wlr_buffer base;
+    Buffer base;
     gbm_bo* bo;
-    wlr_dmabuf_attributes dmabuf;
+    DmabufAttributes dmabuf;
 };
 
 // A dumb buffer: CPU-written, scanned out, nothing renders into it.
 struct DumbBuffer {
-    wlr_buffer base;
+    Buffer base;
     int drm_fd;
     uint32_t handle;
     void* map;
     size_t size;
-    wlr_dmabuf_attributes dmabuf;
+    DmabufAttributes dmabuf;
 };
 
-DumbBuffer* dumb_of(wlr_buffer* b) {
+DumbBuffer* dumb_of(Buffer* b) {
     return reinterpret_cast<DumbBuffer*>(b);
 }
 
-const wlr_buffer_impl kDumbBufferImpl = {
+const BufferImpl kDumbBufferImpl = {
     .destroy =
-        [](wlr_buffer* b) {
+        [](Buffer* b) {
             DumbBuffer* d = dumb_of(b);
-            wlr_buffer_finish(b);
-            wlr_dmabuf_attributes_finish(&d->dmabuf);
+            buffer_finish(b);
+            dmabuf_attributes_finish(&d->dmabuf);
             munmap(d->map, d->size);
             drmModeDestroyDumbBuffer(d->drm_fd, d->handle);
             delete d;
         },
     .get_dmabuf =
-        [](wlr_buffer* b, wlr_dmabuf_attributes* out) {
+        [](Buffer* b, DmabufAttributes* out) {
             *out = dumb_of(b)->dmabuf;
             return true;
         },
     .begin_data_ptr_access =
-        [](wlr_buffer* b, uint32_t, void** data, uint32_t* format, size_t* stride) {
+        [](Buffer* b, uint32_t, void** data, uint32_t* format, size_t* stride) {
             DumbBuffer* d = dumb_of(b);
             *data = d->map;
             *format = d->dmabuf.format;
             *stride = d->dmabuf.stride[0];
             return true;
         },
-    .end_data_ptr_access = [](wlr_buffer*) {},
+    .end_data_ptr_access = [](Buffer*) {},
 };
 
-GbmBuffer* gbm_of(wlr_buffer* b) {
+GbmBuffer* gbm_of(Buffer* b) {
     return reinterpret_cast<GbmBuffer*>(b);
 }
 
-const wlr_buffer_impl kGbmBufferImpl = {
+const BufferImpl kGbmBufferImpl = {
     .destroy =
-        [](wlr_buffer* b) {
+        [](Buffer* b) {
             GbmBuffer* g = gbm_of(b);
-            wlr_buffer_finish(b);
-            wlr_dmabuf_attributes_finish(&g->dmabuf);
+            buffer_finish(b);
+            dmabuf_attributes_finish(&g->dmabuf);
             gbm_bo_destroy(g->bo);
             delete g;
         },
     .get_dmabuf =
-        [](wlr_buffer* b, wlr_dmabuf_attributes* out) {
+        [](Buffer* b, DmabufAttributes* out) {
             *out = gbm_of(b)->dmabuf;
             return true;
         },
 };
 
 // The buffer object's planes as a dmabuf.
-bool export_dmabuf(gbm_bo* bo, wlr_dmabuf_attributes* out) {
-    wlr_dmabuf_attributes a{};
+bool export_dmabuf(gbm_bo* bo, DmabufAttributes* out) {
+    DmabufAttributes a{};
     a.n_planes = gbm_bo_get_plane_count(bo);
-    if (a.n_planes <= 0 || a.n_planes > WLR_DMABUF_MAX_PLANES)
+    if (a.n_planes <= 0 || a.n_planes > DMABUF_MAX_PLANES)
         return false;
     a.width = int32_t(gbm_bo_get_width(bo));
     a.height = int32_t(gbm_bo_get_height(bo));
@@ -151,7 +151,7 @@ Allocator::~Allocator() {
         close(fd_);
 }
 
-wlr_buffer* Allocator::allocate(int width, int height, uint32_t format, const std::vector<uint64_t>& modifiers) {
+Buffer* Allocator::allocate(int width, int height, uint32_t format, const std::vector<uint64_t>& modifiers) {
     if (!gbm_)
         return allocate_dumb(width, height, format);
     const bool implicit = modifiers.empty() ||
@@ -184,7 +184,7 @@ wlr_buffer* Allocator::allocate(int width, int height, uint32_t format, const st
     // GBM reports (wlroots does the same).
     if (implicit)
         g->dmabuf.modifier = DRM_FORMAT_MOD_INVALID;
-    wlr_buffer_init(&g->base, &kGbmBufferImpl, width, height);
+    buffer_init(&g->base, &kGbmBufferImpl, width, height);
     return &g->base;
 }
 
@@ -202,15 +202,15 @@ Swapchain::~Swapchain() {
     for (Slot& s : slots_) {
         wl_list_remove(&s.release.link);
         if (s.buffer)
-            wlr_buffer_drop(s.buffer);
+            buffer_drop(s.buffer);
     }
 }
 
-bool Swapchain::has(const wlr_buffer* b) const {
+bool Swapchain::has(const Buffer* b) const {
     return std::ranges::any_of(slots_, [b](const Slot& s) { return s.buffer == b; });
 }
 
-wlr_buffer* Swapchain::acquire() {
+Buffer* Swapchain::acquire() {
     Slot* free = nullptr;
     for (Slot& s : slots_)
         if (s.buffer && !s.acquired) {
@@ -238,14 +238,14 @@ wlr_buffer* Swapchain::acquire() {
         wl_list_init(&s->release.link);
     };
     wl_signal_add(&free->buffer->events.release, &free->release);
-    return wlr_buffer_lock(free->buffer);
+    return buffer_lock(free->buffer);
 }
 
 } // namespace atrium::backend
 
 namespace atrium::backend {
 
-wlr_buffer* Allocator::allocate_dumb(int width, int height, uint32_t format) {
+Buffer* Allocator::allocate_dumb(int width, int height, uint32_t format) {
     // 32 bits a pixel: what the screens take from a CPU.
     if (format != DRM_FORMAT_XRGB8888 && format != DRM_FORMAT_ARGB8888 && format != DRM_FORMAT_XBGR8888 &&
         format != DRM_FORMAT_ABGR8888)
@@ -268,7 +268,7 @@ wlr_buffer* Allocator::allocate_dumb(int width, int height, uint32_t format) {
         return nullptr;
     }
     auto* d = new DumbBuffer{};
-    wlr_buffer_init(&d->base, &kDumbBufferImpl, width, height);
+    buffer_init(&d->base, &kDumbBufferImpl, width, height);
     d->drm_fd = fd_;
     d->handle = handle;
     d->map = map;

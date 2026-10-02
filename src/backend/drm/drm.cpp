@@ -1,3 +1,4 @@
+#include "render/pass.hpp"
 #include "backend/drm/drm.hpp"
 
 #include "backend/drm/match.hpp"
@@ -11,8 +12,6 @@ extern "C" {
 #include <wlr/render/dmabuf.h>
 #include <wlr/render/drm_syncobj.h>
 #include <wlr/render/pass.h>
-#include <wlr/render/wlr_renderer.h>
-#include <wlr/render/wlr_texture.h>
 }
 
 #include <drm_fourcc.h>
@@ -131,8 +130,8 @@ struct Drm::Plane {
     wlr_drm_format_set formats{};
     std::vector<std::pair<int, int>> cursor_sizes;
     // Locked while KMS may show them: the one on screen, and the next.
-    wlr_buffer* current = nullptr;
-    wlr_buffer* queued = nullptr;
+    Buffer* current = nullptr;
+    Buffer* queued = nullptr;
     FBox src{};
     Box dst{};
     // Signalled once the buffer stops being shown (explicit sync).
@@ -142,9 +141,9 @@ struct Drm::Plane {
     uint64_t queued_point = 0;
 
     void clear() {
-        for (wlr_buffer** b : {&current, &queued})
+        for (Buffer** b : {&current, &queued})
             if (*b) {
-                wlr_buffer_unlock(*b);
+                buffer_unlock(*b);
                 *b = nullptr;
             }
         for (auto* t : {&current_release, &queued_release})
@@ -190,7 +189,7 @@ struct Drm::Connector {
 
     // The cursor plane: what to show next, where (crtc pixels, hotspot taken off).
     bool cursor_enabled = false;
-    wlr_buffer* cursor_pending = nullptr;
+    Buffer* cursor_pending = nullptr;
     int cursor_x = 0, cursor_y = 0, hotspot_x = 0, hotspot_y = 0, cursor_w = 0, cursor_h = 0;
 
     // A secondary GPU's copies of the frames and the cursor.
@@ -198,7 +197,7 @@ struct Drm::Connector {
 
     ~Connector() {
         if (cursor_pending)
-            wlr_buffer_unlock(cursor_pending);
+            buffer_unlock(cursor_pending);
     }
 };
 
@@ -214,11 +213,11 @@ struct Drm::ConnState {
     const OutputState* base = nullptr;
     bool active = false;
     drmModeModeInfo mode{};
-    wlr_buffer* primary = nullptr;  // locked
+    Buffer* primary = nullptr;  // locked
     uint32_t primary_fb = 0;
     FBox src{};
     Box dst{};
-    wlr_buffer* cursor = nullptr;  // locked
+    Buffer* cursor = nullptr;  // locked
     uint32_t cursor_fb = 0;
     wlr_drm_syncobj_timeline* wait = nullptr;
     uint64_t wait_point = 0;
@@ -229,9 +228,9 @@ struct Drm::ConnState {
     uint64_t colorspace = 0;
 
     void finish() {
-        for (wlr_buffer** b : {&primary, &cursor})
+        for (Buffer** b : {&primary, &cursor})
             if (*b) {
-                wlr_buffer_unlock(*b);
+                buffer_unlock(*b);
                 *b = nullptr;
             }
         if (wait) {
@@ -273,7 +272,7 @@ public:
         return drm.parent_ ? &drm.mgpu_formats_ : &conn.crtc->cursor->formats;
     }
 
-    bool set_cursor(wlr_buffer* buffer, int hx, int hy) override {
+    bool set_cursor(Buffer* buffer, int hx, int hy) override {
         if (!conn.crtc || !conn.crtc->cursor)
             return false;
         Plane* plane = conn.crtc->cursor;
@@ -285,7 +284,7 @@ public:
         }
         conn.cursor_enabled = false;
         if (conn.cursor_pending) {
-            wlr_buffer_unlock(conn.cursor_pending);
+            buffer_unlock(conn.cursor_pending);
             conn.cursor_pending = nullptr;
         }
         if (buffer) {
@@ -294,12 +293,12 @@ public:
             });
             if (!fits)
                 return false;
-            wlr_buffer* shown = drm.parent_
+            Buffer* shown = drm.parent_
                                     ? drm.copy_in(buffer, conn.mgpu_cursor, &plane->formats, renderer, nullptr, 0, nullptr)
-                                    : wlr_buffer_lock(buffer);
+                                    : buffer_lock(buffer);
             if (!shown || !drm.fb_for(shown, &plane->formats)) {
                 if (shown)
-                    wlr_buffer_unlock(shown);
+                    buffer_unlock(shown);
                 return false;
             }
             conn.cursor_pending = shown;
@@ -419,7 +418,7 @@ Drm::~Drm() {
     mgpu_allocator_.reset();
     mgpu_dumb_.reset();
     if (mgpu_renderer_)
-        wlr_renderer_destroy(mgpu_renderer_->wlr());
+        mgpu_renderer_->destroy();
     if (event_source_)
         wl_event_source_remove(event_source_);
     if (device_)
@@ -543,7 +542,7 @@ bool Drm::init_resources() {
 }
 
 uint32_t Drm::buffer_caps() const {
-    return WLR_BUFFER_CAP_DMABUF;
+    return BUFFER_CAP_DMABUF;
 }
 
 bool Drm::start() {
@@ -754,7 +753,7 @@ void Drm::disconnect(Connector& c) {
     c.pending_flip = nullptr;
     c.cursor_enabled = false;
     if (c.cursor_pending) {
-        wlr_buffer_unlock(c.cursor_pending);
+        buffer_unlock(c.cursor_pending);
         c.cursor_pending = nullptr;
     }
     destroy_blob(fd_, c.hdr_metadata);
@@ -820,11 +819,11 @@ bool Drm::alloc_crtc(Connector& c) {
 
 // ---- framebuffers -------------------------------------------------------------------
 
-uint32_t Drm::fb_for(wlr_buffer* buffer, const wlr_drm_format_set* formats) {
+uint32_t Drm::fb_for(Buffer* buffer, const wlr_drm_format_set* formats) {
     if (auto it = fbs_.find(buffer); it != fbs_.end())
         return it->second->poisoned ? 0 : it->second->id;
-    wlr_dmabuf_attributes a;
-    if (!wlr_buffer_get_dmabuf(buffer, &a))
+    DmabufAttributes a;
+    if (!buffer_get_dmabuf(buffer, &a))
         return 0;
     if (formats && !wlr_drm_format_set_has(formats, a.format, a.modifier))
         return 0;  // not this plane's (another may take it)
@@ -977,14 +976,14 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
         Crtc& crtc = *c.crtc;
         Plane& primary = *crtc.primary;
         const bool wait = (s.committed & OutputState::WaitTimeline) && s.wait_timeline;
-        wlr_buffer* last = primary.queued ? primary.queued : primary.current;
+        Buffer* last = primary.queued ? primary.queued : primary.current;
         if ((s.committed & OutputState::Buffer) && parent_ && test_only && last &&
             last->width == s.buffer->width && last->height == s.buffer->height) {
             // A test needn't copy: the last copy stands in.
             st.primary_fb = fb_for(last, &primary.formats);
             if (!st.primary_fb)
                 return false;
-            st.primary = wlr_buffer_lock(last);
+            st.primary = buffer_lock(last);
             st.src = src_box_of(s);
             st.dst = dst_box_of(s, last->width, last->height);
         } else if ((s.committed & OutputState::Buffer) && parent_) {
@@ -1016,29 +1015,29 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
             st.primary_fb = fb_for(s.buffer, &primary.formats);
             if (!st.primary_fb)
                 return false;
-            st.primary = wlr_buffer_lock(s.buffer);
+            st.primary = buffer_lock(s.buffer);
             st.src = src_box_of(s);
             st.dst = dst_box_of(s, s.buffer->width, s.buffer->height);
             if (wait) {
                 st.wait = wlr_drm_syncobj_timeline_ref(s.wait_timeline);
                 st.wait_point = s.wait_point;
             }
-        } else if (wlr_buffer* b = primary.queued ? primary.queued : primary.current) {
+        } else if (Buffer* b = primary.queued ? primary.queued : primary.current) {
             st.primary_fb = fb_for(b, &primary.formats);
-            st.primary = wlr_buffer_lock(b);
+            st.primary = buffer_lock(b);
             st.src = primary.src;
             st.dst = primary.dst;
         }
         if (!st.primary_fb)
             return false;  // nothing to show
         if (c.cursor_enabled && crtc.cursor) {
-            wlr_buffer* cb = c.cursor_pending ? c.cursor_pending
+            Buffer* cb = c.cursor_pending ? c.cursor_pending
                              : crtc.cursor->queued ? crtc.cursor->queued
                                                    : crtc.cursor->current;
             if (cb) {
                 st.cursor_fb = fb_for(cb, &crtc.cursor->formats);
                 if (st.cursor_fb)
-                    st.cursor = wlr_buffer_lock(cb);
+                    st.cursor = buffer_lock(cb);
             }
         }
     }
@@ -1171,8 +1170,8 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
             if (st.active && c.props.content_type)
                 add(c.id, c.props.content_type, DRM_MODE_CONTENT_TYPE_GRAPHICS);
             if (modeset && st.active && c.props.max_bpc && c.max_bpc_max && st.primary) {
-                wlr_dmabuf_attributes a;
-                uint64_t bpc = max_bpc_for(wlr_buffer_get_dmabuf(st.primary, &a) ? a.format : 0);
+                DmabufAttributes a;
+                uint64_t bpc = max_bpc_for(buffer_get_dmabuf(st.primary, &a) ? a.format : 0);
                 add(c.id, c.props.max_bpc, std::clamp(bpc, c.max_bpc_min, c.max_bpc_max));
             }
             if (c.props.colorspace)
@@ -1271,7 +1270,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
             Plane& primary = *crtc.primary;
             if (st.primary) {
                 if (primary.queued)
-                    wlr_buffer_unlock(primary.queued);
+                    buffer_unlock(primary.queued);
                 primary.queued = std::exchange(st.primary, nullptr);
                 primary.src = st.src;
                 primary.dst = st.dst;
@@ -1288,11 +1287,11 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
             }
             if (crtc.cursor) {
                 if (crtc.cursor->queued)
-                    wlr_buffer_unlock(crtc.cursor->queued);
+                    buffer_unlock(crtc.cursor->queued);
                 crtc.cursor->queued = std::exchange(st.cursor, nullptr);
             }
             if (c.cursor_pending) {
-                wlr_buffer_unlock(c.cursor_pending);
+                buffer_unlock(c.cursor_pending);
                 c.cursor_pending = nullptr;
             }
             c.pending_flip = flip;
@@ -1351,7 +1350,7 @@ void Drm::handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned c
     Plane& primary = *c->crtc->primary;
     if (primary.queued) {
         if (primary.current)
-            wlr_buffer_unlock(primary.current);
+            buffer_unlock(primary.current);
         primary.current = std::exchange(primary.queued, nullptr);
         if (primary.current_release) {
             // No longer on screen: the client may reuse it.
@@ -1363,7 +1362,7 @@ void Drm::handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned c
     }
     if (Plane* cur = c->crtc->cursor; cur && cur->queued) {
         if (cur->current)
-            wlr_buffer_unlock(cur->current);
+            buffer_unlock(cur->current);
         cur->current = std::exchange(cur->queued, nullptr);
     }
     Present p;
@@ -1401,7 +1400,7 @@ bool Drm::init_mgpu() {
     }
     // What it reads of another GPU's buffers. Implicit modifiers mean
     // something different on each GPU, so only explicit ones.
-    const wlr_drm_format_set* tex = wlr_renderer_get_texture_formats(mgpu_renderer_->wlr(), WLR_BUFFER_CAP_DMABUF);
+    const wlr_drm_format_set* tex = mgpu_renderer_->texture_formats(BUFFER_CAP_DMABUF);
     for (size_t i = 0; tex && i < tex->len; ++i)
         for (size_t k = 0; k < tex->formats[i].len; ++k)
             if (tex->formats[i].modifiers[k] != DRM_FORMAT_MOD_INVALID)
@@ -1410,7 +1409,7 @@ bool Drm::init_mgpu() {
         alog(Log::Error, "drm: %s can't read other GPUs' buffers", name_.c_str());
         return false;
     }
-    if (timeline_ && mgpu_renderer_->wlr()->features.timeline)
+    if (timeline_ && mgpu_renderer_->features.timeline)
         mgpu_timeline_ = wlr_drm_syncobj_timeline_create(fd_);
     alog(Log::Info, "drm: %s shows frames rendered on %s", name_.c_str(), parent_->name_.c_str());
     return true;
@@ -1418,7 +1417,7 @@ bool Drm::init_mgpu() {
 
 // Through the CPU: `from` (the parent's renderer) reads the frame back into
 // our buffer's mapping. Waits for the frame on the CPU first.
-bool Drm::cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm_syncobj_timeline* wait,
+bool Drm::cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syncobj_timeline* wait,
                    uint64_t wait_point) {
     if (!from)
         return false;
@@ -1430,7 +1429,7 @@ bool Drm::cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm
             close(fd);
         }
     }
-    wlr_texture* tex = wlr_texture_from_buffer(from, src);
+    render::Texture* tex = from->texture_from_buffer(src);
     if (!tex) {
         alog(Log::Error, "drm: %s: the frame can't be read back", name_.c_str());
         return false;
@@ -1439,28 +1438,28 @@ bool Drm::cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm
     uint32_t format = 0;
     size_t stride = 0;
     bool ok = false;
-    if (wlr_buffer_begin_data_ptr_access(dst, WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
-        wlr_texture_read_pixels_options o{};
+    if (buffer_begin_data_ptr_access(dst, BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
+        render::ReadPixelsOptions o{};
         o.data = data;
         o.format = format;
         o.stride = uint32_t(stride);
-        ok = wlr_texture_read_pixels(tex, &o);
-        wlr_buffer_end_data_ptr_access(dst);
+        ok = tex->read_pixels(&o);
+        buffer_end_data_ptr_access(dst);
     } else {
         alog(Log::Error, "drm: %s: couldn't map a buffer to copy into", name_.c_str());
     }
-    wlr_texture_destroy(tex);
+    tex->destroy();
     return ok;
 }
 
-wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
-                         wlr_renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence) {
+Buffer* Drm::copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
+                         render::Renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence) {
     if (fence)
         *fence = -1;
-    wlr_dmabuf_attributes a;
-    if (!wlr_buffer_get_dmabuf(src, &a))
+    DmabufAttributes a;
+    if (!buffer_get_dmabuf(src, &a))
         return nullptr;
-    wlr_texture* tex = mgpu_cpu_ ? nullptr : wlr_texture_from_buffer(mgpu_renderer_->wlr(), src);
+    render::Texture* tex = mgpu_cpu_ ? nullptr : mgpu_renderer_->texture_from_buffer(src);
     if (!tex && !mgpu_cpu_) {
         // It can't read the parent's buffers (they live in the other GPU's
         // memory): the parent reads them back and the CPU writes ours.
@@ -1490,45 +1489,45 @@ wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const 
         if (mods.empty()) {
             alog(Log::Error, "drm: %s: no buffer for copies of 0x%08x", name_.c_str(), a.format);
             if (tex)
-                wlr_texture_destroy(tex);
+                tex->destroy();
             return nullptr;
         }
         sc = std::make_unique<Swapchain>(mgpu_cpu_ ? *mgpu_dumb_ : *mgpu_allocator_, src->width, src->height,
                                          a.format, mods);
     }
-    wlr_buffer* dst = sc->acquire();
+    Buffer* dst = sc->acquire();
     if (!dst) {
         alog(Log::Error, "drm: %s: couldn't allocate a buffer to copy into", name_.c_str());
         sc.reset();
         if (tex)
-            wlr_texture_destroy(tex);
+            tex->destroy();
         return nullptr;
     }
     if (mgpu_cpu_) {
         const bool ok = cpu_copy(src, dst, from, wait, wait_point);
         if (!ok)
-            wlr_buffer_unlock(dst);
+            buffer_unlock(dst);
         return ok ? dst : nullptr;
     }
-    wlr_buffer_pass_options opts{};
+    render::BufferPassOptions opts{};
     const bool signal = mgpu_timeline_ && fence;
     if (signal) {
         opts.signal_timeline = mgpu_timeline_;
         opts.signal_point = ++mgpu_point_;
     }
     bool ok = false;
-    if (wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(mgpu_renderer_->wlr(), dst, &opts)) {
-        wlr_render_texture_options t{};
+    if (render::RenderPass* pass = mgpu_renderer_->begin_buffer_pass(dst, &opts)) {
+        render::TextureOptions t{};
         t.texture = tex;
-        t.blend_mode = WLR_RENDER_BLEND_MODE_NONE;
+        t.blend_mode = render::BLEND_MODE_NONE;
         t.wait_timeline = mgpu_timeline_ ? wait : nullptr;
         t.wait_point = wait_point;
-        wlr_render_pass_add_texture(pass, &t);
-        ok = wlr_render_pass_submit(pass);
+        pass->add_texture(&t);
+        ok = pass->submit();
     }
-    wlr_texture_destroy(tex);
+    tex->destroy();
     if (!ok) {
-        wlr_buffer_unlock(dst);
+        buffer_unlock(dst);
         return nullptr;
     }
     if (signal)
@@ -1699,9 +1698,9 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
                 alog(Log::Error, "drm: %s: setting gamma failed: %s", c.name.c_str(), std::strerror(errno));
         }
         if (crtc.cursor) {
-            wlr_dmabuf_attributes a;
+            DmabufAttributes a;
             uint32_t handle = 0;
-            if (st.cursor && c.output->cursor_visible() && wlr_buffer_get_dmabuf(st.cursor, &a) &&
+            if (st.cursor && c.output->cursor_visible() && buffer_get_dmabuf(st.cursor, &a) &&
                 drmPrimeFDToHandle(fd_, a.fd[0], &handle) == 0) {
                 if (drmModeSetCursor2(fd_, crtc.id, handle, uint32_t(a.width), uint32_t(a.height), c.hotspot_x,
                                       c.hotspot_y) != 0)

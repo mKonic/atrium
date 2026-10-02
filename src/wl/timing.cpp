@@ -350,7 +350,7 @@ struct Syncobj::Release {
     int merged = -1;  // sync_file of the reads so far
     int pending = 0;  // reads whose fence doesn't exist yet
     bool released = false;
-    wlr_buffer* buffer;
+    Buffer* buffer;
     wl_listener release_listener{};
 
     void finish_if_done() {
@@ -478,7 +478,7 @@ Syncobj::Syncobj(wl_display* display, int drm_fd) : drm_fd_(drm_fd), display_(di
                 const auto& sy = s->current().sync;
                 if (!(s->current().committed & SurfaceState::Buffer) || !sy.release)
                     return;
-                wlr_buffer* b = s->current().buffer.get();
+                Buffer* b = s->current().buffer.get();
                 if (!b)
                     return;
                 auto* rel = new Release{this, sy.release, sy.release_point, -1, 0, false, b, {}};

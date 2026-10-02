@@ -12,7 +12,7 @@ namespace atrium {
 // Returns the buffer locked for the caller. The scene lets go of its own
 // lock once the texture is uploaded, and node->buffer turns null with it; a
 // node whose buffer gets copied elsewhere (close animation, overview) has to
-// be kept alive by this lock. Release with wlr_buffer_unlock.
-wlr_buffer* set_cairo_buffer(scene::Buffer* node, cairo_surface_t* surface, int width, int height);
+// be kept alive by this lock. Release with buffer_unlock.
+Buffer* set_cairo_buffer(scene::Buffer* node, cairo_surface_t* surface, int width, int height);
 
 } // namespace atrium

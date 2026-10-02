@@ -19,36 +19,36 @@ namespace atrium {
 namespace {
 
 // Copies `box` of `src` (buffer pixels) into the whole of `dst`.
-bool copy_into(wlr_renderer* renderer, wlr_buffer* src, const Box& box, wlr_buffer* dst) {
-    wlr_texture* t = wlr_texture_from_buffer(renderer, src);
+bool copy_into(render::Renderer* renderer, Buffer* src, const Box& box, Buffer* dst) {
+    render::Texture* t = renderer->texture_from_buffer(src);
     if (!t)
         return false;
     bool ok = false;
     void* data = nullptr;
     uint32_t format = 0;
     size_t stride = 0;
-    if (wlr_buffer_begin_data_ptr_access(dst, WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
-        const wlr_texture_read_pixels_options o{
-            .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = to_wlr(box)};
-        ok = wlr_texture_read_pixels(t, &o);
-        wlr_buffer_end_data_ptr_access(dst);
-    } else if (wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(renderer, dst, nullptr)) {
-        wlr_render_texture_options o{};
+    if (buffer_begin_data_ptr_access(dst, BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
+        const render::ReadPixelsOptions o{
+            .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = box};
+        ok = t->read_pixels(&o);
+        buffer_end_data_ptr_access(dst);
+    } else if (render::RenderPass* pass = renderer->begin_buffer_pass(dst, nullptr)) {
+        render::TextureOptions o{};
         o.texture = t;
         o.src_box = {double(box.x), double(box.y), double(box.width), double(box.height)};
         o.dst_box = {0, 0, dst->width, dst->height};
-        o.filter_mode = WLR_SCALE_FILTER_NEAREST;
-        o.blend_mode = WLR_RENDER_BLEND_MODE_NONE;
-        wlr_render_pass_add_texture(pass, &o);
-        ok = wlr_render_pass_submit(pass);
+        o.filter_mode = render::SCALE_FILTER_NEAREST;
+        o.blend_mode = render::BLEND_MODE_NONE;
+        pass->add_texture(&o);
+        ok = pass->submit();
     }
-    wlr_texture_destroy(t);
+    t->destroy();
     return ok;
 }
 
-dev_t render_device(wlr_renderer* renderer) {
+dev_t render_device(render::Renderer* renderer) {
     struct stat st{};
-    const int fd = wlr_renderer_get_drm_fd(renderer);
+    const int fd = renderer->drm_fd();
     return fd >= 0 && fstat(fd, &st) == 0 ? st.st_rdev : 0;
 }
 
@@ -114,7 +114,7 @@ void Server::setup_capture() {
         c.height = h;
         c.shm_format = format;
         c.shm_stride = uint32_t(w) * 4;
-        if (const wlr_drm_format_set* set = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
+        if (const wlr_drm_format_set* set = renderer->texture_formats(BUFFER_CAP_DMABUF)) {
             if (const wlr_drm_format* f = wlr_drm_format_set_get(set, format)) {
                 c.dmabuf_format = format;
                 c.dmabuf_modifiers.assign(f->modifiers, f->modifiers + f->len);
@@ -127,7 +127,7 @@ void Server::setup_capture() {
     connections_.push_back(cap.copy.connect([this](wl::Capture::Copy& copy) {
         if (Output* o = output_of(copy.target)) {
             auto& per = capture_->outputs[o];
-            wlr_buffer_lock(copy.buffer);
+            buffer_lock(copy.buffer);
             per.copies.push_back({copy, buffer_box(*o, copy.target.region)});
             if (!per.commit.connected())
                 per.commit = o->screen->events.commit.connect(
@@ -146,7 +146,7 @@ void Server::setup_capture() {
         auto& per = capture_->views[v];
         if (!per.source) {
             per.source = scene::CaptureSource::create(v->capture_scene_, loop, allocator, renderer);
-            per.source->on_frame = [this, v](wlr_buffer* buffer, const pixman_region32_t*, const timespec& when) {
+            per.source->on_frame = [this, v](Buffer* buffer, const pixman_region32_t*, const timespec& when) {
                 capture_view_frame(v, buffer, when);
             };
             per.idle = wl_event_loop_add_timer(loop, [](void* data) {
@@ -158,7 +158,7 @@ void Server::setup_capture() {
                 return 0;
             }, &per);
         }
-        wlr_buffer_lock(copy.buffer);
+        buffer_lock(copy.buffer);
         per.copies.push_back(copy);
         // Nobody asked for a while: the window's own scene stops drawing.
         wl_event_source_timer_update(per.idle, 3000);
@@ -193,7 +193,7 @@ void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
     if (it == capture_->outputs.end())
         return;
     auto& per = it->second;
-    wlr_buffer* frame = st.buffer;
+    Buffer* frame = st.buffer;
     timespec when;
     clock_gettime(CLOCK_MONOTONIC, &when);
     for (auto& p : std::exchange(per.copies, {})) {
@@ -202,12 +202,12 @@ void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
         r.when = when;
         r.transform = uint32_t(o->screen->transform);
         r.fail_reason = r.ok ? 0 : 1;
-        wlr_buffer_unlock(p.copy.buffer);
+        buffer_unlock(p.copy.buffer);
         p.copy.done(r);
     }
     for (auto& x : std::exchange(per.exports, {})) {
-        wlr_dmabuf_attributes attrs{};
-        if (wlr_buffer_get_dmabuf(frame, &attrs))
+        DmabufAttributes attrs{};
+        if (buffer_get_dmabuf(frame, &attrs))
             x.done(&attrs, when);
         else
             x.done(nullptr, when);
@@ -216,7 +216,7 @@ void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
 }
 
 // A window's capture scene drew a frame.
-void Server::capture_view_frame(View* v, wlr_buffer* frame, const timespec& when) {
+void Server::capture_view_frame(View* v, Buffer* frame, const timespec& when) {
     auto it = capture_->views.find(v);
     if (it == capture_->views.end())
         return;
@@ -233,7 +233,7 @@ void Server::capture_view_frame(View* v, wlr_buffer* frame, const timespec& when
             r.fail_reason = 1;  // the window changed size: new constraints
             resized = true;
         }
-        wlr_buffer_unlock(c.buffer);
+        buffer_unlock(c.buffer);
         c.done(r);
     }
     if (resized && v->handle_)

@@ -102,7 +102,7 @@ bool Headless::start() {
 }
 
 uint32_t Headless::buffer_caps() const {
-    return WLR_BUFFER_CAP_DMABUF | WLR_BUFFER_CAP_SHM;
+    return BUFFER_CAP_DMABUF | BUFFER_CAP_SHM;
 }
 
 Output* Headless::add_output(int width, int height, int refresh) {

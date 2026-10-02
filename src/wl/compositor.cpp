@@ -1,3 +1,4 @@
+#include "render/pass.hpp"
 #include "wl/compositor.hpp"
 
 #include "wl/output.hpp"
@@ -11,7 +12,7 @@ namespace {
 
 // Surface size from buffer size: transform, then scale, then the viewport.
 void size_state(SurfaceState& s) {
-    wlr_buffer* b = s.buffer.get();
+    Buffer* b = s.buffer.get();
     s.buffer_width = b ? b->width : 0;
     s.buffer_height = b ? b->height : 0;
     int w = s.buffer_width, h = s.buffer_height;
@@ -34,19 +35,19 @@ void size_state(SurfaceState& s) {
     s.height = h;
 }
 
-const wlr_buffer_impl kSurfaceBufferImpl = {
+const BufferImpl kSurfaceBufferImpl = {
     .destroy =
-        [](wlr_buffer* b) {
+        [](Buffer* b) {
             auto* sb = reinterpret_cast<SurfaceBuffer*>(b);
             if (sb->texture)
-                wlr_texture_destroy(sb->texture);
-            wlr_buffer_finish(b);
+                sb->texture->destroy();
+            buffer_finish(b);
             delete sb;
         },
     .get_dmabuf =
-        [](wlr_buffer* b, wlr_dmabuf_attributes* out) {
+        [](Buffer* b, DmabufAttributes* out) {
             auto* sb = reinterpret_cast<SurfaceBuffer*>(b);
-            return sb->source && wlr_buffer_get_dmabuf(sb->source.get(), out);
+            return sb->source && buffer_get_dmabuf(sb->source.get(), out);
         },
     .get_shm = nullptr,
     .begin_data_ptr_access = nullptr,
@@ -55,7 +56,7 @@ const wlr_buffer_impl kSurfaceBufferImpl = {
 
 } // namespace
 
-SurfaceBuffer* SurfaceBuffer::from(wlr_buffer* buffer) {
+SurfaceBuffer* SurfaceBuffer::from(Buffer* buffer) {
     return buffer && buffer->impl == &kSurfaceBufferImpl ? reinterpret_cast<SurfaceBuffer*>(buffer) : nullptr;
 }
 
@@ -139,7 +140,7 @@ Surface::Surface(wl_client* client, uint32_t version, uint32_t id, Compositor& c
             post_error(uint32_t(Error::InvalidOffset), "attach with an offset; use wl_surface.offset");
             return;
         }
-        wlr_buffer* buffer = nullptr;
+        Buffer* buffer = nullptr;
         if (buffer_resource) {
             auto* b = dynamic_cast<ClientBuffer*>(buffer_resource);
             if (!b) {
@@ -217,7 +218,7 @@ Surface::~Surface() {
             p.sub->detach_from_parent();
     queue_.clear();
     if (shown_)
-        wlr_buffer_drop(&shown_->base);
+        buffer_drop(&shown_->base);
 }
 
 Surface* Surface::from(wl_resource* resource) {
@@ -276,7 +277,7 @@ void Surface::commit() {
         return;
     events.precommit.emit();
     if (pending_.buffer && !pending_.viewport.has_destination && pending_.scale > 1) {
-        wlr_buffer* b = pending_.buffer.get();
+        Buffer* b = pending_.buffer.get();
         if (b->width % pending_.scale || b->height % pending_.scale) {
             post_error(uint32_t(Error::InvalidSize), "the buffer's size isn't a multiple of its scale");
             return;
@@ -458,39 +459,39 @@ void Surface::release_children() {
 }
 
 void Surface::update_texture(bool) {
-    wlr_buffer* source = current_.buffer.get();
+    Buffer* source = current_.buffer.get();
     if (!source) {
         if (shown_) {
-            wlr_buffer_drop(&shown_->base);
+            buffer_drop(&shown_->base);
             shown_ = nullptr;
         }
         return;
     }
-    wlr_renderer* renderer = compositor_.renderer();
+    render::Renderer* renderer = compositor_.renderer();
     // An shm buffer of the size and format shown is copied into the texture
     // we have, only where it changed.
     void* data;
     uint32_t format;
     size_t stride;
-    const bool in_memory = wlr_buffer_begin_data_ptr_access(source, WLR_BUFFER_DATA_PTR_ACCESS_READ, &data,
+    const bool in_memory = buffer_begin_data_ptr_access(source, BUFFER_DATA_PTR_ACCESS_READ, &data,
                                                               &format, &stride);
     if (in_memory)
-        wlr_buffer_end_data_ptr_access(source);
+        buffer_end_data_ptr_access(source);
     if (in_memory && shown_ && shown_->texture && shown_->base.n_locks == shown_->ignore_locks &&
         shown_->texture->width == uint32_t(source->width) && shown_->texture->height == uint32_t(source->height) &&
-        wlr_texture_update_from_buffer(shown_->texture, source, current_.buffer_damage.get())) {
+        shown_->texture->update_from_buffer(source, current_.buffer_damage.get())) {
         current_.buffer.reset();  // copied: back to the client
         return;
     }
     auto* sb = new SurfaceBuffer{};
-    wlr_buffer_init(&sb->base, &kSurfaceBufferImpl, source->width, source->height);
-    sb->texture = renderer ? wlr_texture_from_buffer(renderer, source) : nullptr;
+    buffer_init(&sb->base, &kSurfaceBufferImpl, source->width, source->height);
+    sb->texture = renderer ? renderer->texture_from_buffer(source) : nullptr;
     if (in_memory && sb->texture)
         current_.buffer.reset();  // copied: back to the client
     else
         sb->source.reset(source);
     if (shown_)
-        wlr_buffer_drop(&shown_->base);
+        buffer_drop(&shown_->base);
     shown_ = sb;
 }
 
@@ -673,7 +674,7 @@ RegionResource::RegionResource(wl_client* client, uint32_t version, uint32_t id)
 
 // ---- Compositor ------------------------------------------------------------------
 
-Compositor::Compositor(wl_display* display, wlr_renderer* renderer) : renderer_(renderer) {
+Compositor::Compositor(wl_display* display, render::Renderer* renderer) : renderer_(renderer) {
     compositor_global_ = Global::create<WlCompositor>(display, 6, [this](wl_client* client, uint32_t version, uint32_t id) {
             auto* c = make<WlCompositor>(client, version, id);
             if (!c)

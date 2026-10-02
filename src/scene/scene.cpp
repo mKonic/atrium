@@ -418,7 +418,7 @@ Node::Node(Type t, Tree* p) : type(t), parent(p) {
     pixman_region32_init(&visible);
     if (p)
         wl_list_insert(p->children.prev, &link);
-    wlr_addon_set_init(&addons);
+    addon_set_init(&addons);
 }
 
 Node::~Node() {
@@ -429,7 +429,7 @@ Node::~Node() {
 void Node::destroy() {
     // Destroy listeners first: they may take children away with them.
     wl_signal_emit_mutable(&events.destroy, nullptr);
-    wlr_addon_set_finish(&addons);
+    addon_set_finish(&addons);
     set_enabled(false);
 
     Scene* scene = root();
@@ -954,7 +954,7 @@ void BlurCache::mark_dirty() {
 
 // ---- Buffer -------------------------------------------------------------------
 
-Buffer::Buffer(Tree* parent, wlr_buffer* b) : Node(Type::Buffer, parent) {
+Buffer::Buffer(Tree* parent, atrium::Buffer* b) : Node(Type::Buffer, parent) {
     wl_signal_init(&events.outputs_update);
     wl_signal_init(&events.output_enter);
     wl_signal_init(&events.output_leave);
@@ -976,17 +976,17 @@ Buffer::~Buffer() {
         mask_of_->mask_ = nullptr;
 }
 
-Buffer* Buffer::create(Tree* parent, wlr_buffer* b) {
+Buffer* Buffer::create(Tree* parent, atrium::Buffer* b) {
     assert(parent);
     Buffer* n = new Buffer(parent, b);
     n->update();
     return n;
 }
 
-void Buffer::take_buffer(wlr_buffer* b) {
+void Buffer::take_buffer(atrium::Buffer* b) {
     buffer_release_.disconnect();
     if (own_buffer_ && buffer)
-        wlr_buffer_unlock(buffer);
+        buffer_unlock(buffer);
     buffer = nullptr;
     own_buffer_ = false;
     buffer_width_ = buffer_height_ = 0;
@@ -994,34 +994,34 @@ void Buffer::take_buffer(wlr_buffer* b) {
     if (!b)
         return;
     own_buffer_ = true;
-    buffer = wlr_buffer_lock(b);
+    buffer = buffer_lock(b);
     buffer_width_ = b->width;
     buffer_height_ = b->height;
-    buffer_is_opaque_ = wlr_buffer_is_opaque(b);
+    buffer_is_opaque_ = buffer_is_opaque(b);
     buffer_release_.connect(&b->events.release, [this](void*) {
         buffer = nullptr;
         buffer_release_.disconnect();
     });
 }
 
-void Buffer::set_texture(wlr_texture* t) {
+void Buffer::set_texture(render::Texture* t) {
     renderer_destroy_.disconnect();
     if (texture_)
-        wlr_texture_destroy(texture_);
+        texture_->destroy();
     texture_ = t;
     if (t)
         renderer_destroy_.connect(&t->renderer->events.destroy, [this](void*) { set_texture(nullptr); });
 }
 
-wlr_texture* Buffer::texture(wlr_renderer* renderer) {
+render::Texture* Buffer::texture(render::Renderer* renderer) {
     if (!buffer || texture_)
         return texture_;
     if (wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(buffer))
         return sb->texture;
-    wlr_texture* t = wlr_texture_from_buffer(renderer, buffer);
+    render::Texture* t = renderer->texture_from_buffer(buffer);
     if (t && own_buffer_) {
         own_buffer_ = false;
-        wlr_buffer_unlock(buffer);
+        buffer_unlock(buffer);
     }
     set_texture(t);
     return t;
@@ -1029,7 +1029,7 @@ wlr_texture* Buffer::texture(wlr_renderer* renderer) {
 
 // Single-pixel buffers are drawn as rectangles: remember the colour, the
 // buffer may be gone after the upload.
-void Buffer::note_single_pixel(wlr_buffer* b) {
+void Buffer::note_single_pixel(atrium::Buffer* b) {
     single_pixel_ = false;
     wl::SurfaceBuffer* sb = b ? wl::SurfaceBuffer::from(b) : nullptr;
     if (sb && sb->source.get())
@@ -1041,7 +1041,7 @@ bool Buffer::is_black_opaque() const {
            single_pixel_color_[2] == 0 && single_pixel_color_[3] == 1 && opacity == 1 && corners.empty();
 }
 
-void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
+void Buffer::set_buffer(atrium::Buffer* b, const BufferOptions& o) {
     assert(b || !o.damage);
     const bool mapped = b != nullptr;
     const bool was_mapped = buffer || texture_;
@@ -1174,7 +1174,7 @@ void Buffer::set_opacity(float o) {
     update();
 }
 
-void Buffer::set_filter_mode(wlr_scale_filter_mode m) {
+void Buffer::set_filter_mode(render::ScaleFilter m) {
     if (filter_mode == m)
         return;
     filter_mode = m;

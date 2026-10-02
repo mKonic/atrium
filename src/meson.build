@@ -1,5 +1,7 @@
 atrium_sources = files(
   'util/box.cpp',
+  'util/buffer.cpp',
+  'util/damage_ring.cpp',
   'util/log.cpp',
   'util/region.cpp',
   'anim.cpp',

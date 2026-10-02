@@ -287,7 +287,7 @@ void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
         // Moved by its attach offset: the hotspot moves against it.
         cursor_hot_x_ -= s->current().dx;
         cursor_hot_y_ -= s->current().dy;
-        if (wlr_buffer* b = s->buffer())
+        if (Buffer* b = s->buffer())
             cursor->set_buffer(b, cursor_hot_x_ * s->current().scale, cursor_hot_y_ * s->current().scale,
                                   float(s->current().scale));
         else
@@ -303,7 +303,7 @@ void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
         cursor_surface_ = nullptr;
         cursor->unset_image();
     });
-    if (wlr_buffer* b = surface->buffer())
+    if (Buffer* b = surface->buffer())
         cursor->set_buffer(b, hot_x * surface->current().scale, hot_y * surface->current().scale,
                               float(surface->current().scale));
     else

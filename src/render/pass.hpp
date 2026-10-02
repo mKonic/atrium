@@ -32,7 +32,7 @@ struct TextureDraw {
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
     const pixman_region32_t* clip = nullptr;  // null: dst
     float alpha = 1;
-    wlr_scale_filter_mode filter = WLR_SCALE_FILTER_BILINEAR;
+    ScaleFilter filter = SCALE_FILTER_BILINEAR;
     bool blend = true;
 
     // Content that isn't plain SDR: its transfer function, gamut and how
@@ -145,8 +145,9 @@ struct EffectBuffers {
 
 class RenderPass {
 public:
-    wlr_render_pass* wlr() { return &hook_.base; }
-    static RenderPass* from(wlr_render_pass* p);
+    // wlroots-shaped: a texture or rectangle by its options.
+    void add_texture(const TextureOptions* options);
+    void add_rect(const RectOptions* options);
 
     int width() const { return width_; }
     int height() const { return height_; }
@@ -205,11 +206,6 @@ private:
     bool blit(const pixman_region32_t* region, Framebuffer* dst, Framebuffer* src);
     void bind(Framebuffer* fb);
 
-    struct Hook {
-        wlr_render_pass base;
-        RenderPass* self;
-    };
-    Hook hook_{};
     Renderer& r_;
     Framebuffer* fb_;         // what's drawn into now
     Framebuffer* output_fb_;  // the output's buffer when drawing into the blend buffer
@@ -221,7 +217,7 @@ private:
     uint64_t signal_point_ = 0;
     OutputColor color_;
     bool two_pass_ = false;
-    wlr_buffer* locked_ = nullptr;
+    Buffer* locked_ = nullptr;
     Target own_blend_;  // the blend buffer when there are no EffectBuffers
     struct Saved {
         Framebuffer* fb;

@@ -12,6 +12,7 @@
 #include "render/pass.hpp"
 #include "wl/dmabuf.hpp"
 #include "wl/signal.hpp"
+#include "util/damage_ring.hpp"
 #include "wlr.hpp"
 
 #include <optional>
@@ -91,7 +92,7 @@ public:
     struct {
         wl_signal destroy;
     } events;
-    wlr_addon_set addons;
+    AddonSet addons;
 
     // Destroys this node and all under it.
     void destroy();
@@ -319,15 +320,15 @@ struct BufferOptions {
 
 class Buffer : public Node {
 public:
-    static Buffer* create(Tree* parent, wlr_buffer* buffer);
+    static Buffer* create(Tree* parent, atrium::Buffer* buffer);
 
-    void set_buffer(wlr_buffer* buffer, const BufferOptions& options = BufferOptions());
+    void set_buffer(atrium::Buffer* buffer, const BufferOptions& options = BufferOptions());
     void set_opaque_region(const pixman_region32_t* region);
     void set_source_box(const FBox* box);
     void set_dest_size(int width, int height);
     void set_transform(wl_output_transform transform);
     void set_opacity(float opacity);
-    void set_filter_mode(wlr_scale_filter_mode mode);
+    void set_filter_mode(render::ScaleFilter mode);
     void set_transfer_function(wlr_color_transfer_function tf);
     void set_primaries(wlr_color_named_primaries primaries);
     void set_corner_radius(int r) { set_corner_radii(Radii::all(r)); }
@@ -348,10 +349,10 @@ public:
     // Whether a point (node-local, adjusted in place) takes input.
     bool (*point_accepts_input)(Buffer* buffer, double* sx, double* sy) = nullptr;
 
-    wlr_buffer* buffer = nullptr;
+    atrium::Buffer* buffer = nullptr;
     SceneOutput* primary_output = nullptr;
     float opacity = 1;
-    wlr_scale_filter_mode filter_mode = WLR_SCALE_FILTER_BILINEAR;
+    render::ScaleFilter filter_mode = render::SCALE_FILTER_BILINEAR;
     FBox src_box{};
     int dst_width = 0, dst_height = 0;
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
@@ -364,16 +365,16 @@ public:
     std::optional<std::pair<backend::Output*, bool>> feedback_sent;
 
 private:
-    Buffer(Tree* parent, wlr_buffer* buffer);
+    Buffer(Tree* parent, atrium::Buffer* buffer);
     ~Buffer() override;
-    void take_buffer(wlr_buffer* buffer);
-    void set_texture(wlr_texture* texture);
-    wlr_texture* texture(wlr_renderer* renderer);
+    void take_buffer(atrium::Buffer* buffer);
+    void set_texture(render::Texture* texture);
+    render::Texture* texture(render::Renderer* renderer);
     bool is_black_opaque() const;
-    void note_single_pixel(wlr_buffer* b);
+    void note_single_pixel(atrium::Buffer* b);
 
     uint64_t active_outputs_ = 0;
-    wlr_texture* texture_ = nullptr;
+    render::Texture* texture_ = nullptr;
     bool own_buffer_ = false;
     int buffer_width_ = 0, buffer_height_ = 0;
     bool buffer_is_opaque_ = false;
@@ -417,7 +418,7 @@ public:
 
     SceneOutput* output_for(const backend::Output* output);
     // Draws the pointer into a frame where the screen has no cursor plane.
-    std::function<void(const backend::Output*, wlr_render_pass*, const pixman_region32_t*)> draw_cursor;
+    std::function<void(const backend::Output*, render::RenderPass*, const pixman_region32_t*)> draw_cursor;
     SceneOutput* output_for(const wl::Output* output);
 
     wl_list outputs;  // SceneOutput::link
@@ -445,7 +446,7 @@ private:
 // Time spent making a frame: CPU before rendering, then the GPU's.
 struct Timer {
     int64_t pre_render_duration = 0;
-    wlr_render_timer* render_timer = nullptr;
+    render::RenderTimer* render_timer = nullptr;
     int64_t duration_ns();
     void finish();
 };
@@ -485,7 +486,7 @@ public:
     wl::Output* global = nullptr;  // its wl_output (the compositor sets it)
     wl_list link;  // Scene::outputs
     Scene* scene;
-    wlr_damage_ring damage_ring;
+    DamageRing damage_ring;
     int x = 0, y = 0;
     uint8_t index = 0;
     struct {
@@ -597,7 +598,7 @@ void layer_surface_v1_configure(LayerSurfaceNode* node, const Box* full_area, Bo
 // for capturing one window. Goes with the node.
 class CaptureSource {
 public:
-    static CaptureSource* create(Node* node, wl_event_loop* loop, backend::Allocator* allocator, wlr_renderer* renderer);
+    static CaptureSource* create(Node* node, wl_event_loop* loop, backend::Allocator* allocator, render::Renderer* renderer);
     void destroy();
 
     // Someone watches: frames are drawn (counted, as sessions come and go).
@@ -609,7 +610,7 @@ public:
     int width() const;
     int height() const;
 
-    std::function<void(wlr_buffer* buffer, const pixman_region32_t* damage, const timespec& when)> on_frame;
+    std::function<void(atrium::Buffer* buffer, const pixman_region32_t* damage, const timespec& when)> on_frame;
 };
 
 } // namespace atrium::scene

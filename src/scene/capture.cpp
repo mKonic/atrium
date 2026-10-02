@@ -21,7 +21,7 @@ class CaptureBackend final : public backend::Backend {
 public:
     explicit CaptureBackend(wl_event_loop* loop) : Backend(loop) {}
     bool start() override { return true; }
-    uint32_t buffer_caps() const override { return WLR_BUFFER_CAP_DMABUF | WLR_BUFFER_CAP_SHM; }
+    uint32_t buffer_caps() const override { return BUFFER_CAP_DMABUF | BUFFER_CAP_SHM; }
 };
 
 class CaptureOutput final : public backend::Output {
@@ -75,7 +75,7 @@ bool CaptureOutput::commit(const backend::OutputState& st) {
         return true;
     if (!(st.committed & backend::OutputState::Buffer))
         return !(st.committed & backend::OutputState::ModeField) || configure_primary_swapchain(&st, swapchain);
-    wlr_buffer* buffer = st.buffer;
+    atrium::Buffer* buffer = st.buffer;
     pixman_region32_t full;
     pixman_region32_init_rect(&full, 0, 0, unsigned(buffer->width), unsigned(buffer->height));
     timespec when;
@@ -134,7 +134,7 @@ void Source::destroy() {
 } // namespace
 
 CaptureSource* CaptureSource::create(Node* node, wl_event_loop* loop, backend::Allocator* allocator,
-                                     wlr_renderer* renderer) {
+                                     render::Renderer* renderer) {
     auto* s = new Source(loop);
     s->pub = new CaptureSource();
     sources()[s->pub] = s;

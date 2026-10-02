@@ -29,7 +29,7 @@ constexpr int kDefaultWidth = 1280, kDefaultHeight = 720;
 // One of ours, as the host knows it.
 struct Wayland::RemoteBuffer {
     Wayland* backend = nullptr;
-    wlr_buffer* buffer = nullptr;
+    Buffer* buffer = nullptr;
     struct wl_buffer* remote = nullptr;
     bool busy = false;  // the host holds it (we hold a lock on ours)
     Listener<> destroy;
@@ -73,7 +73,7 @@ public:
         if (surface_)
             wl_surface_destroy(surface_);
         if (cursor_buffer_)
-            wlr_buffer_unlock(cursor_buffer_);
+            buffer_unlock(cursor_buffer_);
     }
 
     // The window, mapped once the host has configured it.
@@ -105,10 +105,10 @@ public:
     const wlr_drm_format_set* primary_formats(uint32_t) const override { return &owner.formats_; }
     bool direct_scanout_allowed() const override { return false; }
 
-    bool set_cursor(wlr_buffer* buffer, int hx, int hy) override {
+    bool set_cursor(Buffer* buffer, int hx, int hy) override {
         if (cursor_buffer_)
-            wlr_buffer_unlock(cursor_buffer_);
-        cursor_buffer_ = buffer ? wlr_buffer_lock(buffer) : nullptr;
+            buffer_unlock(cursor_buffer_);
+        cursor_buffer_ = buffer ? buffer_lock(buffer) : nullptr;
         cursor_hx_ = hx;
         cursor_hy_ = hy;
         if (!cursor_surface_)
@@ -149,8 +149,8 @@ protected:
         if ((s.committed & OutputState::ModeField) && s.mode_type != OutputState::ModeType::Custom)
             return false;
         if (s.committed & OutputState::Buffer) {
-            wlr_dmabuf_attributes a;
-            if (!wlr_buffer_get_dmabuf(s.buffer, &a) || !wlr_drm_format_set_has(&owner.formats_, a.format, a.modifier))
+            DmabufAttributes a;
+            if (!buffer_get_dmabuf(s.buffer, &a) || !wlr_drm_format_set_has(&owner.formats_, a.format, a.modifier))
                 return false;
         }
         return true;
@@ -172,7 +172,7 @@ protected:
             RemoteBuffer* r = owner.buffers_.at(s.buffer).get();
             if (!r->busy) {
                 r->busy = true;
-                wlr_buffer_lock(s.buffer);
+                buffer_lock(s.buffer);
             }
             wl_surface_attach(surface_, rb, 0, 0);
             if (s.committed & OutputState::Damage) {
@@ -233,7 +233,7 @@ private:
     int32_t pending_w_ = 0, pending_h_ = 0;
 
     wl_surface* cursor_surface_ = nullptr;
-    wlr_buffer* cursor_buffer_ = nullptr;
+    Buffer* cursor_buffer_ = nullptr;
     int cursor_hx_ = 0, cursor_hy_ = 0;
 };
 
@@ -625,13 +625,13 @@ Wayland::~Wayland() {
     for (Window* w : std::vector(windows_))
         destroy_output(w);
     // Ours again, whatever the host still held.
-    std::vector<wlr_buffer*> held;
+    std::vector<Buffer*> held;
     for (auto& [buf, r] : buffers_)
         if (std::exchange(r->busy, false))
             held.push_back(buf);
     buffers_.clear();
-    for (wlr_buffer* b : held)
-        wlr_buffer_unlock(b);
+    for (Buffer* b : held)
+        buffer_unlock(b);
     if (source_)
         wl_event_source_remove(source_);
     if (pointer_)
@@ -663,7 +663,7 @@ Wayland::~Wayland() {
 }
 
 uint32_t Wayland::buffer_caps() const {
-    return WLR_BUFFER_CAP_DMABUF;
+    return BUFFER_CAP_DMABUF;
 }
 
 bool Wayland::start() {
@@ -717,11 +717,11 @@ Wayland::Window* Wayland::window_of(const void* surface) const {
     return nullptr;
 }
 
-struct wl_buffer* Wayland::remote_buffer(wlr_buffer* buffer) {
+struct wl_buffer* Wayland::remote_buffer(Buffer* buffer) {
     if (auto it = buffers_.find(buffer); it != buffers_.end())
         return it->second->remote;
-    wlr_dmabuf_attributes a;
-    if (!wlr_buffer_get_dmabuf(buffer, &a))
+    DmabufAttributes a;
+    if (!buffer_get_dmabuf(buffer, &a))
         return nullptr;
     zwp_linux_buffer_params_v1* params = zwp_linux_dmabuf_v1_create_params(dmabuf_);
     for (int i = 0; i < a.n_planes; ++i)
@@ -743,7 +743,7 @@ struct wl_buffer* Wayland::remote_buffer(wlr_buffer* buffer) {
                 if (!r->busy)
                     return;
                 r->busy = false;
-                wlr_buffer_unlock(r->buffer);  // may destroy it, and r with it
+                buffer_unlock(r->buffer);  // may destroy it, and r with it
             },
     };
     wl_buffer_add_listener(remote, &kRelease, r.get());

@@ -1,6 +1,5 @@
 #pragma once
-// EGL and GLES 3 with the extension entry points atrium uses, plus the
-// wlroots renderer interfaces the renderer implements.
+// EGL and GLES 3 with the extension entry points atrium uses.
 
 #include "wlr.hpp"
 
@@ -10,12 +9,8 @@
 #include <GLES2/gl2ext.h>
 
 extern "C" {
-#include <wlr/interfaces/wlr_buffer.h>
-#include <wlr/render/dmabuf.h>
 #include <wlr/render/drm_format_set.h>
 #include <wlr/render/drm_syncobj.h>
-#include <wlr/render/interface.h>
-#include <wlr/util/transform.h>
 }
 
 namespace atrium::render {

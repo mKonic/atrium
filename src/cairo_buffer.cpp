@@ -7,18 +7,18 @@ namespace atrium {
 namespace {
 
 struct CairoBuffer {
-    wlr_buffer base;
+    Buffer base;
     cairo_surface_t* surface;
 };
 
-void cairo_buffer_destroy(wlr_buffer* b) {
+void cairo_buffer_destroy(Buffer* b) {
     auto* cb = reinterpret_cast<CairoBuffer*>(b);
     cairo_surface_destroy(cb->surface);
     delete cb;
 }
 
-bool cairo_buffer_begin(wlr_buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
-    if (flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE)
+bool cairo_buffer_begin(Buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
+    if (flags & BUFFER_DATA_PTR_ACCESS_WRITE)
         return false;
     auto* cb = reinterpret_cast<CairoBuffer*>(b);
     *data = cairo_image_surface_get_data(cb->surface);
@@ -27,9 +27,9 @@ bool cairo_buffer_begin(wlr_buffer* b, uint32_t flags, void** data, uint32_t* fo
     return true;
 }
 
-void cairo_buffer_end(wlr_buffer*) {}
+void cairo_buffer_end(Buffer*) {}
 
-const wlr_buffer_impl kCairoBufferImpl = {
+const BufferImpl kCairoBufferImpl = {
     .destroy = cairo_buffer_destroy,
     .get_dmabuf = nullptr,
     .get_shm = nullptr,
@@ -39,14 +39,14 @@ const wlr_buffer_impl kCairoBufferImpl = {
 
 } // namespace
 
-wlr_buffer* set_cairo_buffer(scene::Buffer* node, cairo_surface_t* surface, int width, int height) {
+Buffer* set_cairo_buffer(scene::Buffer* node, cairo_surface_t* surface, int width, int height) {
     auto* cb = new CairoBuffer{};
     cb->surface = surface;
-    wlr_buffer_init(&cb->base, &kCairoBufferImpl, cairo_image_surface_get_width(surface),
+    buffer_init(&cb->base, &kCairoBufferImpl, cairo_image_surface_get_width(surface),
                     cairo_image_surface_get_height(surface));
     node->set_buffer(&cb->base);
-    wlr_buffer* held = wlr_buffer_lock(&cb->base);
-    wlr_buffer_drop(&cb->base);
+    Buffer* held = buffer_lock(&cb->base);
+    buffer_drop(&cb->base);
     node->set_dest_size(width, height);
     return held;
 }

@@ -27,7 +27,7 @@ public:
 
     // An image of a dmabuf; `external_only` says it can only be sampled
     // through GL_TEXTURE_EXTERNAL_OES (never rendered into).
-    EGLImageKHR import_dmabuf(const wlr_dmabuf_attributes& attribs, bool* external_only);
+    EGLImageKHR import_dmabuf(const DmabufAttributes& attribs, bool* external_only);
     void destroy_image(EGLImageKHR image);
 
     // A render node for the device, for the caller to own (-1 if none).

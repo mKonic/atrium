@@ -3,14 +3,14 @@
 // in the screen's cursor plane where it has one (rendered to the plane's
 // size and the screen's scale and rotation), else drawn by the scene into
 // each frame. After wlroots' wlr_cursor and wlr_output_cursor (MIT).
+#include "render/fwd.hpp"
+#include "util/buffer.hpp"
 #include "output_layout.hpp"
 
 #include <memory>
 #include <string>
 #include <vector>
 
-struct wlr_render_pass;
-struct wlr_texture;
 struct wlr_xcursor_manager;
 
 namespace atrium {
@@ -40,12 +40,12 @@ public:
     // (hotspot in buffer pixels, at `scale` buffer pixels per logical one),
     // or none.
     void set_xcursor(wlr_xcursor_manager* manager, const char* name);
-    void set_buffer(wlr_buffer* buffer, int hotspot_x, int hotspot_y, float scale);
+    void set_buffer(Buffer* buffer, int hotspot_x, int hotspot_y, float scale);
     void unset_image();
 
     // Draws it into a frame of `output` where it has no cursor plane
     // (`damage` in the frame's buffer pixels).
-    void render(const backend::Output* output, wlr_render_pass* pass, const pixman_region32_t* damage);
+    void render(const backend::Output* output, render::RenderPass* pass, const pixman_region32_t* damage);
     // The renderer or allocator changed (GPU reset): everything made again.
     void reset_render();
     // Whether `output` shows it in its cursor plane.
@@ -73,7 +73,7 @@ private:
     Kind kind_ = Kind::None;
     wlr_xcursor_manager* manager_ = nullptr;
     std::string name_;
-    wlr_buffer* buffer_ = nullptr;  // locked
+    Buffer* buffer_ = nullptr;  // locked
     int hot_x_ = 0, hot_y_ = 0;
     float buffer_scale_ = 1;
     size_t frame_ = 0;  // an animated theme cursor's image

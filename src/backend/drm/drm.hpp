@@ -19,7 +19,6 @@ extern "C" {
 #include <unordered_map>
 #include <vector>
 
-struct wlr_buffer;
 struct wlr_drm_syncobj_timeline;
 
 namespace atrium::render {
@@ -79,7 +78,7 @@ private:
     bool alloc_crtc(Connector& c);
 
     // A KMS framebuffer for `buffer` (cached with it); 0 if KMS won't take it.
-    uint32_t fb_for(wlr_buffer* buffer, const wlr_drm_format_set* formats);
+    uint32_t fb_for(Buffer* buffer, const wlr_drm_format_set* formats);
 
     bool commit_connector(Connector& c, const OutputState& state, bool test_only);
     bool commit_states(std::vector<ConnState>& states, bool modeset, bool nonblock, bool test_only, bool async);
@@ -90,9 +89,9 @@ private:
     // `src` (the parent GPU's) drawn into a buffer of ours from `sc`, locked;
     // `fence` gets a sync_file for the copy's end when timelines work.
     // `from` is the renderer that drew it, for copies through the CPU.
-    wlr_buffer* copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
-                        wlr_renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence);
-    bool cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm_syncobj_timeline* wait,
+    Buffer* copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
+                        render::Renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence);
+    bool cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syncobj_timeline* wait,
                   uint64_t wait_point);
     void handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned crtc_id, PageFlip* flip);
     void session_active(bool active);
@@ -130,7 +129,7 @@ private:
     std::vector<PageFlip*> page_flips_;
 
     struct Fb;
-    std::unordered_map<wlr_buffer*, std::unique_ptr<Fb>> fbs_;
+    std::unordered_map<Buffer*, std::unique_ptr<Fb>> fbs_;
 };
 
 } // namespace atrium::backend::drm

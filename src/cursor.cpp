@@ -1,3 +1,4 @@
+#include "render/pass.hpp"
 #include "cursor.hpp"
 
 #include "backend/allocator.hpp"
@@ -33,20 +34,20 @@ const char* resize_cursor_name(uint32_t edges) {
 struct Cursor::Screen {
     backend::Output* output = nullptr;
     wl::Connection commit;
-    wlr_texture* texture = nullptr;
+    render::Texture* texture = nullptr;
     int width = 0, height = 0;  // in the screen's pixels
     int hot_x = 0, hot_y = 0;
     bool plane = false;
     std::unique_ptr<backend::Swapchain> swapchain;
-    wlr_buffer* front = nullptr;  // in the plane now
+    Buffer* front = nullptr;  // in the plane now
     wlr_color_transform* color = nullptr;
     Box drawn{};  // drawn in software here last (transformed pixels)
 
     ~Screen() {
         if (texture)
-            wlr_texture_destroy(texture);
+            texture->destroy();
         if (front)
-            wlr_buffer_unlock(front);
+            buffer_unlock(front);
         wlr_color_transform_unref(color);
     }
 };
@@ -76,11 +77,11 @@ wlr_color_transform* color_for(const std::optional<backend::ImageDescription>& d
 
 // ARGB8888 with the modifiers both the plane and the renderer take.
 bool cursor_format(const backend::Output& o, std::vector<uint64_t>* mods) {
-    const wlr_drm_format_set* render = render::Renderer::from(o.renderer)->egl().render_formats();
+    const wlr_drm_format_set* render = o.renderer->egl().render_formats();
     const wlr_drm_format* rf = render ? wlr_drm_format_set_get(render, DRM_FORMAT_ARGB8888) : nullptr;
     if (!rf)
         return false;
-    const wlr_drm_format_set* plane = o.cursor_formats(WLR_BUFFER_CAP_DMABUF);
+    const wlr_drm_format_set* plane = o.cursor_formats(BUFFER_CAP_DMABUF);
     const wlr_drm_format* pf = plane ? wlr_drm_format_set_get(plane, DRM_FORMAT_ARGB8888) : nullptr;
     if (plane && !pf)
         return false;
@@ -112,7 +113,7 @@ Cursor::~Cursor() {
             s->output->set_cursor(nullptr, 0, 0);
     screens_.clear();
     if (buffer_)
-        wlr_buffer_unlock(buffer_);
+        buffer_unlock(buffer_);
 }
 
 Cursor::Screen* Cursor::screen_of(const backend::Output* o) const {
@@ -156,7 +157,7 @@ void Cursor::refresh(Screen& s) {
     damage(s);
     s.drawn = {};
     if (s.texture)
-        wlr_texture_destroy(s.texture);
+        s.texture->destroy();
     s.texture = nullptr;
     s.width = s.height = s.hot_x = s.hot_y = 0;
     backend::Output& o = *s.output;
@@ -166,7 +167,7 @@ void Cursor::refresh(Screen& s) {
             wlr_xcursor_manager_load(manager_, o.scale);
             if (wlr_xcursor* xc = wlr_xcursor_manager_get_xcursor(manager_, name_.c_str(), o.scale)) {
                 const wlr_xcursor_image* img = xc->images[frame_ % xc->image_count];
-                s.texture = wlr_texture_from_pixels(o.renderer, DRM_FORMAT_ARGB8888, img->width * 4, img->width,
+                s.texture = o.renderer->texture_from_pixels(DRM_FORMAT_ARGB8888, img->width * 4, img->width,
                                                     img->height, img->buffer);
                 s.width = int(img->width);
                 s.height = int(img->height);
@@ -174,7 +175,7 @@ void Cursor::refresh(Screen& s) {
                 s.hot_y = int(img->hotspot_y);
             }
         } else if (kind_ == Kind::Buffer) {
-            s.texture = wlr_texture_from_buffer(o.renderer, buffer_);
+            s.texture = o.renderer->texture_from_buffer(buffer_);
             if (s.texture) {
                 const float k = o.scale / buffer_scale_;
                 s.width = int(std::lround(s.texture->width * k));
@@ -200,7 +201,7 @@ bool Cursor::try_plane(Screen& s) {
         if (!o.set_cursor(nullptr, 0, 0))
             return false;
         if (s.front)
-            wlr_buffer_unlock(s.front);
+            buffer_unlock(s.front);
         s.front = nullptr;
         o.update_needs_frame();
         return true;
@@ -220,7 +221,7 @@ bool Cursor::try_plane(Screen& s) {
             return false;
         s.swapchain = std::make_unique<backend::Swapchain>(*o.allocator, w, h, DRM_FORMAT_ARGB8888, std::move(mods));
     }
-    wlr_buffer* buf = s.swapchain->acquire();
+    Buffer* buf = s.swapchain->acquire();
     if (!buf)
         return false;
     wlr_color_transform_unref(s.color);
@@ -228,26 +229,25 @@ bool Cursor::try_plane(Screen& s) {
 
     Box dst{0, 0, s.width, s.height};
     box_transform(&dst, &dst, output_transform_invert(o.transform), buf->width, buf->height);
-    wlr_buffer_pass_options opts{};
-    opts.color_transform = s.color;
-    wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(o.renderer, buf, &opts);
+    render::BufferPassOptions opts{};
+    render::RenderPass* pass = o.renderer->begin_buffer_pass(buf, &opts);
     if (!pass) {
-        wlr_buffer_unlock(buf);
+        buffer_unlock(buf);
         return false;
     }
-    wlr_render_rect_options clear{};
+    render::RectOptions clear{};
     clear.box = {0, 0, buf->width, buf->height};
-    clear.blend_mode = WLR_RENDER_BLEND_MODE_NONE;
-    wlr_render_pass_add_rect(pass, &clear);
-    wlr_render_texture_options tex{};
+    clear.blend_mode = render::BLEND_MODE_NONE;
+    pass->add_rect(&clear);
+    render::TextureOptions tex{};
     tex.texture = s.texture;
     tex.src_box = {0, 0, double(s.texture->width), double(s.texture->height)};
-    tex.dst_box = to_wlr(dst);
+    tex.dst_box = dst;
     tex.transform = o.transform;
-    tex.filter_mode = WLR_SCALE_FILTER_BILINEAR;
-    wlr_render_pass_add_texture(pass, &tex);
-    if (!wlr_render_pass_submit(pass)) {
-        wlr_buffer_unlock(buf);
+    tex.filter_mode = render::SCALE_FILTER_BILINEAR;
+    pass->add_texture(&tex);
+    if (!pass->submit()) {
+        buffer_unlock(buf);
         return false;
     }
 
@@ -257,11 +257,11 @@ bool Cursor::try_plane(Screen& s) {
     if (ok) {
         // Held while the plane shows it: the swapchain won't hand it out.
         if (s.front)
-            wlr_buffer_unlock(s.front);
+            buffer_unlock(s.front);
         s.front = buf;
         o.update_needs_frame();
     } else {
-        wlr_buffer_unlock(buf);
+        buffer_unlock(buf);
     }
     return ok;
 }
@@ -329,7 +329,7 @@ void Cursor::set_xcursor(wlr_xcursor_manager* manager, const char* name) {
     if (kind_ == Kind::XCursor && manager_ == manager && name_ == name)
         return;
     if (buffer_)
-        wlr_buffer_unlock(buffer_);
+        buffer_unlock(buffer_);
     buffer_ = nullptr;
     kind_ = Kind::XCursor;
     manager_ = manager;
@@ -339,10 +339,10 @@ void Cursor::set_xcursor(wlr_xcursor_manager* manager, const char* name) {
     schedule_animation();
 }
 
-void Cursor::set_buffer(wlr_buffer* buffer, int hotspot_x, int hotspot_y, float scale) {
-    wlr_buffer* locked = buffer ? wlr_buffer_lock(buffer) : nullptr;
+void Cursor::set_buffer(Buffer* buffer, int hotspot_x, int hotspot_y, float scale) {
+    Buffer* locked = buffer ? buffer_lock(buffer) : nullptr;
     if (buffer_)
-        wlr_buffer_unlock(buffer_);
+        buffer_unlock(buffer_);
     buffer_ = locked;
     kind_ = buffer ? Kind::Buffer : Kind::None;
     hot_x_ = hotspot_x;
@@ -388,7 +388,7 @@ void Cursor::schedule_animation() {
 void Cursor::reset_render() {
     for (auto& s : screens_) {
         if (s->front)
-            wlr_buffer_unlock(s->front);
+            buffer_unlock(s->front);
         s->front = nullptr;
         s->swapchain.reset();
         refresh(*s);
@@ -400,7 +400,7 @@ bool Cursor::in_plane(const backend::Output* o) const {
     return s && s->plane;
 }
 
-void Cursor::render(const backend::Output* o, wlr_render_pass* pass, const pixman_region32_t* damage) {
+void Cursor::render(const backend::Output* o, render::RenderPass* pass, const pixman_region32_t* damage) {
     Screen* s = screen_of(o);
     if (!s || s->plane || !s->texture)
         return;
@@ -413,14 +413,14 @@ void Cursor::render(const backend::Output* o, wlr_render_pass* pass, const pixma
     if (damage)
         pixman_region32_intersect(&clip, &clip, damage);
     if (pixman_region32_not_empty(&clip)) {
-        wlr_render_texture_options tex{};
+        render::TextureOptions tex{};
         tex.texture = s->texture;
         tex.src_box = {0, 0, double(s->texture->width), double(s->texture->height)};
-        tex.dst_box = to_wlr(box);
+        tex.dst_box = box;
         tex.clip = &clip;
         tex.transform = o->transform;
-        tex.filter_mode = WLR_SCALE_FILTER_BILINEAR;
-        wlr_render_pass_add_texture(pass, &tex);
+        tex.filter_mode = render::SCALE_FILTER_BILINEAR;
+        pass->add_texture(&tex);
     }
     pixman_region32_fini(&clip);
 }

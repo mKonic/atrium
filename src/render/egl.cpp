@@ -380,7 +380,7 @@ void Egl::unset_current() {
     eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
-EGLImageKHR Egl::import_dmabuf(const wlr_dmabuf_attributes& a, bool* external_only) {
+EGLImageKHR Egl::import_dmabuf(const DmabufAttributes& a, bool* external_only) {
     if (!exts.KHR_image_base || !exts.EXT_image_dma_buf_import)
         return EGL_NO_IMAGE_KHR;
     if (a.modifier != DRM_FORMAT_MOD_INVALID && a.modifier != DRM_FORMAT_MOD_LINEAR && !has_modifiers_)

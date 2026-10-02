@@ -140,7 +140,7 @@ bool scanout_colour_allowed(const backend::ImageDescription* desc, const Buffer*
 // ---- lifetime -----------------------------------------------------------
 
 SceneOutput::SceneOutput(Scene* s, backend::Output* o) : output(o), scene(s) {
-    wlr_damage_ring_init(&damage_ring);
+    damage_ring_init(&damage_ring);
     pixman_region32_init(&pending_commit_damage);
     wl_signal_init(&events.destroy);
     wl_list_init(&link);
@@ -251,7 +251,7 @@ void SceneOutput::destroy() {
     damage_.disconnect();
     needs_frame_.disconnect();
     output_destroy_.disconnect();
-    wlr_damage_ring_finish(&damage_ring);
+    damage_ring_finish(&damage_ring);
     pixman_region32_fini(&pending_commit_damage);
     wl_list_remove(&link);
     if (in_timeline_) {
@@ -270,7 +270,7 @@ void SceneOutput::destroy() {
 void SceneOutput::drop_lut_texture() {
     if (!lut_ || !lut_->tex)
         return;
-    if (render::Renderer* r = render::Renderer::from(output->renderer)) {
+    if (render::Renderer* r = output->renderer) {
         r->egl().make_current();
         glDeleteTextures(1, &lut_->tex);
     }
@@ -313,7 +313,7 @@ void SceneOutput::damage(const pixman_region32_t* d) {
     pixman_region32_intersect_rect(&clipped, d, 0, 0, unsigned(output->width), unsigned(output->height));
     if (pixman_region32_not_empty(&clipped)) {
         output->schedule_frame();
-        wlr_damage_ring_add(&damage_ring, &clipped);
+        damage_ring_add(&damage_ring, &clipped);
         pixman_region32_union(&pending_commit_damage, &pending_commit_damage, &clipped);
     }
     pixman_region32_fini(&clipped);
@@ -446,13 +446,13 @@ bool SceneOutput::commit(const StateOptions* options) {
 int64_t Timer::duration_ns() {
     if (!render_timer)
         return pre_render_duration;
-    const int64_t r = wlr_render_timer_get_duration_ns(render_timer);
+    const int64_t r = render_timer->duration_ns();
     return r != -1 ? pre_render_duration + r : -1;
 }
 
 void Timer::finish() {
     if (render_timer)
-        wlr_render_timer_destroy(render_timer);
+        render_timer->destroy();
     render_timer = nullptr;
 }
 
@@ -466,7 +466,7 @@ namespace {
 // bar) drawn as it is into an offscreen layer, then the layer drawn once
 // through the warp. Only on outputs that aren't rotated.
 void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
-                                  wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
+                                  render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
     const FBox& frame = tree->warp_frame();
     if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || frame.width <= 0 || frame.height <= 0)
         return;
@@ -538,7 +538,7 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
 }
 
 void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
-                             wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
+                             render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
     Node* node = e.node;
     const Walk& w = e.walk;
     if (node->type == Type::Tree) {
@@ -597,8 +597,8 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
             pass->add_rect(rd);
             break;
         }
-        wlr_texture* tex = SceneImpl::texture(b, renderer);
-        render::Texture* t = render::Renderer::texture(tex);
+        render::Texture* tex = SceneImpl::texture(b, renderer);
+        render::Texture* t = (tex);
         if (!t) {
             SceneImpl::output_damage(d.output, &region);
             break;
@@ -687,7 +687,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
         bd.use_cache = bl->use_cache;
         render::TexRef mask_ref;
         if (Buffer* m = bl->mask()) {
-            if (render::Texture* mt = render::Renderer::texture(SceneImpl::texture(m, renderer))) {
+            if (render::Texture* mt = (SceneImpl::texture(m, renderer))) {
                 mask_ref = mt->ref();
                 bd.mask = &mask_ref;
                 bd.mask_src = m->src_box;
@@ -819,7 +819,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
     if ((state->committed & backend::OutputState::Enabled) && !state->enabled)
         return true;
 
-    render::Renderer* renderer = render::Renderer::from(output->renderer);
+    render::Renderer* renderer = output->renderer;
     if (!renderer) {
         alog(Log::Error, "%s: not atrium's renderer", output->name);
         return false;
@@ -944,7 +944,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
                 scale_box(&dst, d.scale);
                 box_transform(&dst, &dst, output_transform_invert(d.transform), d.trans_width, d.trans_height);
                 pending.buffer_dst_box = dst;
-                wlr_buffer* wb = b->buffer;
+                atrium::Buffer* wb = b->buffer;
                 wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(wb);
                 if (sb && sb->source.get() && sb->source.get()->n_locks > 0)
                     wb = sb->source.get();
@@ -990,12 +990,12 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
             return false;
         swapchain = output->swapchain.get();
     }
-    wlr_buffer* buffer = swapchain->acquire();
+    atrium::Buffer* buffer = swapchain->acquire();
     if (!buffer)
         return false;
     assert(buffer->width == res_w && buffer->height == res_h);
     if (timer) {
-        timer->render_timer = wlr_render_timer_create(output->renderer);
+        timer->render_timer = output->renderer->timer_create();
         timespec end;
         clock_gettime(CLOCK_MONOTONIC, &end);
         timer->pre_render_duration = ns_of(end) - ns_of(start);
@@ -1017,13 +1017,13 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
     po.signal_point = in_point_;
     render::RenderPass* pass = fb ? renderer->begin(fb, po) : nullptr;
     if (!pass) {
-        wlr_buffer_unlock(buffer);
+        buffer_unlock(buffer);
         return false;
     }
     pass->blur_params = &scene->blur_;
     d.pass = pass;
     pixman_region32_init(&d.damage);
-    wlr_damage_ring_rotate_buffer(&damage_ring, buffer, &d.damage);
+    damage_ring_rotate_buffer(&damage_ring, buffer, &d.damage);
 
     // Blur artifacts: a blur next to damage has to be redrawn where its
     // kernel reaches the damage, and the padding round that put back after.
@@ -1120,20 +1120,20 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
 
     pass->apply_screen_shader(&d.damage);
     if (scene->draw_cursor)
-        scene->draw_cursor(output, pass->wlr(), &d.damage);
+        scene->draw_cursor(output, pass, &d.damage);
     if (compensate)
         pass->copy(&padding, pass->target(), pass->effects()->saved.get());
     pixman_region32_fini(&padding);
     pixman_region32_fini(&d.damage);
 
     if (!pass->submit()) {
-        wlr_buffer_unlock(buffer);
+        buffer_unlock(buffer);
         // The buffer's contents are undefined now.
-        wlr_damage_ring_add_whole(&damage_ring);
+        damage_ring_add_whole(&damage_ring);
         return false;
     }
     state->set_buffer(buffer);
-    wlr_buffer_unlock(buffer);
+    buffer_unlock(buffer);
     if (in_timeline_) {
         state->set_wait_timeline(in_timeline_, in_point_);
         ++out_point_;

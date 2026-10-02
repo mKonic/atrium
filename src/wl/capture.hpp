@@ -46,7 +46,7 @@ public:
     // A copy to make: render `target` into `buffer`, then call done once.
     struct Copy {
         Target target;
-        wlr_buffer* buffer;
+        Buffer* buffer;
         bool wait_for_damage;  // only when something changed (screencopy with damage)
         std::function<void(const Result&)> done;
     };
@@ -54,7 +54,7 @@ public:
     struct Export {
         Output* output;
         bool cursor;
-        std::function<void(const wlr_dmabuf_attributes* attrs, const timespec& when)> done;  // null: cancelled
+        std::function<void(const DmabufAttributes* attrs, const timespec& when)> done;  // null: cancelled
     };
 
     Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels);

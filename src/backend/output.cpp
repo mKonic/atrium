@@ -1,5 +1,6 @@
 // Outputs and their commits, after wlroots' types/output (MIT): the same
 // checks, the same blank buffer on a modeset, the same swapchain choice.
+#include "render/pass.hpp"
 #include "backend/output.hpp"
 
 #include "backend/allocator.hpp"
@@ -49,7 +50,7 @@ OutputState& OutputState::operator=(const OutputState& o) {
     render_format = o.render_format;
     subpixel = o.subpixel;
     clear_buffer();
-    buffer = o.buffer ? wlr_buffer_lock(o.buffer) : nullptr;
+    buffer = o.buffer ? buffer_lock(o.buffer) : nullptr;
     buffer_src_box = o.buffer_src_box;
     buffer_dst_box = o.buffer_dst_box;
     tearing_page_flip = o.tearing_page_flip;
@@ -69,7 +70,7 @@ OutputState& OutputState::operator=(const OutputState& o) {
 
 void OutputState::clear_buffer() {
     if (buffer)
-        wlr_buffer_unlock(buffer);
+        buffer_unlock(buffer);
     buffer = nullptr;
 }
 
@@ -119,9 +120,9 @@ void OutputState::set_subpixel(wl_output_subpixel s) {
     subpixel = s;
 }
 
-void OutputState::set_buffer(wlr_buffer* b) {
+void OutputState::set_buffer(atrium::Buffer* b) {
     committed |= Buffer;
-    wlr_buffer* locked = b ? wlr_buffer_lock(b) : nullptr;
+    atrium::Buffer* locked = b ? buffer_lock(b) : nullptr;
     clear_buffer();
     buffer = locked;
 }
@@ -276,11 +277,11 @@ bool Output::basic_test(const OutputState& s) const {
 bool Output::pick_format(uint32_t fmt, std::vector<uint64_t>* modifiers) const {
     if (!renderer || !allocator)
         return false;
-    const wlr_drm_format_set* render = render::Renderer::from(renderer)->egl().render_formats();
+    const wlr_drm_format_set* render = renderer->egl().render_formats();
     const wlr_drm_format* rf = render ? wlr_drm_format_set_get(render, fmt) : nullptr;
     if (!rf)
         return false;
-    const wlr_drm_format_set* display = primary_formats(WLR_BUFFER_CAP_DMABUF);
+    const wlr_drm_format_set* display = primary_formats(BUFFER_CAP_DMABUF);
     const wlr_drm_format* df = display ? wlr_drm_format_set_get(display, fmt) : nullptr;
     if (display && !df)
         return false;
@@ -318,12 +319,12 @@ bool Output::configure_primary_swapchain(const OutputState* state, std::unique_p
         return true;
 
     auto passes = [&](Swapchain& sc) {
-        wlr_buffer* b = sc.acquire();
+        Buffer* b = sc.acquire();
         if (!b)
             return false;
         OutputState copy = *state;
         copy.set_buffer(b);
-        wlr_buffer_unlock(b);
+        buffer_unlock(b);
         return test_state(copy);
     };
     std::unique_ptr<Swapchain> sc = create_swapchain(w, h, format, true);
@@ -351,24 +352,24 @@ bool Output::ensure_buffer(OutputState& s, bool* added) {
         return true;
     if (!configure_primary_swapchain(&s, swapchain))
         return false;
-    wlr_buffer* b = swapchain->acquire();
+    Buffer* b = swapchain->acquire();
     if (!b)
         return false;
-    wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(renderer, b, nullptr);
+    render::RenderPass* pass = renderer->begin_buffer_pass(b, nullptr);
     if (!pass) {
-        wlr_buffer_unlock(b);
+        buffer_unlock(b);
         return false;
     }
-    wlr_render_rect_options rect{};
+    render::RectOptions rect{};
     rect.box = {0, 0, b->width, b->height};
-    rect.blend_mode = WLR_RENDER_BLEND_MODE_NONE;
-    wlr_render_pass_add_rect(pass, &rect);
-    if (!wlr_render_pass_submit(pass)) {
-        wlr_buffer_unlock(b);
+    rect.blend_mode = render::BLEND_MODE_NONE;
+    pass->add_rect(&rect);
+    if (!pass->submit()) {
+        buffer_unlock(b);
         return false;
     }
     s.set_buffer(b);
-    wlr_buffer_unlock(b);
+    buffer_unlock(b);
     *added = true;
     return true;
 }
@@ -519,7 +520,7 @@ const wlr_drm_format_set* Output::primary_formats(uint32_t) const {
     return nullptr;
 }
 
-bool Output::init_render(Allocator* a, wlr_renderer* r) {
+bool Output::init_render(Allocator* a, render::Renderer* r) {
     swapchain.reset();
     allocator = a;
     renderer = r;

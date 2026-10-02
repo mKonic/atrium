@@ -29,7 +29,7 @@ struct Icon;
 // A picture an app gave an icon, held (locked) from add_buffer until the app
 // destroys the buffer: dropping the last lock earlier sends release.
 struct Held {
-    wlr_buffer* buffer = nullptr;
+    Buffer* buffer = nullptr;
     int scale = 1;
     Icon* icon = nullptr;  // null once the icon is gone or replaced it
     wl_listener destroy{};
@@ -65,7 +65,7 @@ void buffer_gone(wl_listener* listener, void*) {
     wl_list_remove(&h->destroy.link);
     if (h->icon)
         std::erase(h->icon->pictures, h);
-    wlr_buffer_unlock(h->buffer);  // the resource is gone: nothing is sent
+    buffer_unlock(h->buffer);  // the resource is gone: nothing is sent
     delete h;
 }
 
@@ -73,11 +73,11 @@ void Icon::add_buffer(wl_resource* buffer_resource, int32_t scale) {
     if (!mutable_())
         return;
     wl::ClientBuffer* cb = wl::ClientBuffer::from(buffer_resource);
-    wlr_buffer* buffer = cb ? wlr_buffer_lock(cb->buffer()) : nullptr;
-    wlr_shm_attributes shm{};
-    if (!buffer || !wlr_buffer_get_shm(buffer, &shm) || buffer->width != buffer->height) {
+    Buffer* buffer = cb ? buffer_lock(cb->buffer()) : nullptr;
+    ShmAttributes shm{};
+    if (!buffer || !buffer_get_shm(buffer, &shm) || buffer->width != buffer->height) {
         if (buffer)
-            wlr_buffer_unlock(buffer);
+            buffer_unlock(buffer);
         post_error(uint32_t(Error::InvalidBuffer), "icon buffers must be square and backed by wl_shm");
         return;
     }
@@ -112,7 +112,7 @@ std::string save_icon(const Icon& icon, uint64_t view_id) {
     void* data = nullptr;
     uint32_t format = 0;
     size_t stride = 0;
-    if (!wlr_buffer_begin_data_ptr_access(best->buffer, WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
+    if (!buffer_begin_data_ptr_access(best->buffer, BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
         return {};
     std::string path;
     if (format == DRM_FORMAT_ARGB8888 || format == DRM_FORMAT_XRGB8888) {
@@ -126,7 +126,7 @@ std::string save_icon(const Icon& icon, uint64_t view_id) {
             path.clear();
         cairo_surface_destroy(s);
     }
-    wlr_buffer_end_data_ptr_access(best->buffer);
+    buffer_end_data_ptr_access(best->buffer);
     return path;
 }
 

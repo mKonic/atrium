@@ -71,7 +71,7 @@ void install_sigbus_handler() {
 
 // A buffer in a pool, as the renderer sees it.
 struct ShmStorage {
-    wlr_buffer base;
+    Buffer base;
     std::shared_ptr<Mapping> mapping;
     size_t offset;
     int stride;
@@ -79,28 +79,28 @@ struct ShmStorage {
     Weak<WlBuffer> owner;
 };
 
-ShmStorage* storage_of(wlr_buffer* b) {
+ShmStorage* storage_of(Buffer* b) {
     return reinterpret_cast<ShmStorage*>(b);
 }
 
-const wlr_buffer_impl kShmBufferImpl = {
+const BufferImpl kShmBufferImpl = {
     .destroy =
-        [](wlr_buffer* b) {
-            wlr_buffer_finish(b);
+        [](Buffer* b) {
+            buffer_finish(b);
             delete storage_of(b);
         },
     .get_dmabuf = nullptr,
     .get_shm =
-        [](wlr_buffer* b, wlr_shm_attributes* out) {
+        [](Buffer* b, ShmAttributes* out) {
             ShmStorage* s = storage_of(b);
             *out = {.fd = s->mapping->fd, .format = s->format, .width = b->width, .height = b->height,
                     .stride = s->stride, .offset = off_t(s->offset)};
             return true;
         },
     .begin_data_ptr_access =
-        [](wlr_buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
+        [](Buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
             ShmStorage* s = storage_of(b);
-            if ((flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE) && !s->mapping->writable)
+            if ((flags & BUFFER_DATA_PTR_ACCESS_WRITE) && !s->mapping->writable)
                 return false;  // a read-only file
             g_accessing = s->mapping.get();
             *data = static_cast<char*>(s->mapping->data) + s->offset;
@@ -109,7 +109,7 @@ const wlr_buffer_impl kShmBufferImpl = {
             return true;
         },
     .end_data_ptr_access =
-        [](wlr_buffer* b) {
+        [](Buffer* b) {
             ShmStorage* s = storage_of(b);
             g_accessing = nullptr;
             if (s->mapping->bus_error)
@@ -155,9 +155,9 @@ private:
             return;
         }
         auto* storage = new ShmStorage{{}, mapping_, size_t(offset), stride, format, {}};
-        wlr_buffer_init(&storage->base, &kShmBufferImpl, width, height);
+        buffer_init(&storage->base, &kShmBufferImpl, width, height);
         if (!make<ShmBuffer>(client(), 1, id, storage))
-            wlr_buffer_drop(&storage->base);
+            buffer_drop(&storage->base);
     }
 
     void resize(int32_t size) {

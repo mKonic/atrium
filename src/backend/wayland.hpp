@@ -2,6 +2,8 @@
 // atrium nested in another compositor: each screen is a window there, its
 // frames handed over as dmabufs, and the host's pointer and keyboard over
 // those windows are atrium's input. After wlroots' Wayland backend (MIT).
+#include "render/fwd.hpp"
+#include "util/buffer.hpp"
 #include "backend/backend.hpp"
 
 #include <memory>
@@ -46,7 +48,7 @@ private:
     bool connect();
     Window* window_of(const void* surface) const;
     // The host's wl_buffer for one of ours (made once, kept with it).
-    struct wl_buffer* remote_buffer(wlr_buffer* buffer);
+    struct wl_buffer* remote_buffer(Buffer* buffer);
     void hangup();
     static const ::wl_seat_listener kSeat;
     static const ::wl_pointer_listener kPointer;
@@ -70,7 +72,7 @@ private:
     bool gone_ = false;
 
     std::vector<Window*> windows_;
-    std::unordered_map<wlr_buffer*, std::unique_ptr<RemoteBuffer>> buffers_;
+    std::unordered_map<Buffer*, std::unique_ptr<RemoteBuffer>> buffers_;
 
     // The host's seat.
     Window* pointer_focus_ = nullptr;

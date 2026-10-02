@@ -1,12 +1,13 @@
 #pragma once
 // atrium's renderer: GLES 3 on its own EGL context, drawing the scene into
-// the output's swapchain buffers. It is a wlr_renderer too, so wlroots'
-// pieces that still render (the compositor's shm uploads, output cursors,
-// screencopy) go through it. The GLES 2 renderer of wlroots (MIT) and
-// scenefx's (MIT) were the reference for the parts wlroots needs.
+// the output's swapchain buffers, and uploading or importing clients'
+// buffers as textures. The GLES 2 renderer of wlroots (MIT) and scenefx's
+// (MIT) were the reference; its entry points keep wlroots' shapes.
 
 #include "render/egl.hpp"
 #include "render/formats.hpp"
+#include "util/box.hpp"
+#include "util/buffer.hpp"
 
 #include <memory>
 #include <unordered_set>
@@ -23,7 +24,7 @@ class RenderPass;
 class ShaderLibrary;
 struct Framebuffer;
 
-// Something GL can sample: a wlr_texture of ours, or an offscreen target.
+// Something GL can sample: a Texture, or an offscreen target.
 struct TexRef {
     GLenum target = GL_TEXTURE_2D;
     GLuint tex = 0;
@@ -33,12 +34,12 @@ struct TexRef {
     const Framebuffer* encoded = nullptr;
 };
 
-// Where GL draws: a wlr_buffer imported through its dmabuf, or a GL-only
+// Where GL draws: a Buffer imported through its dmabuf, or a GL-only
 // texture (offscreen targets: blur, the HDR blend buffer).
 struct Framebuffer {
     Renderer* renderer = nullptr;
-    wlr_buffer* buffer = nullptr;  // null: GL-only
-    wlr_addon addon{};
+    Buffer* buffer = nullptr;  // null: GL-only
+    Addon addon{};
     int width = 0, height = 0;
     bool external_only = false;
     EGLImageKHR image = EGL_NO_IMAGE_KHR;
@@ -79,9 +80,21 @@ private:
     std::unique_ptr<Framebuffer> fb_;
 };
 
-// A wlr_texture of ours.
+enum ScaleFilter { SCALE_FILTER_BILINEAR, SCALE_FILTER_NEAREST };
+enum BlendMode { BLEND_MODE_PREMULTIPLIED, BLEND_MODE_NONE };
+
+// Reading a texture's pixels into memory (screenshots, a CPU copy).
+struct ReadPixelsOptions {
+    void* data = nullptr;
+    uint32_t format = 0;  // DRM_FORMAT_*
+    uint32_t stride = 0;
+    uint32_t dst_x = 0, dst_y = 0;  // where in `data`
+    Box src_box;                    // empty: all of it
+};
+
+// Pixels GL samples: an uploaded shm buffer or an imported dmabuf.
 struct Texture {
-    wlr_texture base;  // first: a wlr_texture* is a Texture*
+    int width = 0, height = 0;
     Renderer* renderer = nullptr;
     GLenum target = GL_TEXTURE_2D;
     // Imported textures borrow `buffer`'s texture; uploaded ones own theirs.
@@ -92,6 +105,13 @@ struct Texture {
     Framebuffer* buffer = nullptr;  // dmabuf imports
 
     TexRef ref() const;
+    void destroy();
+    bool read_pixels(const ReadPixelsOptions* options);
+    // The format reading is cheapest in (DRM_FORMAT_INVALID: none).
+    uint32_t preferred_read_format();
+    // Its pixels again from `buffer` (an upload of the same format) where
+    // `damage` says; false if it can't be.
+    bool update_from_buffer(Buffer* buffer, const pixman_region32_t* damage);
 };
 
 // Colour work at the end of a frame: `matrix` over linear light, then the
@@ -115,23 +135,64 @@ struct OutputColor {
 
 struct EffectBuffers;
 
+struct RenderTimer;
+
 struct PassOptions {
     // Offscreen buffers for blur and the colour pass, kept per output.
     // Without them there is no blur, and a colour pass uses a buffer of
     // its own.
     EffectBuffers* effects = nullptr;
-    wlr_render_timer* timer = nullptr;
+    RenderTimer* timer = nullptr;
     wlr_drm_syncobj_timeline* signal_timeline = nullptr;
     uint64_t signal_point = 0;
     OutputColor color;
 };
 
+// How long the GPU took for a pass (GL_EXT_disjoint_timer_query).
 struct RenderTimer {
-    wlr_render_timer base;  // first
     Renderer* renderer = nullptr;
     timespec cpu_start{}, cpu_end{};
     GLuint query = 0;
     GLint64 gl_cpu_end = 0;
+    // -1 while unknown.
+    int duration_ns();
+    void destroy();
+};
+
+// A pass into a buffer (begin_buffer_pass), wlroots' options.
+struct BufferPassOptions {
+    RenderTimer* timer = nullptr;
+    wlr_drm_syncobj_timeline* signal_timeline = nullptr;  // signalled when the GPU is done
+    uint64_t signal_point = 0;
+};
+
+struct Color {
+    float r = 0, g = 0, b = 0, a = 1;
+};
+
+// A texture drawn by a pass (RenderPass::add_texture), wlroots' options.
+struct TextureOptions {
+    Texture* texture = nullptr;
+    FBox src_box;  // texture pixels; empty: all of it
+    Box dst_box;   // empty: the texture's size
+    const float* alpha = nullptr;
+    const pixman_region32_t* clip = nullptr;
+    wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
+    ScaleFilter filter_mode = SCALE_FILTER_BILINEAR;
+    BlendMode blend_mode = BLEND_MODE_PREMULTIPLIED;
+    wlr_drm_syncobj_timeline* wait_timeline = nullptr;
+    uint64_t wait_point = 0;
+    wlr_color_transfer_function transfer_function = wlr_color_transfer_function(0);
+    const wlr_color_primaries* primaries = nullptr;
+    const float* luminance_multiplier = nullptr;
+};
+
+// A filled rectangle (RenderPass::add_rect); colour premultiplied.
+struct RectOptions {
+    Box box;
+    Color color;
+    const pixman_region32_t* clip = nullptr;
+    BlendMode blend_mode = BLEND_MODE_PREMULTIPLIED;
 };
 
 class Renderer {
@@ -141,20 +202,39 @@ public:
     // A renderer on exactly this GPU (`drm_fd` stays the caller's); with
     // `software_ok`, Mesa's software rasterizer will do (a display-only GPU).
     static Renderer* create_on(int drm_fd, bool software_ok = false);
-    // Ours, or null if `r` is some other wlr_renderer.
-    static Renderer* from(wlr_renderer* r);
-    static Texture* texture(wlr_texture* t);
+    // Frees it (its textures and imported framebuffers with it).
+    void destroy();
 
-    wlr_renderer* wlr() { return &hook_.base; }
     Egl& egl() { return *egl_; }
     ShaderLibrary& shaders() { return *shaders_; }
     const GlCaps& caps() const { return caps_; }
 
-    Framebuffer* framebuffer_for(wlr_buffer* buffer);
-    wlr_texture* texture_from_buffer(wlr_buffer* buffer);
-    // A pass drawing into `fb` (locking its buffer); submit() or
-    // wlr_render_pass_submit() ends and frees it.
+    Framebuffer* framebuffer_for(Buffer* buffer);
+    Texture* texture_from_buffer(Buffer* buffer);
+    Texture* texture_from_pixels(uint32_t drm_format, uint32_t stride, uint32_t width, uint32_t height,
+                                 const void* data);
+    Texture* texture_from_dmabuf(const DmabufAttributes* attribs);
+    // A pass drawing into `fb` (locking its buffer); submit() ends and frees it.
     RenderPass* begin(Framebuffer* fb, const PassOptions& options);
+    // The same into a buffer, with wlroots' options.
+    RenderPass* begin_buffer_pass(Buffer* buffer, const BufferPassOptions* options);
+    // Null without timer queries.
+    RenderTimer* timer_create();
+
+    // The device it renders on (its render node), owned by it.
+    int drm_fd();
+    // What it can sample from buffers with `caps` (BUFFER_CAP_DMABUF: dmabufs;
+    // BUFFER_CAP_DATA_PTR: uploads), and draw into.
+    const wlr_drm_format_set* texture_formats(uint32_t caps);
+    const wlr_drm_format_set* render_formats();
+
+    struct {
+        bool timeline = false;  // signal and wait timelines work (explicit sync)
+    } features;
+    struct {
+        wl_signal lost;     // the GPU was reset: everything must be made again
+        wl_signal destroy;  // it is going
+    } events;
 
     // Whether the GPU was reset under us (then `events.lost` fired).
     bool check_reset();
@@ -182,18 +262,11 @@ private:
     ~Renderer();
     bool init();
 
-    struct Hook {
-        wlr_renderer base;
-        Renderer* self;
-    };
-    Hook hook_{};
     std::unique_ptr<Egl> egl_;
     std::unique_ptr<ShaderLibrary> shaders_;
     GlCaps caps_;
     wlr_drm_format_set shm_formats_{};
     int drm_fd_ = -1;
-
-    friend struct RendererImpl;
 };
 
 } // namespace atrium::render

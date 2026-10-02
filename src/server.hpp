@@ -238,7 +238,7 @@ public:
     wlr_session* session = nullptr;  // wlroots' (ATRIUM_WLR_DRM=1)
     // Where libinput opens devices: atrium's session, or wlroots'.
     std::unique_ptr<input::Libinput::DeviceSeat> device_seat;
-    wlr_renderer* renderer = nullptr;
+    render::Renderer* renderer = nullptr;
     backend::Allocator* allocator = nullptr;
     // Every Wayland global (protocols.hpp).
     std::unique_ptr<Protocols> wl;
@@ -333,7 +333,7 @@ private:
     struct CaptureState;
     std::unique_ptr<CaptureState> capture_;
     void capture_output_frame(Output* output, const backend::OutputState& state);
-    void capture_view_frame(View* view, wlr_buffer* frame, const timespec& when);
+    void capture_view_frame(View* view, Buffer* frame, const timespec& when);
 public:
     // A window's capture scene, or a screen, is going: its captures stop.
     void capture_view_gone(View* view);

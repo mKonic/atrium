@@ -19,20 +19,20 @@ namespace {
 
 // A dmabuf wl_buffer as the renderer sees it: its planes.
 struct DmabufStorage {
-    wlr_buffer base;
-    wlr_dmabuf_attributes attrs;
+    Buffer base;
+    DmabufAttributes attrs;
 };
 
-const wlr_buffer_impl kDmabufImpl = {
+const BufferImpl kDmabufImpl = {
     .destroy =
-        [](wlr_buffer* b) {
+        [](Buffer* b) {
             auto* s = reinterpret_cast<DmabufStorage*>(b);
-            wlr_dmabuf_attributes_finish(&s->attrs);
-            wlr_buffer_finish(b);
+            dmabuf_attributes_finish(&s->attrs);
+            buffer_finish(b);
             delete s;
         },
     .get_dmabuf =
-        [](wlr_buffer* b, wlr_dmabuf_attributes* out) {
+        [](Buffer* b, DmabufAttributes* out) {
             *out = reinterpret_cast<DmabufStorage*>(b)->attrs;
             return true;
         },
@@ -136,14 +136,14 @@ LinuxDmabuf::LinuxDmabuf(wl_display* display, DmabufFeedback feedback, Check che
             if (!p)
                 return;
             // The planes gathered so far; they belong to the params until used.
-            auto attrs = std::make_shared<wlr_dmabuf_attributes>();
+            auto attrs = std::make_shared<DmabufAttributes>();
             std::memset(attrs.get(), 0, sizeof(*attrs));
             for (int& fd : attrs->fd)
                 fd = -1;
             auto used = std::make_shared<bool>(false);
             p->on_gone([attrs, used] {
                 if (!*used)
-                    wlr_dmabuf_attributes_finish(attrs.get());
+                    dmabuf_attributes_finish(attrs.get());
             });
             p->on_add([attrs, used](ZwpLinuxBufferParamsV1* self, int fd, uint32_t plane, uint32_t offset,
                                     uint32_t stride, uint32_t mod_hi, uint32_t mod_lo) {
@@ -154,7 +154,7 @@ LinuxDmabuf::LinuxDmabuf(wl_display* display, DmabufFeedback feedback, Check che
                     self->post_error(uint32_t(E::AlreadyUsed), "the params were already used");
                     return;
                 }
-                if (plane >= WLR_DMABUF_MAX_PLANES) {
+                if (plane >= DMABUF_MAX_PLANES) {
                     close(fd);
                     self->post_error(uint32_t(E::PlaneIdx), "plane index out of range");
                     return;
@@ -182,9 +182,9 @@ LinuxDmabuf::LinuxDmabuf(wl_display* display, DmabufFeedback feedback, Check che
                     self->post_error(uint32_t(E::AlreadyUsed), "the params were already used");
                     return;
                 }
-                wlr_dmabuf_attributes a = *attrs;  // ours now: closed on every failure below
+                DmabufAttributes a = *attrs;  // ours now: closed on every failure below
                 auto fail = [&](bool fatal, uint32_t code, const char* message) {
-                    wlr_dmabuf_attributes_finish(&a);
+                    dmabuf_attributes_finish(&a);
                     if (fatal)
                         self->post_error(code, message);
                     else if (buffer_id == 0)
@@ -221,10 +221,10 @@ LinuxDmabuf::LinuxDmabuf(wl_display* display, DmabufFeedback feedback, Check che
                 if (check_ && !check_(a))
                     return fail(false, 0, "");
                 auto* storage = new DmabufStorage{{}, a};
-                wlr_buffer_init(&storage->base, &kDmabufImpl, width, height);
+                buffer_init(&storage->base, &kDmabufImpl, width, height);
                 auto* buffer = make<DmabufBuffer>(self->client(), 1, buffer_id, storage);
                 if (!buffer) {
-                    wlr_buffer_drop(&storage->base);
+                    buffer_drop(&storage->base);
                     return;
                 }
                 if (buffer_id == 0)
@@ -324,7 +324,7 @@ LegacyDrm::LegacyDrm(wl_display* display, std::string node, std::vector<uint32_t
         d->on_create_prime_buffer([this](WlDrm* self, uint32_t id, int fd, int32_t width, int32_t height,
                                          uint32_t format, int32_t offset0, int32_t stride0, int32_t, int32_t,
                                          int32_t, int32_t) {
-            wlr_dmabuf_attributes a{};
+            DmabufAttributes a{};
             a.width = width;
             a.height = height;
             a.format = format;
@@ -333,17 +333,17 @@ LegacyDrm::LegacyDrm(wl_display* display, std::string node, std::vector<uint32_t
             a.fd[0] = fd;
             a.offset[0] = uint32_t(offset0);
             a.stride[0] = uint32_t(stride0);
-            for (int i = 1; i < WLR_DMABUF_MAX_PLANES; ++i)
+            for (int i = 1; i < DMABUF_MAX_PLANES; ++i)
                 a.fd[i] = -1;
             if (width < 1 || height < 1 || (check_ && !check_(a))) {
-                wlr_dmabuf_attributes_finish(&a);
+                dmabuf_attributes_finish(&a);
                 self->post_error(uint32_t(WlDrm::Error::InvalidName), "the buffer can't be imported");
                 return;
             }
             auto* storage = new DmabufStorage{{}, a};
-            wlr_buffer_init(&storage->base, &kDmabufImpl, width, height);
+            buffer_init(&storage->base, &kDmabufImpl, width, height);
             if (!make<DmabufBuffer>(self->client(), 1, id, storage))
-                wlr_buffer_drop(&storage->base);
+                buffer_drop(&storage->base);
         });
         std::erase_if(resources_, [](const auto& w) { return !w; });
         resources_.push_back(d);
@@ -362,7 +362,7 @@ LegacyDrm::~LegacyDrm() {
             r->detach();
 }
 
-bool LinuxDmabuf::is_dmabuf(wlr_buffer* buffer) {
+bool LinuxDmabuf::is_dmabuf(Buffer* buffer) {
     return buffer && buffer->impl == &kDmabufImpl;
 }
 

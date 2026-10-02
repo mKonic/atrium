@@ -428,7 +428,7 @@ void Overview::render_label(Thumb& t) {
 
     cairo_destroy(cr);
     cairo_surface_flush(surface);
-    wlr_buffer_unlock(set_cairo_buffer(t.label, surface, w, h));
+    buffer_unlock(set_cairo_buffer(t.label, surface, w, h));
     t.label_w = w;
 }
 

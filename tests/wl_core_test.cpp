@@ -372,10 +372,10 @@ TEST(WlCore, ShrunkPoolDoesNotCrashTheServer) {
     void* data;
     uint32_t format;
     size_t stride;
-    wlr_buffer* wb = ss->current().buffer.get();
-    ASSERT_TRUE(wlr_buffer_begin_data_ptr_access(wb, WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride));
+    Buffer* wb = ss->current().buffer.get();
+    ASSERT_TRUE(buffer_begin_data_ptr_access(wb, BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride));
     EXPECT_EQ(static_cast<volatile uint8_t*>(data)[4096 * 3], 0);  // would be SIGBUS
-    wlr_buffer_end_data_ptr_access(wb);
+    buffer_end_data_ptr_access(wb);
     c.pump();
     EXPECT_EQ(c.error(), EPROTO);  // the client hears about it
     close(fd);
@@ -394,14 +394,14 @@ TEST(WlCore, ShmBuffersCanBeWrittenForCapture) {
     wl_surface_attach(s, b, 0, 0);
     wl_surface_commit(s);
     c.pump();
-    wlr_buffer* wb = ss->current().buffer.get();
+    Buffer* wb = ss->current().buffer.get();
     ASSERT_NE(wb, nullptr);
     void* data;
     uint32_t format;
     size_t stride;
-    ASSERT_TRUE(wlr_buffer_begin_data_ptr_access(wb, WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride));
+    ASSERT_TRUE(buffer_begin_data_ptr_access(wb, BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride));
     static_cast<uint8_t*>(data)[5] = 0xab;
-    wlr_buffer_end_data_ptr_access(wb);
+    buffer_end_data_ptr_access(wb);
     uint8_t seen = 0;
     ASSERT_EQ(pread(fd, &seen, 1, 5), 1);
     EXPECT_EQ(seen, 0xab);

@@ -88,8 +88,8 @@ void stencil_end() {
     glDisable(GL_STENCIL_TEST);
 }
 
-void filter(GLenum target, wlr_scale_filter_mode mode) {
-    const GLint f = mode == WLR_SCALE_FILTER_NEAREST ? GL_NEAREST : GL_LINEAR;
+void filter(GLenum target, ScaleFilter mode) {
+    const GLint f = mode == SCALE_FILTER_NEAREST ? GL_NEAREST : GL_LINEAR;
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, f);
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, f);
 }
@@ -140,77 +140,50 @@ RenderPass* Renderer::begin(Framebuffer* fb, const PassOptions& o) {
     return new RenderPass(*this, fb, o);
 }
 
-namespace {
-
-// RenderPass::Hook's layout: the wlr_render_pass, then its owner.
-struct PassHook {
-    wlr_render_pass base;
-    RenderPass* self;
-};
-
-RenderPass* pass_of(wlr_render_pass* p) { return reinterpret_cast<PassHook*>(p)->self; }
-
-bool wlr_submit(wlr_render_pass* p) { return pass_of(p)->submit(); }
-
-void wlr_add_texture(wlr_render_pass* p, const wlr_render_texture_options* o) {
-    Texture* t = Renderer::texture(o->texture);
+void RenderPass::add_texture(const TextureOptions* o) {
+    Texture* t = o->texture;
     if (!t)
         return;
-    wlr_fbox wsrc;
-    wlr_box wdst;
-    wlr_render_texture_options_get_src_box(o, &wsrc);
-    wlr_render_texture_options_get_dst_box(o, &wdst);
-    const FBox src = from_wlr(wsrc);
-    const Box dst = from_wlr(wdst);
+    const FBox src = o->src_box.empty() ? FBox{0, 0, double(t->width), double(t->height)} : o->src_box;
+    Box dst = o->dst_box;
+    if (dst.empty()) {
+        dst.width = t->width;
+        dst.height = t->height;
+    }
     TextureDraw d;
     d.tex = t->ref();
     d.src = src;
     d.dst = FBox::of(dst);
     d.transform = o->transform;
     d.clip = o->clip;
-    d.alpha = wlr_render_texture_options_get_alpha(o);
+    d.alpha = o->alpha ? *o->alpha : 1;
     d.filter = o->filter_mode;
-    d.blend = o->blend_mode != WLR_RENDER_BLEND_MODE_NONE;
+    d.blend = o->blend_mode != BLEND_MODE_NONE;
     d.transfer = o->transfer_function;
     d.primaries = o->primaries;
     d.luminance = o->luminance_multiplier ? *o->luminance_multiplier : 1;
     d.wait_timeline = o->wait_timeline;
     d.wait_point = o->wait_point;
-    pass_of(p)->add_texture(d);
+    add_texture(d);
 }
 
-void wlr_add_rect(wlr_render_pass* p, const wlr_render_rect_options* o) {
-    RenderPass* pass = pass_of(p);
+void RenderPass::add_rect(const RectOptions* o) {
     RectDraw d;
-    d.box = FBox::of(from_wlr(o->box));
+    d.box = FBox::of(o->box);
     d.color[0] = o->color.r;
     d.color[1] = o->color.g;
     d.color[2] = o->color.b;
     d.color[3] = o->color.a;
     d.clip = o->clip;
-    d.blend = o->blend_mode != WLR_RENDER_BLEND_MODE_NONE;
-    pass->add_rect(d);
-}
-
-const wlr_render_pass_impl kPassImpl = {
-    .submit = wlr_submit,
-    .add_texture = wlr_add_texture,
-    .add_rect = wlr_add_rect,
-};
-
-} // namespace
-
-RenderPass* RenderPass::from(wlr_render_pass* p) {
-    return p && p->impl == &kPassImpl ? pass_of(p) : nullptr;
+    d.blend = o->blend_mode != BLEND_MODE_NONE;
+    add_rect(d);
 }
 
 RenderPass::RenderPass(Renderer& r, Framebuffer* fb, const PassOptions& o)
     : r_(r), fb_(fb), output_fb_(nullptr), fx_(o.effects), width_(fb->width), height_(fb->height),
-      timer_(reinterpret_cast<RenderTimer*>(o.timer)), color_(o.color) {
-    wlr_render_pass_init(&hook_.base, &kPassImpl);
-    hook_.self = this;
+      timer_(o.timer), color_(o.color) {
     if (fb->buffer)
-        locked_ = wlr_buffer_lock(fb->buffer);
+        locked_ = buffer_lock(fb->buffer);
     fb->encoded_tf = 0;  // until the colour pass says otherwise
     if (o.signal_timeline) {
         signal_timeline_ = wlr_drm_syncobj_timeline_ref(o.signal_timeline);
@@ -254,7 +227,7 @@ RenderPass::~RenderPass() {
     if (signal_timeline_)
         wlr_drm_syncobj_timeline_unref(signal_timeline_);
     if (locked_)
-        wlr_buffer_unlock(locked_);
+        buffer_unlock(locked_);
 }
 
 bool RenderPass::submit() {
@@ -378,7 +351,7 @@ void RenderPass::add_texture_mesh(const TextureDraw& d, const std::vector<MeshVe
     glUseProgram(p.id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(d.tex.target, d.tex.tex);
-    filter(d.tex.target, WLR_SCALE_FILTER_BILINEAR);
+    filter(d.tex.target, SCALE_FILTER_BILINEAR);
     p.set("tex", 0);
     p.set("alpha", d.alpha);
     p.set("discard_transparent", 0);
@@ -602,7 +575,7 @@ Framebuffer* RenderPass::blur_into(const BlurParams& params, Framebuffer* source
         glUseProgram(p.id);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(t.target, t.tex);
-        filter(t.target, WLR_SCALE_FILTER_BILINEAR);
+        filter(t.target, SCALE_FILTER_BILINEAR);
         p.set("tex", 0);
         p.set("radius", params.radius);
         if (down)
@@ -635,7 +608,7 @@ Framebuffer* RenderPass::blur_into(const BlurParams& params, Framebuffer* source
         glUseProgram(p.id);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(t.target, t.tex);
-        filter(t.target, WLR_SCALE_FILTER_BILINEAR);
+        filter(t.target, SCALE_FILTER_BILINEAR);
         p.set("tex", 0);
         p.set("noise", params.noise);
         p.set("brightness", params.brightness);
@@ -773,7 +746,7 @@ Framebuffer* RenderPass::glass_field(const BlurDraw& d, const TexRef* mask, cons
     if (mask) {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, mask->tex);
-        filter(GL_TEXTURE_2D, WLR_SCALE_FILTER_BILINEAR);
+        filter(GL_TEXTURE_2D, SCALE_FILTER_BILINEAR);
         p.set("mask", 1);
         p.set("mask_src", mask_norm[0], mask_norm[1], mask_norm[2], mask_norm[3]);
         glActiveTexture(GL_TEXTURE0);
@@ -801,7 +774,7 @@ Framebuffer* RenderPass::glass_field(const BlurDraw& d, const TexRef* mask, cons
     bind(fx_->field.get());
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, fx_->field_swapped->tex);
-    filter(GL_TEXTURE_2D, WLR_SCALE_FILTER_NEAREST);
+    filter(GL_TEXTURE_2D, SCALE_FILTER_NEAREST);
     p.set("first", 0);
     p.set("dir", 0.0f, 1.0f);
     draw(p, full, &region);
@@ -844,20 +817,20 @@ void RenderPass::render_glass(Framebuffer* blurred, const BlurDraw& d) {
     const TexRef b = sampler(blurred);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(b.target, b.tex);
-    filter(b.target, WLR_SCALE_FILTER_BILINEAR);
+    filter(b.target, SCALE_FILTER_BILINEAR);
     p.set("tex", 0);
     if (mask) {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, mask->tex);
         // Linear, so the edge is found between pixels, not on them.
-        filter(GL_TEXTURE_2D, WLR_SCALE_FILTER_BILINEAR);
+        filter(GL_TEXTURE_2D, SCALE_FILTER_BILINEAR);
         p.set("mask", 1);
         p.set("mask_src", mask_norm[0], mask_norm[1], mask_norm[2], mask_norm[3]);
     }
     p.set("has_mask", mask ? 1 : 0);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, field ? field->tex : 0);
-    filter(GL_TEXTURE_2D, WLR_SCALE_FILTER_BILINEAR);
+    filter(GL_TEXTURE_2D, SCALE_FILTER_BILINEAR);
     p.set("field", 2);
     p.set("field_texel", 1.0f / width_, 1.0f / height_);
     p.set("field_sigma", sigma);
@@ -926,7 +899,7 @@ void RenderPass::output_pass() {
     glUseProgram(p.id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, blend->tex);
-    filter(GL_TEXTURE_2D, WLR_SCALE_FILTER_NEAREST);
+    filter(GL_TEXTURE_2D, SCALE_FILTER_NEAREST);
     p.set("tex", 0);
     p.set_mat3("matrix", color_.matrix);
     p.set("out_tf", color_.tf);
@@ -1011,7 +984,7 @@ void RenderPass::apply_screen_shader(const pixman_region32_t* region) {
     glUseProgram(p.id);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, fx_->effects->tex);
-    filter(GL_TEXTURE_2D, WLR_SCALE_FILTER_NEAREST);
+    filter(GL_TEXTURE_2D, SCALE_FILTER_NEAREST);
     p.set("tex", 0);
     timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);

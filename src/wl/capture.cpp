@@ -53,7 +53,7 @@ void announce(Frame* f, const Capture::Constraints& c) {
 }
 
 // The buffer a client gave fits the constraints.
-bool fits(wl_resource* buffer_res, const Capture::Constraints& c, wlr_buffer** out) {
+bool fits(wl_resource* buffer_res, const Capture::Constraints& c, Buffer** out) {
     ClientBuffer* b = ClientBuffer::from(buffer_res);
     if (!b || b->width() != c.width || b->height() != c.height)
         return false;
@@ -103,7 +103,7 @@ Capture::Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels)
             announce(f, *c);
             auto used = std::make_shared<bool>(false);
             auto do_copy = [this, t, c, used](ZwlrScreencopyFrameV1* self, wl_resource* buffer_res, bool damage) {
-                wlr_buffer* buffer = nullptr;
+                Buffer* buffer = nullptr;
                 if (std::exchange(*used, true)) {
                     self->post_error(uint32_t(ZwlrScreencopyFrameV1::Error::AlreadyUsed), "the frame was already used");
                     return;
@@ -173,7 +173,7 @@ Capture::Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels)
             auto used = std::make_shared<bool>(false);
             f->on_copy([this, t, c, used](HyprlandToplevelExportFrameV1* self, wl_resource* buffer_res,
                                           int32_t ignore_damage) {
-                wlr_buffer* buffer = nullptr;
+                Buffer* buffer = nullptr;
                 if (std::exchange(*used, true)) {
                     self->post_error(uint32_t(HyprlandToplevelExportFrameV1::Error::AlreadyUsed),
                                      "the frame was already used");
@@ -239,7 +239,7 @@ Capture::Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels)
                 return;
             }
             Weak<ZwlrExportDmabufFrameV1> w = f;
-            Export e{o, cursor != 0, [w](const wlr_dmabuf_attributes* a, const timespec& when) {
+            Export e{o, cursor != 0, [w](const DmabufAttributes* a, const timespec& when) {
                          auto* f = w.get();
                          if (!f)
                              return;
@@ -348,7 +348,7 @@ Capture::Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels)
                         self->send_failed(uint32_t(Reason::Stopped));
                         return;
                     }
-                    wlr_buffer* b = nullptr;
+                    Buffer* b = nullptr;
                     if (!s->sent || !fits(*buffer, *s->sent, &b)) {
                         self->send_failed(uint32_t(Reason::BufferConstraints));
                         return;

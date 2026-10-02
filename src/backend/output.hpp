@@ -3,6 +3,8 @@
 // headless), what can be set on it in one commit (OutputState), and the
 // frame/present cycle. The field names follow wlroots' wlr_output, whose role
 // this takes over.
+#include "render/fwd.hpp"
+#include "util/buffer.hpp"
 #include "util/box.hpp"
 #include "wl/signal.hpp"
 
@@ -21,9 +23,7 @@ extern "C" {
 #include <string>
 #include <vector>
 
-struct wlr_buffer;
 struct wlr_drm_syncobj_timeline;
-struct wlr_renderer;
 
 namespace atrium::backend {
 
@@ -84,7 +84,7 @@ public:
     bool adaptive_sync_enabled = false;
     uint32_t render_format = 0;
     wl_output_subpixel subpixel = WL_OUTPUT_SUBPIXEL_UNKNOWN;
-    wlr_buffer* buffer = nullptr;  // locked while held
+    atrium::Buffer* buffer = nullptr;  // locked while held
     FBox buffer_src_box{};     // all zero: the whole buffer
     Box buffer_dst_box{};      // zero size: at its own size
     bool tearing_page_flip = false;
@@ -110,7 +110,7 @@ public:
     void set_adaptive_sync_enabled(bool on);
     void set_render_format(uint32_t format);
     void set_subpixel(wl_output_subpixel s);
-    void set_buffer(wlr_buffer* b);
+    void set_buffer(atrium::Buffer* b);
     void set_damage(const pixman_region32_t* d);
     void set_wait_timeline(wlr_drm_syncobj_timeline* t, uint64_t point);
     void set_signal_timeline(wlr_drm_syncobj_timeline* t, uint64_t point);
@@ -159,7 +159,7 @@ public:
     bool needs_frame = false;
     uint32_t commit_seq = 0;
 
-    wlr_renderer* renderer = nullptr;
+    render::Renderer* renderer = nullptr;
     Allocator* allocator = nullptr;
     std::unique_ptr<Swapchain> swapchain;  // the primary plane's
     void* data = nullptr;            // the compositor's own
@@ -204,7 +204,7 @@ public:
     virtual bool direct_scanout_allowed() const { return true; }
 
     // Drawing: the renderer and allocator its frames come from.
-    bool init_render(Allocator* allocator, wlr_renderer* renderer);
+    bool init_render(Allocator* allocator, render::Renderer* renderer);
     // A swapchain fitting `state` (its size and format) in `swapchain`, kept
     // if the one there fits.
     bool configure_primary_swapchain(const OutputState* state, std::unique_ptr<Swapchain>& swapchain);
@@ -217,7 +217,7 @@ public:
     virtual bool has_cursor_plane() const { return false; }
     virtual std::vector<std::pair<int, int>> cursor_sizes() const { return {}; }
     virtual const wlr_drm_format_set* cursor_formats(uint32_t /*buffer_caps*/) const { return nullptr; }
-    virtual bool set_cursor(wlr_buffer* /*buffer*/, int /*hotspot_x*/, int /*hotspot_y*/) { return false; }
+    virtual bool set_cursor(Buffer* /*buffer*/, int /*hotspot_x*/, int /*hotspot_y*/) { return false; }
     virtual bool move_cursor(int /*x*/, int /*y*/) { return false; }
 
 protected:

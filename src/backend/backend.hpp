@@ -20,7 +20,7 @@ public:
     virtual bool start() = 0;
     // The DRM render node or device the renderer should use (-1: any).
     virtual int drm_fd() const { return -1; }
-    // What buffers its outputs take (WLR_BUFFER_CAP_*).
+    // What buffers its outputs take (BUFFER_CAP_*).
     virtual uint32_t buffer_caps() const = 0;
     // Several outputs' states at once, all or none (a layout change).
     virtual bool commit(const std::vector<std::pair<Output*, OutputState>>& states, bool test_only);

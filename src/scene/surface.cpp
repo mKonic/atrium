@@ -236,7 +236,7 @@ void SurfaceNode::reconfigure() {
     b->set_primaries(primaries);
     unmark_client_buffer(b);
 
-    if (wlr_buffer* wb = surface->buffer()) {
+    if (atrium::Buffer* wb = surface->buffer()) {
         // In-place texture updates are fine unless the colour of a
         // single-pixel buffer was cached.
         wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(wb);

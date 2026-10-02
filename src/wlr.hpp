@@ -14,6 +14,7 @@
 #include <linux/input-event-codes.h>
 
 #include "util/box.hpp"
+#include "util/buffer.hpp"
 #include "util/log.hpp"
 #include "util/region.hpp"
 
@@ -49,7 +50,6 @@ extern "C" {
 #include <wlr/interfaces/wlr_pointer.h>
 #include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_cursor.h>
-#include <wlr/types/wlr_damage_ring.h>
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_keyboard_group.h>
@@ -81,6 +81,8 @@ extern "C" {
 #define namespace namespace_
 #include "wlr-layer-shell-unstable-v1-protocol.h"
 #undef namespace
+
+#include "render/fwd.hpp"
 
 // Where atrium's boxes meet wlroots' structs (until wlroots goes, PLAN 88).
 namespace atrium {

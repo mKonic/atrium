@@ -29,7 +29,7 @@ struct DmabufFeedback {
 // say); a buffer it refuses fails to be made.
 class LinuxDmabuf {
 public:
-    using Check = std::function<bool(const wlr_dmabuf_attributes&)>;
+    using Check = std::function<bool(const DmabufAttributes&)>;
 
     LinuxDmabuf(wl_display* display, DmabufFeedback feedback, Check check);
     ~LinuxDmabuf();
@@ -40,8 +40,8 @@ public:
     // it could go straight to the screen); nullopt goes back to the default.
     void set_surface_feedback(Surface* surface, std::optional<DmabufFeedback> feedback);
 
-    // The attributes behind a dmabuf wl_buffer's wlr_buffer, if it is one.
-    static bool is_dmabuf(wlr_buffer* buffer);
+    // The attributes behind a dmabuf wl_buffer's Buffer, if it is one.
+    static bool is_dmabuf(Buffer* buffer);
 
 private:
     struct Table;

@@ -57,7 +57,7 @@ public:
     ~SinglePixelBuffers();
 
     // The colour of a single-pixel buffer (straight RGBA, 0..1), if it is one.
-    static bool color_of(wlr_buffer* buffer, float rgba[4]);
+    static bool color_of(Buffer* buffer, float rgba[4]);
 
 private:
     std::unique_ptr<Global> global_;

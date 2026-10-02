@@ -155,19 +155,19 @@ struct SurfaceState {
     void merge(SurfaceState&& later);
 };
 
-// The wlr_buffer a surface shows, carrying its texture: the renderer draws
+// The Buffer a surface shows, carrying its texture: the renderer draws
 // the texture; an shm buffer goes back to its client as soon as it has been
 // copied in. Scene nodes take this as their buffer.
 struct SurfaceBuffer {
-    wlr_buffer base;
-    wlr_texture* texture;
+    Buffer base;
+    render::Texture* texture;
     BufferRef source;  // held while the texture reads from it (dmabuf)
     // Locks by the surface's own scene nodes, which want the next frame
     // anyway: while only they hold it, a commit updates the texture in
     // place. Anyone else's lock (a frozen copy) makes a new one.
     size_t ignore_locks = 0;
 
-    static SurfaceBuffer* from(wlr_buffer* buffer);
+    static SurfaceBuffer* from(Buffer* buffer);
 };
 
 class Compositor;
@@ -182,8 +182,8 @@ public:
     const SurfaceState& current() const { return current_; }
     const SurfaceState& pending() const { return pending_; }
     // What the scene draws: null while there is no content.
-    wlr_buffer* buffer() const { return shown_ ? &shown_->base : nullptr; }
-    wlr_texture* texture() const { return shown_ ? shown_->texture : nullptr; }
+    Buffer* buffer() const { return shown_ ? &shown_->base : nullptr; }
+    render::Texture* texture() const { return shown_ ? shown_->texture : nullptr; }
     // The part of the buffer that changed with the last applied state.
     const Region& buffer_damage() const { return current_.buffer_damage; }
     // The part of the buffer shown (the viewport's crop), in buffer pixels.
@@ -306,19 +306,19 @@ public:
 class Compositor {
 public:
     // `renderer` makes the textures (null in tests: surfaces keep state only).
-    Compositor(wl_display* display, wlr_renderer* renderer);
+    Compositor(wl_display* display, render::Renderer* renderer);
     ~Compositor();
     Compositor(const Compositor&) = delete;
     Compositor& operator=(const Compositor&) = delete;
 
-    wlr_renderer* renderer() const { return renderer_; }
+    render::Renderer* renderer() const { return renderer_; }
     // A new renderer (the GPU was reset): textures come from it from now on.
-    void set_renderer(wlr_renderer* renderer) { renderer_ = renderer; }
+    void set_renderer(render::Renderer* renderer) { renderer_ = renderer; }
 
     Signal<Surface*> new_surface;
 
 private:
-    wlr_renderer* renderer_;
+    render::Renderer* renderer_;
     std::unique_ptr<Global> compositor_global_, subcompositor_global_;
     std::vector<Weak<WlCompositor>> compositors_;
     std::vector<Weak<WlSubcompositor>> subcompositors_;

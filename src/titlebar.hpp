@@ -43,7 +43,7 @@ private:
 
     View& view_;
     scene::Buffer* buffer_ = nullptr;
-    wlr_buffer* held_ = nullptr;  // keeps buffer_->buffer valid (see set_cairo_buffer)
+    Buffer* held_ = nullptr;  // keeps buffer_->buffer valid (see set_cairo_buffer)
     Part hover_ = Part::None;
     Part pressed_ = Part::None;
 

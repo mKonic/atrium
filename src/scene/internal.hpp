@@ -59,9 +59,9 @@ struct Entry {
 
 struct SceneImpl {
     static void render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
-                                  wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
+                                  render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
     static void render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
-                             wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
+                             render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
     static void update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force);
     static void output_update(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force);
     static void update_region(Scene* scene, const pixman_region32_t* region);
@@ -70,7 +70,7 @@ struct SceneImpl {
     static bool invisible(Node* node);
     static void output_damage(SceneOutput* out, const pixman_region32_t* damage) { out->damage(damage); }
     static void send_frame_done(Node* node, SceneOutput* out, const timespec* now);
-    static wlr_texture* texture(Buffer* b, wlr_renderer* r) { return b->texture(r); }
+    static render::Texture* texture(Buffer* b, render::Renderer* r) { return b->texture(r); }
     static bool buffer_black_opaque(const Buffer* b) { return b->is_black_opaque(); }
     static void mark_cache_dirty(Node* node);
 };

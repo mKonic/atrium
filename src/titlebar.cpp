@@ -75,7 +75,7 @@ Titlebar::Titlebar(View& view, scene::Tree* parent) : view_(view) {
 Titlebar::~Titlebar() {
     buffer_->destroy();
     if (held_)
-        wlr_buffer_unlock(held_);
+        buffer_unlock(held_);
 }
 
 Titlebar::Part Titlebar::part_at(double x, double y) const {
@@ -224,10 +224,10 @@ void Titlebar::render(int width, int height, float scale) {
     cairo_destroy(cr);
     cairo_surface_flush(surface);
 
-    wlr_buffer* old = held_;
+    Buffer* old = held_;
     held_ = set_cairo_buffer(buffer_, surface, width, height);
     if (old)
-        wlr_buffer_unlock(old);
+        buffer_unlock(old);
 
     const int radius = view_.fullscreen ? 0 : view_.server.config.corner_radius;
     buffer_->set_corner_radii(scene::Radii::top(radius));
