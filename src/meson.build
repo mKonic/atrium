@@ -2,6 +2,7 @@ atrium_sources = files(
   'anim.cpp',
   'cairo_buffer.cpp',
   'backend/allocator.cpp',
+  'backend/headless.cpp',
   'backend/output.cpp',
   'backend/wlr.cpp',
   'capture.cpp',

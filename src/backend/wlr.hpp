@@ -25,6 +25,7 @@ public:
     bool commit(const std::vector<std::pair<Output*, OutputState>>& states, bool test_only) override;
     Output* create_output() override;
     bool is_virtual(const Output* o) const override;
+    bool destroy_output(Output* o) override;
     bool is_drm() const override;
 
     wlr_backend* wlr() const { return wlr_; }

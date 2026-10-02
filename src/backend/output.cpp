@@ -596,6 +596,10 @@ bool Multi::is_virtual(const Output* o) const {
     return std::ranges::any_of(backends_, [o](const auto& b) { return b->is_virtual(o); });
 }
 
+bool Multi::destroy_output(Output* o) {
+    return std::ranges::any_of(backends_, [o](const auto& b) { return b->destroy_output(o); });
+}
+
 bool Multi::is_drm() const {
     return std::ranges::any_of(backends_, [](const auto& b) { return b->is_drm(); });
 }

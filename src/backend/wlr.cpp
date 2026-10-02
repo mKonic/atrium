@@ -306,12 +306,43 @@ bool WlrBackend::commit(const std::vector<std::pair<Output*, OutputState>>& stat
     return ok;
 }
 
-Output* WlrBackend::create_output() {
-    return nullptr;
+namespace {
+
+// The nested backend inside wlroots' multi backend, if it has one.
+wlr_backend* nested_of(wlr_backend* b) {
+    if (wlr_backend_is_wl(b))
+        return b;
+    wlr_backend* found = nullptr;
+    if (wlr_backend_is_multi(b))
+        wlr_multi_for_each_backend(
+            b,
+            [](wlr_backend* child, void* data) {
+                if (wlr_backend_is_wl(child))
+                    *static_cast<wlr_backend**>(data) = child;
+            },
+            &found);
+    return found;
 }
 
-bool WlrBackend::is_virtual(const Output*) const {
-    return false;
+} // namespace
+
+Output* WlrBackend::create_output() {
+    // Nested: another window on the host. (Real screens can't be made.)
+    wlr_backend* nested = nested_of(wlr_);
+    wlr_output* o = nested ? wlr_wl_output_create(nested) : nullptr;
+    return o ? output_of(o) : nullptr;
+}
+
+bool WlrBackend::is_virtual(const Output* o) const {
+    auto it = std::ranges::find(outputs_, o);
+    return it != outputs_.end() && wlr_output_is_wl((*it)->wlr);
+}
+
+bool WlrBackend::destroy_output(Output* o) {
+    if (!is_virtual(o))
+        return false;
+    wlr_output_destroy(static_cast<WlrOutput*>(o)->wlr);  // takes ours with it
+    return true;
 }
 
 bool WlrBackend::is_drm() const {

@@ -28,6 +28,8 @@ public:
     virtual Output* create_output() { return nullptr; }
     // Whether an output belongs to a virtual screen it made.
     virtual bool is_virtual(const Output*) const { return false; }
+    // Removes a virtual screen it made (events.destroy, then gone).
+    virtual bool destroy_output(Output*) { return false; }
     // Whether it is a real display (DRM).
     virtual bool is_drm() const { return false; }
 
@@ -59,6 +61,7 @@ public:
     bool commit(const std::vector<std::pair<Output*, OutputState>>& states, bool test_only) override;
     Output* create_output() override;
     bool is_virtual(const Output* o) const override;
+    bool destroy_output(Output* o) override;
     bool is_drm() const override;
     const std::vector<std::unique_ptr<Backend>>& backends() const { return backends_; }
 
