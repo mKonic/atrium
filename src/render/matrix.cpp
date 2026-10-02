@@ -89,18 +89,3 @@ bool is_identity(const float m[9]) {
 }
 
 } // namespace atrium::render::matrix
-
-namespace atrium::render {
-
-wlr_color_luminances default_luminance(wlr_color_transfer_function tf) {
-    switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ:
-        return {0.005f, 10000, 203};
-    case WLR_COLOR_TRANSFER_FUNCTION_BT1886:
-        return {0.01f, 100, 100};
-    default:
-        return {0.2f, 80, 80};
-    }
-}
-
-} // namespace atrium::render

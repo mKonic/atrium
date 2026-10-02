@@ -5,6 +5,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <bit>
 #include <unistd.h>
 
 namespace atrium::backend {
@@ -13,9 +14,9 @@ namespace {
 
 ImageDescription from_wlr(const wlr_output_image_description& d) {
     ImageDescription out;
-    out.primaries = d.primaries;
-    out.transfer_function = d.transfer_function;
-    out.mastering_display_primaries = d.mastering_display_primaries;
+    out.primaries = NamedPrimaries(d.primaries);
+    out.transfer_function = TransferFunction(d.transfer_function);
+    out.mastering_display_primaries = std::bit_cast<ColorPrimaries>(d.mastering_display_primaries);
     out.mastering_luminance = {d.mastering_luminance.min, d.mastering_luminance.max};
     out.max_cll = d.max_cll;
     out.max_fall = d.max_fall;
@@ -24,14 +25,22 @@ ImageDescription from_wlr(const wlr_output_image_description& d) {
 
 wlr_output_image_description to_wlr(const ImageDescription& d) {
     wlr_output_image_description out{};
-    out.primaries = d.primaries;
-    out.transfer_function = d.transfer_function;
-    out.mastering_display_primaries = d.mastering_display_primaries;
+    out.primaries = wlr_color_named_primaries(d.primaries);
+    out.transfer_function = wlr_color_transfer_function(d.transfer_function);
+    out.mastering_display_primaries = std::bit_cast<wlr_color_primaries>(d.mastering_display_primaries);
     out.mastering_luminance.min = d.mastering_luminance.min;
     out.mastering_luminance.max = d.mastering_luminance.max;
     out.max_cll = d.max_cll;
     out.max_fall = d.max_fall;
     return out;
+}
+
+// The same tables as a wlroots transform (one reference, the caller's).
+wlr_color_transform* to_wlr(ColorTransform* tr) {
+    if (!tr)
+        return nullptr;
+    const size_t n = tr->dim;
+    return wlr_color_transform_init_lut_3x1d(n, tr->lut, tr->lut + n, tr->lut + 2 * n);
 }
 
 // The same syncobj as a wlroots timeline (one reference, the caller's).
@@ -176,7 +185,7 @@ public:
         supported_primaries = o->supported_primaries;
         supported_transfer_functions = o->supported_transfer_functions;
         if (o->default_primaries)
-            default_primaries = *o->default_primaries;
+            default_primaries = std::bit_cast<ColorPrimaries>(*o->default_primaries);
         sync_modes();
         sync_fields();
 
@@ -252,8 +261,11 @@ public:
                 wlr_output_state_set_signal_timeline(out, t, s.signal_point);
                 wlr_drm_syncobj_timeline_unref(t);
             }
-        if (s.committed & OutputState::ColorTransform)
-            wlr_output_state_set_color_transform(out, s.color_transform);
+        if (s.committed & OutputState::ColorTransform) {
+            wlr_color_transform* t = to_wlr(s.color_transform);
+            wlr_output_state_set_color_transform(out, t);
+            wlr_color_transform_unref(t);
+        }
         if (s.committed & OutputState::ImageDescriptionField) {
             if (s.image_description) {
                 const wlr_output_image_description d = to_wlr(*s.image_description);

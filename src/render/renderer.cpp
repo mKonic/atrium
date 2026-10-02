@@ -19,13 +19,13 @@
 
 namespace atrium::render {
 
-int output_tf(wlr_color_transfer_function tf) {
+int output_tf(TransferFunction tf) {
     switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ:
+    case TRANSFER_FUNCTION_ST2084_PQ:
         return 1;
-    case WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR:
+    case TRANSFER_FUNCTION_EXT_LINEAR:
         return 2;
-    case WLR_COLOR_TRANSFER_FUNCTION_SRGB:
+    case TRANSFER_FUNCTION_SRGB:
         return 3;
     default:
         return 0;

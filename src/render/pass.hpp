@@ -37,8 +37,8 @@ struct TextureDraw {
 
     // Content that isn't plain SDR: its transfer function, gamut and how
     // much to scale its light so its reference white is SDR white.
-    wlr_color_transfer_function transfer = wlr_color_transfer_function(0);
-    const wlr_color_primaries* primaries = nullptr;
+    TransferFunction transfer = TransferFunction(0);
+    const ColorPrimaries* primaries = nullptr;
     float luminance = 1;
 
     Timeline* wait_timeline = nullptr;

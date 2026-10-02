@@ -8,6 +8,7 @@
 #include "render/formats.hpp"
 #include "util/box.hpp"
 #include "util/buffer.hpp"
+#include "util/color.hpp"
 
 #include <memory>
 #include <unordered_set>
@@ -133,7 +134,7 @@ struct OutputColor {
     bool plain() const;
 };
 // A screen's transfer function as OutputColor::tf.
-int output_tf(wlr_color_transfer_function tf);
+int output_tf(TransferFunction tf);
 
 struct EffectBuffers;
 
@@ -185,8 +186,8 @@ struct TextureOptions {
     BlendMode blend_mode = BLEND_MODE_PREMULTIPLIED;
     Timeline* wait_timeline = nullptr;
     uint64_t wait_point = 0;
-    wlr_color_transfer_function transfer_function = wlr_color_transfer_function(0);
-    const wlr_color_primaries* primaries = nullptr;
+    TransferFunction transfer_function = TransferFunction(0);
+    const ColorPrimaries* primaries = nullptr;
     const float* luminance_multiplier = nullptr;
 };
 

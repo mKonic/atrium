@@ -3,6 +3,7 @@
 // renderer needs. The transform table and projection come from wlroots
 // (MIT), which no longer exports them.
 
+#include "util/color.hpp"
 #include "wlr.hpp"
 
 namespace atrium::render::matrix {
@@ -20,11 +21,3 @@ void transpose(float out[9], const float in[9]);
 bool is_identity(const float m[9]);
 
 } // namespace atrium::render::matrix
-
-namespace atrium::render {
-
-// A transfer function's default luminances (min, max, reference), as the
-// color-management protocol defines them.
-wlr_color_luminances default_luminance(wlr_color_transfer_function tf);
-
-} // namespace atrium::render

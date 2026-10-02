@@ -166,12 +166,12 @@ void Output::sync_global() {
 }
 
 bool Output::hdr_supported() const {
-    return (screen->supported_transfer_functions & WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ) &&
-           (screen->supported_primaries & WLR_COLOR_NAMED_PRIMARIES_BT2020);
+    return (screen->supported_transfer_functions & TRANSFER_FUNCTION_ST2084_PQ) &&
+           (screen->supported_primaries & NAMED_PRIMARIES_BT2020);
 }
 
 bool Output::hdr_active() const {
-    return screen->image_description && screen->image_description->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+    return screen->image_description && screen->image_description->transfer_function == TRANSFER_FUNCTION_ST2084_PQ;
 }
 
 namespace {
@@ -205,12 +205,12 @@ bool Output::apply_hdr() {
             // The metadata describes the screen (what Windows sends from the
             // EDID): its primaries and the luminances it says it can show.
             backend::ImageDescription desc{};
-            desc.primaries = WLR_COLOR_NAMED_PRIMARIES_BT2020;
-            desc.transfer_function = WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+            desc.primaries = NAMED_PRIMARIES_BT2020;
+            desc.transfer_function = TRANSFER_FUNCTION_ST2084_PQ;
             if (screen->default_primaries)
                 desc.mastering_display_primaries = *screen->default_primaries;
             else
-                wlr_color_primaries_from_named(&desc.mastering_display_primaries, WLR_COLOR_NAMED_PRIMARIES_BT2020);
+                primaries_from_named(&desc.mastering_display_primaries, NAMED_PRIMARIES_BT2020);
             const double max = hdr_caps && hdr_caps->max_nits > 0 ? hdr_caps->max_nits : 1000.0;
             desc.mastering_luminance.min = hdr_caps ? hdr_caps->min_nits : 0.0;
             desc.mastering_luminance.max = max;
@@ -251,11 +251,11 @@ bool Output::apply_hdr() {
     // Out of HDR the screen spreads sRGB over its whole gamut; in HDR atrium
     // does, as far as SDR color intensity says.
     if (hdr_active() && screen->default_primaries && sdr_color > 0) {
-        wlr_color_primaries srgb{}, spread{};
-        wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
+        ColorPrimaries srgb{}, spread{};
+        primaries_from_named(&srgb, NAMED_PRIMARIES_SRGB);
         const float t = float(sdr_color) / 100.0f;
-        const auto mix = [t](wlr_color_cie1931_xy a, wlr_color_cie1931_xy b) {
-            return wlr_color_cie1931_xy{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t};
+        const auto mix = [t](CieXY a, CieXY b) {
+            return CieXY{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t};
         };
         spread.red = mix(srgb.red, screen->default_primaries->red);
         spread.green = mix(srgb.green, screen->default_primaries->green);

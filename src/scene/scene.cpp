@@ -1181,14 +1181,14 @@ void Buffer::set_filter_mode(render::ScaleFilter m) {
     update();
 }
 
-void Buffer::set_transfer_function(wlr_color_transfer_function tf) {
+void Buffer::set_transfer_function(TransferFunction tf) {
     if (transfer_function == tf)
         return;
     transfer_function = tf;
     update();
 }
 
-void Buffer::set_primaries(wlr_color_named_primaries p) {
+void Buffer::set_primaries(NamedPrimaries p) {
     if (primaries == p)
         return;
     primaries = p;
@@ -1239,7 +1239,7 @@ void Scene::set_gamma_controls(wl::GammaControls* g) {
     SceneOutput* o;
     wl_list_for_each(o, &outputs, link) {
         o->gamma_lut_changed_ = false;
-        wlr_color_transform_unref(o->gamma_lut_transform_);
+        color_transform_unref(o->gamma_lut_transform_);
         o->gamma_lut_transform_ = nullptr;
     }
     if (!g)
@@ -1249,12 +1249,12 @@ void Scene::set_gamma_controls(wl::GammaControls* g) {
         if (!o)
             return;
         o->gamma_lut_changed_ = true;
-        wlr_color_transform_unref(o->gamma_lut_transform_);
+        color_transform_unref(o->gamma_lut_transform_);
         o->gamma_lut_transform_ = nullptr;
         if (!table.empty()) {
             const size_t n = table.size() / 3;
             o->gamma_lut_transform_ =
-                wlr_color_transform_init_lut_3x1d(n, table.data(), table.data() + n, table.data() + 2 * n);
+                color_transform_init_lut_3x1d(n, table.data(), table.data() + n, table.data() + 2 * n);
         }
         o->output->schedule_frame();
     });

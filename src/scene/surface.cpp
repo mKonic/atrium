@@ -21,34 +21,34 @@ namespace atrium::scene {
 namespace {
 
 // wp_color_manager_v1's named values to the renderer's.
-wlr_color_transfer_function tf_of(uint32_t wp) {
+TransferFunction tf_of(uint32_t wp) {
     switch (wp) {
-    case 1: return WLR_COLOR_TRANSFER_FUNCTION_BT1886;
-    case 5: return WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR;
-    case 9: return WLR_COLOR_TRANSFER_FUNCTION_SRGB;
-    case 11: return WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
-    default: return WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
+    case 1: return TRANSFER_FUNCTION_BT1886;
+    case 5: return TRANSFER_FUNCTION_EXT_LINEAR;
+    case 9: return TRANSFER_FUNCTION_SRGB;
+    case 11: return TRANSFER_FUNCTION_ST2084_PQ;
+    default: return TRANSFER_FUNCTION_GAMMA22;
     }
 }
 
-wlr_color_named_primaries primaries_of(uint32_t wp) {
-    return wp == 6 ? WLR_COLOR_NAMED_PRIMARIES_BT2020 : WLR_COLOR_NAMED_PRIMARIES_SRGB;
+NamedPrimaries primaries_of(uint32_t wp) {
+    return wp == 6 ? NAMED_PRIMARIES_BT2020 : NAMED_PRIMARIES_SRGB;
 }
 
-uint32_t wp_tf(wlr_color_transfer_function tf) {
+uint32_t wp_tf(TransferFunction tf) {
     switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_BT1886: return 1;
-    case WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR: return 5;
-    case WLR_COLOR_TRANSFER_FUNCTION_SRGB: return 9;
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ: return 11;
+    case TRANSFER_FUNCTION_BT1886: return 1;
+    case TRANSFER_FUNCTION_EXT_LINEAR: return 5;
+    case TRANSFER_FUNCTION_SRGB: return 9;
+    case TRANSFER_FUNCTION_ST2084_PQ: return 11;
     default: return 2;
     }
 }
 
-int tf_preference(wlr_color_transfer_function tf) {
+int tf_preference(TransferFunction tf) {
     switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_GAMMA22: return 0;
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ: return 1;
+    case TRANSFER_FUNCTION_GAMMA22: return 0;
+    case TRANSFER_FUNCTION_ST2084_PQ: return 1;
     default: return -1;
     }
 }
@@ -119,14 +119,14 @@ void SurfaceNode::outputs_changed(SceneOutput** active, size_t n) {
     on_ = std::move(next);
 
     double scale = 1;
-    wlr_color_transfer_function tf = WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
+    TransferFunction tf = TRANSFER_FUNCTION_GAMMA22;
     bool wide = false;
     for (SceneOutput* o : on_) {
         scale = std::max(scale, double(o->output->scale));
         if (const auto& d = o->output->image_description) {
             if (tf_preference(tf) < tf_preference(d->transfer_function))
                 tf = d->transfer_function;
-            wide = wide || d->primaries == WLR_COLOR_NAMED_PRIMARIES_BT2020;
+            wide = wide || d->primaries == NAMED_PRIMARIES_BT2020;
         }
     }
     const Protocols& p = scene->protocols;
@@ -220,8 +220,8 @@ void SurfaceNode::reconfigure() {
         return;
     }
 
-    wlr_color_transfer_function tf = WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
-    wlr_color_named_primaries primaries = WLR_COLOR_NAMED_PRIMARIES_SRGB;
+    TransferFunction tf = TRANSFER_FUNCTION_GAMMA22;
+    NamedPrimaries primaries = NAMED_PRIMARIES_SRGB;
     if (const auto& d = state.image_description) {
         tf = tf_of(d->tf_named);
         primaries = primaries_of(d->primaries_named);

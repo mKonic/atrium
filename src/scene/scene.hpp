@@ -329,8 +329,8 @@ public:
     void set_transform(wl_output_transform transform);
     void set_opacity(float opacity);
     void set_filter_mode(render::ScaleFilter mode);
-    void set_transfer_function(wlr_color_transfer_function tf);
-    void set_primaries(wlr_color_named_primaries primaries);
+    void set_transfer_function(TransferFunction tf);
+    void set_primaries(NamedPrimaries primaries);
     void set_corner_radius(int r) { set_corner_radii(Radii::all(r)); }
     void set_corner_radii(Radii r);
     void send_frame_done(FrameDoneEvent* event);
@@ -357,8 +357,8 @@ public:
     int dst_width = 0, dst_height = 0;
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
     pixman_region32_t opaque_region;
-    wlr_color_transfer_function transfer_function = wlr_color_transfer_function(0);
-    wlr_color_named_primaries primaries = wlr_color_named_primaries(0);
+    TransferFunction transfer_function = TransferFunction(0);
+    NamedPrimaries primaries = NamedPrimaries(0);
     Radii corners;
     // The dmabuf feedback last sent its surface: for scan-out on that
     // output, or (null) for rendering.
@@ -460,7 +460,7 @@ public:
     // HDR: SDR content's white in nits (0: the default reference white).
     void set_sdr_white_nits(float nits);
     // HDR: the gamut SDR content is spread over (null: sRGB).
-    void set_sdr_primaries(const wlr_color_primaries* primaries);
+    void set_sdr_primaries(const ColorPrimaries* primaries);
     // A white point tint in linear light (night light); 1, 1, 1 for none.
     void set_tint(float r, float g, float b);
     // The display's colour profile as a 3D table (SDR), or none.
@@ -512,7 +512,7 @@ private:
     uint8_t dmabuf_feedback_debounce_ = 0;
     bool prev_scanout_ = false;
     bool gamma_lut_changed_ = false;
-    wlr_color_transform* gamma_lut_transform_ = nullptr;
+    ColorTransform* gamma_lut_transform_ = nullptr;
     struct Feedbacks {
         std::vector<std::shared_ptr<void>> list;
         bool zero_copy;
@@ -525,7 +525,7 @@ private:
     std::vector<Committed> committed_;
     float sdr_white_nits_ = 0;
     float tint_[3] = {1, 1, 1};
-    wlr_color_primaries sdr_primaries_{};
+    ColorPrimaries sdr_primaries_{};
     bool sdr_primaries_set_ = false;
     bool color_changed_ = false;
     Timeline* in_timeline_ = nullptr;

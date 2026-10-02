@@ -94,6 +94,7 @@ if gtest.found()
     'gpus_test.cpp',
     'util_box_test.cpp',
     'util_buffer_test.cpp',
+    'util_color_test.cpp',
     'util_timeline_test.cpp',
     'wallpaper_test.cpp',
     'mimeapps_test.cpp',

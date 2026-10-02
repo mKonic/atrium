@@ -74,7 +74,7 @@ render::CutOut cut_of(const CutOut& c, const Walk& w, const RenderData& d, wl_ou
     return out;
 }
 
-float luminance_multiplier(const wlr_color_luminances& src, const wlr_color_luminances& dst) {
+float luminance_multiplier(const Luminances& src, const Luminances& dst) {
     return (dst.reference / src.reference) * (src.max / dst.max);
 }
 
@@ -118,8 +118,8 @@ bool scanout_colour_allowed(const backend::ImageDescription* desc, const Buffer*
         return desc == nullptr;
     if (desc)
         return desc->transfer_function == b->transfer_function && desc->primaries == b->primaries;
-    return b->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_GAMMA22 &&
-           b->primaries == WLR_COLOR_NAMED_PRIMARIES_SRGB;
+    return b->transfer_function == TRANSFER_FUNCTION_GAMMA22 &&
+           b->primaries == NAMED_PRIMARIES_SRGB;
 }
 
 } // namespace
@@ -249,7 +249,7 @@ void SceneOutput::destroy() {
         timeline_signal(out_timeline_, UINT64_MAX);
         timeline_unref(out_timeline_);
     }
-    wlr_color_transform_unref(gamma_lut_transform_);
+    color_transform_unref(gamma_lut_transform_);
     drop_lut_texture();
     delete this;
 }
@@ -334,7 +334,7 @@ void SceneOutput::set_sdr_white_nits(float nits) {
     damage_whole();
 }
 
-void SceneOutput::set_sdr_primaries(const wlr_color_primaries* p) {
+void SceneOutput::set_sdr_primaries(const ColorPrimaries* p) {
     const bool set = p != nullptr;
     if (set == sdr_primaries_set_ && (!set || std::memcmp(&sdr_primaries_, p, sizeof(*p)) == 0))
         return;
@@ -378,12 +378,12 @@ render::OutputColor SceneOutput::output_color(const backend::ImageDescription* d
     render::OutputColor c;
     float m[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     if (desc) {
-        wlr_color_primaries srgb, dst;
-        wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
-        wlr_color_primaries_from_named(&dst, desc->primaries);
-        wlr_color_primaries_transform_absolute_colorimetric(&srgb, &dst, m);
-        const wlr_color_luminances srgb_lum = render::default_luminance(WLR_COLOR_TRANSFER_FUNCTION_SRGB);
-        const wlr_color_luminances dst_lum = render::default_luminance(desc->transfer_function);
+        ColorPrimaries srgb, dst;
+        primaries_from_named(&srgb, NAMED_PRIMARIES_SRGB);
+        primaries_from_named(&dst, desc->primaries);
+        primaries_transform_absolute_colorimetric(&srgb, &dst, m);
+        const Luminances srgb_lum = default_luminance(TRANSFER_FUNCTION_SRGB);
+        const Luminances dst_lum = default_luminance(desc->transfer_function);
         float lum = luminance_multiplier(srgb_lum, dst_lum);
         // 1.0 (SDR white) is sdr_white_nits of the output's range.
         if (sdr_white_nits_ > 0)
@@ -413,7 +413,7 @@ void SceneOutput::attempt_gamma(backend::OutputState* state) {
     if (!output->test_state(pending)) {
         if (scene->gamma_ && global)
             scene->gamma_->fail(global);
-        wlr_color_transform_unref(gamma_lut_transform_);
+        color_transform_unref(gamma_lut_transform_);
         gamma_lut_transform_ = nullptr;
         return;
     }
@@ -593,14 +593,14 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
         const wl_output_transform transform =
             output_transform_compose(output_transform_invert(b->transform), ot);
 
-        wlr_color_primaries primaries{};
+        ColorPrimaries primaries{};
         if (b->primaries)
-            wlr_color_primaries_from_named(&primaries, b->primaries);
+            primaries_from_named(&primaries, b->primaries);
         // The content's reference white lands on SDR white (1.0) whatever
         // its transfer function; the output shows 1.0 at the user's SDR
         // brightness, so HDR scales with it (KWin does the same).
-        const float lum = luminance_multiplier(render::default_luminance(b->transfer_function),
-                                               render::default_luminance(WLR_COLOR_TRANSFER_FUNCTION_SRGB));
+        const float lum = luminance_multiplier(default_luminance(b->transfer_function),
+                                               default_luminance(TRANSFER_FUNCTION_SRGB));
 
         pixman_region32_t opaque;
         pixman_region32_init(&opaque);
@@ -625,11 +625,11 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
         td.corners = corners_of(b->corners, transform, scale);
         pixman_region32_fini(&opaque);
         // SDR content spread over a wider gamut on an HDR output.
-        const wlr_color_primaries* sdr = d.output->sdr_primaries_set_ && d.output->sdr_white_nits_ > 0 &&
+        const ColorPrimaries* sdr = d.output->sdr_primaries_set_ && d.output->sdr_white_nits_ > 0 &&
                                                  b->primaries == 0 &&
                                                  (b->transfer_function == 0 ||
-                                                  b->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_SRGB ||
-                                                  b->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_GAMMA22)
+                                                  b->transfer_function == TRANSFER_FUNCTION_SRGB ||
+                                                  b->transfer_function == TRANSFER_FUNCTION_GAMMA22)
                                              ? &d.output->sdr_primaries_
                                              : nullptr;
         if (!td.primaries)

@@ -59,11 +59,11 @@ render::OutputColor color_for(const std::optional<backend::ImageDescription>& d)
     render::OutputColor c;
     if (!d)
         return c;
-    wlr_color_primaries srgb, target;
-    wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
-    wlr_color_primaries_from_named(&target, d->primaries);
-    wlr_color_primaries_transform_absolute_colorimetric(&srgb, &target, c.matrix);
-    const wlr_color_luminances lum = render::default_luminance(d->transfer_function);
+    ColorPrimaries srgb, target;
+    primaries_from_named(&srgb, NAMED_PRIMARIES_SRGB);
+    primaries_from_named(&target, d->primaries);
+    primaries_transform_absolute_colorimetric(&srgb, &target, c.matrix);
+    const Luminances lum = default_luminance(d->transfer_function);
     for (float& m : c.matrix)
         m *= float(lum.reference / lum.max);
     c.tf = render::output_tf(d->transfer_function);

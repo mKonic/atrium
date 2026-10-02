@@ -6,6 +6,7 @@
 #include "render/fwd.hpp"
 #include "util/buffer.hpp"
 #include "util/box.hpp"
+#include "util/color.hpp"
 #include "util/format_set.hpp"
 #include "util/timeline.hpp"
 #include "wl/signal.hpp"
@@ -14,9 +15,6 @@ extern "C" {
 #include <drm_fourcc.h>
 #include <pixman.h>
 #include <wayland-server-core.h>
-#define static
-#include <wlr/render/color.h>
-#undef static
 }
 
 #include <memory>
@@ -40,9 +38,9 @@ struct Mode {
 
 // What content the screen is told to expect (HDR10, say).
 struct ImageDescription {
-    wlr_color_transfer_function transfer_function = wlr_color_transfer_function(0);
-    wlr_color_named_primaries primaries = wlr_color_named_primaries(0);
-    wlr_color_primaries mastering_display_primaries{};
+    TransferFunction transfer_function = TransferFunction(0);
+    NamedPrimaries primaries = NamedPrimaries(0);
+    ColorPrimaries mastering_display_primaries{};
     struct {
         double min = 0, max = 0;
     } mastering_luminance;
@@ -99,7 +97,7 @@ public:
     uint64_t wait_point = 0;
     Timeline* signal_timeline = nullptr;
     uint64_t signal_point = 0;
-    wlr_color_transform* color_transform = nullptr;  // referenced
+    atrium::ColorTransform* color_transform = nullptr;  // referenced
     std::optional<ImageDescription> image_description;
 
     void set_enabled(bool on);
@@ -114,7 +112,7 @@ public:
     void set_damage(const pixman_region32_t* d);
     void set_wait_timeline(Timeline* t, uint64_t point);
     void set_signal_timeline(Timeline* t, uint64_t point);
-    void set_color_transform(wlr_color_transform* t);
+    void set_color_transform(atrium::ColorTransform* t);
     void set_image_description(const ImageDescription* d);
 
 private:
@@ -150,9 +148,9 @@ public:
     bool adaptive_sync_supported = false;
     uint32_t render_format = DRM_FORMAT_XRGB8888;
     std::optional<ImageDescription> image_description;
-    std::optional<wlr_color_primaries> default_primaries;  // the screen's own (EDID)
-    uint32_t supported_primaries = 0;          // wlr_color_named_primaries bits
-    uint32_t supported_transfer_functions = 0; // wlr_color_transfer_function bits
+    std::optional<ColorPrimaries> default_primaries;  // the screen's own (EDID)
+    uint32_t supported_primaries = 0;          // NamedPrimaries bits
+    uint32_t supported_transfer_functions = 0; // TransferFunction bits
     bool non_desktop = false;
 
     bool frame_pending = false;

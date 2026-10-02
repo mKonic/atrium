@@ -31,7 +31,7 @@ OutputState::~OutputState() {
         timeline_unref(wait_timeline);
     if (signal_timeline)
         timeline_unref(signal_timeline);
-    wlr_color_transform_unref(color_transform);
+    color_transform_unref(color_transform);
 }
 
 OutputState::OutputState(const OutputState& o) : OutputState() {
@@ -61,8 +61,8 @@ OutputState& OutputState::operator=(const OutputState& o) {
     set_wait_timeline(o.wait_timeline, o.wait_point);
     set_signal_timeline(o.signal_timeline, o.signal_point);
     committed = o.committed;  // the setters marked them
-    wlr_color_transform* ct = o.color_transform ? wlr_color_transform_ref(o.color_transform) : nullptr;
-    wlr_color_transform_unref(color_transform);
+    atrium::ColorTransform* ct = o.color_transform ? color_transform_ref(o.color_transform) : nullptr;
+    color_transform_unref(color_transform);
     color_transform = ct;
     image_description = o.image_description;
     return *this;
@@ -150,10 +150,10 @@ void OutputState::set_signal_timeline(Timeline* t, uint64_t point) {
     signal_point = point;
 }
 
-void OutputState::set_color_transform(wlr_color_transform* t) {
+void OutputState::set_color_transform(atrium::ColorTransform* t) {
     committed |= ColorTransform;
-    wlr_color_transform* ref = t ? wlr_color_transform_ref(t) : nullptr;
-    wlr_color_transform_unref(color_transform);
+    atrium::ColorTransform* ref = t ? color_transform_ref(t) : nullptr;
+    color_transform_unref(color_transform);
     color_transform = ref;
 }
 

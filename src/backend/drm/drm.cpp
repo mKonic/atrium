@@ -697,16 +697,16 @@ bool Drm::connect(Connector& c, const drmModeConnector& info) {
             o->serial = take(di_info_get_serial(di));
             const di_color_primaries* p = di_info_get_default_color_primaries(di);
             if (p->has_primaries)
-                o->default_primaries = wlr_color_primaries{{p->primary[0].x, p->primary[0].y},
+                o->default_primaries = ColorPrimaries{{p->primary[0].x, p->primary[0].y},
                                                            {p->primary[1].x, p->primary[1].y},
                                                            {p->primary[2].x, p->primary[2].y},
                                                            {p->default_white.x, p->default_white.y}};
             const di_supported_signal_colorimetry* col = di_info_get_supported_signal_colorimetry(di);
             if (c.props.colorspace && (col->bt2020_cycc || col->bt2020_ycc || col->bt2020_rgb))
-                o->supported_primaries |= WLR_COLOR_NAMED_PRIMARIES_BT2020;
+                o->supported_primaries |= NAMED_PRIMARIES_BT2020;
             const di_hdr_static_metadata* hdr = di_info_get_hdr_static_metadata(di);
             if (c.props.hdr_output_metadata && hdr->type1 && hdr->pq)
-                o->supported_transfer_functions |= WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+                o->supported_transfer_functions |= TRANSFER_FUNCTION_ST2084_PQ;
             di_info_destroy(di);
         }
     std::string sub;
@@ -1062,7 +1062,7 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
                 const float x = float(i) / float(n - 1);
                 const float in[3] = {x, x, x};
                 float out[3];
-                wlr_color_transform_eval(s.color_transform, out, in);
+                color_transform_eval(s.color_transform, out, in);
                 lut[i].red = uint16_t(std::lround(std::clamp(out[0], 0.0f, 1.0f) * 65535));
                 lut[i].green = uint16_t(std::lround(std::clamp(out[1], 0.0f, 1.0f) * 65535));
                 lut[i].blue = uint16_t(std::lround(std::clamp(out[2], 0.0f, 1.0f) * 65535));
@@ -1098,17 +1098,17 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
         const auto& d = s.image_description;
         if (d && !atomic_)
             return false;  // HDR signalling is atomic-only here
-        st.colorspace = d && d->primaries == WLR_COLOR_NAMED_PRIMARIES_BT2020 ? 9 : 0;  // BT2020_RGB
+        st.colorspace = d && d->primaries == NAMED_PRIMARIES_BT2020 ? 9 : 0;  // BT2020_RGB
         st.hdr_metadata = 0;
         if (d) {
-            if (d->transfer_function != WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ)
+            if (d->transfer_function != TRANSFER_FUNCTION_ST2084_PQ)
                 return false;  // what KMS can be told: PQ
             hdr_output_metadata md{};
             md.metadata_type = 0;
             auto& t1 = md.hdmi_metadata_type1;
             t1.eotf = 2;  // SMPTE ST 2084
             t1.metadata_type = 0;
-            const wlr_color_primaries& p = d->mastering_display_primaries;
+            const ColorPrimaries& p = d->mastering_display_primaries;
             t1.display_primaries[0] = {cta_coord(p.red.x), cta_coord(p.red.y)};
             t1.display_primaries[1] = {cta_coord(p.green.x), cta_coord(p.green.y)};
             t1.display_primaries[2] = {cta_coord(p.blue.x), cta_coord(p.blue.y)};
@@ -1685,7 +1685,7 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
                 float out[3] = {x, x, x};
                 if (st.base->color_transform) {
                     const float in[3] = {x, x, x};
-                    wlr_color_transform_eval(st.base->color_transform, out, in);
+                    color_transform_eval(st.base->color_transform, out, in);
                 }
                 r[i] = uint16_t(std::lround(std::clamp(out[0], 0.0f, 1.0f) * 65535));
                 g[i] = uint16_t(std::lround(std::clamp(out[1], 0.0f, 1.0f) * 65535));

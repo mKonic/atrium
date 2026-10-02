@@ -94,11 +94,11 @@ void filter(GLenum target, ScaleFilter mode) {
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, f);
 }
 
-int tf_index(wlr_color_transfer_function tf) {
+int tf_index(TransferFunction tf) {
     switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ:
+    case TRANSFER_FUNCTION_ST2084_PQ:
         return 1;
-    case WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR:
+    case TRANSFER_FUNCTION_EXT_LINEAR:
         return 2;
     default:
         return 0;
@@ -449,9 +449,9 @@ void RenderPass::add_texture(const TextureDraw& d) {
         std::memcpy(prim, d.tex.encoded->encoded_matrix, sizeof(prim));
         lum = 1;
     } else if (d.primaries) {
-        wlr_color_primaries srgb;
-        wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
-        wlr_color_primaries_transform_absolute_colorimetric(d.primaries, &srgb, prim);
+        ColorPrimaries srgb;
+        primaries_from_named(&srgb, NAMED_PRIMARIES_SRGB);
+        primaries_transform_absolute_colorimetric(d.primaries, &srgb, prim);
         if (hdr_tf == 0 && !matrix::is_identity(prim))
             hdr_tf = 3;  // SDR in another gamut: decoded as gamma 2.2
     }
