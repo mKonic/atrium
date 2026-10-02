@@ -50,6 +50,16 @@ public:
     // Its device was unplugged.
     wl::Signal<> removed;
 
+    // Leasing screens to clients (a VR runtime): the connector behind an
+    // output, a fd without master to show clients, a lease's fd (-1 if
+    // refused), and its end.
+    uint32_t connector_id(const Output* output) const;
+    int non_master_fd() const;
+    int create_lease(const std::vector<uint32_t>& connectors, uint32_t* lessee);
+    void revoke_lease(uint32_t lessee);
+    // The kernel ended one (the lessee closed it).
+    wl::Signal<uint32_t> lease_ended;
+
 private:
     struct Plane;
     struct Crtc;
@@ -86,6 +96,8 @@ private:
                   uint64_t wait_point);
     void handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned crtc_id, PageFlip* flip);
     void session_active(bool active);
+    void check_leases();
+    void end_lease(uint32_t lessee, bool revoke);
     void restore(const std::vector<Connector*>& conns);
 
     Session& session_;

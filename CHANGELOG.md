@@ -22,6 +22,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Touchpad swipes with three or four fingers: sideways to the next space, up for Mission Control, down for the app's windows.
 - Touchscreens and drawing tablets.
 - Closing a laptop's lid with another display connected turns the built-in screen off.
+- Displays on a second graphics card: a laptop's discrete GPU, a dock, a DisplayLink adapter.
+- VR headsets go to VR apps (SteamVR, Monado) instead of joining the desktop.
 
 ### Changed
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.
@@ -29,6 +31,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Updates no longer show in the menu bar; Software Update in Settings has them.
 - atrium draws with its own renderer: a full redraw with blur and Liquid Glass takes about half the time.
 - atrium speaks Wayland to apps itself, and runs X11 windows with its own window manager.
+- atrium drives the displays itself, on drivers with or without atomic modesetting.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

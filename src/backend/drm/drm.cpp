@@ -18,6 +18,7 @@ extern "C" {
 
 #include <drm_fourcc.h>
 #include <libdrm/drm_mode.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
 #include <xf86drm.h>
@@ -186,6 +187,7 @@ struct Drm::Connector {
     uint64_t colorspace = 0;
     uint32_t hdr_metadata = 0;
     PageFlip* pending_flip = nullptr;
+    uint32_t lessee = 0;  // leased out (with its CRTC) to this lessee
 
     // The cursor plane: what to show next, where (crtc pixels, hotspot taken off).
     bool cursor_enabled = false;
@@ -382,6 +384,10 @@ std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const st
             raw->scan_connectors(c.connector);
     }));
     d->connections_.push_back(d->device_->events.remove.connect([raw = d.get()] { raw->removed.emit(); }));
+    d->connections_.push_back(d->device_->events.change.connect([raw = d.get()](const Session::Device::Change& c) {
+        if (c.type == Session::Device::Change::Type::Lease)
+            raw->check_leases();
+    }));
     wlr_log(WLR_INFO, "drm: driving %s", d->name_.c_str());
     return d;
 }
@@ -724,6 +730,12 @@ bool Drm::connect(Connector& c, const drmModeConnector& info) {
 void Drm::disconnect(Connector& c) {
     if (!c.output)
         return;
+    if (c.lessee) {
+        // Leased out: the lease ends with it; its CRTC was never ours to turn off.
+        const uint32_t l = c.lessee;
+        end_lease(l, true);
+        lease_ended.emit(l);
+    }
     // Off first (it may fail: the GPU unplugged, or another VT has it).
     if (c.crtc) {
         OutputState off;
@@ -766,8 +778,8 @@ void Drm::realloc_crtcs(Connector* want) {
         Connector& c = *connectors_[i];
         if (c.crtc)
             previous[c.crtc->index] = uint32_t(i);
-        // Only for those on, or the one about to be.
-        const bool wants = &c == want || (c.output && c.output->enabled);
+        // Only for those on (or leased out), or the one about to be.
+        const bool wants = &c == want || (c.output && (c.output->enabled || c.lessee));
         if (c.output && wants) {
             // possible_crtcs counts the kernel's CRTCs; ours may be fewer.
             for (auto& cr : crtcs_)
@@ -780,11 +792,11 @@ void Drm::realloc_crtcs(Connector* want) {
     for (size_t k = 0; k < got.size(); ++k)
         if (got[k] != kUnmatched)
             match[got[k]] = crtcs_[k].get();
-    // A screen that's on keeps its CRTC, or nothing changes.
+    // A screen that's on (or leased) keeps its CRTC, or nothing changes.
     for (size_t i = 0; i < connectors_.size(); ++i) {
         Connector& c = *connectors_[i];
-        if (!c.output || !c.output->enabled)
-            continue;
+        if (&c == want || !c.output || !(c.output->enabled || c.lessee))
+            continue;  // (the one asking has none yet)
         if (!match[i] || match[i] != c.crtc)
             return;
     }
@@ -1525,6 +1537,104 @@ wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const 
     return dst;
 }
 
+// ---- leases ----------------------------------------------------------------------------
+
+uint32_t Drm::connector_id(const Output* o) const {
+    for (const auto& c : connectors_)
+        if (c->output == o)
+            return c->id;
+    return 0;
+}
+
+// For clients to look at the device: the same node, without DRM master.
+int Drm::non_master_fd() const {
+    char* name = drmGetDeviceNameFromFd2(fd_);
+    if (!name)
+        return -1;
+    const int fd = open(name, O_RDWR | O_CLOEXEC);
+    std::free(name);
+    if (fd >= 0 && drmIsMaster(fd) && drmDropMaster(fd) != 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+// Each connector goes with a CRTC and its primary plane (what a VR runtime
+// needs to show anything).
+int Drm::create_lease(const std::vector<uint32_t>& connector_ids, uint32_t* lessee) {
+    std::vector<Connector*> conns;
+    for (uint32_t id : connector_ids) {
+        auto it = std::ranges::find_if(connectors_, [id](const auto& c) { return c->id == id; });
+        if (it == connectors_.end() || !(*it)->output || (*it)->lessee || (*it)->output->enabled)
+            return -1;
+        conns.push_back(it->get());
+    }
+    std::vector<uint32_t> objects;
+    for (Connector* c : conns) {
+        c->lessee = ~0u;  // wants a CRTC as if on
+        if (!alloc_crtc(*c)) {
+            for (Connector* x : conns)
+                if (x->lessee == ~0u) {
+                    x->lessee = 0;
+                    x->crtc = nullptr;
+                }
+            wlr_log(WLR_ERROR, "drm: %s: no CRTC to lease with %s", name_.c_str(), c->name.c_str());
+            return -1;
+        }
+        objects.push_back(c->id);
+        objects.push_back(c->crtc->id);
+        objects.push_back(c->crtc->primary->id);
+    }
+    const int fd = drmModeCreateLease(fd_, objects.data(), int(objects.size()), O_CLOEXEC, lessee);
+    for (Connector* c : conns) {
+        c->lessee = fd >= 0 ? *lessee : 0;
+        if (fd < 0)
+            c->crtc = nullptr;
+    }
+    if (fd < 0)
+        wlr_log(WLR_ERROR, "drm: %s: creating a lease failed: %s", name_.c_str(), std::strerror(errno));
+    else
+        wlr_log(WLR_INFO, "drm: %s: lease %u granted", name_.c_str(), *lessee);
+    return fd;
+}
+
+void Drm::end_lease(uint32_t lessee, bool revoke) {
+    if (revoke && drmModeRevokeLease(fd_, lessee) != 0)
+        wlr_log(WLR_DEBUG, "drm: %s: revoking lease %u: %s", name_.c_str(), lessee, std::strerror(errno));
+    for (auto& c : connectors_)
+        if (c->lessee == lessee) {
+            c->lessee = 0;
+            c->crtc = nullptr;
+        }
+}
+
+void Drm::revoke_lease(uint32_t lessee) {
+    end_lease(lessee, true);
+}
+
+// A LEASE uevent: lessees the kernel no longer lists are over.
+void Drm::check_leases() {
+    std::vector<uint32_t> ours;
+    for (const auto& c : connectors_)
+        if (c->lessee && std::ranges::find(ours, c->lessee) == ours.end())
+            ours.push_back(c->lessee);
+    if (ours.empty())
+        return;
+    drmModeLesseeListPtr list = drmModeListLessees(fd_);
+    for (uint32_t l : ours) {
+        bool alive = false;
+        for (uint32_t i = 0; list && i < list->count; ++i)
+            alive |= list->lessees[i] == l;
+        if (!alive) {
+            wlr_log(WLR_INFO, "drm: %s: lease %u ended", name_.c_str(), l);
+            end_lease(l, false);
+            lease_ended.emit(l);
+        }
+    }
+    drmFree(list);
+}
+
 // The CRTC driving a connector now (the boot splash's, another session's).
 uint32_t Drm::current_crtc(uint32_t connector, const drmModeConnector* info) const {
     if (atomic_) {
@@ -1644,8 +1754,8 @@ void Drm::restore(const std::vector<Connector*>& conns) {
     if (drmModeAtomicReq* req = atomic_ ? drmModeAtomicAlloc() : nullptr) {
         int n = 0;
         for (auto& c : connectors_) {
-            if (std::ranges::find(conns, c.get()) != conns.end())
-                continue;
+            if (std::ranges::find(conns, c.get()) != conns.end() || c->lessee)
+                continue;  // ours, or a lessee's
             uint64_t cur = 0;
             if (!get_prop(fd_, c->id, c->props.crtc_id, &cur) || !cur)
                 continue;

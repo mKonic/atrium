@@ -90,6 +90,7 @@ wl_protocol_xmls = [
   'xx-pip-v1.xml',
   wl_protocol_dir / 'staging/xwayland-shell/xwayland-shell-v1.xml',
   wl_protocol_dir / 'staging/color-management/color-management-v1.xml',
+  wl_protocol_dir / 'staging/drm-lease/drm-lease-v1.xml',
 ]
 wl_protocol_sources = []
 wl_protocol_headers = []

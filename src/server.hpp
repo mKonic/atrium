@@ -353,6 +353,10 @@ private:
     wl::Connection gpu_added_;
     std::vector<wl::Connection> gpu_removed_;
     void add_gpu(const std::string& path);
+    // Each GPU's wp-drm-lease global (non-desktop screens go to clients).
+    struct GpuLease;
+    std::vector<std::unique_ptr<GpuLease>> gpu_leases_;
+    GpuLease* lease_for(const backend::Backend* gpu) const;
     std::unique_ptr<backend::Multi> backend_;
     std::unique_ptr<backend::Allocator> allocator_;
     std::unique_ptr<OutputLayout> output_layout_;

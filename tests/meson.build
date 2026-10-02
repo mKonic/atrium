@@ -65,6 +65,7 @@ if gtest.found()
     wl_protocol_dir / 'staging/color-management/color-management-v1.xml',
     wl_protocol_dir / 'stable/tablet/tablet-v2.xml',
     '../protocols/xx-pip-v1.xml',
+    wl_protocol_dir / 'staging/drm-lease/drm-lease-v1.xml',
   ]
     test_protocol += custom_target(xml.underscorify() + '_client_h',
       input: xml,
@@ -119,6 +120,7 @@ if gtest.found()
     'wl_color_test.cpp',
     'wl_tablet_test.cpp',
     'wl_pip_test.cpp',
+    'wl_drm_lease_test.cpp',
     'xwm_test.cpp',
     'input_keys_test.cpp',
     'output_layout_test.cpp',

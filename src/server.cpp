@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "wl/drm_lease.hpp"
 #include "backend/drm/drm.hpp"
 #include "backend/session.hpp"
 #include "backend/wayland.hpp"
@@ -762,6 +763,9 @@ void Server::teardown() {
     backend = nullptr;
     headless_ = nullptr;
     session_active_conn_.disconnect();
+    gpu_added_.disconnect();
+    gpu_removed_.clear();
+    gpu_leases_.clear();  // before the GPUs they lease from
     backend_.reset();  // takes wlroots' with it, unless the host session ended
     device_seat.reset();
     own_session_.reset();
@@ -920,6 +924,27 @@ void Server::note_last_session() {
               "'[]' '{}' 10000 >/dev/null 2>&1 && break; sleep 1; done");
 }
 
+// A GPU's leasing global, and what it asks of the GPU.
+struct Server::GpuLease final : wl::DrmLease::Provider {
+    backend::drm::Drm* drm;
+    std::unique_ptr<wl::DrmLease> lease;
+    wl::Connection ended;
+    GpuLease(wl_display* display, backend::drm::Drm* d) : drm(d) {
+        lease = std::make_unique<wl::DrmLease>(display, *this);
+        ended = drm->lease_ended.connect([this](uint32_t lessee) { lease->lease_ended(lessee); });
+    }
+    int non_master_fd() override { return drm->non_master_fd(); }
+    int create_lease(const std::vector<uint32_t>& c, uint32_t* lessee) override { return drm->create_lease(c, lessee); }
+    void revoke_lease(uint32_t lessee) override { drm->revoke_lease(lessee); }
+};
+
+Server::GpuLease* Server::lease_for(const backend::Backend* gpu) const {
+    for (const auto& g : gpu_leases_)
+        if (g->drm == gpu)
+            return g.get();
+    return nullptr;
+}
+
 // A GPU's screens (at startup, or an eGPU or dock plugged in later). Unplugged,
 // a secondary one goes with its screens; the primary renders everything.
 void Server::add_gpu(const std::string& path) {
@@ -937,10 +962,12 @@ void Server::add_gpu(const std::string& path) {
                 auto* self = static_cast<Server*>(data);
                 for (backend::drm::Drm* g : std::exchange(self->pending_gpu_removal_, {})) {
                     wlr_log(WLR_INFO, "drm: %s unplugged", g->name().c_str());
+                    std::erase_if(self->gpu_leases_, [g](const auto& l) { return l->drm == g; });
                     self->backend->remove(g);
                 }
             }, this);
         }));
+    gpu_leases_.push_back(std::make_unique<GpuLease>(display, raw));
     backend->add(std::move(d));
 }
 
@@ -951,6 +978,21 @@ void Server::quit() {
 // --- outputs -----------------------------------------------------------------
 
 void Server::new_output(backend::Output* wlr) {
+    // A VR headset: not part of the desktop, offered to clients to drive.
+    if (wlr->non_desktop) {
+        if (GpuLease* g = lease_for(&wlr->backend)) {
+            const uint32_t id = g->drm->connector_id(wlr);
+            wlr_log(WLR_INFO, "%s is not a desktop screen: offered for lease", wlr->name.c_str());
+            g->lease->offer(id, wlr->name, wlr->description);
+            auto conn = std::make_shared<wl::Connection>();
+            *conn = wlr->events.destroy.connect([this, gpu = &wlr->backend, id, conn] {
+                if (GpuLease* l = lease_for(gpu))
+                    l->lease->withdraw(id);
+                conn->disconnect();
+            });
+        }
+        return;
+    }
     if (!wlr->init_render(allocator, renderer))
         return;
     auto* output = new Output(*this, wlr);
