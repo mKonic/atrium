@@ -295,6 +295,18 @@ void Drag::leave() {
     offer_ = {};
     focus_ = nullptr;
     focus_gone_.disconnect();
+    external_accepted_ = false;
+    focus_changed.emit(nullptr);
+}
+
+void Drag::set_external_target(bool accepted, uint32_t action) {
+    external_accepted_ = accepted;
+    if (source_) {
+        // X11 says yes or no, not to which type: the first stands for it.
+        const auto& types = source_->mime_types();
+        source_->dnd_target(accepted && !types.empty() ? types.front().c_str() : nullptr);
+        source_->dnd_action(action);
+    }
 }
 
 void Drag::motion(Surface* surface, double sx, double sy, uint32_t time_ms) {
@@ -310,6 +322,8 @@ void Drag::motion(Surface* surface, double sx, double sy, uint32_t time_ms) {
             focus_ = nullptr;
             offer_ = {};
             focus_gone_.disconnect();
+            external_accepted_ = false;
+            focus_changed.emit(nullptr);
         });
         const uint32_t serial = devices_.seat().next_serial();
         for (WlDataDevice* d : devices_.devices_for(surface->client())) {
@@ -320,11 +334,15 @@ void Drag::motion(Surface* surface, double sx, double sy, uint32_t time_ms) {
             }
             d->send_enter(serial, surface, sx, sy, offer);
         }
+        focus_changed.emit(surface);
+        moved.emit(sx, sy, time_ms);
         return;
     }
-    if (focus_)
+    if (focus_) {
         for (WlDataDevice* d : devices_.devices_for(focus_->client()))
             d->send_motion(time_ms, sx, sy);
+        moved.emit(sx, sy, time_ms);
+    }
 }
 
 void Drag::update_action() {
@@ -340,11 +358,14 @@ void Drag::update_action() {
     source_->dnd_action(chosen);
 }
 
-void Drag::drop(uint32_t) {
+void Drag::drop(uint32_t time_ms) {
     auto* o = static_cast<DataOffer*>(offer_.get());
     // A v3 target must have agreed on an action; any target, on a type.
-    const bool takes = focus_ && (!source_ || (o && o->accepted && (o->version() < 3 || o->chosen != dnd::None)));
+    const bool takes = focus_ && (!source_ || external_accepted_ ||
+                                  (o && o->accepted && (o->version() < 3 || o->chosen != dnd::None)));
     if (takes) {
+        if (external_accepted_)
+            dropped.emit(time_ms);
         for (WlDataDevice* d : devices_.devices_for(focus_->client()))
             d->send_drop();
         if (o)

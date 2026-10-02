@@ -49,6 +49,8 @@ atrium_sources = files(
   'window_copy.cpp',
   'xdg_view.cpp',
   'xwayland_view.cpp',
+  'xwayland/selection.cpp',
+  'xwayland/xwm.cpp',
   'scene/capture.cpp',
   'scene/output.cpp',
   'scene/scene.cpp',
@@ -83,6 +85,7 @@ atrium_sources = files(
   'wl/timing.cpp',
   'wl/xdg_extras.cpp',
   'wl/xdg_shell.cpp',
+  'wl/xwayland_shell.cpp',
 )
 
 # Everything but main(): the compositor as a library, which the unit tests

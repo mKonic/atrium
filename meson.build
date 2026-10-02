@@ -54,7 +54,8 @@ use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
 deps = [wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2]
 if use_xwayland
-  deps += [dependency('xcb'), dependency('xcb-icccm')]
+  deps += [dependency('xcb'), dependency('xcb-icccm'), dependency('xcb-composite'), dependency('xcb-xfixes'),
+           dependency('xcb-res'), dependency('xcb-render'), dependency('xcb-ewmh')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')
 endif
 # Logging to the journal when a display manager starts the session.

@@ -71,7 +71,15 @@ public:
     void drop(uint32_t time_ms);
     void cancel();
 
+    // A target outside the protocol (an X11 window, through the XWM) said
+    // whether it takes the drag, and with which action.
+    void set_external_target(bool accepted, uint32_t action);
+
     Signal<> ended;
+    // For targets outside the protocol: where the drag is.
+    Signal<Surface*> focus_changed;
+    Signal<double, double, uint32_t> moved;  // over the focus: sx, sy, time
+    Signal<uint32_t> dropped;  // on the focus, which took it
 
 private:
     friend class DataOffer;
@@ -86,6 +94,7 @@ private:
     Weak<Resource> offer_;  // DataOffer made for the focus
     Signal<>::Connection source_gone_, icon_gone_, focus_gone_, origin_gone_;
     bool dropped_ = false;
+    bool external_accepted_ = false;
 };
 
 // wl_data_device_manager for one seat: the clipboard selection and drag and
