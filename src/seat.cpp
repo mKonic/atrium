@@ -217,7 +217,7 @@ void Seat::new_virtual_pointer(wl::VirtualInputs::Pointer* vp) {
     // Its screen: absolute motion spans it (else every screen).
     auto layout = [this, vp](double x, double y, double* lx, double* ly) {
         const Output* o = vp->output ? static_cast<Output*>(vp->output->data) : nullptr;
-        const wlr_box b = o ? o->box : server.layout_box;
+        const Box b = o ? o->box : server.layout_box;
         *lx = b.x + x * b.width;
         *ly = b.y + y * b.height;
     };
@@ -853,7 +853,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                 double ox, oy;
                 owner.view->surface_origin(ox, oy);
                 double sx = cursor->x - ox, sy = cursor->y - oy, cx, cy;
-                if (wlr_region_confine(active_constraint_->region.get(), sx, sy, sx + dx, sy + dy, &cx, &cy)) {
+                if (region_confine(active_constraint_->region.get(), sx, sy, sx + dx, sy + dy, &cx, &cy)) {
                     dx = cx - sx;
                     dy = cy - sy;
                 }
@@ -905,7 +905,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         if (zone != snap_zone_) {
             snap_zone_ = zone;
             if (zone)
-                server.snap_preview->show(geometry::snap_box(o->usable, zone, zone == WLR_EDGE_TOP ? 0 : server.config.snap_gap),
+                server.snap_preview->show(geometry::snap_box(o->usable, zone, zone == EDGE_TOP ? 0 : server.config.snap_gap),
                                           grab_view_->tree, grab_view_->geom);
             else
                 server.snap_preview->hide();
@@ -913,10 +913,10 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         return;
     }
     if (mode == Mode::Resize && grab_view_) {
-        wlr_box box = geometry::resize(grab_geom_, grab_edges_,
+        Box box = geometry::resize(grab_geom_, grab_edges_,
             int(std::lround(cursor->x - grab_x_)), int(std::lround(cursor->y - grab_y_)));
         // Pulled up past the menu bar, the top edge stops at it.
-        if (const int top = grab_view_->below_bar(box.y); top > box.y && (grab_edges_ & WLR_EDGE_TOP)) {
+        if (const int top = grab_view_->below_bar(box.y); top > box.y && (grab_edges_ & EDGE_TOP)) {
             box.height -= top - box.y;
             box.y = top;
         }
@@ -963,7 +963,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
             set_titlebar_hover(nullptr, 0);
             server.wl->seat->pointer_clear_focus();
-            cursor->set_xcursor(xcursor, wlr_xcursor_get_resize_name(wlr_edges(zone.edges)));
+            cursor->set_xcursor(xcursor, resize_cursor_name(zone.edges));
             return;
         }
         if (hit.backdrop) {
@@ -1161,7 +1161,7 @@ Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
     for (View* v : server.views) {
         if (!v->visible() || (only && v->space != only))
             continue;
-        const wlr_box& g = v->geom;
+        const Box& g = v->geom;
         if (lx >= g.x && lx < g.x + g.width && ly >= g.y && ly < g.y + g.height)
             return {};
         // Apps drawing their own frame get the band too: Electron's has no
@@ -1171,13 +1171,13 @@ Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
         if (lx < g.x - kBand || lx >= g.x + g.width + kBand || ly < g.y - kBand || ly >= g.y + g.height + kBand)
             continue;
         uint32_t edges = 0;
-        if (lx < g.x + kCorner) edges |= WLR_EDGE_LEFT;
-        else if (lx >= g.x + g.width - kCorner) edges |= WLR_EDGE_RIGHT;
-        if (ly < g.y + kCorner) edges |= WLR_EDGE_TOP;
-        else if (ly >= g.y + g.height - kCorner) edges |= WLR_EDGE_BOTTOM;
+        if (lx < g.x + kCorner) edges |= EDGE_LEFT;
+        else if (lx >= g.x + g.width - kCorner) edges |= EDGE_RIGHT;
+        if (ly < g.y + kCorner) edges |= EDGE_TOP;
+        else if (ly >= g.y + g.height - kCorner) edges |= EDGE_BOTTOM;
         // A point beside the frame counts only for the side it is on.
         if (lx >= g.x && lx < g.x + g.width && !(ly < g.y || ly >= g.y + g.height))
-            edges &= WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+            edges &= EDGE_TOP | EDGE_BOTTOM;
         if (edges)
             return {v, edges};
     }
@@ -1312,7 +1312,7 @@ void Seat::begin_move(View* view) {
 void Seat::unmaximize_for_drag() {
     View* view = grab_view_;
     grab_unmaximize_ = false;
-    const wlr_box before = view->geom;
+    const Box before = view->geom;
     const double fx = before.width > 0 ? (grab_x_ - before.x) / before.width : 0.5;
     if (view->maximized)
         view->set_maximized(false);
@@ -1341,14 +1341,14 @@ void Seat::begin_resize(View* view, uint32_t edges) {
     mode = Mode::Resize;
     view->begin_resize(edges);
     server.wl->seat->pointer_clear_focus();
-    cursor->set_xcursor(xcursor, wlr_xcursor_get_resize_name(wlr_edges(edges)));
+    cursor->set_xcursor(xcursor, resize_cursor_name(edges));
 }
 
 void Seat::push_edge(double dx) {
     // A deliberate shove, well past the touch that offers to snap. The edge is
     // a band a few pixels wide: a hand on a mouse (or vc's pointer) jitters.
     constexpr double kPush = 300, kBand = 4;
-    wlr_box all;
+    Box all;
     all = server.output_layout->extents();
     const int dir = cursor->x < all.x + kBand ? -1 : cursor->x >= all.x + all.width - kBand ? 1 : 0;
     if (!dir) {

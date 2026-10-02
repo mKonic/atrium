@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+using namespace atrium;
+
 using atrium::Cursor;
 using atrium::OutputLayout;
 namespace backend = atrium::backend;
@@ -47,7 +49,7 @@ struct Fixture : ::testing::Test {
     ~Fixture() override { wl_event_loop_destroy(loop); }
 };
 
-bool same(const wlr_box& a, const wlr_box& b) {
+bool same(const Box& a, const Box& b) {
     return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
 }
 

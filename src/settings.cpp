@@ -12,8 +12,6 @@
 #include <map>
 #include <sstream>
 
-extern "C" {
-}
 
 namespace atrium {
 

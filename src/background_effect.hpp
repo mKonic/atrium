@@ -28,7 +28,7 @@ public:
 
     // What `surface` asked for: nothing (nullopt), no blur (an empty box), or
     // blur over this box, in surface coordinates.
-    std::optional<wlr_box> blur_for(wl::Surface* surface) const;
+    std::optional<Box> blur_for(wl::Surface* surface) const;
     // The settings changed: tell the apps whether blur is on offer.
     void announce();
 

@@ -425,8 +425,8 @@ void Output::send_frame_done() {
 
 namespace {
 
-void arrange_layer(Output& o, std::vector<LayerSurface*>& list, wlr_box& usable, bool exclusive) {
-    const wlr_box full = o.box;
+void arrange_layer(Output& o, std::vector<LayerSurface*>& list, Box& usable, bool exclusive) {
+    const Box full = o.box;
     for (LayerSurface* l : list) {
         if (!l->ls->initialized())
             continue;
@@ -443,13 +443,13 @@ void Output::arrange_layers() {
     if (!enabled())
         return;
 
-    wlr_box area = box;
+    Box area = box;
     // Exclusive zones first, top to bottom, so panels shrink the usable area
     // before anything is placed inside it.
     for (int i = 3; i >= 0; --i)
         arrange_layer(*this, layers[i], area, true);
 
-    if (!wlr_box_equal(&area, &usable)) {
+    if (!box_equal(&area, &usable)) {
         usable = area;
         refit_views();
     }

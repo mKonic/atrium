@@ -104,7 +104,7 @@ void Seat::frame(input::Device&) {
 }
 
 void Seat::to_layout(const input::Device& d, double x, double y, double* lx, double* ly) const {
-    wlr_box b = server.layout_box;
+    Box b = server.layout_box;
     const std::string name = d.output_name();
     for (const Output* o : server.outputs)
         if (o->enabled() && (name.empty() ? server.outputs.size() == 1 : name == o->screen->name))

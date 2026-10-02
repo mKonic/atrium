@@ -90,7 +90,7 @@ bool View::visible() const {
     return mapped && !minimized && (!space || space->shown());
 }
 
-wlr_box View::usable_area() const {
+Box View::usable_area() const {
     // A secret space's windows are as large as maximized ones (under the
     // bar), maximized or not, less any margin asked for.
     if (space && space->secret && output)
@@ -314,7 +314,7 @@ void View::place() {
 
     // Splash screens sit in the middle of the screen.
     if (splash() && target) {
-        const wlr_box u = usable_area();
+        const Box u = usable_area();
         move_to(u.x + (u.width - geom.width) / 2, u.y + (u.height - geom.height) / 2);
         return;
     }
@@ -325,7 +325,7 @@ void View::place() {
         remembered_ = server.placement_for(this);
     bool user = false;
     if (auto want = requested_position(user); want && !p && (user || !remembered_)) {
-        const wlr_box frame{want->first, want->second - top(), geom.width, geom.height};
+        const Box frame{want->first, want->second - top(), geom.width, geom.height};
         if (Output* o = server.output_at(frame.x + frame.width / 2.0, frame.y + frame.height / 2.0)) {
             set_output(o);
             move_to(frame.x, frame.y);
@@ -333,7 +333,7 @@ void View::place() {
         }
     }
     if (remembered_ && !p) {
-        const wlr_box want = geometry::fit_into({target ? target->box.x + remembered_->x : remembered_->x,
+        const Box want = geometry::fit_into({target ? target->box.x + remembered_->x : remembered_->x,
                                                  target ? target->box.y + remembered_->y : remembered_->y,
                                                  remembered_->width, remembered_->height}, usable_area());
         if (want.width != geom.width || want.height != geom.height)
@@ -343,12 +343,12 @@ void View::place() {
         return;
     }
 
-    std::vector<wlr_box> others;
+    std::vector<Box> others;
     for (View* v : server.views)
         if (v != this && v->mapped && !v->minimized && v->space == space)
             others.push_back(v->geom);
-    const wlr_box* parent_box = (p && p->mapped) ? &p->geom : nullptr;
-    const wlr_box g = geometry::place(geom.width, geom.height, usable_area(), parent_box, others,
+    const Box* parent_box = (p && p->mapped) ? &p->geom : nullptr;
+    const Box g = geometry::place(geom.width, geom.height, usable_area(), parent_box, others,
                                       server.config.cascade_step);
 
     if (g.width != geom.width || g.height != geom.height)
@@ -502,7 +502,7 @@ bool View::layout_owned() const {
 }
 
 bool View::fixed_size() const {
-    wlr_box min{}, max{};
+    Box min{}, max{};
     size_hints(min, max);
     return max.width > 0 && max.height > 0 && min.width == max.width && min.height == max.height;
 }
@@ -514,11 +514,11 @@ void View::fit_secret(bool keep_box) {
         before_secret_ = geom;
     // Like a tile: the title bar goes, unless tiles keep theirs.
     set_tile_bar_hidden(!server.config.tiled_titlebars);
-    const wlr_box frame = geometry::secret_frame(output->usable, server.config.secret_margin);
+    const Box frame = geometry::secret_frame(output->usable, server.config.secret_margin);
     // As large as its hints allow, centered in the frame.
-    wlr_box min{}, max{};
+    Box min{}, max{};
     size_hints(min, max);
-    const wlr_box inner = geometry::clamp_to_hints(content_box(frame), min, max);
+    const Box inner = geometry::clamp_to_hints(content_box(frame), min, max);
     const int w = inner.width, h = inner.height + top();
     request_geometry({frame.x + (frame.width - w) / 2, frame.y + (frame.height - h) / 2, w, h});
 }
@@ -531,19 +531,19 @@ void View::leave_secret() {
         set_maximized(false, false);
     if (fullscreen || snapped)
         return;
-    const wlr_box area = usable_area();
+    const Box area = usable_area();
     // Born in the secret space: two thirds of the screen, centered.
-    wlr_box box = before_secret_.value_or(wlr_box{area.x + area.width / 6, area.y + area.height / 6,
+    Box box = before_secret_.value_or(Box{area.x + area.width / 6, area.y + area.height / 6,
                                                   area.width * 2 / 3, area.height * 2 / 3});
     before_secret_.reset();
     request_geometry(geometry::fit_into(box, area));
 }
 
-void View::request_geometry(wlr_box box) {
+void View::request_geometry(Box box) {
     // Hints limit the client's content, not the frame around it.
-    wlr_box min{}, max{};
+    Box min{}, max{};
     size_hints(min, max);
-    const wlr_box inner = geometry::clamp_to_hints(content_box(box), min, max);
+    const Box inner = geometry::clamp_to_hints(content_box(box), min, max);
     box.width = inner.width;
     box.height = inner.height + top();
 
@@ -565,9 +565,9 @@ void View::handle_size(int width, int height) {
     height += top();
     if (width == geom.width && height == geom.height)
         return;
-    if (anchored() && (resize_edges_ & WLR_EDGE_LEFT))
+    if (anchored() && (resize_edges_ & EDGE_LEFT))
         geom.x = anchor_right_ - width;
-    if (anchored() && (resize_edges_ & WLR_EDGE_TOP))
+    if (anchored() && (resize_edges_ & EDGE_TOP))
         geom.y = anchor_bottom_ - height;
     geom.width = width;
     geom.height = height;
@@ -742,7 +742,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
         fit_secret(false);
         return;
     }
-    const wlr_box from = geom;
+    const Box from = geom;
     if (m) {
         if (!snapped)
             restore = geom;  // a snapped window already remembers where it was
@@ -759,7 +759,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
 void View::snap(uint32_t zone) {
     if (!zone || unmanaged() || fullscreen || !mapped || (space && space->secret))
         return;
-    if (zone == WLR_EDGE_TOP) {
+    if (zone == EDGE_TOP) {
         set_maximized(true);
         return;
     }
@@ -767,7 +767,7 @@ void View::snap(uint32_t zone) {
         set_maximized(false, false);
     else if (!snapped)
         restore = geom;
-    const wlr_box from = geom;
+    const Box from = geom;
     snapped = zone;
     set_tile_bar_hidden(!server.config.tiled_titlebars);
     request_geometry(geometry::snap_box(usable_area(), zone, server.config.snap_gap));
@@ -778,7 +778,7 @@ void View::snap(uint32_t zone) {
 void View::unsnap(bool restore_geometry) {
     if (!snapped)
         return;
-    const wlr_box from = geom;
+    const Box from = geom;
     snapped = 0;
     set_tile_bar_hidden(false);
     if (restore_geometry) {
@@ -799,9 +799,9 @@ void View::refresh_tiled_titlebar() {
     request_geometry(geometry::snap_box(usable_area(), snapped, server.config.snap_gap));
 }
 
-void View::morph_from(const wlr_box& from) {
+void View::morph_from(const Box& from) {
     // The size comes when the app draws it; where it goes is known now.
-    const wlr_box to{geom.x, geom.y, requested_.width, requested_.height};
+    const Box to{geom.x, geom.y, requested_.width, requested_.height};
     if (!server.config.animations || !tree || !tree->parent || !mapped || opening_ ||
         (from.width == to.width && from.height == to.height))
         return;
@@ -879,7 +879,7 @@ void View::wobble(int dx, int dy, double hx, double hy) {
                 const int64_t now = mono_ns();
                 v->wobble_->springs.advance(double(now - v->wobble_->last_ns) / 1e9);
                 v->wobble_->last_ns = now;
-                const wlr_fbox frame{double(v->geom.x), double(v->geom.y), double(v->geom.width), double(v->geom.height)};
+                const FBox frame{double(v->geom.x), double(v->geom.y), double(v->geom.width), double(v->geom.height)};
                 const warp::Wobble* springs = &v->wobble_->springs;
                 v->tree->set_warp([frame, springs](double u, double w) {
                     auto [ox, oy] = springs->offset(u, w);
@@ -966,9 +966,9 @@ void View::set_minimized(bool m) {
     server.animator.cancel_owner(this, false);
     tree->set_enabled(true);
     // Into its own Dock icon when the Dock shows one, else the Dock's middle.
-    wlr_box icon{0, 0, kDockIcon, kDockIcon};
+    Box icon{0, 0, kDockIcon, kDockIcon};
     if (output) {
-        icon = server.dock_icon_of(*this).value_or(wlr_box{output->box.x + output->box.width / 2 - kDockIcon / 2,
+        icon = server.dock_icon_of(*this).value_or(Box{output->box.x + output->box.width / 2 - kDockIcon / 2,
                                                             output->box.y + output->box.height - kDockReach - kDockIcon / 2,
                                                             kDockIcon, kDockIcon});
     }
@@ -984,7 +984,7 @@ void View::set_minimized(bool m) {
     };
     if (server.config.minimize_genie && output) {
         // macOS's Genie: poured into the icon, and back out of it.
-        const wlr_fbox frame{double(geom.x), double(geom.y), double(geom.width), double(geom.height)};
+        const FBox frame{double(geom.x), double(geom.y), double(geom.width), double(geom.height)};
         const double icon_w = icon.width;
         const auto step = [this, frame, to_x, to_y, icon_w](double k) {  // 0: in place, 1: in the Dock
             if (!tree)
@@ -1147,7 +1147,7 @@ void View::update_decorations() {
 
     // Blur behind translucent windows, or behind just the part an app asked
     // for (ext-background-effect), or none if it asked for none.
-    const std::optional<wlr_box> asked =
+    const std::optional<Box> asked =
         server.background_effects ? server.background_effects->blur_for(surface()) : std::nullopt;
     const bool show_blur =
         is_glass || (c.blur && c.transparency && !fullscreen && (!asked || (asked->width > 0 && asked->height > 0)));
@@ -1169,9 +1169,9 @@ void View::update_decorations() {
         apply_glass(blur, *given, float(reach), float(reach), w, h, 1.0, c);
     } else if (show_blur && asked) {
         // In surface coordinates, from the content's corner under the title bar.
-        const wlr_box content_area{0, 0, geom.width, geom.height - top()};
-        wlr_box b{};
-        wlr_box_intersection(&b, &*asked, &content_area);
+        const Box content_area{0, 0, geom.width, geom.height - top()};
+        Box b{};
+        box_intersection(&b, &*asked, &content_area);
         blur->set_position(b.x, top() + b.y);
         blur->set_size(b.width, b.height);
         blur->set_corner_radius(b.width == geom.width ? radius : 0);

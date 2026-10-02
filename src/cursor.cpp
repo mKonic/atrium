@@ -18,6 +18,18 @@ extern "C" {
 
 namespace atrium {
 
+const char* resize_cursor_name(uint32_t edges) {
+    if (edges & EDGE_TOP)
+        return edges & EDGE_RIGHT ? "ne-resize" : edges & EDGE_LEFT ? "nw-resize" : "n-resize";
+    if (edges & EDGE_BOTTOM)
+        return edges & EDGE_RIGHT ? "se-resize" : edges & EDGE_LEFT ? "sw-resize" : "s-resize";
+    if (edges & EDGE_RIGHT)
+        return "e-resize";
+    if (edges & EDGE_LEFT)
+        return "w-resize";
+    return "se-resize";
+}
+
 struct Cursor::Screen {
     backend::Output* output = nullptr;
     wl::Connection commit;
@@ -28,7 +40,7 @@ struct Cursor::Screen {
     std::unique_ptr<backend::Swapchain> swapchain;
     wlr_buffer* front = nullptr;  // in the plane now
     wlr_color_transform* color = nullptr;
-    wlr_box drawn{};  // drawn in software here last (transformed pixels)
+    Box drawn{};  // drawn in software here last (transformed pixels)
 
     ~Screen() {
         if (texture)
@@ -214,8 +226,8 @@ bool Cursor::try_plane(Screen& s) {
     wlr_color_transform_unref(s.color);
     s.color = color_for(o.image_description);
 
-    wlr_box dst{0, 0, s.width, s.height};
-    wlr_box_transform(&dst, &dst, wlr_output_transform_invert(o.transform), buf->width, buf->height);
+    Box dst{0, 0, s.width, s.height};
+    box_transform(&dst, &dst, output_transform_invert(o.transform), buf->width, buf->height);
     wlr_buffer_pass_options opts{};
     opts.color_transform = s.color;
     wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(o.renderer, buf, &opts);
@@ -230,7 +242,7 @@ bool Cursor::try_plane(Screen& s) {
     wlr_render_texture_options tex{};
     tex.texture = s.texture;
     tex.src_box = {0, 0, double(s.texture->width), double(s.texture->height)};
-    tex.dst_box = dst;
+    tex.dst_box = to_wlr(dst);
     tex.transform = o.transform;
     tex.filter_mode = WLR_SCALE_FILTER_BILINEAR;
     wlr_render_pass_add_texture(pass, &tex);
@@ -239,8 +251,8 @@ bool Cursor::try_plane(Screen& s) {
         return false;
     }
 
-    wlr_box hot{s.hot_x, s.hot_y, 0, 0};
-    wlr_box_transform(&hot, &hot, wlr_output_transform_invert(o.transform), buf->width, buf->height);
+    Box hot{s.hot_x, s.hot_y, 0, 0};
+    box_transform(&hot, &hot, output_transform_invert(o.transform), buf->width, buf->height);
     const bool ok = o.set_cursor(buf, hot.x, hot.y);
     if (ok) {
         // Held while the plane shows it: the swapchain won't hand it out.
@@ -254,8 +266,8 @@ bool Cursor::try_plane(Screen& s) {
     return ok;
 }
 
-wlr_box Cursor::box_on(const Screen& s) const {
-    const wlr_box ob = layout_.box(s.output);
+Box Cursor::box_on(const Screen& s) const {
+    const Box ob = layout_.box(s.output);
     const float k = s.output->scale;
     return {int((x - ob.x) * k) - s.hot_x, int((y - ob.y) * k) - s.hot_y, s.width, s.height};
 }
@@ -271,14 +283,14 @@ void Cursor::damage(Screen& s) {
 
 void Cursor::place(Screen& s) {
     if (s.plane) {
-        const wlr_box ob = layout_.box(s.output);
+        const Box ob = layout_.box(s.output);
         const float k = s.output->scale;
         if (s.output->move_cursor(int((x - ob.x) * k), int((y - ob.y) * k)))
             s.output->update_needs_frame();
         return;
     }
     damage(s);  // where it was
-    s.drawn = s.texture ? box_on(s) : wlr_box{};
+    s.drawn = s.texture ? box_on(s) : Box{};
     damage(s);  // where it is
 }
 
@@ -308,7 +320,7 @@ void Cursor::move(double dx, double dy) {
 }
 
 void Cursor::absolute_to_layout(double fx, double fy, double* lx, double* ly) const {
-    const wlr_box e = layout_.extents();
+    const Box e = layout_.extents();
     *lx = e.x + fx * e.width;
     *ly = e.y + fy * e.height;
 }
@@ -394,8 +406,8 @@ void Cursor::render(const backend::Output* o, wlr_render_pass* pass, const pixma
         return;
     int w, h;
     o->transformed_resolution(&w, &h);
-    wlr_box box = box_on(*s);
-    wlr_box_transform(&box, &box, wlr_output_transform_invert(o->transform), w, h);
+    Box box = box_on(*s);
+    box_transform(&box, &box, output_transform_invert(o->transform), w, h);
     pixman_region32_t clip;
     pixman_region32_init_rect(&clip, box.x, box.y, unsigned(box.width), unsigned(box.height));
     if (damage)
@@ -404,7 +416,7 @@ void Cursor::render(const backend::Output* o, wlr_render_pass* pass, const pixma
         wlr_render_texture_options tex{};
         tex.texture = s->texture;
         tex.src_box = {0, 0, double(s->texture->width), double(s->texture->height)};
-        tex.dst_box = box;
+        tex.dst_box = to_wlr(box);
         tex.clip = &clip;
         tex.transform = o->transform;
         tex.filter_mode = WLR_SCALE_FILTER_BILINEAR;

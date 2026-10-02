@@ -105,8 +105,8 @@ public:
         // sees it, as it never renders for these outputs.
         if (s.committed & OutputState::Buffer) {
             wlr_output_state_set_buffer(out, s.buffer);
-            out->buffer_src_box = s.buffer_src_box;
-            out->buffer_dst_box = s.buffer_dst_box;
+            out->buffer_src_box = to_wlr(s.buffer_src_box);
+            out->buffer_dst_box = to_wlr(s.buffer_dst_box);
             out->tearing_page_flip = s.tearing_page_flip;
         }
         out->allow_reconfiguration = s.allow_reconfiguration;

@@ -15,6 +15,9 @@ struct wlr_xcursor_manager;
 
 namespace atrium {
 
+// The cursor theme's name for resizing from `edges` ("nw-resize").
+const char* resize_cursor_name(uint32_t edges);
+
 class Cursor {
 public:
     Cursor(OutputLayout& layout, wl_event_loop* loop);
@@ -58,7 +61,7 @@ private:
     void place(Screen& s);         // the image follows the position
     bool try_plane(Screen& s);
     void damage(Screen& s);        // where it was drawn in software
-    wlr_box box_on(const Screen& s) const;  // in the screen's transformed pixels
+    Box box_on(const Screen& s) const;  // in the screen's transformed pixels
     void refresh_all();
     void schedule_animation();
 

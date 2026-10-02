@@ -12,8 +12,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-extern "C" {
-}
 
 namespace atrium::xwayland {
 

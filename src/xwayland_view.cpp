@@ -180,8 +180,8 @@ void XwaylandView::set_geometry() {
     tree->set_position(geom.x, geom.y);
 }
 
-void XwaylandView::configure(const wlr_box& frame) {
-    const wlr_box box = content_box(frame);
+void XwaylandView::configure(const Box& frame) {
+    const Box box = content_box(frame);
     xsurface->configure(int16_t(box.x), int16_t(box.y), uint16_t(box.width), uint16_t(box.height));
 }
 
@@ -215,7 +215,7 @@ View* XwaylandView::parent() const {
     return xsurface->parent ? static_cast<View*>(xsurface->parent->data) : nullptr;
 }
 
-void XwaylandView::size_hints(wlr_box& min, wlr_box& max) const {
+void XwaylandView::size_hints(Box& min, Box& max) const {
     min = max = {};
     if (const xcb_size_hints_t* h = xsurface->size_hints ? &*xsurface->size_hints : nullptr) {
         min = {0, 0, h->min_width, h->min_height};
@@ -230,7 +230,7 @@ bool XwaylandView::is_dialog() const {
     for (auto type : {T::Dialog, T::Splash, T::Toolbar, T::Utility})
         if (has_type(type))
             return true;
-    wlr_box min, max;
+    Box min, max;
     size_hints(min, max);
     return min.width > 0 && min.height > 0 && (min.width == max.width || min.height == max.height);
 }

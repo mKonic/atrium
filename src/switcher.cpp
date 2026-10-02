@@ -255,7 +255,7 @@ void Switcher::select(int index) {
     index_ = index;
     if (!shown_ || index < 0 || index >= int(items_.size()))
         return;
-    const wlr_box& b = items_[index]->box;
+    const Box& b = items_[index]->box;
     selection_->set_position(b.x - kSelectPad, b.y - kSelectPad);
     selection_->set_size(b.width + 2 * kSelectPad, b.height + 2 * kSelectPad);
     selection_->set_corner_radius(12);
@@ -299,7 +299,7 @@ void Switcher::render_title() {
 
 int Switcher::item_at(double lx, double ly) const {
     for (size_t i = 0; i < items_.size(); ++i) {
-        const wlr_box& b = items_[i]->box;
+        const Box& b = items_[i]->box;
         if (lx >= b.x - kSelectPad && lx < b.x + b.width + kSelectPad &&
             ly >= b.y - kSelectPad && ly < b.y + b.height + kSelectPad)
             return int(i);

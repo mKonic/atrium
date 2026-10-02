@@ -71,7 +71,7 @@ void Server::spaces_changed() {
 static void carry_to_output(View* view, Output* to) {
     if (!to || view->output == to)
         return;
-    const wlr_box from = view->output ? view->output->box : to->box;
+    const Box from = view->output ? view->output->box : to->box;
     view->move_to(view->geom.x - from.x + to->box.x, view->geom.y - from.y + to->box.y);
 }
 
@@ -311,13 +311,13 @@ void Server::place_window(View* v, const std::string& name) {
         v->set_maximized(false, false);
     if (v->snapped)
         v->unsnap(false);
-    const wlr_box area = v->output ? v->output->usable : layout_box;
+    const Box area = v->output ? v->output->usable : layout_box;
     auto box = geometry::named_place(name, area, v->geom, config.snap_gap, v->placed && v->last_place == name);
     if (!box)
         return;
     // A window that can't be that small stays on the screen: grown to its
     // least size, then slid back inside.
-    wlr_box min{}, max{};
+    Box min{}, max{};
     v->size_hints(min, max);
     if (min.width > 0)
         box->width = std::max(box->width, min.width);

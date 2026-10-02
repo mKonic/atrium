@@ -1,13 +1,9 @@
 #pragma once
+#include "util/box.hpp"
 #include <cstdint>
 
 namespace atrium::wl {
 
-struct Box {
-    int x = 0, y = 0, width = 0, height = 0;
-    bool empty() const { return width <= 0 || height <= 0; }
-    bool operator==(const Box&) const = default;
-};
 
 // xdg_positioner's rules: where a popup goes relative to its parent, and
 // what it may do when that doesn't fit (flip, slide, resize). The geometry

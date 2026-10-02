@@ -17,21 +17,21 @@ public:
     SnapPreview& operator=(const SnapPreview&) = delete;
 
     // Show at `target`, placed just under `below` (the dragged window's tree).
-    void show(const wlr_box& target, scene::Node* below, const wlr_box& from);
+    void show(const Box& target, scene::Node* below, const Box& from);
     void hide();
     bool visible() const { return visible_; }
     // The space holding the preview is going away: take it back.
     void rescue(Space* space);
 
 private:
-    void set_box(const wlr_box& box, float alpha);
+    void set_box(const Box& box, float alpha);
 
     Server& server_;
     scene::Tree* tree_ = nullptr;
     scene::Blur* blur_ = nullptr;
     scene::Rect* fill_ = nullptr;
     scene::Rect* ring_ = nullptr;
-    wlr_box box_{};
+    Box box_{};
     float alpha_ = 0;
     bool visible_ = false;
 };

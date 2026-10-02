@@ -10,7 +10,7 @@ namespace atrium {
 struct Server::CaptureState {
     struct Pending {
         wl::Capture::Copy copy;
-        wlr_box box;  // what of the frame, in its buffer's pixels
+        Box box;  // what of the frame, in its buffer's pixels
     };
     struct PerOutput {
         std::vector<Pending> copies;

@@ -4,16 +4,18 @@
 
 #include <vector>
 
+using namespace atrium;
+
 using namespace atrium::geometry;
 
 namespace {
 
-bool operator_eq(const wlr_box& a, const wlr_box& b) {
+bool operator_eq(const Box& a, const Box& b) {
     return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
 }
-#define EXPECT_BOX(a, ...) EXPECT_PRED2(operator_eq, (a), (wlr_box{__VA_ARGS__}))
+#define EXPECT_BOX(a, ...) EXPECT_PRED2(operator_eq, (a), (Box{__VA_ARGS__}))
 
-const wlr_box kArea{0, 0, 1000, 800};
+const Box kArea{0, 0, 1000, 800};
 
 } // namespace
 
@@ -23,50 +25,50 @@ TEST(Place, CentersInArea) {
 
 TEST(Place, CentersInOffsetArea) {
     // A 32px bar on top shifts the usable area.
-    EXPECT_BOX(place(400, 300, wlr_box{0, 32, 1000, 768}, nullptr, {}, 28), 300, 266, 400, 300);
+    EXPECT_BOX(place(400, 300, Box{0, 32, 1000, 768}, nullptr, {}, 28), 300, 266, 400, 300);
 }
 
 TEST(Place, CascadesOverAnExactlyCoveredWindow) {
-    std::vector<wlr_box> others{{300, 250, 400, 300}};
+    std::vector<Box> others{{300, 250, 400, 300}};
     EXPECT_BOX(place(400, 300, kArea, nullptr, others, 28), 328, 278, 400, 300);
 }
 
 TEST(Place, CascadesOverANearlyCoveredWindow) {
-    std::vector<wlr_box> others{{300, 234, 400, 300}};  // 16px off: its title bar would hide
+    std::vector<Box> others{{300, 234, 400, 300}};  // 16px off: its title bar would hide
     EXPECT_BOX(place(400, 300, kArea, nullptr, others, 28), 328, 278, 400, 300);
 }
 
 TEST(Place, KeepsCascadingPastSeveralWindows) {
-    std::vector<wlr_box> others{{300, 250, 1, 1}, {328, 278, 1, 1}};
+    std::vector<Box> others{{300, 250, 1, 1}, {328, 278, 1, 1}};
     EXPECT_BOX(place(400, 300, kArea, nullptr, others, 28), 356, 306, 400, 300);
 }
 
 TEST(Place, LeavesDistantWindowsAlone) {
-    std::vector<wlr_box> others{{0, 0, 400, 300}};
+    std::vector<Box> others{{0, 0, 400, 300}};
     EXPECT_BOX(place(400, 300, kArea, nullptr, others, 28), 300, 250, 400, 300);
 }
 
 TEST(Place, WrapsToTopLeftWhenCascadeLeavesTheArea) {
     // Nine windows cascaded from the center; the tenth would run off the
     // bottom (502 + 300 > 800), so it starts over at the top-left.
-    std::vector<wlr_box> others;
+    std::vector<Box> others;
     for (int k = 0; k < 9; ++k)
         others.push_back({300 + 28 * k, 250 + 28 * k, 400, 300});
     EXPECT_BOX(place(400, 300, kArea, nullptr, others, 28), 0, 0, 400, 300);
 }
 
 TEST(Place, CentersOverParent) {
-    wlr_box parent{100, 100, 600, 400};
+    Box parent{100, 100, 600, 400};
     EXPECT_BOX(place(200, 100, kArea, &parent, {}, 28), 300, 250, 200, 100);
 }
 
 TEST(Place, ParentPlacementStillFitsTheArea) {
-    wlr_box parent{-300, -300, 400, 400};
+    Box parent{-300, -300, 400, 400};
     EXPECT_BOX(place(200, 100, kArea, &parent, {}, 28), 0, 0, 200, 100);
 }
 
 TEST(Place, ShrinksOversizedWindowsToTheArea) {
-    EXPECT_BOX(place(2000, 2000, wlr_box{0, 32, 1000, 768}, nullptr, {}, 28), 0, 32, 1000, 768);
+    EXPECT_BOX(place(2000, 2000, Box{0, 32, 1000, 768}, nullptr, {}, 28), 0, 32, 1000, 768);
 }
 
 TEST(Snap, SticksToLeftAndTop) {
@@ -97,22 +99,22 @@ TEST(Snap, SticksWhenDraggedPastTheEdge) {
 }
 
 TEST(Resize, BottomRightGrows) {
-    EXPECT_BOX(resize({100, 100, 400, 300}, WLR_EDGE_RIGHT | WLR_EDGE_BOTTOM, 50, 20), 100, 100, 450, 320);
+    EXPECT_BOX(resize({100, 100, 400, 300}, EDGE_RIGHT | EDGE_BOTTOM, 50, 20), 100, 100, 450, 320);
 }
 
 TEST(Resize, TopLeftKeepsTheOppositeCorner) {
-    EXPECT_BOX(resize({100, 100, 400, 300}, WLR_EDGE_LEFT | WLR_EDGE_TOP, -50, -20), 50, 80, 450, 320);
-    EXPECT_BOX(resize({100, 100, 400, 300}, WLR_EDGE_LEFT | WLR_EDGE_TOP, 50, 20), 150, 120, 350, 280);
+    EXPECT_BOX(resize({100, 100, 400, 300}, EDGE_LEFT | EDGE_TOP, -50, -20), 50, 80, 450, 320);
+    EXPECT_BOX(resize({100, 100, 400, 300}, EDGE_LEFT | EDGE_TOP, 50, 20), 150, 120, 350, 280);
 }
 
 TEST(Resize, NeverCollapsesAndNeverMovesTheAnchoredEdge) {
     // Dragging the left edge past the right one: 1px wide, right edge stays at 500.
-    EXPECT_BOX(resize({100, 100, 400, 300}, WLR_EDGE_LEFT, 1000, 0), 499, 100, 1, 300);
-    EXPECT_BOX(resize({100, 100, 400, 300}, WLR_EDGE_BOTTOM, 0, -1000), 100, 100, 400, 1);
+    EXPECT_BOX(resize({100, 100, 400, 300}, EDGE_LEFT, 1000, 0), 499, 100, 1, 300);
+    EXPECT_BOX(resize({100, 100, 400, 300}, EDGE_BOTTOM, 0, -1000), 100, 100, 400, 1);
 }
 
 TEST(Resize, SingleEdgeLeavesTheOtherAxis) {
-    EXPECT_BOX(resize({100, 100, 400, 300}, WLR_EDGE_RIGHT, 30, 999), 100, 100, 430, 300);
+    EXPECT_BOX(resize({100, 100, 400, 300}, EDGE_RIGHT, 30, 999), 100, 100, 430, 300);
 }
 
 TEST(ClampToHints, EnforcesMinimum) {
@@ -132,16 +134,16 @@ TEST(ClampToHints, NeverZero) {
 }
 
 TEST(NearestCorner, PicksTheQuarterUnderTheCursor) {
-    wlr_box w{0, 0, 100, 100};
-    EXPECT_EQ(nearest_corner(w, 10, 10), uint32_t(WLR_EDGE_LEFT | WLR_EDGE_TOP));
-    EXPECT_EQ(nearest_corner(w, 90, 10), uint32_t(WLR_EDGE_RIGHT | WLR_EDGE_TOP));
-    EXPECT_EQ(nearest_corner(w, 10, 90), uint32_t(WLR_EDGE_LEFT | WLR_EDGE_BOTTOM));
-    EXPECT_EQ(nearest_corner(w, 90, 90), uint32_t(WLR_EDGE_RIGHT | WLR_EDGE_BOTTOM));
+    Box w{0, 0, 100, 100};
+    EXPECT_EQ(nearest_corner(w, 10, 10), uint32_t(EDGE_LEFT | EDGE_TOP));
+    EXPECT_EQ(nearest_corner(w, 90, 10), uint32_t(EDGE_RIGHT | EDGE_TOP));
+    EXPECT_EQ(nearest_corner(w, 10, 90), uint32_t(EDGE_LEFT | EDGE_BOTTOM));
+    EXPECT_EQ(nearest_corner(w, 90, 90), uint32_t(EDGE_RIGHT | EDGE_BOTTOM));
 }
 
 namespace {
-constexpr uint32_t L = WLR_EDGE_LEFT, R = WLR_EDGE_RIGHT, T = WLR_EDGE_TOP, B = WLR_EDGE_BOTTOM;
-const wlr_box kScreen{0, 30, 1440, 870};  // a 30px bar on top
+constexpr uint32_t L = EDGE_LEFT, R = EDGE_RIGHT, T = EDGE_TOP, B = EDGE_BOTTOM;
+const Box kScreen{0, 30, 1440, 870};  // a 30px bar on top
 } // namespace
 
 TEST(SnapZone, EdgesAndCorners) {
@@ -165,20 +167,20 @@ TEST(SnapBox, HalvesQuartersAndMaximize) {
 }
 
 TEST(SnapBox, HalvesMeetWithOneGapBetween) {
-    const wlr_box l = snap_box(kScreen, L, 8), r = snap_box(kScreen, R, 8);
+    const Box l = snap_box(kScreen, L, 8), r = snap_box(kScreen, R, 8);
     EXPECT_EQ(r.x - (l.x + l.width), 8);
     EXPECT_EQ(kScreen.x + kScreen.width - (r.x + r.width), 8);
-    const wlr_box noGap = snap_box(kScreen, L, 0);
+    const Box noGap = snap_box(kScreen, L, 0);
     EXPECT_EQ(noGap.width * 2, kScreen.width);
 }
 
 namespace {
 
-bool overlaps(const wlr_box& a, const wlr_box& b) {
+bool overlaps(const Box& a, const Box& b) {
     return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
-bool inside(const wlr_box& a, const wlr_box& area) {
+bool inside(const Box& a, const Box& area) {
     return a.x >= area.x && a.y >= area.y && a.x + a.width <= area.x + area.width &&
            a.y + a.height <= area.y + area.height;
 }
@@ -186,8 +188,8 @@ bool inside(const wlr_box& a, const wlr_box& area) {
 } // namespace
 
 TEST(OverviewLayout, FitsWithoutOverlapAndKeepsAspect) {
-    const wlr_box area{40, 80, 1360, 760};
-    std::vector<wlr_box> wins;
+    const Box area{40, 80, 1360, 760};
+    std::vector<Box> wins;
     for (int i = 0; i < 7; ++i)
         wins.push_back({100 + i * 90, 60 + i * 50, 800 + i * 40, 500 + (i % 3) * 120});
     const auto out = overview_layout(wins, area, 24, 20);
@@ -202,7 +204,7 @@ TEST(OverviewLayout, FitsWithoutOverlapAndKeepsAspect) {
 }
 
 TEST(OverviewLayout, NeverEnlarges) {
-    const std::vector<wlr_box> wins{{0, 0, 300, 200}, {400, 0, 200, 300}};
+    const std::vector<Box> wins{{0, 0, 300, 200}, {400, 0, 200, 300}};
     const auto out = overview_layout(wins, {0, 0, 1440, 900}, 24, 20);
     EXPECT_EQ(out[0].width, 300);
     EXPECT_EQ(out[1].height, 300);
@@ -211,7 +213,7 @@ TEST(OverviewLayout, NeverEnlarges) {
 
 TEST(OverviewLayout, KeepsArrangement) {
     // Two on top, two below, big enough to need two rows.
-    const std::vector<wlr_box> wins{{800, 0, 700, 450}, {0, 0, 700, 450}, {0, 500, 700, 450}, {800, 500, 700, 450}};
+    const std::vector<Box> wins{{800, 0, 700, 450}, {0, 0, 700, 450}, {0, 500, 700, 450}, {800, 500, 700, 450}};
     const auto out = overview_layout(wins, {0, 0, 1440, 900}, 24, 20);
     EXPECT_LT(out[1].x, out[0].x);
     EXPECT_EQ(out[0].y, out[1].y);
@@ -221,7 +223,7 @@ TEST(OverviewLayout, KeepsArrangement) {
 
 TEST(OverviewLayout, EmptyAndTiny) {
     EXPECT_TRUE(overview_layout({}, {0, 0, 100, 100}, 8, 8).empty());
-    const std::vector<wlr_box> one{{0, 0, 500, 500}};
+    const std::vector<Box> one{{0, 0, 500, 500}};
     EXPECT_EQ(overview_layout(one, {0, 0, 4, 4}, 8, 8).size(), 1u);
 }
 
@@ -236,13 +238,13 @@ TEST(FitInto, PullsBackAndShrinks) {
 }
 
 TEST(Geometry, SecretFrameLeavesTheSameMarginAllRound) {
-    const wlr_box o{1920, 0, 1920, 1080};
-    const wlr_box f = atrium::geometry::secret_frame(o, 5);  // 5% of 1080
+    const Box o{1920, 0, 1920, 1080};
+    const Box f = atrium::geometry::secret_frame(o, 5);  // 5% of 1080
     EXPECT_EQ(f.x, 1920 + 54);
     EXPECT_EQ(f.y, 54);
     EXPECT_EQ(f.width, 1920 - 108);
     EXPECT_EQ(f.height, 1080 - 108);
-    const wlr_box full = atrium::geometry::secret_frame(o, 0);
+    const Box full = atrium::geometry::secret_frame(o, 0);
     EXPECT_EQ(full.width, 1920);
     EXPECT_EQ(atrium::geometry::secret_frame(o, 90).height, 1080 - 2 * 432);  // clamped to 40%
 }
@@ -256,7 +258,7 @@ TEST(Dwindle, OneWindowTakesTheWholeArea) {
 }
 
 TEST(Dwindle, EachNewWindowHalvesTheLastAlongItsLongerSide) {
-    const wlr_box area{0, 0, 1010, 600};
+    const Box area{0, 0, 1010, 600};
     const auto b = atrium::geometry::dwindle(3, area, 10);
     ASSERT_EQ(b.size(), 3u);
     // Side by side first (the area is wide)...
@@ -279,29 +281,29 @@ TEST(Dwindle, NoWindowsNoBoxes) {
 }
 
 TEST(Neighbor, PicksTheNearestThatWay) {
-    const wlr_box from{400, 400, 200, 200};
-    const std::vector<wlr_box> others{
+    const Box from{400, 400, 200, 200};
+    const std::vector<Box> others{
         {800, 400, 200, 200},   // 0: straight right
         {700, 0, 200, 200},     // 1: up and a bit right
         {0, 400, 200, 200},     // 2: straight left
         {400, 800, 200, 200},   // 3: straight down
         {650, 750, 200, 200},   // 4: down and right, nearer than 0 but mostly down
     };
-    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_RIGHT), 0);
-    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_LEFT), 2);
-    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_TOP), 1);
-    EXPECT_EQ(atrium::geometry::neighbor(from, others, WLR_EDGE_BOTTOM), 3);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, EDGE_RIGHT), 0);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, EDGE_LEFT), 2);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, EDGE_TOP), 1);
+    EXPECT_EQ(atrium::geometry::neighbor(from, others, EDGE_BOTTOM), 3);
 }
 
 TEST(Neighbor, NothingThatWay) {
-    const std::vector<wlr_box> others{{0, 0, 100, 100}};
-    EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, others, WLR_EDGE_RIGHT), -1);
-    EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, {}, WLR_EDGE_LEFT), -1);
+    const std::vector<Box> others{{0, 0, 100, 100}};
+    EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, others, EDGE_RIGHT), -1);
+    EXPECT_EQ(atrium::geometry::neighbor({500, 500, 100, 100}, {}, EDGE_LEFT), -1);
 }
 
 TEST(NamedPlace, HalvesCycleThroughThirds) {
-    const wlr_box area{0, 30, 1200, 900};
-    const wlr_box free{100, 100, 400, 300};
+    const Box area{0, 30, 1200, 900};
+    const Box free{100, 100, 400, 300};
     auto half = named_place("left-half", area, free, 0);
     ASSERT_TRUE(half);
     EXPECT_EQ(half->x, 0);
@@ -316,7 +318,7 @@ TEST(NamedPlace, HalvesCycleThroughThirds) {
 }
 
 TEST(NamedPlace, GapsAtEdgesAndHalvesBetween) {
-    const wlr_box area{0, 0, 1000, 800};
+    const Box area{0, 0, 1000, 800};
     auto l = *named_place("top-left", area, {}, 10);
     auto r = *named_place("top-right", area, {}, 10);
     EXPECT_EQ(l.x, 10);
@@ -326,8 +328,8 @@ TEST(NamedPlace, GapsAtEdgesAndHalvesBetween) {
 }
 
 TEST(NamedPlace, SizesAndMoves) {
-    const wlr_box area{0, 0, 1000, 800};
-    const wlr_box cur{300, 300, 200, 100};
+    const Box area{0, 0, 1000, 800};
+    const Box cur{300, 300, 200, 100};
     EXPECT_EQ(named_place("move-left", area, cur, 0)->x, 0);
     EXPECT_EQ(named_place("move-left", area, cur, 0)->y, 300);
     EXPECT_EQ(named_place("move-down", area, cur, 0)->y, 700);
@@ -345,8 +347,8 @@ TEST(NamedPlace, SizesAndMoves) {
 }
 
 TEST(NamedPlace, OnlyTheSameCommandAgainCycles) {
-    const wlr_box area{0, 0, 1200, 900};
-    const wlr_box two_thirds = *named_place("first-two-thirds", area, {}, 0);
+    const Box area{0, 0, 1200, 900};
+    const Box two_thirds = *named_place("first-two-thirds", area, {}, 0);
     // Left Half after First Two Thirds is a half, not the next step of a cycle.
     EXPECT_EQ(named_place("left-half", area, two_thirds, 0, false)->width, 600);
     EXPECT_EQ(named_place("left-half", area, two_thirds, 0, true)->width, 400);

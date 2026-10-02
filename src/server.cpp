@@ -1237,8 +1237,8 @@ std::optional<Placement> Server::placement_for(const View* view) const {
 Placement Server::placement_of(const View* view) const {
     // The floating box, whatever state the window is in now.
     const bool away = view->maximized || view->snapped || view->fullscreen;
-    const wlr_box b = away ? view->restore : view->geom;
-    const wlr_box o = view->output ? view->output->box : wlr_box{};
+    const Box b = away ? view->restore : view->geom;
+    const Box o = view->output ? view->output->box : Box{};
     return Placement{view->output ? view->output->screen->name : "", b.x - o.x, b.y - o.y, b.width, b.height,
                      view->maximized, view->snapped};
 }
@@ -1360,7 +1360,7 @@ void Server::keyboard_layout_changed() {
         ipc->broadcast("keyboard", {{"event", "keyboard.changed"}, {"keyboard", Ipc::keyboard_json(*this)}});
 }
 
-std::optional<wlr_box> Server::dock_icon_of(const View& view) const {
+std::optional<Box> Server::dock_icon_of(const View& view) const {
     if (!view.output)
         return std::nullopt;
     auto it = dock_icons.find(view.output->screen->name);
@@ -1378,7 +1378,7 @@ std::optional<wlr_box> Server::dock_icon_of(const View& view) const {
     dock->tree->coords(&lx, &ly);
     for (const DockIcon& icon : it->second)
         if (std::ranges::find(icon.windows, view.id) != icon.windows.end())
-            return wlr_box{lx + icon.box.x, ly + icon.box.y, icon.box.width, icon.box.height};
+            return Box{lx + icon.box.x, ly + icon.box.y, icon.box.width, icon.box.height};
     return std::nullopt;
 }
 
@@ -1496,8 +1496,8 @@ void Server::run_action(const Keybind& b) {
     case Action::FocusPrev: cycle_focus(-1); break;
     case Action::SwitchVt: change_vt(unsigned(b.iarg)); break;
     case Action::Quit: quit(); break;
-    case Action::SnapLeft: if (v) v->snap(WLR_EDGE_LEFT); break;
-    case Action::SnapRight: if (v) v->snap(WLR_EDGE_RIGHT); break;
+    case Action::SnapLeft: if (v) v->snap(EDGE_LEFT); break;
+    case Action::SnapRight: if (v) v->snap(EDGE_RIGHT); break;
     case Action::Restore:
         if (v && v->fullscreen)
             v->set_fullscreen(false);

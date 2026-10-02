@@ -13,7 +13,9 @@
 
 #include <linux/input-event-codes.h>
 
+#include "util/box.hpp"
 #include "util/log.hpp"
+#include "util/region.hpp"
 
 extern "C" {
 #include <libinput.h>
@@ -79,3 +81,19 @@ extern "C" {
 #define namespace namespace_
 #include "wlr-layer-shell-unstable-v1-protocol.h"
 #undef namespace
+
+// Where atrium's boxes meet wlroots' structs (until wlroots goes, PLAN 88).
+namespace atrium {
+inline wlr_box to_wlr(const Box& b) {
+    return {b.x, b.y, b.width, b.height};
+}
+inline wlr_fbox to_wlr(const FBox& b) {
+    return {b.x, b.y, b.width, b.height};
+}
+inline Box from_wlr(const wlr_box& b) {
+    return {b.x, b.y, b.width, b.height};
+}
+inline FBox from_wlr(const wlr_fbox& b) {
+    return {b.x, b.y, b.width, b.height};
+}
+} // namespace atrium

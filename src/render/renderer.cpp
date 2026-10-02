@@ -318,8 +318,9 @@ bool read_hdr_as_sdr(Texture* t, const wlr_texture_read_pixels_options* o, bool 
     if (!pass->submit())
         return false;
 
-    wlr_box src;
-    wlr_texture_read_pixels_options_get_src_box(o, &t->base, &src);
+    wlr_box wsrc;
+    wlr_texture_read_pixels_options_get_src_box(o, &t->base, &wsrc);
+    const Box src = from_wlr(wsrc);
     auto* p = static_cast<unsigned char*>(wlr_texture_read_pixel_options_get_data(o));
     std::vector<uint32_t> row(src.width);
     r.egl().make_current();
@@ -367,8 +368,9 @@ bool texture_read_pixels(wlr_texture* wt, const wlr_texture_read_pixels_options*
     if (f->gl_format == GL_BGRA_EXT && !r.caps().EXT_read_format_bgra)
         return false;
 
-    wlr_box src;
-    wlr_texture_read_pixels_options_get_src_box(o, wt, &src);
+    wlr_box wsrc;
+    wlr_texture_read_pixels_options_get_src_box(o, wt, &wsrc);
+    const Box src = from_wlr(wsrc);
     if (!r.egl().make_current() || !texture_bind_for_read(t))
         return false;
     glFinish();

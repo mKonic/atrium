@@ -9,13 +9,13 @@ namespace atrium {
 
 namespace {
 
-wlr_box box_of(const backend::Output* o, int x, int y) {
-    wlr_box b{x, y, 0, 0};
+Box box_of(const backend::Output* o, int x, int y) {
+    Box b{x, y, 0, 0};
     o->effective_resolution(&b.width, &b.height);
     return b;
 }
 
-bool contains_point(const wlr_box& b, double x, double y) {
+bool contains_point(const Box& b, double x, double y) {
     return b.width > 0 && b.height > 0 && x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
 }
 
@@ -77,17 +77,17 @@ bool OutputLayout::contains(const backend::Output* o) const {
     return find(o) != nullptr;
 }
 
-wlr_box OutputLayout::box(const backend::Output* o) const {
+Box OutputLayout::box(const backend::Output* o) const {
     const Entry* e = find(o);
-    return e ? box_of(o, e->x, e->y) : wlr_box{};
+    return e ? box_of(o, e->x, e->y) : Box{};
 }
 
-wlr_box OutputLayout::extents() const {
+Box OutputLayout::extents() const {
     if (entries_.empty())
         return {};
     int x1 = INT_MAX, y1 = INT_MAX, x2 = INT_MIN, y2 = INT_MIN;
     for (const auto& e : entries_) {
-        const wlr_box b = box_of(e->output, e->x, e->y);
+        const Box b = box_of(e->output, e->x, e->y);
         x1 = std::min(x1, b.x);
         y1 = std::min(y1, b.y);
         x2 = std::max(x2, b.x + b.width);
@@ -109,7 +109,7 @@ void OutputLayout::closest_point(const backend::Output* reference, double lx, do
     for (const auto& e : entries_) {
         if (reference && reference != e->output)
             continue;
-        const wlr_box b = box_of(e->output, e->x, e->y);
+        const Box b = box_of(e->output, e->x, e->y);
         if (b.width <= 0 || b.height <= 0)
             continue;
         // Inside the right and bottom edges by 1/256 px: still on the screen
@@ -133,7 +133,7 @@ void OutputLayout::reconfigure() {
     for (const auto& e : entries_) {
         if (e->automatic)
             continue;
-        const wlr_box b = box_of(e->output, e->x, e->y);
+        const Box b = box_of(e->output, e->x, e->y);
         if (b.x + b.width > max_x) {
             max_x = b.x + b.width;
             max_x_y = b.y;

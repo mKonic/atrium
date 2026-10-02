@@ -23,10 +23,10 @@ TEST(Positioner, AnchorAndGravity) {
     r.height = 40;
     r.anchor = wl::PositionerRules::BottomLeft;
     r.gravity = wl::PositionerRules::BottomRight;
-    EXPECT_EQ(r.geometry(), (wl::Box{10, 50, 50, 40}));  // under the anchor, from its left
+    EXPECT_EQ(r.geometry(), (Box{10, 50, 50, 40}));  // under the anchor, from its left
     r.anchor = wl::PositionerRules::None;
     r.gravity = wl::PositionerRules::None;
-    EXPECT_EQ(r.geometry(), (wl::Box{35, 15, 50, 40}));  // centred on it
+    EXPECT_EQ(r.geometry(), (Box{35, 15, 50, 40}));  // centred on it
     r.offset_x = 5;
     EXPECT_EQ(r.geometry().x, 40);
 }
@@ -38,16 +38,16 @@ TEST(Positioner, FlipsThenSlidesThenResizes) {
     r.height = 30;
     r.anchor = wl::PositionerRules::BottomLeft;
     r.gravity = wl::PositionerRules::BottomRight;
-    const wl::Box space{0, 0, 200, 100};
+    const Box space{0, 0, 200, 100};
 
-    wl::Box b = r.geometry();
+    Box b = r.geometry();
     r.unconstrain(space, b);
     EXPECT_EQ(b.y, 100);  // no adjustment allowed: stays out
 
     r.constraint_adjustment = wl::PositionerRules::FlipY;
     b = r.geometry();
     r.unconstrain(space, b);
-    EXPECT_EQ(b, (wl::Box{0, 60, 60, 30}));  // flipped above the anchor
+    EXPECT_EQ(b, (Box{0, 60, 60, 30}));  // flipped above the anchor
 
     r.anchor_rect = {180, 40, 20, 10};  // at the right edge
     r.anchor = wl::PositionerRules::TopRight;
@@ -204,7 +204,7 @@ TEST(WlXdg, InitialCommitGetsAConfigureThenMaps) {
     wl_surface_commit(w.surface);
     s.pump();
     EXPECT_TRUE(t->base()->surface()->mapped());
-    EXPECT_EQ(t->base()->geometry(), (wl::Box{10, 10, 620, 460}));
+    EXPECT_EQ(t->base()->geometry(), (Box{10, 10, 620, 460}));
     EXPECT_EQ(t->base()->configure_serial(), w.configure_serial);
     EXPECT_EQ(s.error(), 0);
 }

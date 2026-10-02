@@ -3,6 +3,7 @@
 // headless), what can be set on it in one commit (OutputState), and the
 // frame/present cycle. The field names follow wlroots' wlr_output, whose role
 // this takes over.
+#include "util/box.hpp"
 #include "wl/signal.hpp"
 
 extern "C" {
@@ -13,7 +14,6 @@ extern "C" {
 #include <wlr/render/color.h>
 #undef static
 #include <wlr/render/drm_format_set.h>
-#include <wlr/util/box.h>
 }
 
 #include <memory>
@@ -85,8 +85,8 @@ public:
     uint32_t render_format = 0;
     wl_output_subpixel subpixel = WL_OUTPUT_SUBPIXEL_UNKNOWN;
     wlr_buffer* buffer = nullptr;  // locked while held
-    wlr_fbox buffer_src_box{};     // all zero: the whole buffer
-    wlr_box buffer_dst_box{};      // zero size: at its own size
+    FBox buffer_src_box{};     // all zero: the whole buffer
+    Box buffer_dst_box{};      // zero size: at its own size
     bool tearing_page_flip = false;
     // A real screen may go through a modeset for it (a flicker).
     bool allow_reconfiguration = false;

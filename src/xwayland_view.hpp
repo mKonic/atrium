@@ -18,7 +18,7 @@ public:
     const char* app_id() const override;
     const char* title() const override;
     View* parent() const override;
-    void size_hints(wlr_box& min, wlr_box& max) const override;
+    void size_hints(Box& min, Box& max) const override;
     bool is_dialog() const override;
     bool modal() const override { return xsurface->modal && xsurface->parent; }
     bool unmanaged() const override { return xsurface->override_redirect; }
@@ -32,7 +32,7 @@ public:
     xwayland::XSurface* const xsurface;
 
 protected:
-    void configure(const wlr_box& frame) override;
+    void configure(const Box& frame) override;
     void send_activated(bool activated) override;
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;

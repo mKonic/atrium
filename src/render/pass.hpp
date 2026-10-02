@@ -9,11 +9,6 @@
 
 namespace atrium::render {
 
-struct FBox {
-    double x = 0, y = 0, width = 0, height = 0;
-    bool empty() const { return width <= 0 || height <= 0; }
-    static FBox of(const wlr_box& b) { return {double(b.x), double(b.y), double(b.width), double(b.height)}; }
-};
 
 // Corner radii in pixels, clockwise from the top left.
 struct Corners {
@@ -25,14 +20,14 @@ struct Corners {
 // An area left out of what is drawn: a rounded box, for a window's shadow
 // and outline not to show through its own translucent content.
 struct CutOut {
-    wlr_box area{};
+    Box area{};
     Corners corners;
     bool valid() const { return area.width > 0 && area.height > 0; }
 };
 
 struct TextureDraw {
     TexRef tex;
-    wlr_fbox src{};  // texture pixels; empty: all of it
+    FBox src{};  // texture pixels; empty: all of it
     FBox dst;
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
     const pixman_region32_t* clip = nullptr;  // null: dst
@@ -121,7 +116,7 @@ struct BlurDraw {
     bool use_cache = false;
     // A mask: only where it has alpha is blurred (a panel's buffer).
     const TexRef* mask = nullptr;
-    wlr_fbox mask_src{};
+    FBox mask_src{};
     FBox mask_box;
     wl_output_transform mask_transform = WL_OUTPUT_TRANSFORM_NORMAL;
 

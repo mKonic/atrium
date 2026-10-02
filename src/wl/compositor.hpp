@@ -187,7 +187,7 @@ public:
     // The part of the buffer that changed with the last applied state.
     const Region& buffer_damage() const { return current_.buffer_damage; }
     // The part of the buffer shown (the viewport's crop), in buffer pixels.
-    wlr_fbox source_box() const;
+    FBox source_box() const;
     bool accepts_input(double sx, double sy) const;
 
     // The role; see Role. set_role fails (posting `error` on `on`) when the

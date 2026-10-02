@@ -30,22 +30,22 @@ int64_t ns_of(const timespec& t) { return int64_t(t.tv_sec) * 1000000000 + t.tv_
 
 void logical_to_buffer(pixman_region32_t* region, const RenderData& d, bool round_up) {
     scale_region(region, d.scale, round_up);
-    wlr_region_transform(region, region, wlr_output_transform_invert(d.transform), d.trans_width, d.trans_height);
+    region_transform(region, region, output_transform_invert(d.transform), d.trans_width, d.trans_height);
 }
 
 // A layout box in the output's buffer pixels: whole pixels exactly as
 // wlroots rounds them when it can be, fractional otherwise.
-render::FBox to_buffer(const render::FBox& b, const RenderData& d) {
+FBox to_buffer(const FBox& b, const RenderData& d) {
     const bool whole = b.x == std::floor(b.x) && b.y == std::floor(b.y) && b.width == std::floor(b.width) &&
                        b.height == std::floor(b.height);
     if (whole) {
-        wlr_box box{int(b.x) - d.logical.x, int(b.y) - d.logical.y, int(b.width), int(b.height)};
+        Box box{int(b.x) - d.logical.x, int(b.y) - d.logical.y, int(b.width), int(b.height)};
         scale_box(&box, d.scale);
-        wlr_box_transform(&box, &box, wlr_output_transform_invert(d.transform), d.trans_width, d.trans_height);
-        return render::FBox::of(box);
+        box_transform(&box, &box, output_transform_invert(d.transform), d.trans_width, d.trans_height);
+        return FBox::of(box);
     }
-    wlr_fbox f{(b.x - d.logical.x) * d.scale, (b.y - d.logical.y) * d.scale, b.width * d.scale, b.height * d.scale};
-    wlr_fbox_transform(&f, &f, wlr_output_transform_invert(d.transform), d.trans_width, d.trans_height);
+    FBox f{(b.x - d.logical.x) * d.scale, (b.y - d.logical.y) * d.scale, b.width * d.scale, b.height * d.scale};
+    fbox_transform(&f, &f, output_transform_invert(d.transform), d.trans_width, d.trans_height);
     return {f.x, f.y, f.width, f.height};
 }
 
@@ -65,7 +65,7 @@ render::Corners corners_of(Radii r, wl_output_transform t, double scale) {
 render::CutOut cut_of(const CutOut& c, const Walk& w, const RenderData& d, wl_output_transform t) {
     if (c.empty())
         return {};
-    const render::FBox f = to_buffer({w.x + c.area.x * w.scale, w.y + c.area.y * w.scale, c.area.width * w.scale,
+    const FBox f = to_buffer({w.x + c.area.x * w.scale, w.y + c.area.y * w.scale, c.area.width * w.scale,
                                       c.area.height * w.scale},
                                      d);
     render::CutOut out;
@@ -220,7 +220,7 @@ SceneOutput* SceneOutput::create(Scene* scene, backend::Output* output) {
         pixman_region32_t d;
         pixman_region32_init(&d);
         pixman_region32_copy(&d, damage);
-        wlr_region_transform(&d, &d, wlr_output_transform_invert(so->output->transform), w, h);
+        region_transform(&d, &d, output_transform_invert(so->output->transform), w, h);
         so->damage(&d);
         pixman_region32_fini(&d);
     });
@@ -376,7 +376,7 @@ void SceneOutput::send_frame_done(const timespec* now) {
 }
 
 void SceneOutput::for_each_buffer(const std::function<void(Buffer*, int, int)>& fn) {
-    wlr_box box{x, y, 0, 0};
+    Box box{x, y, 0, 0};
     output->effective_resolution(&box.width, &box.height);
     nodes_in_box(scene, box, [&](Node* n, const Walk& w) {
         if (n->type == Type::Buffer)
@@ -467,7 +467,7 @@ namespace {
 // through the warp. Only on outputs that aren't rotated.
 void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
                                   wlr_renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
-    const wlr_fbox& frame = tree->warp_frame();
+    const FBox& frame = tree->warp_frame();
     if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || frame.width <= 0 || frame.height <= 0)
         return;
     // What's in it, bottom to top, as if it weren't warped. Blur can't be
@@ -490,14 +490,14 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
         if (n->type == Type::Blur || n->type == Type::BlurCache || SceneImpl::invisible(n))
             return;
         entries.push_back({n, nw});
-        const wlr_box b = box_of(n, nw);
+        const Box b = box_of(n, nw);
         pixman_region32_union_rect(&area, &area, b.x, b.y, unsigned(b.width), unsigned(b.height));
     };
     Walk tw = w;
     tw.warp = nullptr;
     collect(tree, tw);
     const pixman_box32_t* ext = pixman_region32_extents(&area);
-    const wlr_box bounds{ext->x1, ext->y1, ext->x2 - ext->x1, ext->y2 - ext->y1};
+    const Box bounds{ext->x1, ext->y1, ext->x2 - ext->x1, ext->y2 - ext->y1};
     pixman_region32_fini(&area);
     if (entries.empty() || bounds.width <= 0 || bounds.height <= 0)
         return;
@@ -551,7 +551,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
     pixman_region32_t region;
     pixman_region32_init(&region);
     if (d.whole) {
-        const wlr_box b = box_of(node, w);
+        const Box b = box_of(node, w);
         pixman_region32_init_rect(&region, b.x, b.y, unsigned(b.width), unsigned(b.height));
     } else {
         pixman_region32_copy(&region, &node->visible);
@@ -563,7 +563,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
         pixman_region32_fini(&region);
         return;
     }
-    const render::FBox dst = to_buffer(fbox_of(node, w), d);
+    const FBox dst = to_buffer(fbox_of(node, w), d);
     const wl_output_transform ot = d.transform;
     const double scale = w.scale * d.scale;
 
@@ -604,7 +604,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
             break;
         }
         const wl_output_transform transform =
-            wlr_output_transform_compose(wlr_output_transform_invert(b->transform), ot);
+            output_transform_compose(output_transform_invert(b->transform), ot);
 
         wlr_color_primaries primaries{};
         if (b->primaries)
@@ -691,7 +691,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
                 mask_ref = mt->ref();
                 bd.mask = &mask_ref;
                 bd.mask_src = m->src_box;
-                bd.mask_transform = wlr_output_transform_compose(wlr_output_transform_invert(m->transform), ot);
+                bd.mask_transform = output_transform_compose(output_transform_invert(m->transform), ot);
                 // The mask's place, relative to the blur's.
                 bd.mask_box = to_buffer(fbox_of(m, Walk{w.x + (m->x - bl->x) * w.scale,
                                                         w.y + (m->y - bl->y) * w.scale, w.scale, w.opacity}),
@@ -706,7 +706,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
             const GlassShape& s = bl->shapes[i];
             render::GlassShapeDraw& o = shapes[i];
             // Exact to the subpixel, so shapes move smoothly.
-            const render::FBox b =
+            const FBox b =
                 to_buffer({w.x + s.x * w.scale, w.y + s.y * w.scale, s.width * w.scale, s.height * w.scale}, d);
             o.x = float(b.x);
             o.y = float(b.y);
@@ -715,7 +715,7 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
             o.radius = s.radius * float(scale);
             o.opacity = s.opacity;
             if (s.clip_width > 0 && s.clip_height > 0) {
-                const render::FBox c = to_buffer({std::floor(w.x + s.clip_x * w.scale),
+                const FBox c = to_buffer({std::floor(w.x + s.clip_x * w.scale),
                                                   std::floor(w.y + s.clip_y * w.scale),
                                                   std::ceil(s.clip_width * w.scale), std::ceil(s.clip_height * w.scale)},
                                                  d);
@@ -775,7 +775,7 @@ bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData&
 
     pixman_region32_t expanded;
     pixman_region32_init(&expanded);
-    wlr_region_expand(&expanded, original, reach);
+    region_expand(&expanded, original, reach);
     pixman_region32_t isect;
     pixman_region32_init(&isect);
     bool hit = false;
@@ -793,7 +793,7 @@ bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData&
         state->committed |= backend::OutputState::Damage;
         pixman_region32_union(&state->damage, &state->damage, &isect);
         // Once more, for the padding round it where the artifacts are.
-        wlr_region_expand(&isect, &isect, reach);
+        region_expand(&isect, &isect, reach);
         pixman_region32_subtract(&isect, &isect, padding);
         pixman_region32_union(padding, padding, &isect);
     }
@@ -842,7 +842,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
     }
     d.trans_width = res_w;
     d.trans_height = res_h;
-    wlr_output_transform_coords(d.transform, &d.trans_width, &d.trans_height);
+    output_transform_coords(d.transform, &d.trans_width, &d.trans_height);
     d.logical.width = int(d.trans_width / d.scale);
     d.logical.height = int(d.trans_height / d.scale);
 
@@ -935,14 +935,14 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
             backend::OutputState pending = *state;
             {
                 int dw = b->buffer->width, dh = b->buffer->height;
-                wlr_output_transform_coords(b->transform, &dw, &dh);
-                const wlr_fbox whole{0, 0, double(dw), double(dh)};
-                if (!wlr_fbox_empty(&b->src_box) && !wlr_fbox_equal(&b->src_box, &whole))
+                output_transform_coords(b->transform, &dw, &dh);
+                const FBox whole{0, 0, double(dw), double(dh)};
+                if (!fbox_empty(&b->src_box) && !fbox_equal(&b->src_box, &whole))
                     pending.buffer_src_box = b->src_box;
-                wlr_box dst{int(std::lround(list[0].walk.x)) - x, int(std::lround(list[0].walk.y)) - y, 0, 0};
+                Box dst{int(std::lround(list[0].walk.x)) - x, int(std::lround(list[0].walk.y)) - y, 0, 0};
                 b->size(&dst.width, &dst.height);
                 scale_box(&dst, d.scale);
-                wlr_box_transform(&dst, &dst, wlr_output_transform_invert(d.transform), d.trans_width, d.trans_height);
+                box_transform(&dst, &dst, output_transform_invert(d.transform), d.trans_width, d.trans_height);
                 pending.buffer_dst_box = dst;
                 wlr_buffer* wb = b->buffer;
                 wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(wb);
@@ -1080,7 +1080,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
             pixman_region32_fini(&opaque);
         }
         if (fractional) {
-            wlr_region_expand(&background, &background, 1);
+            region_expand(&background, &background, 1);
             pixman_region32_intersect(&background, &background, &d.damage);
         }
     }

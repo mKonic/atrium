@@ -57,7 +57,7 @@ xwayland::XSurface* managed_xwayland_surface(Node* node) {
 struct UpdateData {
     pixman_region32_t* visible;
     const pixman_region32_t* update_region;
-    wlr_box update_box;
+    Box update_box;
     wl_list* outputs;
     bool calculate_visibility;
     bool restack_xwayland_surfaces;
@@ -72,7 +72,7 @@ bool update_iterator(Node* node, const Walk& w, UpdateData* data) {
         pixman_region32_clear(data->visible);
         pixman_region32_copy(data->visible, data->update_region);
     }
-    const wlr_box box = box_of(node, w);
+    const Box box = box_of(node, w);
     pixman_region32_subtract(&node->visible, &node->visible, data->update_region);
     pixman_region32_union(&node->visible, &node->visible, data->visible);
     pixman_region32_intersect_rect(&node->visible, &node->visible, box.x, box.y, unsigned(box.width),
@@ -89,7 +89,7 @@ bool update_iterator(Node* node, const Walk& w, UpdateData* data) {
     if (data->restack_xwayland_surfaces) {
         if (xwayland::XSurface* xs = managed_xwayland_surface(node)) {
             // Only when the whole node is being looked at.
-            if (wlr_box_contains_box(&data->update_box, &box)) {
+            if (box_contains_box(&data->update_box, &box)) {
                 if (data->restack_above)
                     xs->restack(data->restack_above, XCB_STACK_MODE_BELOW);
                 else
@@ -122,7 +122,7 @@ void bounds(Node* node, const Walk& w, pixman_region32_t* out) {
             bounds(child, w.child(tree, child), out);
         return;
     }
-    const wlr_box b = box_of(node, w);
+    const Box b = box_of(node, w);
     pixman_region32_union_rect(out, out, b.x, b.y, unsigned(b.width), unsigned(b.height));
 }
 
@@ -148,14 +148,14 @@ void cleanup_when_disabled(Node* node, bool restack, wl_list* outputs) {
 
 // ---- walking ------------------------------------------------------------
 
-render::FBox fbox_of(const Node* node, const Walk& w) {
+FBox fbox_of(const Node* node, const Walk& w) {
     int width = 0, height = 0;
     node->size(&width, &height);
     return {w.x, w.y, width * w.scale, height * w.scale};
 }
 
-wlr_box box_of(const Node* node, const Walk& w) {
-    const render::FBox f = fbox_of(node, w);
+Box box_of(const Node* node, const Walk& w) {
+    const FBox f = fbox_of(node, w);
     if (w.scale == 1.0 && f.x == std::floor(f.x) && f.y == std::floor(f.y))
         return {int(f.x), int(f.y), int(f.width), int(f.height)};
     const int x1 = int(std::floor(f.x)), y1 = int(std::floor(f.y));
@@ -164,7 +164,7 @@ wlr_box box_of(const Node* node, const Walk& w) {
 
 namespace {
 
-bool nodes_in_box_at(Node* node, const wlr_box& box, const BoxIterator& fn, const Walk& w) {
+bool nodes_in_box_at(Node* node, const Box& box, const BoxIterator& fn, const Walk& w) {
     if (!node->enabled)
         return false;
     if (node->type == Type::Tree) {
@@ -174,8 +174,8 @@ bool nodes_in_box_at(Node* node, const wlr_box& box, const BoxIterator& fn, cons
                 return true;
         return false;
     }
-    wlr_box nb = box_of(node, w);
-    if (wlr_box_intersection(&nb, &nb, &box) && fn(node, w))
+    Box nb = box_of(node, w);
+    if (box_intersection(&nb, &nb, &box) && fn(node, w))
         return true;
     return false;
 }
@@ -193,21 +193,21 @@ Walk walk_of(const Node* node) {
     return w;
 }
 
-bool nodes_in_box(Node* node, const wlr_box& box, const BoxIterator& fn) {
+bool nodes_in_box(Node* node, const Box& box, const BoxIterator& fn) {
     return nodes_in_box_at(node, box, fn, walk_of(node));
 }
 
 void scale_region(pixman_region32_t* region, float scale, bool round_up) {
-    wlr_region_scale(region, region, scale);
+    region_scale(region, region, scale);
     if (round_up && std::floor(scale) != scale)
-        wlr_region_expand(region, region, 1);
+        region_expand(region, region, 1);
 }
 
 int scale_length(int length, int offset, float scale) {
     return int(std::round((offset + length) * scale) - std::round(offset * scale));
 }
 
-void scale_box(wlr_box* box, float scale) {
+void scale_box(Box* box, float scale) {
     box->width = scale_length(box->width, box->x, scale);
     box->height = scale_length(box->height, box->y, scale);
     box->x = int(std::round(box->x * scale));
@@ -305,7 +305,7 @@ void SceneImpl::update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore
         wl_list_for_each(o, outputs, link) {
             if (o == ignore || !o->output->enabled)
                 continue;
-            wlr_box box{o->x, o->y, 0, 0};
+            Box box{o->x, o->y, 0, 0};
             o->output->effective_resolution(&box.width, &box.height);
             pixman_region32_t isect;
             pixman_region32_init(&isect);
@@ -383,7 +383,7 @@ void SceneImpl::damage_outputs(Scene* scene, const pixman_region32_t* damage) {
         scale_region(&d, o->output->scale, true);
         int w, h;
         o->output->transformed_resolution(&w, &h);
-        wlr_region_transform(&d, &d, wlr_output_transform_invert(o->output->transform), w, h);
+        region_transform(&d, &d, output_transform_invert(o->output->transform), w, h);
         o->damage(&d);
         pixman_region32_fini(&d);
     }
@@ -505,7 +505,7 @@ void Node::size(int* w, int* h) const {
         } else {
             *w = b->buffer_width_;
             *h = b->buffer_height_;
-            wlr_output_transform_coords(b->transform, w, h);
+            output_transform_coords(b->transform, w, h);
         }
         return;
     }
@@ -650,7 +650,7 @@ void Node::for_each_buffer(const std::function<void(Buffer*, int, int)>& fn) {
 }
 
 Node* Node::at(double lx, double ly, double* nx, double* ny) {
-    const wlr_box box{int(std::floor(lx)), int(std::floor(ly)), 1, 1};
+    const Box box{int(std::floor(lx)), int(std::floor(ly)), 1, 1};
     Node* found = nullptr;
     double rx = 0, ry = 0;
     nodes_in_box(this, box, [&](Node* node, const Walk& w) {
@@ -663,7 +663,7 @@ Node* Node::at(double lx, double ly, double* nx, double* ny) {
             Rect* r = static_cast<Rect*>(node);
             if (!r->accepts_input)
                 return false;
-            if (!r->cut.empty() && wlr_box_contains_point(&r->cut.area, x, y))
+            if (!r->cut.empty() && box_contains_point(&r->cut.area, x, y))
                 return false;
         } else {
             return false;  // shadows and blur take no input
@@ -707,7 +707,7 @@ void Tree::set_scale(float s) {
     update(&was);
 }
 
-void Tree::set_warp(std::function<std::pair<double, double>(double, double)> fn, wlr_fbox frame) {
+void Tree::set_warp(std::function<std::pair<double, double>(double, double)> fn, FBox frame) {
     if (!fn && !warp_)
         return;
     pixman_region32_t was;
@@ -1076,10 +1076,10 @@ void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
     pixman_region32_init_rect(&fallback, 0, 0, unsigned(b->width), unsigned(b->height));
     const pixman_region32_t* damage = o.damage ? o.damage : &fallback;
 
-    wlr_fbox box = src_box;
-    if (wlr_fbox_empty(&box))
+    FBox box = src_box;
+    if (fbox_empty(&box))
         box = {0, 0, double(b->width), double(b->height)};
-    wlr_fbox_transform(&box, &box, transform, b->width, b->height);
+    fbox_transform(&box, &box, transform, b->width, b->height);
     double sx, sy;
     if (dst_width || dst_height) {
         sx = dst_width / box.width;
@@ -1093,7 +1093,7 @@ void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
 
     pixman_region32_t trans;
     pixman_region32_init(&trans);
-    wlr_region_transform(&trans, damage, transform, b->width, b->height);
+    region_transform(&trans, damage, transform, b->width, b->height);
     pixman_region32_intersect_rect(&trans, &trans, int(box.x), int(box.y), unsigned(box.width), unsigned(box.height));
     pixman_region32_translate(&trans, -int(box.x), -int(box.y));
 
@@ -1104,12 +1104,12 @@ void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
         const float osx = float(os * sx), osy = float(os * sy);
         pixman_region32_t od;
         pixman_region32_init(&od);
-        wlr_region_scale_xy(&od, &trans, osx, osy);
+        region_scale_xy(&od, &trans, osx, osy);
         // Linear filtering bleeds scaled content into neighbouring pixels.
         const float bsx = 1.0f / osx, bsy = 1.0f / osy;
         const int dx = std::floor(bsx) != bsx ? int(std::ceil(osx / 2.0f)) : 0;
         const int dy = std::floor(bsy) != bsy ? int(std::ceil(osy / 2.0f)) : 0;
-        wlr_region_expand(&od, &od, std::max(dx, dy));
+        region_expand(&od, &od, std::max(dx, dy));
         // Only where it shows.
         pixman_region32_t cull;
         pixman_region32_init(&cull);
@@ -1123,7 +1123,7 @@ void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
                                   int(std::lround((place.y - o2->y) * os)));
         int w, h;
         o2->output->transformed_resolution(&w, &h);
-        wlr_region_transform(&od, &od, wlr_output_transform_invert(o2->output->transform), w, h);
+        region_transform(&od, &od, output_transform_invert(o2->output->transform), w, h);
         o2->damage(&od);
         pixman_region32_fini(&od);
     }
@@ -1144,9 +1144,9 @@ void Buffer::set_opaque_region(const pixman_region32_t* region) {
     pixman_region32_fini(&r);
 }
 
-void Buffer::set_source_box(const wlr_fbox* box) {
-    const wlr_fbox b = box ? *box : wlr_fbox{};
-    if (wlr_fbox_equal(&src_box, &b))
+void Buffer::set_source_box(const FBox* box) {
+    const FBox b = box ? *box : FBox{};
+    if (fbox_equal(&src_box, &b))
         return;
     src_box = b;
     update();

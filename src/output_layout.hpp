@@ -25,9 +25,9 @@ public:
     bool contains(const backend::Output* o) const;
 
     // Its box in the layout; empty if not in it.
-    wlr_box box(const backend::Output* o) const;
+    Box box(const backend::Output* o) const;
     // The box around all of them.
-    wlr_box extents() const;
+    Box extents() const;
     backend::Output* output_at(double lx, double ly) const;
     // The point nearest (lx, ly) on `reference`, or on any screen if null.
     void closest_point(const backend::Output* reference, double lx, double ly, double* cx, double* cy) const;

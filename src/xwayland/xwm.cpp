@@ -19,8 +19,6 @@
 #include <unistd.h>
 #include <unordered_map>
 
-extern "C" {
-}
 
 namespace atrium::xwayland {
 

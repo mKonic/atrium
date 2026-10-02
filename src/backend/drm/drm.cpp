@@ -13,7 +13,6 @@ extern "C" {
 #include <wlr/render/pass.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/render/wlr_texture.h>
-#include <wlr/util/transform.h>
 }
 
 #include <drm_fourcc.h>
@@ -101,15 +100,15 @@ uint64_t max_bpc_for(uint32_t format) {
     }
 }
 
-wlr_fbox src_box_of(const OutputState& s) {
-    wlr_fbox b = s.buffer_src_box;
+FBox src_box_of(const OutputState& s) {
+    FBox b = s.buffer_src_box;
     if (b.width == 0 && b.height == 0)
         b = {0, 0, double(s.buffer->width), double(s.buffer->height)};
     return b;
 }
 
-wlr_box dst_box_of(const OutputState& s, int w, int h) {
-    wlr_box b = s.buffer_dst_box;
+Box dst_box_of(const OutputState& s, int w, int h) {
+    Box b = s.buffer_dst_box;
     if (b.width == 0 && b.height == 0)
         b = {b.x, b.y, w, h};
     return b;
@@ -134,8 +133,8 @@ struct Drm::Plane {
     // Locked while KMS may show them: the one on screen, and the next.
     wlr_buffer* current = nullptr;
     wlr_buffer* queued = nullptr;
-    wlr_fbox src{};
-    wlr_box dst{};
+    FBox src{};
+    Box dst{};
     // Signalled once the buffer stops being shown (explicit sync).
     wlr_drm_syncobj_timeline* current_release = nullptr;
     uint64_t current_point = 0;
@@ -217,8 +216,8 @@ struct Drm::ConnState {
     drmModeModeInfo mode{};
     wlr_buffer* primary = nullptr;  // locked
     uint32_t primary_fb = 0;
-    wlr_fbox src{};
-    wlr_box dst{};
+    FBox src{};
+    Box dst{};
     wlr_buffer* cursor = nullptr;  // locked
     uint32_t cursor_fb = 0;
     wlr_drm_syncobj_timeline* wait = nullptr;
@@ -316,8 +315,8 @@ public:
             return false;
         int w, h;
         transformed_resolution(&w, &h);
-        wlr_box b{x, y, 0, 0};
-        wlr_box_transform(&b, &b, wlr_output_transform_invert(transform), w, h);
+        Box b{x, y, 0, 0};
+        box_transform(&b, &b, output_transform_invert(transform), w, h);
         conn.cursor_x = b.x - conn.hotspot_x;
         conn.cursor_y = b.y - conn.hotspot_y;
         return true;
@@ -1149,7 +1148,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
         add(p.id, p.props.fb_id, 0);
         add(p.id, p.props.crtc_id, 0);
     };
-    auto plane_on = [&](Plane& p, uint32_t fb, uint32_t crtc, const wlr_box& dst, const wlr_fbox& src) {
+    auto plane_on = [&](Plane& p, uint32_t fb, uint32_t crtc, const Box& dst, const FBox& src) {
         // src_* in 16.16 fixed point.
         add(p.id, p.props.src_x, uint64_t(src.x * 65536));
         add(p.id, p.props.src_y, uint64_t(src.y * 65536));
@@ -1197,8 +1196,8 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
                 }
                 if (crtc.cursor) {
                     if (st.cursor && c.output->cursor_visible()) {
-                        const wlr_fbox src{0, 0, double(st.cursor->width), double(st.cursor->height)};
-                        const wlr_box dst{c.cursor_x, c.cursor_y, st.cursor->width, st.cursor->height};
+                        const FBox src{0, 0, double(st.cursor->width), double(st.cursor->height)};
+                        const Box dst{c.cursor_x, c.cursor_y, st.cursor->width, st.cursor->height};
                         plane_on(*crtc.cursor, st.cursor_fb, crtc.id, dst, src);
                         if (crtc.cursor->props.hotspot_x && crtc.cursor->props.hotspot_y) {
                             add(crtc.cursor->id, crtc.cursor->props.hotspot_x, uint64_t(c.hotspot_x));

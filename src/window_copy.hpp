@@ -32,7 +32,7 @@ private:
         scene::Buffer* node;
         int x, y, w, h;  // in the window's frame, unscaled
         scene::Radii corners;
-        wlr_fbox src{};  // the source's own crop of its buffer
+        FBox src{};  // the source's own crop of its buffer
     };
 
     View& view_;

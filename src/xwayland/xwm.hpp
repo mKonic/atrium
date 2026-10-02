@@ -107,7 +107,7 @@ public:
         wl::Signal<> destroy;
         wl::Signal<const ConfigureRequest&> request_configure;
         wl::Signal<> request_move;
-        wl::Signal<uint32_t> request_resize;  // edges (wlr_edges bits)
+        wl::Signal<uint32_t> request_resize;  // edges (Edges bits)
         wl::Signal<bool> request_minimize;
         wl::Signal<> request_maximize, request_fullscreen, request_activate, request_close;
         wl::Signal<> request_sticky, request_shaded, request_skip_taskbar, request_skip_pager;

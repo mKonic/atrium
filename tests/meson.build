@@ -92,6 +92,7 @@ if gtest.found()
     'accent_test.cpp',
     'desktop_entry_test.cpp',
     'gpus_test.cpp',
+    'util_box_test.cpp',
     'wallpaper_test.cpp',
     'mimeapps_test.cpp',
     'keyboard_test.cpp',

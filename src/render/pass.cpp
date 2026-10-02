@@ -55,14 +55,14 @@ void cut_from_clip(pixman_region32_t* clip, const CutOut& cut) {
     pixman_region32_fini(&inner);
 }
 
-void set_tex_matrix(Program& p, wl_output_transform t, const wlr_fbox& box) {
+void set_tex_matrix(Program& p, wl_output_transform t, const FBox& box) {
     float m[9];
     matrix::identity(m);
     matrix::translate(m, float(box.x), float(box.y));
     matrix::scale(m, float(box.width), float(box.height));
     matrix::translate(m, 0.5f, 0.5f);
     // Textures' origin differs, so rotations go the other way.
-    matrix::transform(m, (t & WL_OUTPUT_TRANSFORM_90) ? wlr_output_transform_invert(t) : t);
+    matrix::transform(m, (t & WL_OUTPUT_TRANSFORM_90) ? output_transform_invert(t) : t);
     matrix::translate(m, -0.5f, -0.5f);
     p.set_mat3_raw("tex_proj", m);
 }
@@ -156,10 +156,12 @@ void wlr_add_texture(wlr_render_pass* p, const wlr_render_texture_options* o) {
     Texture* t = Renderer::texture(o->texture);
     if (!t)
         return;
-    wlr_fbox src;
-    wlr_box dst;
-    wlr_render_texture_options_get_src_box(o, &src);
-    wlr_render_texture_options_get_dst_box(o, &dst);
+    wlr_fbox wsrc;
+    wlr_box wdst;
+    wlr_render_texture_options_get_src_box(o, &wsrc);
+    wlr_render_texture_options_get_dst_box(o, &wdst);
+    const FBox src = from_wlr(wsrc);
+    const Box dst = from_wlr(wdst);
     TextureDraw d;
     d.tex = t->ref();
     d.src = src;
@@ -180,7 +182,7 @@ void wlr_add_texture(wlr_render_pass* p, const wlr_render_texture_options* o) {
 void wlr_add_rect(wlr_render_pass* p, const wlr_render_rect_options* o) {
     RenderPass* pass = pass_of(p);
     RectDraw d;
-    d.box = FBox::of(o->box);
+    d.box = FBox::of(from_wlr(o->box));
     d.color[0] = o->color.r;
     d.color[1] = o->color.g;
     d.color[2] = o->color.b;
@@ -364,7 +366,7 @@ void RenderPass::add_texture_mesh(const TextureDraw& d, const std::vector<MeshVe
     Program& p = r_.shaders().get(Shader::Tex, 6 + source);
     if (!p.id || p.at < 0)
         return;
-    wlr_fbox src = d.src;
+    FBox src = d.src;
     if (src.width <= 0 || src.height <= 0)
         src = {0, 0, double(d.tex.width), double(d.tex.height)};
     src.x /= d.tex.width;
@@ -431,7 +433,7 @@ void RenderPass::add_texture(const TextureDraw& d) {
             return;
     }
 
-    wlr_fbox src = d.src;
+    FBox src = d.src;
     if (src.width <= 0 || src.height <= 0)
         src = {0, 0, double(d.tex.width), double(d.tex.height)};
     src.x /= d.tex.width;
@@ -573,7 +575,7 @@ Framebuffer* RenderPass::blur_into(const BlurParams& params, Framebuffer* source
     if (!fx_ || !params.enabled())
         return nullptr;
     const FBox full{0, 0, double(width_), double(height_)};
-    const wlr_fbox whole{0, 0, 1, 1};
+    const FBox whole{0, 0, 1, 1};
 
     pixman_region32_t damage;
     pixman_region32_init(&damage);
@@ -581,7 +583,7 @@ Framebuffer* RenderPass::blur_into(const BlurParams& params, Framebuffer* source
         pixman_region32_copy(&damage, region);
     else
         pixman_region32_union_rect(&damage, &damage, 0, 0, unsigned(width_), unsigned(height_));
-    wlr_region_expand(&damage, &damage, params.reach());
+    region_expand(&damage, &damage, params.reach());
     pixman_region32_intersect_rect(&damage, &damage, 0, 0, unsigned(width_), unsigned(height_));
 
     pixman_region32_t scaled;
@@ -617,11 +619,11 @@ Framebuffer* RenderPass::blur_into(const BlurParams& params, Framebuffer* source
     Program& down = r_.shaders().get(Shader::Blur1);
     Program& up = r_.shaders().get(Shader::Blur2);
     for (int i = 0; i < params.passes; ++i) {
-        wlr_region_scale(&scaled, &damage, 1.0f / float(1 << (i + 1)));
+        region_scale(&scaled, &damage, 1.0f / float(1 << (i + 1)));
         step(down, true);
     }
     for (int i = params.passes - 1; i >= 0; --i) {
-        wlr_region_scale(&scaled, &damage, 1.0f / float(1 << i));
+        region_scale(&scaled, &damage, 1.0f / float(1 << i));
         step(up, false);
     }
 
@@ -758,7 +760,7 @@ Framebuffer* RenderPass::glass_field(const BlurDraw& d, const TexRef* mask, cons
         return nullptr;
     Program& p = r_.shaders().get(Shader::GlassField);
     const FBox full{0, 0, double(width_), double(height_)};
-    const wlr_fbox whole{0, 0, 1, 1};
+    const FBox whole{0, 0, 1, 1};
     const int reach = int(std::ceil(3 * sigma)) + 2;
     const FBox& mb = mask ? d.mask_box : d.box;
     const int nx = int(std::floor(d.box.x)), ny = int(std::floor(d.box.y));
@@ -899,7 +901,7 @@ void RenderPass::render_glass(Framebuffer* blurred, const BlurDraw& d) {
 
     const FBox full{0, 0, double(width_), double(height_)};
     set_proj(p, full);
-    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, wlr_fbox{0, 0, 1, 1});
+    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, FBox{0, 0, 1, 1});
     draw(p, full, &clip);
     pixman_region32_fini(&clip);
 
@@ -950,7 +952,7 @@ void RenderPass::output_pass() {
     }
     const FBox full{0, 0, double(width_), double(height_)};
     set_proj(p, full);
-    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, wlr_fbox{0, 0, 1, 1});
+    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, FBox{0, 0, 1, 1});
     draw(p, full, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
     if (use_lut) {
@@ -1016,7 +1018,7 @@ void RenderPass::apply_screen_shader(const pixman_region32_t* region) {
     p.set("time", float(now.tv_sec % 100000) + now.tv_nsec / 1e9f);
     const FBox full{0, 0, double(width_), double(height_)};
     set_proj(p, full);
-    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, wlr_fbox{0, 0, 1, 1});
+    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, FBox{0, 0, 1, 1});
     draw(p, full, region);
     glBindTexture(GL_TEXTURE_2D, 0);
     glEnable(GL_BLEND);

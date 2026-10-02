@@ -77,8 +77,8 @@ void Server::retile(Space* space) {
             order.push_back(v->id);
 
     space->ensure_tile_backdrop();  // the screen may have changed size
-    const wlr_box frame = geometry::secret_frame(space->output->usable, config.secret_margin);
-    const std::vector<wlr_box> boxes = geometry::dwindle(order.size(), frame, config.snap_gap);
+    const Box frame = geometry::secret_frame(space->output->usable, config.secret_margin);
+    const std::vector<Box> boxes = geometry::dwindle(order.size(), frame, config.snap_gap);
     for (size_t i = 0; i < order.size(); ++i)
         for (View* v : members)
             if (v->id == order[i])
@@ -94,7 +94,7 @@ void Server::tile_drop(View* view, double lx, double ly) {
     for (View* v : views) {
         if (v == view || v->space != space || !v->tiled())
             continue;
-        const wlr_box& g = v->geom;
+        const Box& g = v->geom;
         if (lx >= g.x && lx < g.x + g.width && ly >= g.y && ly < g.y + g.height) {
             auto other = std::ranges::find(order, v->id);
             if (self != order.end() && other != order.end())
@@ -108,18 +108,18 @@ void Server::tile_drop(View* view, double lx, double ly) {
 // --- keyboard ------------------------------------------------------------------------
 
 uint32_t Server::direction_from(const std::string& word) {
-    if (word == "left") return WLR_EDGE_LEFT;
-    if (word == "right") return WLR_EDGE_RIGHT;
-    if (word == "up") return WLR_EDGE_TOP;
-    if (word == "down") return WLR_EDGE_BOTTOM;
-    return WLR_EDGE_NONE;
+    if (word == "left") return EDGE_LEFT;
+    if (word == "right") return EDGE_RIGHT;
+    if (word == "up") return EDGE_TOP;
+    if (word == "down") return EDGE_BOTTOM;
+    return EDGE_NONE;
 }
 
 View* Server::neighbor_of(View* from, uint32_t direction) const {
     if (!from || !direction)
         return nullptr;
     std::vector<View*> candidates;
-    std::vector<wlr_box> boxes;
+    std::vector<Box> boxes;
     for (View* v : views)
         if (v != from && v->visible() && !v->unmanaged() && !v->hidden_from_lists() &&
             v->space == from->space) {
@@ -147,9 +147,9 @@ void Server::move_direction(View* view, uint32_t direction) {
     // Floating: to that half of the screen, up to all of it, down back to
     // where it was.
     switch (direction) {
-    case WLR_EDGE_LEFT:
-    case WLR_EDGE_RIGHT: view->snap(direction); break;
-    case WLR_EDGE_TOP: view->set_maximized(true); break;
+    case EDGE_LEFT:
+    case EDGE_RIGHT: view->snap(direction); break;
+    case EDGE_TOP: view->set_maximized(true); break;
     default:
         if (view->maximized)
             view->set_maximized(false);
@@ -161,7 +161,7 @@ void Server::move_direction(View* view, uint32_t direction) {
 
 // --- the window's side ---------------------------------------------------------------
 
-void View::tile_to(const wlr_box& box) {
+void View::tile_to(const Box& box) {
     if (!tiled_) {
         before_tile_ = geom;
         tiled_ = true;
@@ -171,7 +171,7 @@ void View::tile_to(const wlr_box& box) {
 }
 
 void View::join_tiles() {
-    const wlr_box was = restore;  // back there when tiling ends, not maximized
+    const Box was = restore;  // back there when tiling ends, not maximized
     set_maximized(false, false);  // retiles
     if (tiled_)
         before_tile_ = was;
@@ -182,13 +182,13 @@ void View::untile() {
         return;
     tiled_ = false;
     set_tile_bar_hidden(false);
-    const wlr_box area = usable_area();
-    wlr_box box;
+    const Box area = usable_area();
+    Box box;
     if (before_tile_) {
         box = *before_tile_;
     } else {
         // Born tiled: two thirds of the screen, cascaded like a new window.
-        std::vector<wlr_box> others;
+        std::vector<Box> others;
         for (View* v : server.views)
             if (v != this && v->mapped && !v->minimized && v->space == space && !v->tiled())
                 others.push_back(v->geom);

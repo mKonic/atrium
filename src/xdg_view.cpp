@@ -18,7 +18,7 @@ XdgView::XdgView(Server& srv, wl::Toplevel* t) : View(srv, Kind::Xdg), toplevel(
 
     c.push_back(s->events.commit.connect([this] { commit(); }));
     c.push_back(s->events.map.connect([this] {
-        const wl::Box g = toplevel->base()->geometry();
+        const Box g = toplevel->base()->geometry();
         geom.width = g.width;
         geom.height = g.height;
         handle_map();
@@ -58,7 +58,7 @@ XdgView::XdgView(Server& srv, wl::Toplevel* t) : View(srv, Kind::Xdg), toplevel(
             server.seat->begin_move(this);
     }));
     c.push_back(toplevel->events.request_resize.connect([this](const wl::Toplevel::ResizeRequest& e) {
-        // xdg_toplevel's resize edges are wlr_edges' bits.
+        // xdg_toplevel's resize edges are Edges' bits.
         if (mapped && !layout_owned() && server.wl->seat->validate_grab_serial(toplevel->client(), e.serial))
             server.seat->begin_resize(this, e.edges);
     }));
@@ -101,7 +101,7 @@ void XdgView::initial_commit() {
     const bool secret = server.focused_output && !toplevel->app_id().empty() &&
         !apply_rules(server.config.rules, toplevel->app_id(), toplevel->title()).secret.empty();
     if (secret && !toplevel->parent()) {
-        const wlr_box f = geometry::secret_frame(server.focused_output->usable, server.config.secret_margin);
+        const Box f = geometry::secret_frame(server.focused_output->usable, server.config.secret_margin);
         toplevel->set_size(f.width, std::max(1, f.height - (wants_ssd() ? Titlebar::kHeight : 0)));
     } else if (remembered_) {
         toplevel->set_size(remembered_->width, std::max(1, remembered_->height - (wants_ssd() ? Titlebar::kHeight : 0)));
@@ -115,8 +115,8 @@ void XdgView::commit() {
         return;
     // Crop to the window geometry: client-side shadows are the client's
     // business, ours are drawn by the compositor.
-    const wl::Box g = toplevel->base()->geometry();
-    const wlr_box clip{g.x, g.y, g.width, g.height};
+    const Box g = toplevel->base()->geometry();
+    const Box clip{g.x, g.y, g.width, g.height};
     scene::subsurface_tree_set_clip(content, &clip);
     handle_size(g.width, g.height);
     if (resize_settling_ && !awaiting_configure())
@@ -130,10 +130,10 @@ bool XdgView::awaiting_configure() const {
            int32_t(toplevel->base()->configure_serial() - last_size_serial_) < 0;
 }
 
-void XdgView::configure(const wlr_box& frame) {
+void XdgView::configure(const Box& frame) {
     if (!toplevel->base() || !toplevel->base()->initialized())
         return;
-    const wlr_box box = content_box(frame);
+    const Box box = content_box(frame);
     if (box.width != toplevel->scheduled().width || box.height != toplevel->scheduled().height)
         last_size_serial_ = toplevel->set_size(box.width, box.height);
 }
@@ -143,7 +143,7 @@ scene::Tree* XdgView::create_content(scene::Tree* parent) {
 }
 
 void XdgView::surface_origin(double& x, double& y) const {
-    const wl::Box g = toplevel->base()->geometry();
+    const Box g = toplevel->base()->geometry();
     x = geom.x - g.x;
     y = geom.y + top() - g.y;
 }
@@ -160,13 +160,13 @@ View* XdgView::parent() const {
     return toplevel->parent() ? static_cast<View*>(toplevel->parent()->data) : nullptr;
 }
 
-void XdgView::size_hints(wlr_box& min, wlr_box& max) const {
+void XdgView::size_hints(Box& min, Box& max) const {
     min = {0, 0, toplevel->min_width(), toplevel->min_height()};
     max = {0, 0, toplevel->max_width(), toplevel->max_height()};
 }
 
 bool XdgView::is_dialog() const {
-    wlr_box min, max;
+    Box min, max;
     size_hints(min, max);
     return toplevel->parent() ||
            (min.width > 0 && min.height > 0 && (min.width == max.width || min.height == max.height));
@@ -281,7 +281,7 @@ void handle_new_xdg_popup(Server& server, wl::Popup* popup) {
         attach_surface_blur(server, popup_tree, surface);
 
         // Keep the popup on its output, in the toplevel's coordinate space.
-        wlr_box box;
+        Box box;
         if (owner.layer) {
             if (!owner.layer->output) {
                 delete watch;

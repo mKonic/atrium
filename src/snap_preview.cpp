@@ -35,7 +35,7 @@ SnapPreview::~SnapPreview() {
     tree_->destroy();
 }
 
-void SnapPreview::set_box(const wlr_box& b, float alpha) {
+void SnapPreview::set_box(const Box& b, float alpha) {
     box_ = b;
     alpha_ = alpha;
     const int r = server_.config.corner_radius;
@@ -62,8 +62,8 @@ void SnapPreview::set_box(const wlr_box& b, float alpha) {
     });
 }
 
-void SnapPreview::show(const wlr_box& target, scene::Node* below, const wlr_box& from) {
-    if (visible_ && wlr_box_equal(&target, &box_) && alpha_ >= 1.0f)
+void SnapPreview::show(const Box& target, scene::Node* below, const Box& from) {
+    if (visible_ && box_equal(&target, &box_) && alpha_ >= 1.0f)
         return;
     server_.animator.cancel_owner(this, false);
     if (below && below->parent) {
@@ -72,7 +72,7 @@ void SnapPreview::show(const wlr_box& target, scene::Node* below, const wlr_box&
     }
     tree_->set_enabled(true);
     // Grow out of the window when appearing; glide from the old zone otherwise.
-    const wlr_box start = visible_ ? box_ : from;
+    const Box start = visible_ ? box_ : from;
     const float a0 = visible_ ? alpha_ : 0.0f;
     visible_ = true;
     server_.animator.start(this, 180, Ease::OutQuint, [this, start, target, a0](double t) {
@@ -88,7 +88,7 @@ void SnapPreview::hide() {
     visible_ = false;
     server_.animator.cancel_owner(this, false);
     const float a0 = alpha_;
-    const wlr_box b = box_;
+    const Box b = box_;
     server_.animator.start(this, 120, Ease::InCubic, [this, a0, b](double t) {
         set_box(b, float(a0 * (1 - t)));
     }, [this] {

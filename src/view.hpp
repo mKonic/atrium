@@ -39,7 +39,7 @@ public:
     virtual const char* app_id() const = 0;
     virtual const char* title() const = 0;
     virtual View* parent() const = 0;
-    virtual void size_hints(wlr_box& min, wlr_box& max) const = 0;
+    virtual void size_hints(Box& min, Box& max) const = 0;
     virtual bool is_dialog() const = 0;   // should be placed over its parent
     virtual bool modal() const { return false; }  // blocks its parent until closed
     // Where the window asked to be put (its content's top-left, in layout
@@ -67,14 +67,14 @@ public:
     // --- window management -------------------------------------------------
     void move_to(int x, int y);
     // Ask for a new size and position. The size lands when the client commits.
-    void request_geometry(wlr_box box);
+    void request_geometry(Box box);
     // In a secret space: large and centered, the blurred desktop showing
     // around it (fixed-size windows only center). leave_secret() gives back
     // the size it had before.
     void fit_secret(bool keep_box = true);
     void leave_secret();
     // Tiling: take `box` (remembering the floating one), or float again.
-    void tile_to(const wlr_box& box);
+    void tile_to(const Box& box);
     void join_tiles();  // a maximized window, when its space starts tiling
     void untile();
     bool tiled() const { return tiled_; }
@@ -152,8 +152,8 @@ public:
     scene::Rect* outline = nullptr;   // 1px hairline around the frame
     scene::Blur* blur = nullptr;      // frosted glass behind translucent content
     scene::Rect* backing = nullptr;   // solid fill behind the content with transparency off
-    wlr_box geom{};
-    wlr_box restore{};  // geometry to return to from maximized/fullscreen
+    Box geom{};
+    Box restore{};  // geometry to return to from maximized/fullscreen
 
     bool mapped = false;
     bool activate_on_map = false;  // asked for focus before it had shown
@@ -187,8 +187,8 @@ public:
 protected:
     // Backend hooks for the state changes above. `frame` includes the title
     // bar; content_box() is the part the client draws.
-    virtual void configure(const wlr_box& frame) = 0;
-    wlr_box content_box(const wlr_box& frame) const {
+    virtual void configure(const Box& frame) = 0;
+    Box content_box(const Box& frame) const {
         return {frame.x, frame.y + top(), frame.width, frame.height - top()};
     }
     virtual void send_activated(bool activated) = 0;
@@ -210,7 +210,7 @@ protected:
     // Cheap enough for every commit: subsurfaces come and go between resizes.
     void update_corners();
 
-    wlr_box usable_area() const;
+    Box usable_area() const;
 
     // Only xdg windows need anchoring: an X11 configure carries the position
     // along with the size, so X11 windows are simply placed where asked.
@@ -229,8 +229,8 @@ protected:
 
     // Where the app's last window was, claimed for this one (see Server::placement_for).
     std::optional<Placement> remembered_;
-    std::optional<wlr_box> before_secret_;  // its floating box before a secret space took it
-    std::optional<wlr_box> before_tile_;    // ... before tiling took it
+    std::optional<Box> before_secret_;  // its floating box before a secret space took it
+    std::optional<Box> before_tile_;    // ... before tiling took it
     bool tiled_ = false;
     double ring_ = 0;  // the focus ring on a tile: 0 faint, 1 lit (animated)
 
@@ -245,8 +245,8 @@ protected:
     void glide_from(int from_x, int from_y);
     // A size atrium gives it (maximize, snap, restore): the old frame, as a
     // copy, stretches into the new one while fading out over the window.
-    void morph_from(const wlr_box& from);
-    wlr_box requested_{};  // the frame last asked for (request_geometry)
+    void morph_from(const Box& from);
+    Box requested_{};  // the frame last asked for (request_geometry)
     void end_morph();
     std::unique_ptr<class WobbleState> wobble_;
     std::unique_ptr<class WindowCopy> morph_;
@@ -281,7 +281,7 @@ public:
     const char* app_id() const override;
     const char* title() const override;
     View* parent() const override;
-    void size_hints(wlr_box& min, wlr_box& max) const override;
+    void size_hints(Box& min, Box& max) const override;
     bool is_dialog() const override;
     bool modal() const override;
     void close() override;
@@ -296,7 +296,7 @@ public:
     void set_kde_decoration(wl::Decorations::Kde* decoration);
 
 protected:
-    void configure(const wlr_box& frame) override;
+    void configure(const Box& frame) override;
     void send_activated(bool activated) override;
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;
@@ -313,7 +313,7 @@ private:
 
     wl::Decorations::Xdg* decoration_ = nullptr;
     wl::Decorations::Kde* kde_decoration_ = nullptr;  // older KDE protocol (Qt5, GTK3 apps via it)
-    wlr_box bounds_{};
+    Box bounds_{};
 
     std::vector<wl::Connection> connections_;
     wl::Connection decoration_request_, decoration_destroy_, kde_mode_, kde_destroy_;

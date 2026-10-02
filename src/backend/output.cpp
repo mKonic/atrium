@@ -214,8 +214,8 @@ uint32_t Output::unchanged(const OutputState& s) const {
 
 namespace {
 
-wlr_fbox src_box_of(const OutputState& s) {
-    wlr_fbox b = s.buffer_src_box;
+FBox src_box_of(const OutputState& s) {
+    FBox b = s.buffer_src_box;
     if (b.width == 0 && b.height == 0)
         b = {0, 0, double(s.buffer->width), double(s.buffer->height)};
     return b;
@@ -226,7 +226,7 @@ wlr_fbox src_box_of(const OutputState& s) {
 bool Output::basic_test(const OutputState& s) const {
     const bool on = (s.committed & OutputState::Enabled) ? s.enabled : enabled;
     if (s.committed & OutputState::Buffer) {
-        const wlr_fbox src = src_box_of(s);
+        const FBox src = src_box_of(s);
         if (src.x < 0 || src.y < 0 || src.x + src.width > s.buffer->width || src.y + src.height > s.buffer->height ||
             src.width <= 0 || src.height <= 0) {
             alog(Log::Error, "%s: buffer source box outside the buffer", name.c_str());
@@ -234,13 +234,13 @@ bool Output::basic_test(const OutputState& s) const {
         }
         int w, h;
         pending_resolution(s, &w, &h);
-        wlr_box dst = s.buffer_dst_box;
+        Box dst = s.buffer_dst_box;
         if (dst.width == 0 && dst.height == 0) {
             dst.width = s.buffer->width;
             dst.height = s.buffer->height;
         }
-        wlr_box screen{0, 0, w, h};
-        if (!wlr_box_intersection(&screen, &screen, &dst)) {
+        Box screen{0, 0, w, h};
+        if (!box_intersection(&screen, &screen, &dst)) {
             alog(Log::Error, "%s: buffer entirely off-screen", name.c_str());
             return false;
         }

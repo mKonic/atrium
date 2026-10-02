@@ -62,7 +62,7 @@ bool CaptureOutput::test(const backend::OutputState& st) {
         pending_resolution(st, &w, &h);
         if (st.buffer->width != w || st.buffer->height != h)
             return false;
-        const wlr_fbox& src = st.buffer_src_box;
+        const FBox& src = st.buffer_src_box;
         if (!(src.width == 0 && src.height == 0) &&
             (src.x != 0 || src.y != 0 || src.width != st.buffer->width || src.height != st.buffer->height))
             return false;
@@ -95,7 +95,7 @@ void extents(Node* node, const Walk& w, int* x1, int* y1, int* x2, int* y2) {
     }
     if (node->type != Type::Rect && node->type != Type::Buffer)
         return;
-    const wlr_box b = box_of(node, w);
+    const Box b = box_of(node, w);
     *x1 = std::min(*x1, b.x);
     *y1 = std::min(*y1, b.y);
     *x2 = std::max(*x2, b.x + b.width);

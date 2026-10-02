@@ -68,7 +68,7 @@ private:
         int number;
         scene::Tree* tree;
         scene::Rect* ring;
-        wlr_box box;
+        Box box;
         bool current;
     };
     struct Thumb {
@@ -81,7 +81,7 @@ private:
         scene::Rect* backing;     // or a solid fill, with transparency off
         std::unique_ptr<WindowCopy> copy;
         scene::Buffer* label;     // title pill, under the hovered one
-        wlr_box from{}, to{}, cur{};
+        Box from{}, to{}, cur{};
         int laid_w = 0, laid_h = 0;  // window size the layout was made for
         int label_w = 0;
     };
@@ -99,7 +99,7 @@ private:
     void add_thumb(View* view, Screen* screen);
     void remove_thumb(Thumb* thumb);
     void snapshot(Thumb& thumb);
-    void place(Thumb& thumb, const wlr_box& box);
+    void place(Thumb& thumb, const Box& box);
     void set_highlight(Thumb* thumb);
     void render_label(Thumb& thumb);
     // New targets for every thumb, animated from wherever they are now.

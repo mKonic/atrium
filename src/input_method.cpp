@@ -256,7 +256,7 @@ void InputMethodRelay::place(Popup& popup) {
     if (!active_ || !focused_ || !s || !s->mapped())
         return;
 
-    wlr_box cursor{};
+    Box cursor{};
     if (active_->current.cursor_rect) {
         double ox = 0, oy = 0;
         bool known = true;
@@ -272,7 +272,7 @@ void InputMethodRelay::place(Popup& popup) {
             known = false;
         }
         if (known) {
-            const wl::Box& r = *active_->current.cursor_rect;
+            const Box& r = *active_->current.cursor_rect;
             cursor = {r.x + int(ox), r.y + int(oy), r.width, r.height};
         }
     }
@@ -290,7 +290,7 @@ void InputMethodRelay::place(Popup& popup) {
     rules.width = s->current().width;
     rules.height = s->current().height;
     rules.constraint_adjustment = wl::PositionerRules::FlipY | wl::PositionerRules::SlideX;
-    wl::Box box = rules.geometry();
+    Box box = rules.geometry();
     rules.unconstrain({output->box.x, output->box.y, output->box.width, output->box.height}, box);
 
     popup.tree->set_position(box.x, box.y);

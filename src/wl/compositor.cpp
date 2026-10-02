@@ -494,7 +494,7 @@ void Surface::update_texture(bool) {
     shown_ = sb;
 }
 
-wlr_fbox Surface::source_box() const {
+FBox Surface::source_box() const {
     const auto& v = current_.viewport;
     if (v.has_source)
         return {v.sx * current_.scale, v.sy * current_.scale, v.sw * current_.scale, v.sh * current_.scale};

@@ -41,8 +41,8 @@ public:
     scene::SceneOutput* scene_output = nullptr;
     scene::Rect* fullscreen_bg = nullptr;  // hides what is behind a translucent fullscreen view
 
-    wlr_box box{};     // whole output, layout coordinates
-    wlr_box usable{};  // box minus exclusive zones of panels and docks
+    Box box{};     // whole output, layout coordinates
+    Box usable{};  // box minus exclusive zones of panels and docks
 
     std::vector<LayerSurface*> layers[4];  // indexed by zwlr_layer_shell_v1_layer
 

@@ -16,8 +16,6 @@
 
 #include <gio/gio.h>
 
-extern "C" {
-}
 
 namespace atrium {
 

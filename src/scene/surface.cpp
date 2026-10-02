@@ -181,9 +181,9 @@ void SurfaceNode::send_frame_done(const timespec* when) {
         surface->send_frame_done(ms_of(*when));
 }
 
-void SurfaceNode::set_clip(const wlr_box* c) {
-    const wlr_box next = c ? *c : wlr_box{};
-    if (wlr_box_equal(&next, &clip))
+void SurfaceNode::set_clip(const Box* c) {
+    const Box next = c ? *c : Box{};
+    if (box_equal(&next, &clip))
         return;
     clip = next;
     reconfigure();
@@ -192,24 +192,24 @@ void SurfaceNode::set_clip(const wlr_box* c) {
 void SurfaceNode::reconfigure() {
     Buffer* b = buffer;
     const wl::SurfaceState& state = surface->current();
-    wlr_fbox src = surface->source_box();
+    FBox src = surface->source_box();
     pixman_region32_t opaque;
     pixman_region32_init(&opaque);
     pixman_region32_copy(&opaque, state.opaque.get());
     int width = state.width, height = state.height;
 
-    if (!wlr_box_empty(&clip)) {
+    if (!box_empty(&clip)) {
         int bw = state.buffer_width, bh = state.buffer_height;
         const auto t = wl_output_transform(state.transform);
         width = std::min(clip.width, width - clip.x);
         height = std::min(clip.height, height - clip.y);
-        wlr_fbox_transform(&src, &src, t, bw, bh);
-        wlr_output_transform_coords(t, &bw, &bh);
+        fbox_transform(&src, &src, t, bw, bh);
+        output_transform_coords(t, &bw, &bh);
         src.x += double(clip.x) * src.width / state.width;
         src.y += double(clip.y) * src.height / state.height;
         src.width *= double(width) / state.width;
         src.height *= double(height) / state.height;
-        wlr_fbox_transform(&src, &src, wlr_output_transform_invert(t), bw, bh);
+        fbox_transform(&src, &src, output_transform_invert(t), bw, bh);
         pixman_region32_translate(&opaque, -clip.x, -clip.y);
         pixman_region32_intersect_rect(&opaque, &opaque, 0, 0, unsigned(std::max(0, width)),
                                        unsigned(std::max(0, height)));
@@ -274,7 +274,7 @@ struct SubsurfaceTree {
     wl::Surface* surface = nullptr;
     SurfaceNode* node = nullptr;
     SubsurfaceTree* parent = nullptr;  // null for the top surface
-    wlr_box clip{};
+    Box clip{};
     std::unordered_map<wl::Subsurface*, SubsurfaceTree*> children;
     Listener<> tree_destroy;
     wl::Connection surface_destroy, surface_commit, surface_map, surface_unmap;
@@ -285,15 +285,15 @@ bool reconfigure_clip(SubsurfaceTree* t) {
         t->clip = {t->parent->clip.x - t->tree->x, t->parent->clip.y - t->tree->y, t->parent->clip.width,
                    t->parent->clip.height};
     Buffer* b = t->node->buffer;
-    if (wlr_box_empty(&t->clip)) {
+    if (box_empty(&t->clip)) {
         t->node->set_clip(nullptr);
         b->set_enabled(true);
         b->set_position(0, 0);
         return false;
     }
-    wlr_box clip = t->clip;
-    const wlr_box surface_box{0, 0, t->surface->current().width, t->surface->current().height};
-    const bool meets = wlr_box_intersection(&clip, &clip, &surface_box);
+    Box clip = t->clip;
+    const Box surface_box{0, 0, t->surface->current().width, t->surface->current().height};
+    const bool meets = box_intersection(&clip, &clip, &surface_box);
     b->set_enabled(meets);
     if (meets) {
         b->set_position(clip.x, clip.y);
@@ -373,15 +373,15 @@ SubsurfaceTree* surface_tree_create(Tree* parent, wl::Surface* surface) {
     return t;
 }
 
-bool set_clip(Node* node, const wlr_box* clip) {
+bool set_clip(Node* node, const Box* clip) {
     if (node->type != Type::Tree)
         return false;
     bool found = false;
     if (auto it = trees_by_node().find(node); it != trees_by_node().end()) {
         SubsurfaceTree* t = it->second;
         if (!t->parent) {
-            const wlr_box next = clip ? *clip : wlr_box{};
-            if (wlr_box_equal(&t->clip, &next))
+            const Box next = clip ? *clip : Box{};
+            if (box_equal(&t->clip, &next))
                 return true;
             t->clip = next;
         }
@@ -399,7 +399,7 @@ Tree* subsurface_tree_create(Tree* parent, wl::Surface* surface) {
     return surface_tree_create(parent, surface)->tree;
 }
 
-void subsurface_tree_set_clip(Node* node, const wlr_box* clip) {
+void subsurface_tree_set_clip(Node* node, const Box* clip) {
     [[maybe_unused]] const bool found = set_clip(node, clip);
     assert(found);
 }
@@ -416,7 +416,7 @@ struct XdgSurfaceNode {
     wl::Connection xdg_destroy, commit;
 
     void update_position() {
-        const wl::Box g = xdg->geometry();
+        const Box g = xdg->geometry();
         surface_tree->set_position(-g.x, -g.y);
         if (wl::Popup* p = xdg->popup())
             tree->set_position(p->geometry().x, p->geometry().y);
@@ -469,7 +469,7 @@ uint32_t exclusive_edge(const wl::LayerSurface::State& s) {
     }
 }
 
-void take_exclusive_zone(const wl::LayerSurface::State& s, uint32_t edge, wlr_box* usable) {
+void take_exclusive_zone(const wl::LayerSurface::State& s, uint32_t edge, Box* usable) {
     switch (edge) {
     case kTop:
         usable->y += s.exclusive_zone + s.margin_top;
@@ -504,12 +504,12 @@ LayerSurfaceNode* layer_surface_v1_create(Tree* parent, wl::LayerSurface* layer)
     return &l->pub;
 }
 
-void layer_surface_v1_configure(LayerSurfaceNode* node, const wlr_box* full_area, wlr_box* usable_area) {
+void layer_surface_v1_configure(LayerSurfaceNode* node, const Box* full_area, Box* usable_area) {
     wl::LayerSurface* layer = node->layer_surface;
     const wl::LayerSurface::State& s = layer->current();
     // Exclusive zone -1: the whole output, else what's left of it.
-    const wlr_box bounds = s.exclusive_zone == -1 ? *full_area : *usable_area;
-    wlr_box box{0, 0, int(s.desired_width), int(s.desired_height)};
+    const Box bounds = s.exclusive_zone == -1 ? *full_area : *usable_area;
+    Box box{0, 0, int(s.desired_width), int(s.desired_height)};
     const uint32_t a = s.anchor;
     if (box.width == 0) {
         box.x = bounds.x + s.margin_left;

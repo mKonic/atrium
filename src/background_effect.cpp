@@ -120,12 +120,12 @@ void BackgroundEffects::effect_gone(Effect* e) {
             o.view->update_decorations();
 }
 
-std::optional<wlr_box> BackgroundEffects::blur_for(wl::Surface* surface) const {
+std::optional<Box> BackgroundEffects::blur_for(wl::Surface* surface) const {
     auto it = effects_.find(surface);
     if (it == effects_.end() || !it->second->requested)
         return std::nullopt;
     const pixman_box32_t* ext = pixman_region32_extents(&it->second->current);
-    return wlr_box{ext->x1, ext->y1, ext->x2 - ext->x1, ext->y2 - ext->y1};
+    return Box{ext->x1, ext->y1, ext->x2 - ext->x1, ext->y2 - ext->y1};
 }
 
 } // namespace atrium

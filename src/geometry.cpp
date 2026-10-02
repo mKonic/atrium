@@ -8,9 +8,9 @@
 
 namespace atrium::geometry {
 
-wlr_box place(int w, int h, const wlr_box& area, const wlr_box* parent,
-              std::span<const wlr_box> others, int step) {
-    wlr_box g{0, 0, std::min(w, area.width), std::min(h, area.height)};
+Box place(int w, int h, const Box& area, const Box* parent,
+              std::span<const Box> others, int step) {
+    Box g{0, 0, std::min(w, area.width), std::min(h, area.height)};
 
     if (parent) {
         g.x = parent->x + (parent->width - g.width) / 2;
@@ -20,7 +20,7 @@ wlr_box place(int w, int h, const wlr_box& area, const wlr_box* parent,
         g.y = area.y + (area.height - g.height) / 2;
         const size_t limit = others.size() + 1;
         for (size_t tries = 0; tries < limit && step > 0; ++tries) {
-            const bool taken = std::ranges::any_of(others, [&](const wlr_box& o) {
+            const bool taken = std::ranges::any_of(others, [&](const Box& o) {
                 return std::abs(o.x - g.x) < step && std::abs(o.y - g.y) < step;
             });
             if (!taken)
@@ -39,7 +39,7 @@ wlr_box place(int w, int h, const wlr_box& area, const wlr_box* parent,
     return g;
 }
 
-void snap(int& x, int& y, int w, int h, const wlr_box& area, int distance) {
+void snap(int& x, int& y, int w, int h, const Box& area, int distance) {
     if (std::abs(x - area.x) < distance)
         x = area.x;
     else if (std::abs(x + w - (area.x + area.width)) < distance)
@@ -50,24 +50,24 @@ void snap(int& x, int& y, int w, int h, const wlr_box& area, int distance) {
         y = area.y + area.height - h;
 }
 
-wlr_box resize(const wlr_box& start, uint32_t edges, int dx, int dy) {
-    wlr_box b = start;
-    if (edges & WLR_EDGE_LEFT) {
+Box resize(const Box& start, uint32_t edges, int dx, int dy) {
+    Box b = start;
+    if (edges & EDGE_LEFT) {
         b.width = std::max(start.width - dx, 1);
         b.x = start.x + start.width - b.width;
-    } else if (edges & WLR_EDGE_RIGHT) {
+    } else if (edges & EDGE_RIGHT) {
         b.width = std::max(start.width + dx, 1);
     }
-    if (edges & WLR_EDGE_TOP) {
+    if (edges & EDGE_TOP) {
         b.height = std::max(start.height - dy, 1);
         b.y = start.y + start.height - b.height;
-    } else if (edges & WLR_EDGE_BOTTOM) {
+    } else if (edges & EDGE_BOTTOM) {
         b.height = std::max(start.height + dy, 1);
     }
     return b;
 }
 
-wlr_box clamp_to_hints(wlr_box box, const wlr_box& min, const wlr_box& max) {
+Box clamp_to_hints(Box box, const Box& min, const Box& max) {
     box.width = std::max({box.width, min.width, 1});
     box.height = std::max({box.height, min.height, 1});
     if (max.width > 0)
@@ -77,12 +77,12 @@ wlr_box clamp_to_hints(wlr_box box, const wlr_box& min, const wlr_box& max) {
     return box;
 }
 
-uint32_t nearest_corner(const wlr_box& window, double cx, double cy) {
-    return (cx < window.x + window.width / 2.0 ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT) |
-           (cy < window.y + window.height / 2.0 ? WLR_EDGE_TOP : WLR_EDGE_BOTTOM);
+uint32_t nearest_corner(const Box& window, double cx, double cy) {
+    return (cx < window.x + window.width / 2.0 ? EDGE_LEFT : EDGE_RIGHT) |
+           (cy < window.y + window.height / 2.0 ? EDGE_TOP : EDGE_BOTTOM);
 }
 
-uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corner) {
+uint32_t snap_zone(const Box& area, double cx, double cy, int edge, int corner) {
     const bool left = cx < area.x + edge;
     const bool right = cx >= area.x + area.width - edge;
     const bool top = cy < area.y + edge;
@@ -93,44 +93,44 @@ uint32_t snap_zone(const wlr_box& area, double cx, double cy, int edge, int corn
     const bool near_right = cx >= area.x + area.width - corner;
 
     if (left || right) {
-        const uint32_t side = left ? WLR_EDGE_LEFT : WLR_EDGE_RIGHT;
+        const uint32_t side = left ? EDGE_LEFT : EDGE_RIGHT;
         if (near_top)
-            return side | WLR_EDGE_TOP;
+            return side | EDGE_TOP;
         if (near_bottom)
-            return side | WLR_EDGE_BOTTOM;
+            return side | EDGE_BOTTOM;
         return side;
     }
     if (top) {
         if (near_left)
-            return WLR_EDGE_LEFT | WLR_EDGE_TOP;
+            return EDGE_LEFT | EDGE_TOP;
         if (near_right)
-            return WLR_EDGE_RIGHT | WLR_EDGE_TOP;
-        return WLR_EDGE_TOP;
+            return EDGE_RIGHT | EDGE_TOP;
+        return EDGE_TOP;
     }
     if (bottom) {
         if (near_left)
-            return WLR_EDGE_LEFT | WLR_EDGE_BOTTOM;
+            return EDGE_LEFT | EDGE_BOTTOM;
         if (near_right)
-            return WLR_EDGE_RIGHT | WLR_EDGE_BOTTOM;
+            return EDGE_RIGHT | EDGE_BOTTOM;
     }
     return 0;
 }
 
-wlr_box snap_box(const wlr_box& area, uint32_t zone, int gap) {
-    if (zone == WLR_EDGE_TOP || !zone)
+Box snap_box(const Box& area, uint32_t zone, int gap) {
+    if (zone == EDGE_TOP || !zone)
         return area;
-    wlr_box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};
-    wlr_box b = inner;
+    Box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};
+    Box b = inner;
     const int half_w = (inner.width - gap) / 2;
     const int half_h = (inner.height - gap) / 2;
-    if (zone & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) {
+    if (zone & (EDGE_LEFT | EDGE_RIGHT)) {
         b.width = half_w;
-        if (zone & WLR_EDGE_RIGHT)
+        if (zone & EDGE_RIGHT)
             b.x = inner.x + inner.width - half_w;
     }
-    if ((zone & (WLR_EDGE_LEFT | WLR_EDGE_RIGHT)) && (zone & (WLR_EDGE_TOP | WLR_EDGE_BOTTOM))) {
+    if ((zone & (EDGE_LEFT | EDGE_RIGHT)) && (zone & (EDGE_TOP | EDGE_BOTTOM))) {
         b.height = half_h;
-        if (zone & WLR_EDGE_BOTTOM)
+        if (zone & EDGE_BOTTOM)
             b.y = inner.y + inner.height - half_h;
     }
     return b;
@@ -140,7 +140,7 @@ namespace {
 
 // The part of `area` between fractions x0..x1, y0..y1, with `gap` at the
 // area's edges and half of it where two parts meet.
-wlr_box fraction(const wlr_box& area, double x0, double y0, double x1, double y1, int gap) {
+Box fraction(const Box& area, double x0, double y0, double x1, double y1, int gap) {
     auto edge = [gap](double f) { return f <= 0.0001 || f >= 0.9999 ? gap : gap / 2; };
     const int left = area.x + int(std::lround(area.width * x0)) + edge(x0);
     const int right = area.x + int(std::lround(area.width * x1)) - edge(x1);
@@ -149,12 +149,12 @@ wlr_box fraction(const wlr_box& area, double x0, double y0, double x1, double y1
     return {left, top, std::max(1, right - left), std::max(1, bottom - top)};
 }
 
-bool same_box(const wlr_box& a, const wlr_box& b) {
+bool same_box(const Box& a, const Box& b) {
     return std::abs(a.x - b.x) <= 2 && std::abs(a.y - b.y) <= 2 && std::abs(a.width - b.width) <= 2 &&
            std::abs(a.height - b.height) <= 2;
 }
 
-wlr_box centered(const wlr_box& area, int w, int h) {
+Box centered(const Box& area, int w, int h) {
     w = std::min(w, area.width);
     h = std::min(h, area.height);
     return {area.x + (area.width - w) / 2, area.y + (area.height - h) / 2, w, h};
@@ -177,18 +177,18 @@ std::span<const std::string_view> place_names() {
     return kPlaceNames;
 }
 
-std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, const wlr_box& cur, int gap, bool again) {
+std::optional<Box> named_place(std::string_view name, const Box& area, const Box& cur, int gap, bool again) {
     auto f = [&](double x0, double y0, double x1, double y1) { return fraction(area, x0, y0, x1, y1, gap); };
     // A half pressed again: two thirds, then one third, then back.
     auto cycle = [&](bool left) {
-        const wlr_box half = left ? f(0, 0, 0.5, 1) : f(0.5, 0, 1, 1);
-        const wlr_box two = left ? f(0, 0, 2.0 / 3, 1) : f(1.0 / 3, 0, 1, 1);
-        const wlr_box third = left ? f(0, 0, 1.0 / 3, 1) : f(2.0 / 3, 0, 1, 1);
+        const Box half = left ? f(0, 0, 0.5, 1) : f(0.5, 0, 1, 1);
+        const Box two = left ? f(0, 0, 2.0 / 3, 1) : f(1.0 / 3, 0, 1, 1);
+        const Box third = left ? f(0, 0, 1.0 / 3, 1) : f(2.0 / 3, 0, 1, 1);
         if (!again)
             return half;
         return same_box(cur, half) ? two : same_box(cur, two) ? third : half;
     };
-    const wlr_box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};
+    const Box inner{area.x + gap, area.y + gap, area.width - 2 * gap, area.height - 2 * gap};
     if (name == "left-half") return cycle(true);
     if (name == "right-half") return cycle(false);
     if (name == "top-half") return f(0, 0, 1, 0.5);
@@ -222,11 +222,11 @@ std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, c
     }
     if (name == "almost-maximize")
         return centered(area, int(area.width * 0.9), int(area.height * 0.9));
-    if (name == "maximize-height") return wlr_box{cur.x, inner.y, cur.width, inner.height};
-    if (name == "maximize-width") return wlr_box{inner.x, cur.y, inner.width, cur.height};
+    if (name == "maximize-height") return Box{cur.x, inner.y, cur.width, inner.height};
+    if (name == "maximize-width") return Box{inner.x, cur.y, inner.width, cur.height};
     if (name == "larger" || name == "smaller") {
         const int step = std::max(area.width, area.height) / 20 * (name == "larger" ? 1 : -1);
-        wlr_box b{cur.x - step, cur.y - step, cur.width + 2 * step, cur.height + 2 * step};
+        Box b{cur.x - step, cur.y - step, cur.width + 2 * step, cur.height + 2 * step};
         if (b.width < 200 || b.height < 150)
             return cur;
         return fit_into(b, inner);
@@ -246,7 +246,7 @@ std::optional<wlr_box> named_place(std::string_view name, const wlr_box& area, c
     return std::nullopt;
 }
 
-wlr_box fit_into(wlr_box box, const wlr_box& area) {
+Box fit_into(Box box, const Box& area) {
     box.width = std::clamp(box.width, 1, std::max(1, area.width));
     box.height = std::clamp(box.height, 1, std::max(1, area.height));
     box.x = std::clamp(box.x, area.x, area.x + area.width - box.width);
@@ -257,13 +257,13 @@ wlr_box fit_into(wlr_box box, const wlr_box& area) {
 namespace {
 
 struct Candidate {
-    std::vector<wlr_box> boxes;
+    std::vector<Box> boxes;
     double coverage = -1;  // total scaled window area
 };
 
 // Lay `order` out in `rows` rows of about equal count.
-Candidate try_rows(std::span<const wlr_box> windows, const std::vector<size_t>& order,
-                   const wlr_box& area, int gap, int label, int rows) {
+Candidate try_rows(std::span<const Box> windows, const std::vector<size_t>& order,
+                   const Box& area, int gap, int label, int rows) {
     const size_t n = order.size();
     std::vector<std::vector<size_t>> grid(static_cast<size_t>(rows));
     for (size_t i = 0; i < n; ++i)
@@ -294,10 +294,10 @@ Candidate try_rows(std::span<const wlr_box> windows, const std::vector<size_t>& 
     const double used_h = rows * (h + label) + (rows - 1) * gap;
     double y = area.y + (area.height - used_h) / 2;
     for (const auto& row : grid) {
-        std::vector<wlr_box> scaled;
+        std::vector<Box> scaled;
         double row_w = double(row.size() - 1) * gap;
         for (size_t i : row) {
-            const wlr_box& w = windows[i];
+            const Box& w = windows[i];
             const double s = std::min(1.0, h / std::max(w.height, 1));
             scaled.push_back({0, 0, std::max(1, int(std::lround(w.width * s))),
                               std::max(1, int(std::lround(w.height * s)))});
@@ -305,7 +305,7 @@ Candidate try_rows(std::span<const wlr_box> windows, const std::vector<size_t>& 
         }
         double x = area.x + (area.width - row_w) / 2;
         for (size_t k = 0; k < row.size(); ++k) {
-            wlr_box b = scaled[k];
+            Box b = scaled[k];
             b.x = int(std::lround(x));
             b.y = int(std::lround(y + (h - b.height) / 2));
             c.boxes[row[k]] = b;
@@ -319,7 +319,7 @@ Candidate try_rows(std::span<const wlr_box> windows, const std::vector<size_t>& 
 
 } // namespace
 
-std::vector<wlr_box> overview_layout(std::span<const wlr_box> windows, const wlr_box& area,
+std::vector<Box> overview_layout(std::span<const Box> windows, const Box& area,
                                      int gap, int label) {
     const size_t n = windows.size();
     if (!n)
@@ -346,22 +346,22 @@ std::vector<wlr_box> overview_layout(std::span<const wlr_box> windows, const wlr
     return best.boxes;
 }
 
-wlr_box secret_frame(const wlr_box& area, int percent) {
+Box secret_frame(const Box& area, int percent) {
     percent = std::clamp(percent, 0, 40);
     // The same margin on every side, measured on the shorter one.
     const int m = int(std::lround(std::min(area.width, area.height) * percent / 100.0));
     return {area.x + m, area.y + m, std::max(1, area.width - 2 * m), std::max(1, area.height - 2 * m)};
 }
 
-std::vector<wlr_box> dwindle(size_t count, const wlr_box& area, int gap) {
-    std::vector<wlr_box> out;
-    wlr_box rest = area;
+std::vector<Box> dwindle(size_t count, const Box& area, int gap) {
+    std::vector<Box> out;
+    Box rest = area;
     for (size_t i = 0; i < count; ++i) {
         if (i + 1 == count) {
             out.push_back(rest);
             break;
         }
-        wlr_box a = rest, b = rest;
+        Box a = rest, b = rest;
         if (rest.width >= rest.height) {
             a.width = std::max(1, (rest.width - gap) / 2);
             b.x = rest.x + a.width + gap;
@@ -377,19 +377,19 @@ std::vector<wlr_box> dwindle(size_t count, const wlr_box& area, int gap) {
     return out;
 }
 
-int neighbor(const wlr_box& from, std::span<const wlr_box> others, uint32_t direction) {
+int neighbor(const Box& from, std::span<const Box> others, uint32_t direction) {
     const double fx = from.x + from.width / 2.0, fy = from.y + from.height / 2.0;
     int best = -1;
     double best_cost = 0;
     for (size_t i = 0; i < others.size(); ++i) {
-        const wlr_box& o = others[i];
+        const Box& o = others[i];
         const double dx = o.x + o.width / 2.0 - fx, dy = o.y + o.height / 2.0 - fy;
         double ahead = 0, side = 0;
         switch (direction) {
-        case WLR_EDGE_LEFT: ahead = -dx; side = dy; break;
-        case WLR_EDGE_RIGHT: ahead = dx; side = dy; break;
-        case WLR_EDGE_TOP: ahead = -dy; side = dx; break;
-        case WLR_EDGE_BOTTOM: ahead = dy; side = dx; break;
+        case EDGE_LEFT: ahead = -dx; side = dy; break;
+        case EDGE_RIGHT: ahead = dx; side = dy; break;
+        case EDGE_TOP: ahead = -dy; side = dx; break;
+        case EDGE_BOTTOM: ahead = dy; side = dx; break;
         default: return -1;
         }
         if (ahead <= 0)
@@ -403,14 +403,14 @@ int neighbor(const wlr_box& from, std::span<const wlr_box> others, uint32_t dire
     return best;
 }
 
-std::optional<ClippedPiece> clip_to_frame(const wlr_box& box, const wlr_fbox& src, int buffer_w, int buffer_h,
+std::optional<ClippedPiece> clip_to_frame(const Box& box, const FBox& src, int buffer_w, int buffer_h,
                                           int frame_w, int frame_h) {
     const int x0 = std::max(box.x, 0), y0 = std::max(box.y, 0);
     const int x1 = std::min(box.x + box.width, frame_w), y1 = std::min(box.y + box.height, frame_h);
     if (x1 <= x0 || y1 <= y0 || box.width <= 0 || box.height <= 0)
         return std::nullopt;
-    wlr_fbox from = src;
-    if (wlr_fbox_empty(&from))
+    FBox from = src;
+    if (fbox_empty(&from))
         from = {0, 0, double(buffer_w), double(buffer_h)};
     const double kx = from.width / box.width, ky = from.height / box.height;
     return ClippedPiece{{x0, y0, x1 - x0, y1 - y0},

@@ -25,25 +25,25 @@ struct Walk {
 };
 
 // Float and whole-pixel (rounded out) layout boxes of a node.
-render::FBox fbox_of(const Node* node, const Walk& w);
-wlr_box box_of(const Node* node, const Walk& w);
+FBox fbox_of(const Node* node, const Walk& w);
+Box box_of(const Node* node, const Walk& w);
 
 using BoxIterator = std::function<bool(Node* node, const Walk& w)>;
 // Every enabled leaf node whose box meets `box`, top to bottom; stops when
 // the iterator returns true (and returns true).
-bool nodes_in_box(Node* node, const wlr_box& box, const BoxIterator& fn);
+bool nodes_in_box(Node* node, const Box& box, const BoxIterator& fn);
 // The walk of a node (its placement from the root).
 Walk walk_of(const Node* node);
 
 // Region helpers (from wlr_scene).
 void scale_region(pixman_region32_t* region, float scale, bool round_up);
 int scale_length(int length, int offset, float scale);
-void scale_box(wlr_box* box, float scale);
+void scale_box(Box* box, float scale);
 
 struct RenderData {
     wl_output_transform transform;
     float scale;
-    wlr_box logical;
+    Box logical;
     int trans_width, trans_height;
     SceneOutput* output;
     render::RenderPass* pass;

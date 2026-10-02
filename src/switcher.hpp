@@ -41,7 +41,7 @@ private:
         View* view;
         scene::Tree* tree;
         std::unique_ptr<WindowCopy> copy;
-        wlr_box box;  // layout coordinates
+        Box box;  // layout coordinates
     };
 
     void commit();
@@ -66,7 +66,7 @@ private:
     scene::Rect* selection_ = nullptr;
     scene::Buffer* title_ = nullptr;
     std::vector<std::unique_ptr<Item>> items_;
-    wlr_box panel_box_{};
+    Box panel_box_{};
 };
 
 } // namespace atrium

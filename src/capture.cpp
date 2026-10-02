@@ -19,7 +19,7 @@ namespace atrium {
 namespace {
 
 // Copies `box` of `src` (buffer pixels) into the whole of `dst`.
-bool copy_into(wlr_renderer* renderer, wlr_buffer* src, const wlr_box& box, wlr_buffer* dst) {
+bool copy_into(wlr_renderer* renderer, wlr_buffer* src, const Box& box, wlr_buffer* dst) {
     wlr_texture* t = wlr_texture_from_buffer(renderer, src);
     if (!t)
         return false;
@@ -29,7 +29,7 @@ bool copy_into(wlr_renderer* renderer, wlr_buffer* src, const wlr_box& box, wlr_
     size_t stride = 0;
     if (wlr_buffer_begin_data_ptr_access(dst, WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
         const wlr_texture_read_pixels_options o{
-            .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = box};
+            .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = to_wlr(box)};
         ok = wlr_texture_read_pixels(t, &o);
         wlr_buffer_end_data_ptr_access(dst);
     } else if (wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(renderer, dst, nullptr)) {
@@ -65,15 +65,15 @@ View* view_of(const wl::Capture::Target& t) {
 }
 
 // A part of the screen (layout coordinates) in its buffer's pixels.
-wlr_box buffer_box(const Output& o, const std::optional<wl::Box>& region) {
+Box buffer_box(const Output& o, const std::optional<Box>& region) {
     int w = 0, h = 0;
     o.screen->transformed_resolution(&w, &h);
     if (!region)
         return {0, 0, o.screen->width, o.screen->height};
     const double s = o.screen->scale;
-    wlr_box b{int(std::lround((region->x - o.box.x) * s)), int(std::lround((region->y - o.box.y) * s)),
+    Box b{int(std::lround((region->x - o.box.x) * s)), int(std::lround((region->y - o.box.y) * s)),
               int(std::lround(region->width * s)), int(std::lround(region->height * s))};
-    wlr_box_transform(&b, &b, wlr_output_transform_invert(o.screen->transform), w, h);
+    box_transform(&b, &b, output_transform_invert(o.screen->transform), w, h);
     return b;
 }
 
@@ -89,7 +89,7 @@ void Server::setup_capture() {
         if (Output* o = output_of(t)) {
             if (!o->enabled())
                 return std::nullopt;
-            const wlr_box b = buffer_box(*o, t.region);
+            const Box b = buffer_box(*o, t.region);
             w = b.width;
             h = b.height;
             if (o->screen->render_format)

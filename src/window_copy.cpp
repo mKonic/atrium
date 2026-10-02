@@ -98,7 +98,7 @@ void WindowCopy::place(int width, int height) {
         }
         p.node->set_enabled(true);
         // A rotated buffer's crop isn't worked out: it shows whole.
-        const wlr_box b = plain ? c->box : wlr_box{p.x, p.y, p.w, p.h};
+        const Box b = plain ? c->box : Box{p.x, p.y, p.w, p.h};
         if (plain)
             p.node->set_source_box(&c->src);
         p.node->set_position(round_i(b.x * sx), round_i(b.y * sy));

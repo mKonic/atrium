@@ -49,7 +49,7 @@ int round_i(double v) {
     return int(std::lround(v));
 }
 
-wlr_box lerp(const wlr_box& a, const wlr_box& b, double t) {
+Box lerp(const Box& a, const Box& b, double t) {
     return {round_i(a.x + (b.x - a.x) * t), round_i(a.y + (b.y - a.y) * t),
             std::max(1, round_i(a.width + (b.width - a.width) * t)),
             std::max(1, round_i(a.height + (b.height - a.height) * t))};
@@ -99,7 +99,7 @@ Overview::Thumb* Overview::thumb_for(View* view) {
 Overview::Thumb* Overview::thumb_at(double lx, double ly) {
     // Topmost first: later thumbs sit above earlier ones.
     for (auto it = thumbs_.rbegin(); it != thumbs_.rend(); ++it) {
-        const wlr_box& b = (*it)->cur;
+        const Box& b = (*it)->cur;
         if (lx >= b.x && lx < b.x + b.width && ly >= b.y && ly < b.y + b.height)
             return it->get();
     }
@@ -296,7 +296,7 @@ void Overview::snapshot(Thumb& t) {
     t.copy->refresh();
 }
 
-void Overview::place(Thumb& t, const wlr_box& box) {
+void Overview::place(Thumb& t, const Box& box) {
     t.cur = box;
     const View& v = *t.view;
     const double sx = box.width / double(std::max(1, v.geom.width));
@@ -333,14 +333,14 @@ void Overview::place(Thumb& t, const wlr_box& box) {
 void Overview::relayout(bool animate) {
     for (auto& s : screens_) {
         std::vector<Thumb*> mine;
-        std::vector<wlr_box> sizes;
+        std::vector<Box> sizes;
         for (auto& t : thumbs_)
             if (t->screen == s.get()) {
                 mine.push_back(t.get());
                 sizes.push_back(t->view->geom);
             }
-        const wlr_box& u = s->output->usable;
-        const wlr_box area{u.x + kPadSide, u.y + kPadTop, u.width - 2 * kPadSide, u.height - kPadTop - kPadBottom};
+        const Box& u = s->output->usable;
+        const Box area{u.x + kPadSide, u.y + kPadTop, u.width - 2 * kPadSide, u.height - kPadTop - kPadBottom};
         const auto boxes = geometry::overview_layout(sizes, area, kGap, kLabelGap + kLabelHeight);
         for (size_t i = 0; i < mine.size(); ++i) {
             mine[i]->from = animate ? mine[i]->cur : boxes[i];
@@ -447,7 +447,7 @@ void Overview::motion(double lx, double ly) {
     }
     if (drag_) {
         // Shrinks on the way up to the strip so the tiles stay in sight.
-        const wlr_box& full = drag_->to;
+        const Box& full = drag_->to;
         const Output* o = drag_->screen->output;
         const double strip_bottom = o->usable.y + kStripTop + kTileHeight;
         const double f = std::clamp((ly - strip_bottom) / 280.0, 0.0, 1.0);
@@ -539,7 +539,7 @@ void Overview::navigate(int dx, int dy) {
         set_highlight(thumbs_.back().get());
         return;
     }
-    auto center = [](const wlr_box& b) { return std::pair{b.x + b.width / 2.0, b.y + b.height / 2.0}; };
+    auto center = [](const Box& b) { return std::pair{b.x + b.width / 2.0, b.y + b.height / 2.0}; };
     const auto [cx, cy] = center(highlight_->to);
     Thumb* best = nullptr;
     double best_score = std::numeric_limits<double>::max();
@@ -690,7 +690,7 @@ void Overview::build_strip(Screen& sc) {
 
 Overview::Tile* Overview::tile_at(double lx, double ly) {
     for (auto& t : tiles_) {
-        const wlr_box& b = t->box;
+        const Box& b = t->box;
         if (lx >= b.x && lx < b.x + b.width && ly >= b.y && ly < b.y + b.height)
             return t.get();
     }

@@ -317,7 +317,7 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
     return std::nullopt;
 }
 
-json box_json(const wlr_box& b) {
+json box_json(const Box& b) {
     return {{"x", b.x}, {"y", b.y}, {"width", b.width}, {"height", b.height}};
 }
 
@@ -629,7 +629,7 @@ json Ipc::handle(Client& c, const json& req) {
         for (Output* o : server_.outputs)
             for (int i = 0; i < 4; ++i)
                 for (LayerSurface* l : o->layers[i]) {
-                    const wlr_box g = {l->tree ? l->tree->x : 0, l->tree ? l->tree->y : 0,
+                    const Box g = {l->tree ? l->tree->x : 0, l->tree ? l->tree->y : 0,
                                        int(l->ls->current().actual_width), int(l->ls->current().actual_height)};
                     list.push_back({{"namespace", l->ls->name_space()},
                                     {"layer", kNames[i]}, {"output", o->screen->name},

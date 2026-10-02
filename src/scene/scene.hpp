@@ -58,7 +58,7 @@ struct Radii {
 
 // A rounded area (node-local) left out of what a node draws.
 struct CutOut {
-    wlr_box area{};
+    Box area{};
     Radii corners;
     bool empty() const { return area.width <= 0 || area.height <= 0; }
     bool operator==(const CutOut& o) const {
@@ -143,9 +143,9 @@ public:
     // Drawn warped: `fn` takes a point of `frame` (a layout box; u, v in
     // 0..1) to where it lands. Its buffers are drawn as meshes; the rest of
     // it (shadows, outlines, blur) sits the warp out. Clear with an empty fn.
-    void set_warp(std::function<std::pair<double, double>(double, double)> fn, wlr_fbox frame);
+    void set_warp(std::function<std::pair<double, double>(double, double)> fn, FBox frame);
     const std::function<std::pair<double, double>(double, double)>& warp() const { return warp_; }
-    const wlr_fbox& warp_frame() const { return warp_frame_; }
+    const FBox& warp_frame() const { return warp_frame_; }
 
 protected:
     explicit Tree(Tree* parent, Type type = Type::Tree);
@@ -155,7 +155,7 @@ private:
     float scale_ = 1;
     float opacity_ = 1;
     std::function<std::pair<double, double>(double, double)> warp_;
-    wlr_fbox warp_frame_{};
+    FBox warp_frame_{};
     friend class Node;
 };
 
@@ -323,7 +323,7 @@ public:
 
     void set_buffer(wlr_buffer* buffer, const BufferOptions& options = BufferOptions());
     void set_opaque_region(const pixman_region32_t* region);
-    void set_source_box(const wlr_fbox* box);
+    void set_source_box(const FBox* box);
     void set_dest_size(int width, int height);
     void set_transform(wl_output_transform transform);
     void set_opacity(float opacity);
@@ -352,7 +352,7 @@ public:
     SceneOutput* primary_output = nullptr;
     float opacity = 1;
     wlr_scale_filter_mode filter_mode = WLR_SCALE_FILTER_BILINEAR;
-    wlr_fbox src_box{};
+    FBox src_box{};
     int dst_width = 0, dst_height = 0;
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
     pixman_region32_t opaque_region;
@@ -552,11 +552,11 @@ class SurfaceNode {
 public:
     static SurfaceNode* create(Tree* parent, wl::Surface* surface);
     void send_frame_done(const timespec* when);
-    void set_clip(const wlr_box* clip);
+    void set_clip(const Box* clip);
 
     Buffer* buffer;
     wl::Surface* surface;
-    wlr_box clip{};
+    Box clip{};
 
 private:
     SurfaceNode(Buffer* buffer, wl::Surface* surface);
@@ -577,7 +577,7 @@ private:
 // A surface and its sub-surfaces, each a tree of its own.
 Tree* subsurface_tree_create(Tree* parent, wl::Surface* surface);
 // Clips a subsurface tree (found under `node`) to a box, surface-local.
-void subsurface_tree_set_clip(Node* node, const wlr_box* clip);
+void subsurface_tree_set_clip(Node* node, const Box* clip);
 // An xdg surface: its subsurface tree, offset by its window geometry, and
 // placed at a popup's position.
 Tree* xdg_surface_create(Tree* parent, wl::ShellSurface* xdg_surface);
@@ -591,7 +591,7 @@ LayerSurfaceNode* layer_surface_v1_create(Tree* parent, wl::LayerSurface* layer_
 // Places it by its anchors and margins within `full_area` (or `usable_area`
 // unless it asks for all of it), and takes its exclusive zone out of
 // `usable_area`.
-void layer_surface_v1_configure(LayerSurfaceNode* node, const wlr_box* full_area, wlr_box* usable_area);
+void layer_surface_v1_configure(LayerSurfaceNode* node, const Box* full_area, Box* usable_area);
 
 // A subtree drawn on a private output of its own, sized to what is in it:
 // for capturing one window. Goes with the node.
