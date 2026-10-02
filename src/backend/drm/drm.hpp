@@ -63,6 +63,8 @@ private:
     bool commit_connector(Connector& c, const OutputState& state, bool test_only);
     bool commit_states(std::vector<ConnState>& states, bool modeset, bool nonblock, bool test_only, bool async);
     bool prepare(ConnState& st, bool modeset);
+    bool legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_only, bool async, PageFlip* flip);
+    uint32_t current_crtc(uint32_t connector, const drmModeConnector* info) const;
     void handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned crtc_id, PageFlip* flip);
     void session_active(bool active);
     void restore(const std::vector<Connector*>& conns);
@@ -76,6 +78,7 @@ private:
 
     uint64_t cursor_width_ = 64, cursor_height_ = 64;
     bool addfb2_modifiers_ = false;
+    bool atomic_ = true;
     bool tearing_ = false;
     bool timeline_ = false;
     bool started_ = false;

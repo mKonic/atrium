@@ -406,15 +406,21 @@ bool Drm::check_features() {
         wlr_log(WLR_ERROR, "drm: %s lacks monotonic timestamps", name_.c_str());
         return false;
     }
-    if (drmSetClientCap(fd_, DRM_CLIENT_CAP_ATOMIC, 1)) {
-        wlr_log(WLR_ERROR, "drm: %s has no atomic modesetting (ATRIUM_WLR_DRM=1 drives it through wlroots)",
-                name_.c_str());
-        return false;
+    const char* no_atomic = std::getenv("ATRIUM_DRM_NO_ATOMIC");
+    if (!no_atomic)
+        no_atomic = std::getenv("WLR_DRM_NO_ATOMIC");
+    atomic_ = !(no_atomic && std::string_view(no_atomic) == "1") && drmSetClientCap(fd_, DRM_CLIENT_CAP_ATOMIC, 1) == 0;
+    if (!atomic_)
+        wlr_log(WLR_INFO, "drm: %s: legacy modesetting (no atomic)", name_.c_str());
+    if (atomic_) {
+        // Virtual GPUs place the pointer by its hotspot (legacy gives it per cursor).
+        drmSetClientCap(fd_, DRM_CLIENT_CAP_CURSOR_PLANE_HOTSPOT, 1);
+        tearing_ = drmGetCap(fd_, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap) == 0 && cap == 1;
+        // In-fences need atomic.
+        timeline_ = drmGetCap(fd_, DRM_CAP_SYNCOBJ_TIMELINE, &cap) == 0 && cap == 1;
+    } else {
+        tearing_ = drmGetCap(fd_, DRM_CAP_ASYNC_PAGE_FLIP, &cap) == 0 && cap == 1;
     }
-    // Virtual GPUs place the pointer by its hotspot.
-    drmSetClientCap(fd_, DRM_CLIENT_CAP_CURSOR_PLANE_HOTSPOT, 1);
-    tearing_ = drmGetCap(fd_, DRM_CAP_ATOMIC_ASYNC_PAGE_FLIP, &cap) == 0 && cap == 1;
-    timeline_ = drmGetCap(fd_, DRM_CAP_SYNCOBJ_TIMELINE, &cap) == 0 && cap == 1;
     addfb2_modifiers_ = drmGetCap(fd_, DRM_CAP_ADDFB2_MODIFIERS, &cap) == 0 && cap == 1;
     return true;
 }
@@ -534,11 +540,10 @@ void Drm::scan_connectors(uint32_t only) {
             made->name = std::string(type ? type : "Unknown") + "-" + std::to_string(info->connector_type_id);
             made->possible_crtcs = drmModeConnectorGetPossibleCrtcs(fd_, info);
             // Which CRTCs a CRTC's index stands for, ours being a subset.
-            uint64_t current = 0;
-            if (get_prop(fd_, cid, made->props.crtc_id, &current) && current)
-                for (auto& cr : crtcs_)
-                    if (cr->id == current)
-                        made->crtc = cr.get();
+            const uint32_t current = current_crtc(cid, info);
+            for (auto& cr : crtcs_)
+                if (current && cr->id == current)
+                    made->crtc = cr.get();
             c = made.get();
             connectors_.push_back(std::move(made));
             wlr_log(WLR_INFO, "drm: found connector %s", c->name.c_str());
@@ -593,7 +598,15 @@ bool Drm::connect(Connector& c, const drmModeConnector& info) {
     // What the CRTC shows now (the boot splash's mode): kept, no modeset.
     drmModeModeInfo current{};
     bool has_current = false;
-    if (c.crtc) {
+    if (c.crtc && !atomic_) {
+        if (drmModeCrtc* cr = drmModeGetCrtc(fd_, c.crtc->id)) {
+            if (cr->mode_valid) {
+                current = cr->mode;
+                has_current = true;
+            }
+            drmModeFreeCrtc(cr);
+        }
+    } else if (c.crtc) {
         const std::vector<uint8_t> blob = get_prop_blob(fd_, c.crtc->id, c.crtc->props.mode_id);
         if (blob.size() == sizeof(drmModeModeInfo)) {
             std::memcpy(&current, blob.data(), sizeof(current));
@@ -844,7 +857,7 @@ bool Drm::commit_connector(Connector& c, const OutputState& state, bool test_onl
     // A flip without a modeset waits for the previous one.
     const bool nonblock = !modeset && (state.committed & OutputState::Buffer);
     if (!test_only && nonblock && c.pending_flip) {
-        wlr_log(WLR_ERROR, "drm: %s: a page flip is still pending", c.name.c_str());
+        wlr_log(WLR_DEBUG, "drm: %s: a page flip is still pending", c.name.c_str());
         return false;
     }
     std::vector<ConnState> states(1);
@@ -955,7 +968,10 @@ bool Drm::prepare(ConnState& st, bool modeset) {
             return false;
     }
     st.gamma_lut = crtc->gamma_lut;
-    if (s.committed & OutputState::ColorTransform) {
+    if ((s.committed & OutputState::ColorTransform) && !atomic_) {
+        if (s.color_transform && crtc->legacy_gamma_size < 2)
+            return false;  // set at commit: legacy has no blobs for it
+    } else if (s.committed & OutputState::ColorTransform) {
         st.gamma_lut = 0;
         size_t n = 0;
         uint64_t size = 0;
@@ -1001,6 +1017,8 @@ bool Drm::prepare(ConnState& st, bool modeset) {
     st.hdr_metadata = c.hdr_metadata;
     if (s.committed & OutputState::ImageDescriptionField) {
         const auto& d = s.image_description;
+        if (d && !atomic_)
+            return false;  // HDR signalling is atomic-only here
         st.colorspace = d && d->primaries == WLR_COLOR_NAMED_PRIMARIES_BT2020 ? 9 : 0;  // BT2020_RGB
         st.hdr_metadata = 0;
         if (d) {
@@ -1038,7 +1056,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
         }
     }
 
-    drmModeAtomicReq* req = ok ? drmModeAtomicAlloc() : nullptr;
+    drmModeAtomicReq* req = ok && atomic_ ? drmModeAtomicAlloc() : nullptr;
     auto add = [&](uint32_t obj, uint32_t prop, uint64_t value) {
         if (ok && prop && drmModeAtomicAddProperty(req, obj, prop, value) < 0)
             ok = false;
@@ -1060,7 +1078,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
         add(p.id, p.props.crtc_w, uint64_t(dst.width));
         add(p.id, p.props.crtc_h, uint64_t(dst.height));
     };
-    if (ok)
+    if (ok && atomic_)
         for (ConnState& st : states) {
             Connector& c = *st.conn;
             Crtc& crtc = *c.crtc;
@@ -1131,12 +1149,16 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
         flags |= DRM_MODE_ATOMIC_ALLOW_MODESET;
     if (nonblock)
         flags |= DRM_MODE_ATOMIC_NONBLOCK;
-    if (ok && drmModeAtomicCommit(fd_, req, flags, flip) != 0) {
+    if (ok && !atomic_) {
+        ok = legacy_commit(states, modeset, test_only, async, flip);
+    } else if (ok && drmModeAtomicCommit(fd_, req, flags, flip) != 0) {
         wlr_log(test_only ? WLR_DEBUG : WLR_ERROR, "drm: atomic commit (%s%s) failed: %s",
                 states.size() == 1 ? states[0].conn->name.c_str() : "several screens",
                 modeset ? ", modeset" : "", std::strerror(errno));
         ok = false;
     }
+    if (!ok && flip && atomic_)
+        flip->conns.clear();  // nothing will answer
     if (req)
         drmModeAtomicFree(req);
 
@@ -1215,7 +1237,8 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
         st.finish();
     }
     if (flip) {
-        if (ok)
+        // (A legacy commit that failed part way still has flips in flight.)
+        if (!flip->conns.empty())
             page_flips_.push_back(flip);
         else
             delete flip;
@@ -1274,6 +1297,99 @@ void Drm::handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned c
         o->send_frame();
 }
 
+// The CRTC driving a connector now (the boot splash's, another session's).
+uint32_t Drm::current_crtc(uint32_t connector, const drmModeConnector* info) const {
+    if (atomic_) {
+        const auto it = std::ranges::find_if(connectors_, [&](const auto& c) { return c->id == connector; });
+        ConnectorProps props;
+        if (it != connectors_.end())
+            props = (*it)->props;
+        else
+            get_props(fd_, connector, &props);
+        uint64_t v = 0;
+        return get_prop(fd_, connector, props.crtc_id, &v) ? uint32_t(v) : 0;
+    }
+    uint32_t crtc = 0;
+    if (info && info->encoder_id)
+        if (drmModeEncoder* e = drmModeGetEncoder(fd_, info->encoder_id)) {
+            crtc = e->crtc_id;
+            drmModeFreeEncoder(e);
+        }
+    return crtc;
+}
+
+// Without atomic: one call per thing, screen by screen (wlroots' legacy.c).
+// Nothing can be tested ahead, so a test passes what prepare() accepted.
+bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_only, bool async, PageFlip* flip) {
+    if (test_only)
+        return true;
+    std::vector<std::pair<Connector*, uint32_t>> sent;
+    bool ok = true;
+    for (ConnState& st : states) {
+        Connector& c = *st.conn;
+        Crtc& crtc = *c.crtc;
+        if (modeset) {
+            uint32_t conn_id = c.id;
+            const int r = st.active ? drmModeSetCrtc(fd_, crtc.id, st.primary_fb, 0, 0, &conn_id, 1, &st.mode)
+                                    : drmModeSetCrtc(fd_, crtc.id, 0, 0, 0, nullptr, 0, nullptr);
+            if (r != 0) {
+                wlr_log(WLR_ERROR, "drm: %s: modeset failed: %s", c.name.c_str(), std::strerror(errno));
+                ok = false;
+                break;
+            }
+            if (st.active && c.props.link_status)
+                drmModeConnectorSetProperty(fd_, c.id, c.props.link_status, DRM_MODE_LINK_STATUS_GOOD);
+        }
+        if (!st.active)
+            continue;
+        if (crtc.props.vrr_enabled)
+            drmModeObjectSetProperty(fd_, crtc.id, DRM_MODE_OBJECT_CRTC, crtc.props.vrr_enabled, st.vrr);
+        if ((st.base->committed & OutputState::ColorTransform) && crtc.legacy_gamma_size > 1) {
+            const size_t n = size_t(crtc.legacy_gamma_size);
+            std::vector<uint16_t> r(n), g(n), b(n);
+            for (size_t i = 0; i < n; ++i) {
+                const float x = float(i) / float(n - 1);
+                float out[3] = {x, x, x};
+                if (st.base->color_transform) {
+                    const float in[3] = {x, x, x};
+                    wlr_color_transform_eval(st.base->color_transform, out, in);
+                }
+                r[i] = uint16_t(std::lround(std::clamp(out[0], 0.0f, 1.0f) * 65535));
+                g[i] = uint16_t(std::lround(std::clamp(out[1], 0.0f, 1.0f) * 65535));
+                b[i] = uint16_t(std::lround(std::clamp(out[2], 0.0f, 1.0f) * 65535));
+            }
+            if (drmModeCrtcSetGamma(fd_, crtc.id, uint32_t(n), r.data(), g.data(), b.data()) != 0)
+                wlr_log(WLR_ERROR, "drm: %s: setting gamma failed: %s", c.name.c_str(), std::strerror(errno));
+        }
+        if (crtc.cursor) {
+            wlr_dmabuf_attributes a;
+            uint32_t handle = 0;
+            if (st.cursor && c.output->cursor_visible() && wlr_buffer_get_dmabuf(st.cursor, &a) &&
+                drmPrimeFDToHandle(fd_, a.fd[0], &handle) == 0) {
+                if (drmModeSetCursor2(fd_, crtc.id, handle, uint32_t(a.width), uint32_t(a.height), c.hotspot_x,
+                                      c.hotspot_y) != 0)
+                    wlr_log(WLR_DEBUG, "drm: %s: setting the cursor failed", c.name.c_str());
+                drmModeMoveCursor(fd_, crtc.id, c.cursor_x, c.cursor_y);  // its top left
+                drmCloseBufferHandle(fd_, handle);
+            } else {
+                drmModeSetCursor(fd_, crtc.id, 0, 0, 0);
+            }
+        }
+        if (flip) {
+            const uint32_t f = DRM_MODE_PAGE_FLIP_EVENT | (async ? DRM_MODE_PAGE_FLIP_ASYNC : 0);
+            if (drmModePageFlip(fd_, crtc.id, st.primary_fb, f, flip) != 0) {
+                wlr_log(WLR_ERROR, "drm: %s: page flip failed: %s", c.name.c_str(), std::strerror(errno));
+                ok = false;
+                break;
+            }
+            sent.emplace_back(&c, crtc.id);
+        }
+    }
+    if (flip)
+        flip->conns = std::move(sent);  // only these will answer
+    return ok;
+}
+
 void Drm::session_active(bool active) {
     wlr_log(WLR_INFO, "drm: %s %s", name_.c_str(), active ? "resumed" : "paused");
     // Paused: the screens stay as they are (flips in flight still complete,
@@ -1297,7 +1413,7 @@ void Drm::session_active(bool active) {
 // CRTCs, so ours are set up again in one modeset, each with its last frame.
 void Drm::restore(const std::vector<Connector*>& conns) {
     // Connectors we don't drive let go of their CRTCs (else ours can't take them).
-    if (drmModeAtomicReq* req = drmModeAtomicAlloc()) {
+    if (drmModeAtomicReq* req = atomic_ ? drmModeAtomicAlloc() : nullptr) {
         int n = 0;
         for (auto& c : connectors_) {
             if (std::ranges::find(conns, c.get()) != conns.end())
