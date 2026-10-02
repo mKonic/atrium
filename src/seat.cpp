@@ -137,6 +137,26 @@ Seat::Seat(Server& srv) : server(srv) {
     }));
 
     new_input_ = server.backend->events.new_input.connect([this](wlr_input_device* d) { new_input(d); });
+    // Nested: the host's pointer over one of our windows, and its keyboard.
+    // Its keys go through atrium's own state; the host's modifiers (and its
+    // layout in them) are not ours.
+    auto& ev = server.backend->events;
+    host_input_.push_back(ev.host_motion.connect([this](backend::Output* on, uint32_t time, double fx, double fy) {
+        auto* o = static_cast<Output*>(on->data);
+        if (!o || !o->enabled())
+            return;
+        motion_absolute(time, o->box.x + fx * o->box.width, o->box.y + fy * o->box.height);
+    }));
+    host_input_.push_back(ev.host_button.connect([this](uint32_t time, uint32_t b, bool pressed) {
+        button(ButtonEvent{time, b, pressed});
+    }));
+    host_input_.push_back(ev.host_axis.connect([this](const backend::Backend::HostAxis& a) {
+        axis(AxisEvent{a.time, a.orientation, a.delta, a.value120, a.source, a.inverted});
+    }));
+    host_input_.push_back(ev.host_frame.connect([this] { server.wl->seat->pointer_frame(); }));
+    host_input_.push_back(ev.host_key.connect([this](uint32_t time, uint32_t key, bool pressed) {
+        keyboards_->keys.key(time, key, pressed);
+    }));
     c.push_back(server.wl->virtual_inputs->new_keyboard.connect(
         [this](wl::VirtualInputs::Keyboard* vk) { new_virtual_keyboard(vk); }));
     c.push_back(server.wl->virtual_inputs->new_pointer.connect(
@@ -318,6 +338,7 @@ void Seat::start_drag(wl::Drag* drag) {
 Seat::~Seat() {
     // Off every signal before the objects carrying them go away.
     new_input_.disconnect();
+    host_input_.clear();
     // Its image may be one of our themes' (gone below).
     cursor->unset_image();
     connections_.clear();

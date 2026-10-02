@@ -343,7 +343,7 @@ private:
     std::unique_ptr<backend::Allocator> allocator_;
     std::unique_ptr<OutputLayout> output_layout_;
     backend::Headless* headless_ = nullptr;  // made on the first create_output() without a nested backend
-    wl::Connection new_output_conn_, layout_change_conn_;
+    wl::Connection new_output_conn_, layout_change_conn_, backend_gone_;
     void seed_registry(const std::filesystem::path& dir);
 
     pid_t startup_pid_ = -1;

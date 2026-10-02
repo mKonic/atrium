@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "backend/wayland.hpp"
 #include "backend/wlr.hpp"
 #include "capture_state.hpp"
 #include "stacking.hpp"
@@ -219,6 +220,20 @@ void Server::setup() {
         for (long i = 0; i < count; ++i)
             headless_->add_output(1280, 720);
         backend->add(std::move(h));
+    } else if (const char* b = getenv("WLR_BACKENDS");
+               getenv("WAYLAND_DISPLAY") && (!b || std::string_view(b) == "wayland")) {
+        // Nested in a Wayland session: a window there per screen.
+        auto w = backend::Wayland::create(loop);
+        if (!w)
+            die("couldn't connect to the Wayland session to nest in");
+        backend->add(std::move(w));
+        // The host session ended: nothing more to show anything on.
+        backend_gone_ = backend->events.gone.connect([this] {
+            wlr_log(WLR_ERROR, "the backend went away (the host session ended?); quitting");
+            if (seat)
+                seat->backend_gone();
+            wl_display_terminate(display);
+        });
     } else {
         wlroots = wlr_backend_autocreate(loop, &session);
         if (!wlroots)
@@ -676,6 +691,7 @@ void Server::teardown() {
     // The backend by hand before the display: its outputs go (and tell the
     // protocols so), then the globals, before the display.
     backend_destroy_.disconnect();
+    backend_gone_.disconnect();
     new_output_conn_.disconnect();
     backend = nullptr;
     headless_ = nullptr;

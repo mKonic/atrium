@@ -543,6 +543,15 @@ void Multi::add(std::unique_ptr<Backend> b) {
     Backend* raw = b.get();
     connections_.push_back(raw->events.new_output.connect([this](Output* o) { events.new_output.emit(o); }));
     connections_.push_back(raw->events.new_input.connect([this](wlr_input_device* d) { events.new_input.emit(d); }));
+    connections_.push_back(raw->events.host_motion.connect(
+        [this](Output* o, uint32_t t, double fx, double fy) { events.host_motion.emit(o, t, fx, fy); }));
+    connections_.push_back(raw->events.host_button.connect(
+        [this](uint32_t t, uint32_t b, bool p) { events.host_button.emit(t, b, p); }));
+    connections_.push_back(raw->events.host_axis.connect([this](const HostAxis& a) { events.host_axis.emit(a); }));
+    connections_.push_back(raw->events.host_frame.connect([this] { events.host_frame.emit(); }));
+    connections_.push_back(
+        raw->events.host_key.connect([this](uint32_t t, uint32_t k, bool p) { events.host_key.emit(t, k, p); }));
+    connections_.push_back(raw->events.gone.connect([this] { events.gone.emit(); }));
     backends_.push_back(std::move(b));
     if (started_)
         raw->start();

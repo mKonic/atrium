@@ -4,6 +4,7 @@ atrium_sources = files(
   'backend/allocator.cpp',
   'backend/headless.cpp',
   'backend/output.cpp',
+  'backend/wayland.cpp',
   'backend/wlr.cpp',
   'capture.cpp',
   'cursor.cpp',

@@ -66,7 +66,10 @@ public:
     Seat& operator=(const Seat&) = delete;
 
     // The backend is being destroyed under us: stop listening to it.
-    void backend_gone() { new_input_.disconnect(); }
+    void backend_gone() {
+        new_input_.disconnect();
+        host_input_.clear();
+    }
 
     // The physical keyboards, as one (what an input method grabs).
     KeyboardGroup* physical_keyboard() const { return keyboards_.get(); }
@@ -274,6 +277,7 @@ private:
     std::list<std::vector<wl::Connection>> virtual_pointers_;  // each one's connections
 
     wl::Connection new_input_;
+    std::vector<wl::Connection> host_input_;  // a nested host's pointer and keyboard
     std::vector<wl::Connection> connections_;
 };
 

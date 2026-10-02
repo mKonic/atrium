@@ -37,9 +37,27 @@ public:
 
     wl_event_loop* loop() const { return loop_; }
 
+    // A nested host's pointer and keyboard, over its windows.
+    struct HostAxis {
+        uint32_t time;
+        uint32_t orientation;  // wl_pointer.axis
+        double delta;
+        int32_t value120;  // 0: not a wheel step
+        uint32_t source;   // wl_pointer.axis_source
+        bool inverted;     // natural scrolling
+    };
+
     struct {
         wl::Signal<Output*> new_output;
-        wl::Signal<wlr_input_device*> new_input;  // a nested host's keyboard and pointer
+        wl::Signal<wlr_input_device*> new_input;  // wlroots' input devices (WLR_BACKENDS=libinput)
+        // The pointer over `output` at a fraction (0..1) of it.
+        wl::Signal<Output*, uint32_t /*time*/, double /*fx*/, double /*fy*/> host_motion;
+        wl::Signal<uint32_t /*time*/, uint32_t /*button*/, bool /*pressed*/> host_button;
+        wl::Signal<const HostAxis&> host_axis;
+        wl::Signal<> host_frame;
+        wl::Signal<uint32_t /*time*/, uint32_t /*key*/, bool /*pressed*/> host_key;
+        // The host session ended: nothing more will come.
+        wl::Signal<> gone;
         wl::Signal<> destroy;
     } events;
 

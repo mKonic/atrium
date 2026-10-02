@@ -118,3 +118,19 @@ foreach xml : wl_protocol_xmls
     command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
   )
 endforeach
+
+# Client headers for the nested backend (src/backend/wayland.cpp): it is a
+# client of the host compositor. The interface tables are the ones above.
+foreach xml : [
+  wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
+  wl_protocol_dir / 'unstable/xdg-decoration/xdg-decoration-unstable-v1.xml',
+  wl_protocol_dir / 'stable/linux-dmabuf/linux-dmabuf-v1.xml',
+  wl_protocol_dir / 'stable/presentation-time/presentation-time.xml',
+]
+  protocol_headers += custom_target(
+    xml.underscorify() + '_client_h',
+    input: xml,
+    output: '@BASENAME@-client-protocol.h',
+    command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
+  )
+endforeach
