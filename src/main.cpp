@@ -1,4 +1,9 @@
 #include "server.hpp"
+#include "util/log.hpp"
+
+extern "C" {
+#include <wlr/util/log.h>  // until wlroots goes (PLAN 88)
+}
 #include "settings.hpp"
 #include "version.hpp"
 
@@ -77,11 +82,17 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    wlr_log_init(debug ? WLR_DEBUG : WLR_INFO, nullptr);
-    wlr_log(WLR_INFO, "atrium %s (build %d)", ATRIUM_VERSION, ATRIUM_BUILD);
+    atrium::log_init(debug ? Log::Debug : Log::Info);
+    // What wlroots still says (its fallback DRM backend, X11 nesting), into ours.
+    wlr_log_init(debug ? WLR_DEBUG : WLR_INFO, [](wlr_log_importance imp, const char* fmt, va_list args) {
+        char line[1024];
+        std::vsnprintf(line, sizeof line, fmt, args);
+        atrium::log_write(imp == WLR_ERROR ? Log::Error : imp == WLR_INFO ? Log::Info : Log::Debug, nullptr, 0, "%s", line);
+    });
+    alog(Log::Info, "atrium %s (build %d)", ATRIUM_VERSION, ATRIUM_BUILD);
 
     if (!std::getenv("XDG_RUNTIME_DIR")) {
-        wlr_log(WLR_ERROR, "XDG_RUNTIME_DIR must be set");
+        alog(Log::Error, "XDG_RUNTIME_DIR must be set");
         return 1;
     }
 

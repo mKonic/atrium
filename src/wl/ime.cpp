@@ -7,6 +7,7 @@
 #include "virtual-keyboard-unstable-v1-server.hpp"
 #include "wlr-virtual-pointer-unstable-v1-server.hpp"
 
+#include <cstring>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>

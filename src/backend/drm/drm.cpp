@@ -348,7 +348,7 @@ std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const st
         return nullptr;
     d->fd_ = d->device_->fd;
     if (!drmIsKMS(d->fd_)) {
-        wlr_log(WLR_INFO, "drm: %s has no display outputs", path.c_str());
+        alog(Log::Info, "drm: %s has no display outputs", path.c_str());
         return nullptr;
     }
     drmVersion* v = drmGetVersion(d->fd_);
@@ -370,7 +370,7 @@ std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const st
                 flip->drm->handle_page_flip(seq, sec, usec, crtc, flip);
             };
             if (drmHandleEvent(fd, &ev) != 0)
-                wlr_log(WLR_ERROR, "drm: drmHandleEvent failed");
+                alog(Log::Error, "drm: drmHandleEvent failed");
             (void)data;
             return 1;
         },
@@ -388,7 +388,7 @@ std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const st
         if (c.type == Session::Device::Change::Type::Lease)
             raw->check_leases();
     }));
-    wlr_log(WLR_INFO, "drm: driving %s", d->name_.c_str());
+    alog(Log::Info, "drm: driving %s", d->name_.c_str());
     return d;
 }
 
@@ -435,15 +435,15 @@ bool Drm::check_features() {
         cursor_height_ = 64;
     uint64_t cap = 0;
     if (drmGetCap(fd_, DRM_CAP_PRIME, &cap) || !(cap & DRM_PRIME_CAP_IMPORT)) {
-        wlr_log(WLR_ERROR, "drm: %s can't import buffers (PRIME)", name_.c_str());
+        alog(Log::Error, "drm: %s can't import buffers (PRIME)", name_.c_str());
         return false;
     }
     if (drmSetClientCap(fd_, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
-        wlr_log(WLR_ERROR, "drm: %s lacks universal planes", name_.c_str());
+        alog(Log::Error, "drm: %s lacks universal planes", name_.c_str());
         return false;
     }
     if (drmGetCap(fd_, DRM_CAP_TIMESTAMP_MONOTONIC, &cap) || !cap) {
-        wlr_log(WLR_ERROR, "drm: %s lacks monotonic timestamps", name_.c_str());
+        alog(Log::Error, "drm: %s lacks monotonic timestamps", name_.c_str());
         return false;
     }
     const char* no_atomic = std::getenv("ATRIUM_DRM_NO_ATOMIC");
@@ -451,7 +451,7 @@ bool Drm::check_features() {
         no_atomic = std::getenv("WLR_DRM_NO_ATOMIC");
     atomic_ = !(no_atomic && std::string_view(no_atomic) == "1") && drmSetClientCap(fd_, DRM_CLIENT_CAP_ATOMIC, 1) == 0;
     if (!atomic_)
-        wlr_log(WLR_INFO, "drm: %s: legacy modesetting (no atomic)", name_.c_str());
+        alog(Log::Info, "drm: %s: legacy modesetting (no atomic)", name_.c_str());
     if (atomic_) {
         // Virtual GPUs place the pointer by its hotspot (legacy gives it per cursor).
         drmSetClientCap(fd_, DRM_CLIENT_CAP_CURSOR_PLANE_HOTSPOT, 1);
@@ -539,7 +539,7 @@ bool Drm::init_resources() {
     std::erase_if(crtcs_, [](const auto& c) { return !c->primary; });
     for (size_t i = 0; i < crtcs_.size(); ++i)
         crtcs_[i]->index = i;
-    wlr_log(WLR_INFO, "drm: %zu CRTCs, %zu planes", crtcs_.size(), planes_.size());
+    alog(Log::Info, "drm: %zu CRTCs, %zu planes", crtcs_.size(), planes_.size());
     return !crtcs_.empty();
 }
 
@@ -586,7 +586,7 @@ void Drm::scan_connectors(uint32_t only) {
                     made->crtc = cr.get();
             c = made.get();
             connectors_.push_back(std::move(made));
-            wlr_log(WLR_INFO, "drm: found connector %s", c->name.c_str());
+            alog(Log::Info, "drm: found connector %s", c->name.c_str());
         }
         seen.push_back(c);
         // A link gone bad (a DP cable wiggled): its modes are read again and
@@ -594,15 +594,15 @@ void Drm::scan_connectors(uint32_t only) {
         uint64_t link = 0;
         if (c->props.link_status && get_prop(fd_, cid, c->props.link_status, &link) &&
             link == DRM_MODE_LINK_STATUS_BAD && c->output) {
-            wlr_log(WLR_INFO, "drm: %s: bad link", c->name.c_str());
+            alog(Log::Info, "drm: %s: bad link", c->name.c_str());
             disconnect(*c);
         }
         if (!c->output && info->connection == DRM_MODE_CONNECTED) {
-            wlr_log(WLR_INFO, "drm: %s connected", c->name.c_str());
+            alog(Log::Info, "drm: %s connected", c->name.c_str());
             if (connect(*c, *info))
                 fresh.push_back(c);
         } else if (c->output && info->connection != DRM_MODE_CONNECTED) {
-            wlr_log(WLR_INFO, "drm: %s disconnected", c->name.c_str());
+            alog(Log::Info, "drm: %s disconnected", c->name.c_str());
             disconnect(*c);
         }
         drmModeFreeConnector(info);
@@ -860,7 +860,7 @@ uint32_t Drm::fb_for(wlr_buffer* buffer, const wlr_drm_format_set* formats) {
     }
     fb->poisoned = fb->id == 0;
     if (fb->poisoned)
-        wlr_log(WLR_DEBUG, "drm: buffer 0x%x/0x%lx refused for scan-out", a.format, (unsigned long)a.modifier);
+        alog(Log::Debug, "drm: buffer 0x%x/0x%lx refused for scan-out", a.format, (unsigned long)a.modifier);
     const uint32_t id = fb->id;
     fb->destroy.connect(&buffer->events.destroy, [this, buffer](void*) {
         auto it = fbs_.find(buffer);
@@ -896,7 +896,7 @@ bool Drm::commit_connector(Connector& c, const OutputState& state, bool test_onl
         return true;  // nothing KMS sees changes
     const bool on = pending_enabled(*c.output, state);
     if (on && !alloc_crtc(c)) {
-        wlr_log(WLR_DEBUG, "drm: %s: no CRTC free", c.name.c_str());
+        alog(Log::Debug, "drm: %s: no CRTC free", c.name.c_str());
         return false;
     }
     if (!on && !c.crtc)
@@ -905,7 +905,7 @@ bool Drm::commit_connector(Connector& c, const OutputState& state, bool test_onl
     // A flip without a modeset waits for the previous one.
     const bool nonblock = !modeset && (state.committed & OutputState::Buffer);
     if (!test_only && nonblock && c.pending_flip) {
-        wlr_log(WLR_DEBUG, "drm: %s: a page flip is still pending", c.name.c_str());
+        alog(Log::Debug, "drm: %s: a page flip is still pending", c.name.c_str());
         return false;
     }
     std::vector<ConnState> states(1);
@@ -1236,7 +1236,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
     if (ok && !atomic_) {
         ok = legacy_commit(states, modeset, test_only, async, flip);
     } else if (ok && drmModeAtomicCommit(fd_, req, flags, flip) != 0) {
-        wlr_log(test_only ? WLR_DEBUG : WLR_ERROR, "drm: atomic commit (%s%s) failed: %s",
+        alog(test_only ? Log::Debug : Log::Error, "drm: atomic commit (%s%s) failed: %s",
                 states.size() == 1 ? states[0].conn->name.c_str() : "several screens",
                 modeset ? ", modeset" : "", std::strerror(errno));
         ok = false;
@@ -1392,12 +1392,12 @@ bool Drm::init_mgpu() {
     // Copies are cheap enough on the CPU where the GPU has no 3D (DisplayLink).
     mgpu_renderer_ = render::Renderer::create_on(fd_, true);
     if (!mgpu_renderer_) {
-        wlr_log(WLR_ERROR, "drm: %s: no renderer to copy frames to it with", name_.c_str());
+        alog(Log::Error, "drm: %s: no renderer to copy frames to it with", name_.c_str());
         return false;
     }
     mgpu_allocator_ = Allocator::create(fd_);
     if (!mgpu_allocator_) {
-        wlr_log(WLR_ERROR, "drm: %s: no allocator for copies", name_.c_str());
+        alog(Log::Error, "drm: %s: no allocator for copies", name_.c_str());
         return false;
     }
     // What it reads of another GPU's buffers. Implicit modifiers mean
@@ -1408,12 +1408,12 @@ bool Drm::init_mgpu() {
             if (tex->formats[i].modifiers[k] != DRM_FORMAT_MOD_INVALID)
                 wlr_drm_format_set_add(&mgpu_formats_, tex->formats[i].format, tex->formats[i].modifiers[k]);
     if (mgpu_formats_.len == 0) {
-        wlr_log(WLR_ERROR, "drm: %s can't read other GPUs' buffers", name_.c_str());
+        alog(Log::Error, "drm: %s can't read other GPUs' buffers", name_.c_str());
         return false;
     }
     if (timeline_ && mgpu_renderer_->wlr()->features.timeline)
         mgpu_timeline_ = wlr_drm_syncobj_timeline_create(fd_);
-    wlr_log(WLR_INFO, "drm: %s shows frames rendered on %s", name_.c_str(), parent_->name_.c_str());
+    alog(Log::Info, "drm: %s shows frames rendered on %s", name_.c_str(), parent_->name_.c_str());
     return true;
 }
 
@@ -1433,7 +1433,7 @@ bool Drm::cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm
     }
     wlr_texture* tex = wlr_texture_from_buffer(from, src);
     if (!tex) {
-        wlr_log(WLR_ERROR, "drm: %s: the frame can't be read back", name_.c_str());
+        alog(Log::Error, "drm: %s: the frame can't be read back", name_.c_str());
         return false;
     }
     void* data = nullptr;
@@ -1448,7 +1448,7 @@ bool Drm::cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm
         ok = wlr_texture_read_pixels(tex, &o);
         wlr_buffer_end_data_ptr_access(dst);
     } else {
-        wlr_log(WLR_ERROR, "drm: %s: couldn't map a buffer to copy into", name_.c_str());
+        alog(Log::Error, "drm: %s: couldn't map a buffer to copy into", name_.c_str());
     }
     wlr_texture_destroy(tex);
     return ok;
@@ -1467,10 +1467,10 @@ wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const 
         // memory): the parent reads them back and the CPU writes ours.
         mgpu_dumb_ = Allocator::create_dumb(fd_);
         if (!mgpu_dumb_) {
-            wlr_log(WLR_ERROR, "drm: %s can't read the frames and has no dumb buffers", name_.c_str());
+            alog(Log::Error, "drm: %s can't read the frames and has no dumb buffers", name_.c_str());
             return nullptr;
         }
-        wlr_log(WLR_INFO, "drm: %s: copying frames through the CPU", name_.c_str());
+        alog(Log::Info, "drm: %s: copying frames through the CPU", name_.c_str());
         mgpu_cpu_ = true;
         for (auto& c : connectors_) {
             c->mgpu_swapchain.reset();
@@ -1489,7 +1489,7 @@ wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const 
                                          drawn->modifiers + drawn->len)
                 mods.push_back(shown->modifiers[i]);
         if (mods.empty()) {
-            wlr_log(WLR_ERROR, "drm: %s: no buffer for copies of 0x%08x", name_.c_str(), a.format);
+            alog(Log::Error, "drm: %s: no buffer for copies of 0x%08x", name_.c_str(), a.format);
             if (tex)
                 wlr_texture_destroy(tex);
             return nullptr;
@@ -1499,7 +1499,7 @@ wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const 
     }
     wlr_buffer* dst = sc->acquire();
     if (!dst) {
-        wlr_log(WLR_ERROR, "drm: %s: couldn't allocate a buffer to copy into", name_.c_str());
+        alog(Log::Error, "drm: %s: couldn't allocate a buffer to copy into", name_.c_str());
         sc.reset();
         if (tex)
             wlr_texture_destroy(tex);
@@ -1579,7 +1579,7 @@ int Drm::create_lease(const std::vector<uint32_t>& connector_ids, uint32_t* less
                     x->lessee = 0;
                     x->crtc = nullptr;
                 }
-            wlr_log(WLR_ERROR, "drm: %s: no CRTC to lease with %s", name_.c_str(), c->name.c_str());
+            alog(Log::Error, "drm: %s: no CRTC to lease with %s", name_.c_str(), c->name.c_str());
             return -1;
         }
         objects.push_back(c->id);
@@ -1593,15 +1593,15 @@ int Drm::create_lease(const std::vector<uint32_t>& connector_ids, uint32_t* less
             c->crtc = nullptr;
     }
     if (fd < 0)
-        wlr_log(WLR_ERROR, "drm: %s: creating a lease failed: %s", name_.c_str(), std::strerror(errno));
+        alog(Log::Error, "drm: %s: creating a lease failed: %s", name_.c_str(), std::strerror(errno));
     else
-        wlr_log(WLR_INFO, "drm: %s: lease %u granted", name_.c_str(), *lessee);
+        alog(Log::Info, "drm: %s: lease %u granted", name_.c_str(), *lessee);
     return fd;
 }
 
 void Drm::end_lease(uint32_t lessee, bool revoke) {
     if (revoke && drmModeRevokeLease(fd_, lessee) != 0)
-        wlr_log(WLR_DEBUG, "drm: %s: revoking lease %u: %s", name_.c_str(), lessee, std::strerror(errno));
+        alog(Log::Debug, "drm: %s: revoking lease %u: %s", name_.c_str(), lessee, std::strerror(errno));
     for (auto& c : connectors_)
         if (c->lessee == lessee) {
             c->lessee = 0;
@@ -1627,7 +1627,7 @@ void Drm::check_leases() {
         for (uint32_t i = 0; list && i < list->count; ++i)
             alive |= list->lessees[i] == l;
         if (!alive) {
-            wlr_log(WLR_INFO, "drm: %s: lease %u ended", name_.c_str(), l);
+            alog(Log::Info, "drm: %s: lease %u ended", name_.c_str(), l);
             end_lease(l, false);
             lease_ended.emit(l);
         }
@@ -1671,7 +1671,7 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
             const int r = st.active ? drmModeSetCrtc(fd_, crtc.id, st.primary_fb, 0, 0, &conn_id, 1, &st.mode)
                                     : drmModeSetCrtc(fd_, crtc.id, 0, 0, 0, nullptr, 0, nullptr);
             if (r != 0) {
-                wlr_log(WLR_ERROR, "drm: %s: modeset failed: %s", c.name.c_str(), std::strerror(errno));
+                alog(Log::Error, "drm: %s: modeset failed: %s", c.name.c_str(), std::strerror(errno));
                 ok = false;
                 break;
             }
@@ -1697,7 +1697,7 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
                 b[i] = uint16_t(std::lround(std::clamp(out[2], 0.0f, 1.0f) * 65535));
             }
             if (drmModeCrtcSetGamma(fd_, crtc.id, uint32_t(n), r.data(), g.data(), b.data()) != 0)
-                wlr_log(WLR_ERROR, "drm: %s: setting gamma failed: %s", c.name.c_str(), std::strerror(errno));
+                alog(Log::Error, "drm: %s: setting gamma failed: %s", c.name.c_str(), std::strerror(errno));
         }
         if (crtc.cursor) {
             wlr_dmabuf_attributes a;
@@ -1706,7 +1706,7 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
                 drmPrimeFDToHandle(fd_, a.fd[0], &handle) == 0) {
                 if (drmModeSetCursor2(fd_, crtc.id, handle, uint32_t(a.width), uint32_t(a.height), c.hotspot_x,
                                       c.hotspot_y) != 0)
-                    wlr_log(WLR_DEBUG, "drm: %s: setting the cursor failed", c.name.c_str());
+                    alog(Log::Debug, "drm: %s: setting the cursor failed", c.name.c_str());
                 drmModeMoveCursor(fd_, crtc.id, c.cursor_x, c.cursor_y);  // its top left
                 drmCloseBufferHandle(fd_, handle);
             } else {
@@ -1716,7 +1716,7 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
         if (flip) {
             const uint32_t f = DRM_MODE_PAGE_FLIP_EVENT | (async ? DRM_MODE_PAGE_FLIP_ASYNC : 0);
             if (drmModePageFlip(fd_, crtc.id, st.primary_fb, f, flip) != 0) {
-                wlr_log(WLR_ERROR, "drm: %s: page flip failed: %s", c.name.c_str(), std::strerror(errno));
+                alog(Log::Error, "drm: %s: page flip failed: %s", c.name.c_str(), std::strerror(errno));
                 ok = false;
                 break;
             }
@@ -1729,7 +1729,7 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
 }
 
 void Drm::session_active(bool active) {
-    wlr_log(WLR_INFO, "drm: %s %s", name_.c_str(), active ? "resumed" : "paused");
+    alog(Log::Info, "drm: %s %s", name_.c_str(), active ? "resumed" : "paused");
     // Paused: the screens stay as they are (flips in flight still complete,
     // unpresented). Back: what changed while away is found, the rest is
     // shown again as it was.
@@ -1768,7 +1768,7 @@ void Drm::restore(const std::vector<Connector*>& conns) {
                 }
         }
         if (n && drmModeAtomicCommit(fd_, req, DRM_MODE_ATOMIC_ALLOW_MODESET, nullptr) != 0)
-            wlr_log(WLR_ERROR, "drm: %s: couldn't free the CRTCs another session left on", name_.c_str());
+            alog(Log::Error, "drm: %s: couldn't free the CRTCs another session left on", name_.c_str());
         drmModeAtomicFree(req);
     }
     if (conns.empty())
@@ -1784,7 +1784,7 @@ void Drm::restore(const std::vector<Connector*>& conns) {
         std::vector<ConnState> one{{.conn = c, .base = &again}};
         if (commit_states(one, true, false, false, false))
             continue;
-        wlr_log(WLR_ERROR, "drm: %s: couldn't restore after the VT switch", c->name.c_str());
+        alog(Log::Error, "drm: %s: couldn't restore after the VT switch", c->name.c_str());
         const uint32_t id = c->id;
         disconnect(*c);
         scan_connectors(id);

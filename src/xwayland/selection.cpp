@@ -13,7 +13,6 @@
 #include <unistd.h>
 
 extern "C" {
-#include <wlr/util/log.h>
 }
 
 namespace atrium::xwayland {

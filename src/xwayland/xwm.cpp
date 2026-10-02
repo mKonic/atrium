@@ -1,6 +1,7 @@
 // The X11 window manager, ported from wlroots' xwayland/xwm.c (MIT).
 #ifdef ATRIUM_XWAYLAND
 #include "xwayland/xwm.hpp"
+#include "util/log.hpp"
 
 #include "wl/selection.hpp"
 #include "wl/xwayland_shell.hpp"
@@ -19,7 +20,6 @@
 #include <unordered_map>
 
 extern "C" {
-#include <wlr/util/log.h>
 }
 
 namespace atrium::xwayland {
@@ -1032,7 +1032,7 @@ int Xwm::read_events() {
         case XCB_FOCUS_IN: handle_focus_in(reinterpret_cast<xcb_focus_in_event_t*>(ev)); break;
         case 0: {
             auto* e = reinterpret_cast<xcb_value_error_t*>(ev);
-            wlr_log(WLR_DEBUG, "xwm: X error: op %u:%u, code %u, sequence %u, value %u", e->major_opcode,
+            alog(Log::Debug, "xwm: X error: op %u:%u, code %u, sequence %u, value %u", e->major_opcode,
                     e->minor_opcode, e->error_code, e->sequence, e->bad_value);
             break;
         }
@@ -1072,7 +1072,7 @@ Xwm::Xwm(wl_display* display, int wm_fd, wl_client* client, wl::Compositor& comp
     // xcb_connect_to_fd owns the fd whatever happens.
     conn_ = xcb_connect_to_fd(wm_fd, nullptr);
     if (const int err = xcb_connection_has_error(conn_)) {
-        wlr_log(WLR_ERROR, "xwm: xcb connect failed: %d", err);
+        alog(Log::Error, "xwm: xcb connect failed: %d", err);
         xcb_disconnect(conn_);
         conn_ = nullptr;
         return;
@@ -1234,7 +1234,7 @@ Xwm::~Xwm() {
 
 void Xwm::set_cursor(const void* pixels, uint32_t stride, int w, int h, int hot_x, int hot_y) {
     if (!render_format_id_) {
-        wlr_log(WLR_ERROR, "xwm: no 32-bit render format for the cursor");
+        alog(Log::Error, "xwm: no 32-bit render format for the cursor");
         return;
     }
     if (cursor_)

@@ -1,4 +1,5 @@
 #include "render/egl.hpp"
+#include "util/log.hpp"
 
 #include <drm_fourcc.h>
 #include <fcntl.h>
@@ -36,11 +37,11 @@ bool env_true(const char* name) {
 }
 
 void egl_log(EGLenum error, const char* command, EGLint type, EGLLabelKHR, EGLLabelKHR, const char* msg) {
-    const wlr_log_importance level =
+    const Log level =
         type == EGL_DEBUG_MSG_CRITICAL_KHR || type == EGL_DEBUG_MSG_ERROR_KHR || type == EGL_DEBUG_MSG_WARN_KHR
-            ? WLR_ERROR
-            : WLR_INFO;
-    _wlr_log(level, "[EGL] %s: 0x%x: %s", command, error, msg);
+            ? Log::Error
+            : Log::Info;
+    alog(level, "[EGL] %s: 0x%x: %s", command, error, msg);
 }
 
 bool device_has_name(const drmDevice* device, const char* name) {
@@ -80,7 +81,7 @@ int open_render_node(int drm_fd) {
         return -1;
     int fd = open(name, O_RDWR | O_CLOEXEC);
     if (fd < 0)
-        wlr_log_errno(WLR_ERROR, "Failed to open DRM node %s", name);
+        alog_errno(Log::Error, "Failed to open DRM node %s", name);
     free(name);
     return fd;
 }
@@ -113,7 +114,7 @@ std::unique_ptr<Egl> Egl::create(int drm_fd, bool software_ok) {
         if (egl->init(EGL_PLATFORM_GBM_KHR, egl->gbm, allow_software))
             return egl;
     }
-    wlr_log(WLR_ERROR, "Couldn't initialize EGL");
+    alog(Log::Error, "Couldn't initialize EGL");
     return nullptr;
 }
 
@@ -138,12 +139,12 @@ Egl::~Egl() {
 bool Egl::load_client_extensions() {
     const char* client = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
     if (!client) {
-        wlr_log(WLR_ERROR, "EGL client extensions unsupported");
+        alog(Log::Error, "EGL client extensions unsupported");
         return false;
     }
     if (!has_extension(client, "EGL_EXT_platform_base") ||
         !load_proc(procs.eglGetPlatformDisplayEXT, "eglGetPlatformDisplayEXT")) {
-        wlr_log(WLR_ERROR, "EGL_EXT_platform_base unsupported");
+        alog(Log::Error, "EGL_EXT_platform_base unsupported");
         return false;
     }
     exts.KHR_platform_gbm = has_extension(client, "EGL_KHR_platform_gbm");
@@ -164,7 +165,7 @@ bool Egl::load_client_extensions() {
         procs.eglDebugMessageControlKHR(egl_log, attribs);
     }
     if (eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE) {
-        wlr_log(WLR_ERROR, "Couldn't bind the OpenGL ES API");
+        alog(Log::Error, "Couldn't bind the OpenGL ES API");
         return false;
     }
     return true;
@@ -206,7 +207,7 @@ bool Egl::init(EGLenum platform, void* native, bool allow_software) {
     dattribs.push_back(EGL_NONE);
     EGLDisplay d = procs.eglGetPlatformDisplayEXT(platform, native, dattribs.data());
     if (d == EGL_NO_DISPLAY) {
-        wlr_log(WLR_ERROR, "Couldn't create an EGL display");
+        alog(Log::Error, "Couldn't create an EGL display");
         return false;
     }
     if (!init_display(d, allow_software)) {
@@ -233,14 +234,14 @@ bool Egl::init(EGLenum platform, void* native, bool allow_software) {
         }
     }
     if (context == EGL_NO_CONTEXT) {
-        wlr_log(WLR_ERROR, "Couldn't create a GLES 3 context");
+        alog(Log::Error, "Couldn't create a GLES 3 context");
         return false;
     }
-    wlr_log(WLR_INFO, "Created a GLES %d.%d context", gl_major, gl_minor);
+    alog(Log::Info, "Created a GLES %d.%d context", gl_major, gl_minor);
     if (exts.IMG_context_priority) {
         EGLint priority = EGL_CONTEXT_PRIORITY_MEDIUM_IMG;
         eglQueryContext(display, context, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &priority);
-        wlr_log(WLR_DEBUG, "Context priority %s", priority == EGL_CONTEXT_PRIORITY_HIGH_IMG ? "high" : "default");
+        alog(Log::Debug, "Context priority %s", priority == EGL_CONTEXT_PRIORITY_HIGH_IMG ? "high" : "default");
     }
     return true;
 }
@@ -249,7 +250,7 @@ bool Egl::init_display(EGLDisplay d, bool allow_software) {
     display = d;
     EGLint major = 0, minor = 0;
     if (!eglInitialize(display, &major, &minor)) {
-        wlr_log(WLR_ERROR, "Couldn't initialize EGL");
+        alog(Log::Error, "Couldn't initialize EGL");
         return false;
     }
     const char* dexts = eglQueryString(display, EGL_EXTENSIONS);
@@ -279,21 +280,21 @@ bool Egl::init_display(EGLDisplay d, bool allow_software) {
         exts.EXT_device_drm_render_node = has_extension(device_exts, "EGL_EXT_device_drm_render_node");
         if (has_extension(device_exts, "EGL_MESA_device_software")) {
             if (!allow_software && !env_true("WLR_RENDERER_ALLOW_SOFTWARE")) {
-                wlr_log(WLR_ERROR, "Only software rendering is available; set "
+                alog(Log::Error, "Only software rendering is available; set "
                                    "WLR_RENDERER_ALLOW_SOFTWARE=1 to use it");
                 return false;
             }
-            wlr_log(WLR_INFO, "Using software rendering");
+            alog(Log::Info, "Using software rendering");
         }
     }
 
     if (!has_extension(dexts, "EGL_KHR_no_config_context") &&
         !has_extension(dexts, "EGL_MESA_configless_context")) {
-        wlr_log(WLR_ERROR, "EGL_KHR_no_config_context unsupported");
+        alog(Log::Error, "EGL_KHR_no_config_context unsupported");
         return false;
     }
     if (!has_extension(dexts, "EGL_KHR_surfaceless_context")) {
-        wlr_log(WLR_ERROR, "EGL_KHR_surfaceless_context unsupported");
+        alog(Log::Error, "EGL_KHR_surfaceless_context unsupported");
         return false;
     }
     if (has_extension(dexts, "EGL_KHR_fence_sync") && has_extension(dexts, "EGL_ANDROID_native_fence_sync")) {
@@ -305,10 +306,10 @@ bool Egl::init_display(EGLDisplay d, bool allow_software) {
         load_proc(procs.eglWaitSyncKHR, "eglWaitSyncKHR");
     exts.IMG_context_priority = has_extension(dexts, "EGL_IMG_context_priority");
 
-    wlr_log(WLR_INFO, "EGL %d.%d, vendor %s", major, minor, eglQueryString(display, EGL_VENDOR));
-    wlr_log(WLR_DEBUG, "EGL display extensions: %s", dexts);
+    alog(Log::Info, "EGL %d.%d, vendor %s", major, minor, eglQueryString(display, EGL_VENDOR));
+    alog(Log::Debug, "EGL display extensions: %s", dexts);
     if (device_exts)
-        wlr_log(WLR_DEBUG, "EGL device extensions: %s", device_exts);
+        alog(Log::Debug, "EGL device extensions: %s", device_exts);
 
     init_dmabuf_formats();
     return true;
@@ -369,7 +370,7 @@ bool Egl::make_current() {
     if (eglGetCurrentContext() == context)
         return true;
     if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context)) {
-        wlr_log(WLR_ERROR, "eglMakeCurrent failed");
+        alog(Log::Error, "eglMakeCurrent failed");
         return false;
     }
     return true;
@@ -410,7 +411,7 @@ EGLImageKHR Egl::import_dmabuf(const wlr_dmabuf_attributes& a, bool* external_on
     EGLImageKHR image =
         procs.eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data());
     if (image == EGL_NO_IMAGE_KHR) {
-        wlr_log(WLR_ERROR, "eglCreateImageKHR failed (format 0x%08x, modifier 0x%016llx)", a.format,
+        alog(Log::Error, "eglCreateImageKHR failed (format 0x%08x, modifier 0x%016llx)", a.format,
                 (unsigned long long)a.modifier);
         return EGL_NO_IMAGE_KHR;
     }
@@ -438,7 +439,7 @@ int Egl::dup_drm_fd() {
             int fd = open(name.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
             if (fd >= 0)
                 return fd;
-            wlr_log_errno(WLR_ERROR, "Failed to open %s", name.c_str());
+            alog_errno(Log::Error, "Failed to open %s", name.c_str());
         }
     }
     if (gbm)

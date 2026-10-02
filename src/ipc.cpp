@@ -1,4 +1,5 @@
 #include "ipc.hpp"
+#include "util/log.hpp"
 #include "input_method.hpp"
 #include "keyboard_conf.hpp"
 #include "night_light.hpp"
@@ -422,7 +423,7 @@ Ipc::Ipc(Server& server, const std::string& wayland_display) : server_(server) {
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     if (path_.size() >= sizeof addr.sun_path) {
-        wlr_log(WLR_ERROR, "ipc: socket path too long: %s", path_.c_str());
+        alog(Log::Error, "ipc: socket path too long: %s", path_.c_str());
         return;
     }
     std::strcpy(addr.sun_path, path_.c_str());
@@ -432,14 +433,14 @@ Ipc::Ipc(Server& server, const std::string& wayland_display) : server_(server) {
         return;
     unlink(path_.c_str());  // a stale socket from a crashed session
     if (bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof addr) < 0 || listen(listen_fd_, 16) < 0) {
-        wlr_log_errno(WLR_ERROR, "ipc: can't listen on %s", path_.c_str());
+        alog_errno(Log::Error, "ipc: can't listen on %s", path_.c_str());
         close(listen_fd_);
         listen_fd_ = -1;
         return;
     }
     listen_source_ = wl_event_loop_add_fd(server_.loop, listen_fd_, WL_EVENT_READABLE, on_accept, this);
     setenv("ATRIUM_SOCKET", path_.c_str(), 1);
-    wlr_log(WLR_INFO, "ipc: listening on %s", path_.c_str());
+    alog(Log::Info, "ipc: listening on %s", path_.c_str());
 }
 
 Ipc::~Ipc() {
@@ -534,7 +535,7 @@ void Ipc::send(Client& c, const json& msg) {
     c.out += msg.dump();
     c.out += '\n';
     if (c.out.size() > kMaxBacklog) {
-        wlr_log(WLR_INFO, "ipc: dropping a client that stopped reading");
+        alog(Log::Info, "ipc: dropping a client that stopped reading");
         drop(c);
         return;
     }

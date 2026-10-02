@@ -1,10 +1,10 @@
 #include "backend/session.hpp"
+#include "util/log.hpp"
 
 extern "C" {
 #include <libseat.h>
 #include <libudev.h>
 #include <wayland-server-core.h>
-#include <wlr/util/log.h>
 }
 
 #include <fcntl.h>
@@ -24,12 +24,12 @@ namespace atrium::backend {
 namespace {
 
 void seat_log(libseat_log_level level, const char* fmt, va_list args) {
-    const wlr_log_importance imp = level == LIBSEAT_LOG_LEVEL_ERROR  ? WLR_ERROR
-                                   : level == LIBSEAT_LOG_LEVEL_INFO ? WLR_INFO
-                                                                     : WLR_DEBUG;
+    const Log imp = level == LIBSEAT_LOG_LEVEL_ERROR  ? Log::Error
+                                   : level == LIBSEAT_LOG_LEVEL_INFO ? Log::Info
+                                                                     : Log::Debug;
     char line[512];
     std::vsnprintf(line, sizeof(line), fmt, args);
-    wlr_log(imp, "[libseat] %s", line);
+    alog(imp, "[libseat] %s", line);
 }
 
 bool is_card(const char* sysname) {
@@ -70,13 +70,13 @@ std::unique_ptr<Session> Session::create(wl_event_loop* loop) {
     };
     s->seat_handle_ = libseat_open_seat(&kListener, s.get());
     if (!s->seat_handle_) {
-        wlr_log(WLR_ERROR, "session: no seat to take (logind or seatd)");
+        alog(Log::Error, "session: no seat to take (logind or seatd)");
         return nullptr;
     }
     // The seat is ours once libseat says so: wait for it.
     while (!s->active_)
         if (libseat_dispatch(s->seat_handle_, -1) < 0) {
-            wlr_log(WLR_ERROR, "session: the seat never became ours");
+            alog(Log::Error, "session: the seat never became ours");
             return nullptr;
         }
     const char* name = libseat_seat_name(s->seat_handle_);
@@ -87,7 +87,7 @@ std::unique_ptr<Session> Session::create(wl_event_loop* loop) {
         [](int, uint32_t, void* data) {
             auto* self = static_cast<Session*>(data);
             if (libseat_dispatch(self->seat_handle_, 0) < 0)
-                wlr_log(WLR_ERROR, "session: libseat dispatch failed");
+                alog(Log::Error, "session: libseat dispatch failed");
             return 1;
         },
         s.get());
@@ -107,7 +107,7 @@ std::unique_ptr<Session> Session::create(wl_event_loop* loop) {
             },
             s.get());
     }
-    wlr_log(WLR_INFO, "session: on %s", s->seat_.c_str());
+    alog(Log::Info, "session: on %s", s->seat_.c_str());
     return s;
 }
 
@@ -132,7 +132,7 @@ Session::Device* Session::open(const std::string& path) {
     int fd = -1;
     const int id = libseat_open_device(seat_handle_, path.c_str(), &fd);
     if (id < 0) {
-        wlr_log(WLR_ERROR, "session: couldn't open %s: %s", path.c_str(), std::strerror(errno));
+        alog(Log::Error, "session: couldn't open %s: %s", path.c_str(), std::strerror(errno));
         return nullptr;
     }
     struct stat st {};
@@ -153,7 +153,7 @@ void Session::close(Device* d) {
     if (!d)
         return;
     if (libseat_close_device(seat_handle_, d->id) < 0)
-        wlr_log(WLR_ERROR, "session: couldn't close %s", d->path.c_str());
+        alog(Log::Error, "session: couldn't close %s", d->path.c_str());
     std::erase_if(devices_, [d](const auto& x) { return x.get() == d; });
 }
 

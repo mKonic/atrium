@@ -1,4 +1,5 @@
 #include "theme.hpp"
+#include "util/log.hpp"
 
 #include "accent.hpp"
 #include "palette.hpp"
@@ -16,7 +17,6 @@
 #include <gio/gio.h>
 
 extern "C" {
-#include <wlr/util/log.h>
 }
 
 namespace atrium {
@@ -143,7 +143,7 @@ void install_kdeglobals(bool light, std::string_view accent, const Interface& ui
             text += "fixed=" + font(ui.mono) + "\n";
     }
     if (xdg.empty() || !write_if_changed(xdg / "kdeglobals", text)) {
-        wlr_log(WLR_ERROR, "theme: couldn't write %s; Qt apps keep their own colours", xdg.c_str());
+        alog(Log::Error, "theme: couldn't write %s; Qt apps keep their own colours", xdg.c_str());
         return;
     }
     use_defaults_dir();
@@ -173,7 +173,7 @@ void install_gtk_theme(bool light, std::string_view accent) {
         ok &= write_if_changed(dir / v / "gtk.css", css);
     }
     if (!ok) {
-        wlr_log(WLR_ERROR, "theme: couldn't write %s; GTK apps keep their own buttons", dir.c_str());
+        alog(Log::Error, "theme: couldn't write %s; GTK apps keep their own buttons", dir.c_str());
         return;
     }
     setenv("GTK_THEME", "atrium", 1);
@@ -227,7 +227,7 @@ void install_qt_theme(bool light, std::string_view accent, const Interface& ui) 
     // The colours first: qtengine reloads when its config changes.
     if (!write_if_changed(colors, palette::kde_colors(light, accent)) ||
         !write_if_changed(dir / "config.json", config.dump(2) + "\n")) {
-        wlr_log(WLR_ERROR, "theme: couldn't write %s; Qt apps keep their own colours", dir.c_str());
+        alog(Log::Error, "theme: couldn't write %s; Qt apps keep their own colours", dir.c_str());
         return;
     }
     std::error_code ec;
@@ -250,7 +250,7 @@ void install_app_defaults() {
         "UseDarkTheme=True\n"
         "UseAccentColor=True\n";
     if (!write_if_changed(xdg / "fcitx5/conf/classicui.conf", kFcitx5))
-        wlr_log(WLR_ERROR, "theme: couldn't write %s", xdg.c_str());
+        alog(Log::Error, "theme: couldn't write %s", xdg.c_str());
     use_defaults_dir();
 }
 

@@ -13,6 +13,8 @@
 
 #include <linux/input-event-codes.h>
 
+#include "util/log.hpp"
+
 extern "C" {
 #include <libinput.h>
 #include <pixman.h>
@@ -61,7 +63,6 @@ extern "C" {
 #include <wlr/util/edges.h>
 #include <wlr/util/addon.h>
 #include <wlr/util/box.h>
-#include <wlr/util/log.h>
 #include <wlr/util/region.h>
 
 #ifdef ATRIUM_XWAYLAND

@@ -1,4 +1,5 @@
 #include "output.hpp"
+#include "util/log.hpp"
 #include "registry.hpp"
 #include "server.hpp"
 
@@ -199,7 +200,7 @@ void Server::restore_display(Output* output) {
         state.set_transform(wl_output_transform(d->transform));
     }
     if (!w->commit_state(state))
-        wlr_log(WLR_ERROR, "displays: couldn't restore %s as it was", w->name.c_str());
+        alog(Log::Error, "displays: couldn't restore %s as it was", w->name.c_str());
     if (d->enabled && d->x && d->y)
         output_layout->add(w, *d->x, *d->y);
     if (d->enabled)

@@ -1,4 +1,5 @@
 #include "render/pass.hpp"
+#include "util/log.hpp"
 
 #include "render/matrix.hpp"
 
@@ -227,7 +228,7 @@ RenderPass::RenderPass(Renderer& r, Framebuffer* fb, const PassOptions& o)
                   fx_->cache_blurred.ensure(r, width_, height_, fmt) &&
                   fx_->cache_plain.ensure(r, width_, height_, fmt) && fx_->saved.ensure(r, width_, height_, fmt);
         if (!ok) {
-            wlr_log(WLR_ERROR, "Couldn't allocate effects buffers: no blur");
+            alog(Log::Error, "Couldn't allocate effects buffers: no blur");
             fx_ = nullptr;
         }
     }

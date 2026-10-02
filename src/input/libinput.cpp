@@ -1,10 +1,10 @@
 // libinput's context and events, after wlroots' backend/libinput (MIT).
 #include "input/libinput.hpp"
+#include "util/log.hpp"
 
 extern "C" {
 #include <libudev.h>
 #include <wayland-server-core.h>
-#include <wlr/util/log.h>
 }
 
 #include <algorithm>
@@ -42,7 +42,7 @@ std::unique_ptr<Libinput> Libinput::create(DeviceSeat* seat, wl_event_loop* loop
         return nullptr;
     libinput_log_set_priority(self->li_, LIBINPUT_LOG_PRIORITY_ERROR);
     if (libinput_udev_assign_seat(self->li_, seat->name()) != 0) {
-        wlr_log(WLR_ERROR, "libinput: couldn't take seat %s", seat->name());
+        alog(Log::Error, "libinput: couldn't take seat %s", seat->name());
         return nullptr;
     }
     self->source_ = wl_event_loop_add_fd(loop, libinput_get_fd(self->li_), WL_EVENT_READABLE, dispatch, self.get());
@@ -73,7 +73,7 @@ void Libinput::set_active(bool active) {
 int Libinput::dispatch(int, uint32_t, void* data) {
     auto* l = static_cast<Libinput*>(data);
     if (libinput_dispatch(l->li_) != 0) {
-        wlr_log(WLR_ERROR, "libinput: dispatch failed");
+        alog(Log::Error, "libinput: dispatch failed");
         return 0;
     }
     while (libinput_event* e = libinput_get_event(l->li_)) {

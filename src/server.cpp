@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "util/log.hpp"
 #include "wl/drm_lease.hpp"
 #include "backend/drm/drm.hpp"
 #include "backend/session.hpp"
@@ -119,7 +120,7 @@ void handle_signal(int signo) {
 }
 
 [[noreturn]] void die(const char* what) {
-    wlr_log(WLR_ERROR, "%s", what);
+    alog(Log::Error, "%s", what);
     std::exit(EXIT_FAILURE);
 }
 
@@ -130,7 +131,7 @@ Server::Server(Config defaults, bool is_nested, std::filesystem::path registry_f
     g_server = this;
     registry = std::make_unique<Registry>(registry_file.string());
     if (!registry->ok()) {
-        wlr_log(WLR_ERROR, "registry: couldn't open %s; nothing will be remembered", registry_file.c_str());
+        alog(Log::Error, "registry: couldn't open %s; nothing will be remembered", registry_file.c_str());
         registry = std::make_unique<Registry>(":memory:");
     }
     settings = std::make_unique<Settings>(defaults, registry.get());
@@ -157,7 +158,7 @@ void Server::seed_registry(const std::filesystem::path& dir) {
     const fs::path state_dir = state && *state ? fs::path(state) : fs::path(home ? home : ".") / ".local" / "state";
     const json placed = read(state_dir / "atrium" / "placements.json");
     if (old.is_object())
-        wlr_log(WLR_INFO, "registry: importing %s", (dir / "settings.json").c_str());
+        alog(Log::Info, "registry: importing %s", (dir / "settings.json").c_str());
 
     registry->begin();
     settings->import(old);
@@ -279,7 +280,7 @@ void Server::setup() {
         backend->add(std::move(w));
         // The host session ended: nothing more to show anything on.
         backend_gone_ = backend->events.gone.connect([this] {
-            wlr_log(WLR_ERROR, "the backend went away (the host session ended?); quitting");
+            alog(Log::Error, "the backend went away (the host session ended?); quitting");
             if (seat)
                 seat->backend_gone();
             wl_display_terminate(display);
@@ -304,7 +305,7 @@ void Server::setup() {
         // Nested, the backend dies with the session atrium runs inside. wlroots
         // insists nothing still listens on it by then, so let go and end.
         backend_destroy_.connect(&wlroots->events.destroy, [this](void*) {
-            wlr_log(WLR_ERROR, "the backend went away (the host session ended?); quitting");
+            alog(Log::Error, "the backend went away (the host session ended?); quitting");
             if (seat)
                 seat->backend_gone();
             backend_destroy_.disconnect();
@@ -407,7 +408,7 @@ void Server::setup() {
         });
         setenv("DISPLAY", xwayland->display_name, 1);
     } else {
-        wlr_log(WLR_ERROR, "failed to set up Xwayland, continuing without it");
+        alog(Log::Error, "failed to set up Xwayland, continuing without it");
     }
 #endif
 }
@@ -635,7 +636,7 @@ void Server::disconnect_listeners() {
 void Server::allow_root_x11(const char* display) {
     xcb_connection_t* conn = xcb_connect(display, nullptr);
     if (xcb_connection_has_error(conn)) {
-        wlr_log(WLR_ERROR, "xwayland: couldn't connect to %s to allow root", display);
+        alog(Log::Error, "xwayland: couldn't connect to %s to allow root", display);
         xcb_disconnect(conn);
         return;
     }
@@ -644,7 +645,7 @@ void Server::allow_root_x11(const char* display) {
         xcb_change_hosts_checked(conn, XCB_HOST_MODE_INSERT, XCB_FAMILY_SERVER_INTERPRETED,
                                  sizeof kRoot - 1, reinterpret_cast<const uint8_t*>(kRoot)));
     if (err) {
-        wlr_log(WLR_ERROR, "xwayland: allowing root failed (X error %d)", err->error_code);
+        alog(Log::Error, "xwayland: allowing root failed (X error %d)", err->error_code);
         free(err);
     }
     xcb_disconnect(conn);
@@ -662,7 +663,7 @@ void Server::start_clipboard_history() {
         return;
     for (const char* tool : {"/usr/bin/cliphist", "/usr/bin/wl-paste"})
         if (!fs::exists(tool)) {
-            wlr_log(WLR_INFO, "clipboard history: %s not installed", tool);
+            alog(Log::Info, "clipboard history: %s not installed", tool);
             return;
         }
     spawn("exec wl-paste --type text --watch cliphist store");
@@ -891,7 +892,7 @@ void Server::run(const char* startup_cmd) {
     cursor->warp_closest(cursor->x, cursor->y);
     seat->set_default_cursor();
 
-    wlr_log(WLR_INFO, "running on WAYLAND_DISPLAY=%s", socket);
+    alog(Log::Info, "running on WAYLAND_DISPLAY=%s", socket);
     wl_display_run(display);
 }
 
@@ -961,7 +962,7 @@ void Server::add_gpu(const std::string& path) {
             wl_event_loop_add_idle(loop, [](void* data) {
                 auto* self = static_cast<Server*>(data);
                 for (backend::drm::Drm* g : std::exchange(self->pending_gpu_removal_, {})) {
-                    wlr_log(WLR_INFO, "drm: %s unplugged", g->name().c_str());
+                    alog(Log::Info, "drm: %s unplugged", g->name().c_str());
                     std::erase_if(self->gpu_leases_, [g](const auto& l) { return l->drm == g; });
                     self->backend->remove(g);
                 }
@@ -982,7 +983,7 @@ void Server::new_output(backend::Output* wlr) {
     if (wlr->non_desktop) {
         if (GpuLease* g = lease_for(&wlr->backend)) {
             const uint32_t id = g->drm->connector_id(wlr);
-            wlr_log(WLR_INFO, "%s is not a desktop screen: offered for lease", wlr->name.c_str());
+            alog(Log::Info, "%s is not a desktop screen: offered for lease", wlr->name.c_str());
             g->lease->offer(id, wlr->name, wlr->description);
             auto conn = std::make_shared<wl::Connection>();
             *conn = wlr->events.destroy.connect([this, gpu = &wlr->backend, id, conn] {
@@ -1471,7 +1472,7 @@ void Server::spawn(const std::string& command) {
         execl("/bin/sh", "/bin/sh", "-c", command.c_str(), nullptr);
         _exit(127);
     } else if (pid < 0) {
-        wlr_log_errno(WLR_ERROR, "fork failed for '%s'", command.c_str());
+        alog_errno(Log::Error, "fork failed for '%s'", command.c_str());
     }
 }
 

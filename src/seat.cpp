@@ -1,4 +1,5 @@
 #include "seat.hpp"
+#include "util/log.hpp"
 #include "cursor.hpp"
 #include "keyboard_conf.hpp"
 #include "input_method.hpp"
@@ -48,7 +49,7 @@ xkb_keymap* compile_keymap(const Config& c) {
     xkb_context* ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
     xkb_keymap* keymap = xkb_keymap_new_from_names(ctx, &names, XKB_KEYMAP_COMPILE_NO_FLAGS);
     if (!keymap) {
-        wlr_log(WLR_ERROR, "keymap '%s' failed to compile, falling back to the default",
+        alog(Log::Error, "keymap '%s' failed to compile, falling back to the default",
                 c.xkb_layout.c_str());
         keymap = xkb_keymap_new_from_names(ctx, nullptr, XKB_KEYMAP_COMPILE_NO_FLAGS);
     }

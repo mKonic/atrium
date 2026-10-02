@@ -1,4 +1,5 @@
 #include "shell_process.hpp"
+#include "util/log.hpp"
 
 #include "paths.hpp"
 #include "server.hpp"
@@ -125,7 +126,7 @@ void ShellProcess::start() {
         return;
     const pid_t pid = fork();
     if (pid < 0) {
-        wlr_log_errno(WLR_ERROR, "shell: fork failed");
+        alog_errno(Log::Error, "shell: fork failed");
         return;
     }
     if (pid == 0) {
@@ -145,7 +146,7 @@ void ShellProcess::start() {
     pid_ = pid;
     g_shell_pid = pid;
     started_ms_ = now_ms();
-    wlr_log(WLR_INFO, "shell: started '%s' (pid %d)", cmd.c_str(), int(pid));
+    alog(Log::Info, "shell: started '%s' (pid %d)", cmd.c_str(), int(pid));
 }
 
 void ShellProcess::stop() {
@@ -175,15 +176,15 @@ void ShellProcess::exited(int status) {
     // The greeter is done once it has started a session: greetd runs that
     // after the greeter's compositor (us) is gone.
     if (server_.config.greeter && WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        wlr_log(WLR_INFO, "greeter: done, leaving for the session");
+        alog(Log::Info, "greeter: done, leaving for the session");
         server_.quit();
         return;
     }
     const double lived = now_ms() - started_ms_;
     if (WIFEXITED(status))
-        wlr_log(WLR_ERROR, "shell: exited with %d after %.1fs", WEXITSTATUS(status), lived / 1000);
+        alog(Log::Error, "shell: exited with %d after %.1fs", WEXITSTATUS(status), lived / 1000);
     else if (WIFSIGNALED(status))
-        wlr_log(WLR_ERROR, "shell: killed by signal %d after %.1fs", WTERMSIG(status), lived / 1000);
+        alog(Log::Error, "shell: killed by signal %d after %.1fs", WTERMSIG(status), lived / 1000);
 
     // Came back fine for a while: start over. Keeps dying at once: wait
     // longer each time (half a minute at most), in safe mode after a few.
@@ -193,7 +194,7 @@ void ShellProcess::exited(int status) {
     else
         ++quick_failures_;
     if (quick_failures_ == kSafeAfter)
-        wlr_log(WLR_ERROR, "shell: keeps failing; next tries in safe mode (no effects)");
+        alog(Log::Error, "shell: keeps failing; next tries in safe mode (no effects)");
     schedule(quick_failures_ == 0 ? 500 : std::min(30000, 1000 << std::min(quick_failures_ - 1, 5)));
 }
 

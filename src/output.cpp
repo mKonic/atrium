@@ -1,4 +1,5 @@
 #include "output.hpp"
+#include "util/log.hpp"
 #include "icc.hpp"
 #include "render/renderer.hpp"
 
@@ -188,7 +189,7 @@ void log_formats(backend::Output* output) {
     std::string list;
     for (size_t i = 0; formats && i < formats->len; ++i)
         list += format_name(formats->formats[i].format) + " ";
-    wlr_log(WLR_ERROR, "%s: no 10-bit format for HDR; the plane offers: %s", output->name, list.c_str());
+    alog(Log::Error, "%s: no 10-bit format for HDR; the plane offers: %s", output->name, list.c_str());
 }
 
 } // namespace
@@ -229,7 +230,7 @@ bool Output::apply_hdr() {
                     continue;
                 state.set_render_format(format);
                 if (screen->test_state(state)) {
-                    wlr_log(WLR_INFO, "%s: HDR in %s", screen->name.c_str(), format_name(format).c_str());
+                    alog(Log::Info, "%s: HDR in %s", screen->name.c_str(), format_name(format).c_str());
                     ok = true;
                     break;
                 }
@@ -243,7 +244,7 @@ bool Output::apply_hdr() {
         }
         ok = ok && screen->commit_state(state);
         if (!ok)
-            wlr_log(WLR_ERROR, "%s: refused %s HDR", screen->name.c_str(), want ? "turning on" : "turning off");
+            alog(Log::Error, "%s: refused %s HDR", screen->name.c_str(), want ? "turning on" : "turning off");
     }
     scene_output->set_sdr_white_nits(hdr_active() ? float(sdr_white_nits()) : 0.0f);
     // Out of HDR the screen spreads sRGB over its whole gamut; in HDR atrium
@@ -277,7 +278,7 @@ bool Output::apply_icc(std::string* error) {
     std::string why;
     auto table = icc::load(icc, &why);
     if (!table) {
-        wlr_log(WLR_ERROR, "%s: colour profile: %s", screen->name.c_str(), why.c_str());
+        alog(Log::Error, "%s: colour profile: %s", screen->name.c_str(), why.c_str());
         if (error)
             *error = why;
         scene_output->set_color_lut(nullptr);
@@ -287,7 +288,7 @@ bool Output::apply_icc(std::string* error) {
     lut->size = table->size;
     lut->rgb = std::move(table->rgb);
     scene_output->set_color_lut(std::move(lut));
-    wlr_log(WLR_INFO, "%s: colour profile %s", screen->name.c_str(), table->description.c_str());
+    alog(Log::Info, "%s: colour profile %s", screen->name.c_str(), table->description.c_str());
     return true;
 }
 
@@ -396,7 +397,7 @@ void Output::render() {
         if (!committed && switch_vrr) {
             // The screen wouldn't take the switch: the frame without it, and
             // it's not tried again.
-            wlr_log(WLR_ERROR, "%s: refused variable refresh", screen->name.c_str());
+            alog(Log::Error, "%s: refused variable refresh", screen->name.c_str());
             state.committed &= ~backend::OutputState::AdaptiveSyncEnabled;
             screen->commit_state(state);
             vrr_refused_ = vrr;

@@ -1,4 +1,5 @@
 #include "settings.hpp"
+#include "util/log.hpp"
 
 #include "accent.hpp"
 
@@ -12,7 +13,6 @@
 #include <sstream>
 
 extern "C" {
-#include <wlr/util/log.h>
 }
 
 namespace atrium {
@@ -838,7 +838,7 @@ void Settings::load() {
     // an old value must never keep the desktop from starting.
     for (const auto& [key, value] : registry_->settings())
         if (auto err = set(key, value)) {
-            wlr_log(WLR_INFO, "settings: dropping %s: %s", key.c_str(), err->c_str());
+            alog(Log::Info, "settings: dropping %s: %s", key.c_str(), err->c_str());
             registry_->erase_setting(key);
         }
 }
@@ -849,7 +849,7 @@ void Settings::import(const json& doc) {
     for (const auto& [key, value] : doc.items())
         if (find(key))
             if (auto err = set(key, value))
-                wlr_log(WLR_INFO, "settings: not importing %s: %s", key.c_str(), err->c_str());
+                alog(Log::Info, "settings: not importing %s: %s", key.c_str(), err->c_str());
 }
 
 } // namespace atrium

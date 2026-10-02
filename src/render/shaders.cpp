@@ -1,4 +1,5 @@
 #include "render/shaders.hpp"
+#include "util/log.hpp"
 
 #include "paths.hpp"
 
@@ -249,11 +250,11 @@ bool ShaderLibrary::load() {
             std::string error;
             GLuint id = build(e.frag, e.defines[v], true, &error);
             if (!id) {
-                wlr_log(WLR_ERROR, "Shader %s (variant %zu) from %s: %s; using the built-in one", e.frag, v,
+                alog(Log::Error, "Shader %s (variant %zu) from %s: %s; using the built-in one", e.frag, v,
                         dir_.c_str(), error.c_str());
                 id = build(e.frag, e.defines[v], false, &error);
                 if (!id) {
-                    wlr_log(WLR_ERROR, "Built-in shader %s (variant %zu) doesn't compile: %s", e.frag, v,
+                    alog(Log::Error, "Built-in shader %s (variant %zu) doesn't compile: %s", e.frag, v,
                             error.c_str());
                     ok = false;
                 }
@@ -284,7 +285,7 @@ bool ShaderLibrary::poll_reload() {
         changed = true;
     if (!changed)
         return false;
-    wlr_log(WLR_INFO, "Shaders changed on disk: rebuilding");
+    alog(Log::Info, "Shaders changed on disk: rebuilding");
     load();
     return true;
 }
@@ -300,7 +301,7 @@ bool ShaderLibrary::set_screen_shader(const std::string& path) {
                                                                      : source("common.vert", true, 0);
     const std::string fsrc = source(path, true, 0);
     if (fsrc.empty()) {
-        wlr_log(WLR_ERROR, "Screen shader %s: can't read it", path.c_str());
+        alog(Log::Error, "Screen shader %s: can't read it", path.c_str());
         return false;
     }
     GLuint vert = compile(GL_VERTEX_SHADER, vsrc, &error);
@@ -311,7 +312,7 @@ bool ShaderLibrary::set_screen_shader(const std::string& path) {
     if (frag)
         glDeleteShader(frag);
     if (!prog) {
-        wlr_log(WLR_ERROR, "Screen shader %s: %s", path.c_str(), error.c_str());
+        alog(Log::Error, "Screen shader %s: %s", path.c_str(), error.c_str());
         return false;
     }
     screen_ = make_program(prog);

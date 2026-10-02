@@ -135,7 +135,7 @@ std::unique_ptr<Allocator> Allocator::create(int drm_fd) {
     gbm_device* gbm = gbm_create_device(fd);
     if (!gbm) {
         close(fd);
-        wlr_log(WLR_ERROR, "allocator: no GBM device");
+        alog(Log::Error, "allocator: no GBM device");
         return nullptr;
     }
     std::unique_ptr<Allocator> a(new Allocator());
@@ -170,7 +170,7 @@ wlr_buffer* Allocator::allocate(int width, int height, uint32_t format, const st
             break;
     }
     if (!bo) {
-        wlr_log(WLR_ERROR, "allocator: no %dx%d buffer of format 0x%x", width, height, format);
+        alog(Log::Error, "allocator: no %dx%d buffer of format 0x%x", width, height, format);
         return nullptr;
     }
     auto* g = new GbmBuffer{};
@@ -253,7 +253,7 @@ wlr_buffer* Allocator::allocate_dumb(int width, int height, uint32_t format) {
     uint32_t handle = 0, stride = 0;
     uint64_t size = 0;
     if (drmModeCreateDumbBuffer(fd_, uint32_t(width), uint32_t(height), 32, 0, &handle, &stride, &size) != 0) {
-        wlr_log(WLR_ERROR, "allocator: no %dx%d dumb buffer", width, height);
+        alog(Log::Error, "allocator: no %dx%d dumb buffer", width, height);
         return nullptr;
     }
     uint64_t offset = 0;

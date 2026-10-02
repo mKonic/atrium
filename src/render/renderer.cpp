@@ -1,4 +1,5 @@
 #include "render/renderer.hpp"
+#include "util/log.hpp"
 
 #include "backend/backend.hpp"
 
@@ -41,7 +42,7 @@ const char* reset_status(GLenum status) {
 
 void gl_log(GLenum, GLenum type, GLuint, GLenum, GLsizei, const GLchar* msg, const void*) {
     const bool bad = type == GL_DEBUG_TYPE_ERROR_KHR || type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR;
-    _wlr_log(bad ? WLR_ERROR : WLR_DEBUG, "[GLES] %s", msg);
+    alog(bad ? Log::Error : Log::Debug, "[GLES] %s", msg);
 }
 
 // Any render node, for backends that take dmabufs without naming a GPU.
@@ -98,7 +99,7 @@ GLuint Framebuffer::get_fbo() {
     const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        wlr_log(WLR_ERROR, "Framebuffer incomplete (0x%x)", status);
+        alog(Log::Error, "Framebuffer incomplete (0x%x)", status);
         glDeleteFramebuffers(1, &fbo);
         fbo = 0;
     }
@@ -170,7 +171,7 @@ bool Target::ensure(Renderer& r, int width, int height, GLenum internal_format) 
     const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (status != GL_FRAMEBUFFER_COMPLETE) {
-        wlr_log(WLR_ERROR, "Offscreen target 0x%x %dx%d incomplete (0x%x)", internal_format, width, height, status);
+        alog(Log::Error, "Offscreen target 0x%x %dx%d incomplete (0x%x)", internal_format, width, height, status);
         return false;
     }
     fb_ = std::move(fb);
@@ -353,14 +354,14 @@ bool texture_read_pixels(wlr_texture* wt, const wlr_texture_read_pixels_options*
         case DRM_FORMAT_RGB888:
             return read_hdr_as_sdr(t, o, false);
         default:
-            wlr_log(WLR_ERROR, "Can't read an HDR buffer as 0x%08x", o->format);
+            alog(Log::Error, "Can't read an HDR buffer as 0x%08x", o->format);
             return false;
         }
     }
 
     const PixelFormat* f = format_from_drm(o->format);
     if (!f || !format_supported(r.caps(), *f)) {
-        wlr_log(WLR_ERROR, "Can't read pixels as 0x%08x", o->format);
+        alog(Log::Error, "Can't read pixels as 0x%08x", o->format);
         return false;
     }
     if (f->gl_format == GL_BGRA_EXT && !r.caps().EXT_read_format_bgra)
@@ -455,7 +456,7 @@ struct RendererImpl {
             // hands its colour work over as PassOptions::color.
             static bool logged = false;
             if (!logged) {
-                wlr_log(WLR_INFO, "renderer: output color transforms from wlroots are not applied");
+                alog(Log::Info, "renderer: output color transforms from wlroots are not applied");
                 logged = true;
             }
         }
@@ -525,7 +526,7 @@ Renderer* Renderer::create(const backend::Backend& backend) {
         drm_fd = open(name, O_RDWR | O_CLOEXEC);
         own_fd = drm_fd >= 0;
         if (drm_fd < 0)
-            wlr_log_errno(WLR_ERROR, "Couldn't open %s", name);
+            alog_errno(Log::Error, "Couldn't open %s", name);
     }
     if (drm_fd < 0)
         drm_fd = backend.drm_fd();
@@ -534,7 +535,7 @@ Renderer* Renderer::create(const backend::Backend& backend) {
         own_fd = drm_fd >= 0;
     }
     if (drm_fd < 0) {
-        wlr_log(WLR_ERROR, "No GPU to render with");
+        alog(Log::Error, "No GPU to render with");
         return nullptr;
     }
     Renderer* r = create_on(drm_fd);
@@ -573,16 +574,16 @@ bool Renderer::init() {
     const char* exts = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
     if (!exts)
         return false;
-    wlr_log(WLR_INFO, "atrium renderer on %s (%s, %s)", glGetString(GL_VERSION), glGetString(GL_VENDOR),
+    alog(Log::Info, "atrium renderer on %s (%s, %s)", glGetString(GL_VERSION), glGetString(GL_VENDOR),
             glGetString(GL_RENDERER));
-    wlr_log(WLR_DEBUG, "GL extensions: %s", exts);
+    alog(Log::Debug, "GL extensions: %s", exts);
 
     if (!egl_->exts.EXT_image_dma_buf_import) {
-        wlr_log(WLR_ERROR, "EGL_EXT_image_dma_buf_import unsupported");
+        alog(Log::Error, "EGL_EXT_image_dma_buf_import unsupported");
         return false;
     }
     if (!has_extension(exts, "GL_EXT_texture_format_BGRA8888")) {
-        wlr_log(WLR_ERROR, "GL_EXT_texture_format_BGRA8888 unsupported");
+        alog(Log::Error, "GL_EXT_texture_format_BGRA8888 unsupported");
         return false;
     }
     caps_.EXT_read_format_bgra = has_extension(exts, "GL_EXT_read_format_bgra");
@@ -619,7 +620,7 @@ bool Renderer::init() {
              load_proc(procs.glGetInteger64vEXT, "glGetInteger64v"));
     }
     if (!caps_.OES_egl_image) {
-        wlr_log(WLR_ERROR, "GL_OES_EGL_image unsupported");
+        alog(Log::Error, "GL_OES_EGL_image unsupported");
         return false;
     }
     if (caps_.KHR_debug) {
@@ -632,7 +633,7 @@ bool Renderer::init() {
 
     shaders_ = std::make_unique<ShaderLibrary>(caps_.OES_egl_image_external_essl3);
     if (!shaders_->load()) {
-        wlr_log(WLR_ERROR, "The renderer's shaders don't compile");
+        alog(Log::Error, "The renderer's shaders don't compile");
         return false;
     }
 
@@ -675,7 +676,7 @@ bool Renderer::check_reset() {
     const GLenum status = procs.glGetGraphicsResetStatusKHR();
     if (status == GL_NO_ERROR)
         return false;
-    wlr_log(WLR_ERROR, "GPU reset (%s)", reset_status(status));
+    alog(Log::Error, "GPU reset (%s)", reset_status(status));
     wl_signal_emit_mutable(&hook_.base.events.lost, nullptr);
     return true;
 }
@@ -742,7 +743,7 @@ wlr_texture* Renderer::texture_from_buffer(wlr_buffer* buffer) {
     if (!f || !format_supported(caps_, *f) || stride % f->bytes_per_pixel ||
         stride < size_t(buffer->width) * f->bytes_per_pixel) {
         wlr_buffer_end_data_ptr_access(buffer);
-        wlr_log(WLR_ERROR, "Can't upload shm format 0x%08x", format);
+        alog(Log::Error, "Can't upload shm format 0x%08x", format);
         return nullptr;
     }
     auto* t = new Texture();

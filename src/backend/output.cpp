@@ -229,7 +229,7 @@ bool Output::basic_test(const OutputState& s) const {
         const wlr_fbox src = src_box_of(s);
         if (src.x < 0 || src.y < 0 || src.x + src.width > s.buffer->width || src.y + src.height > s.buffer->height ||
             src.width <= 0 || src.height <= 0) {
-            wlr_log(WLR_ERROR, "%s: buffer source box outside the buffer", name.c_str());
+            alog(Log::Error, "%s: buffer source box outside the buffer", name.c_str());
             return false;
         }
         int w, h;
@@ -241,7 +241,7 @@ bool Output::basic_test(const OutputState& s) const {
         }
         wlr_box screen{0, 0, w, h};
         if (!wlr_box_intersection(&screen, &screen, &dst)) {
-            wlr_log(WLR_ERROR, "%s: buffer entirely off-screen", name.c_str());
+            alog(Log::Error, "%s: buffer entirely off-screen", name.c_str());
             return false;
         }
     } else if (s.tearing_page_flip ||
@@ -296,7 +296,7 @@ bool Output::pick_format(uint32_t fmt, std::vector<uint64_t>* modifiers) const {
 std::unique_ptr<Swapchain> Output::create_swapchain(int w, int h, uint32_t format, bool allow_modifiers) {
     std::vector<uint64_t> mods;
     if (!pick_format(format, &mods)) {
-        wlr_log(WLR_ERROR, "%s: no buffer format 0x%08x both the renderer and screen take", name.c_str(), format);
+        alog(Log::Error, "%s: no buffer format 0x%08x both the renderer and screen take", name.c_str(), format);
         return nullptr;
     }
     if (!allow_modifiers && !(mods.size() == 1 && mods[0] == DRM_FORMAT_MOD_LINEAR)) {
@@ -331,7 +331,7 @@ bool Output::configure_primary_swapchain(const OutputState* state, std::unique_p
         // Some screens only take buffers laid out the implicit way.
         sc = create_swapchain(w, h, format, false);
         if (!sc || !passes(*sc)) {
-            wlr_log(WLR_ERROR, "%s: no swapchain the screen takes", name.c_str());
+            alog(Log::Error, "%s: no swapchain the screen takes", name.c_str());
             return false;
         }
     }
@@ -376,7 +376,7 @@ bool Output::ensure_buffer(OutputState& s, bool* added) {
 bool Output::prepare_commit(OutputState& s) {
     s.committed &= ~unchanged(s);
     if (!basic_test(s)) {
-        wlr_log(WLR_ERROR, "%s: the commit failed the basic checks", name.c_str());
+        alog(Log::Error, "%s: the commit failed the basic checks", name.c_str());
         return false;
     }
     bool added;

@@ -519,7 +519,7 @@ const wl_seat_listener Wayland::kSeat = {
 bool Wayland::connect() {
     remote_ = wl_display_connect(nullptr);
     if (!remote_) {
-        wlr_log(WLR_ERROR, "nested: no Wayland compositor to connect to");
+        alog(Log::Error, "nested: no Wayland compositor to connect to");
         return false;
     }
     static const wl_registry_listener kRegistry = {
@@ -558,7 +558,7 @@ bool Wayland::connect() {
     if (wl_display_roundtrip(remote_) < 0)
         return false;
     if (!compositor_ || !wm_base_ || !dmabuf_) {
-        wlr_log(WLR_ERROR, "nested: the host lacks wl_compositor, xdg_wm_base or linux-dmabuf");
+        alog(Log::Error, "nested: the host lacks wl_compositor, xdg_wm_base or linux-dmabuf");
         return false;
     }
     // What buffers it takes, and on which GPU.
@@ -576,7 +576,7 @@ bool Wayland::connect() {
         wl_display_roundtrip(remote_);
     }
     if (formats_.len == 0) {
-        wlr_log(WLR_ERROR, "nested: the host takes no dmabuf formats");
+        alog(Log::Error, "nested: the host takes no dmabuf formats");
         return false;
     }
 
@@ -613,7 +613,7 @@ void Wayland::hangup() {
     if (gone_)
         return;
     gone_ = true;
-    wlr_log(WLR_ERROR, "nested: the host compositor went away");
+    alog(Log::Error, "nested: the host compositor went away");
     if (source_) {
         wl_event_source_remove(source_);
         source_ = nullptr;

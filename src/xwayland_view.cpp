@@ -1,5 +1,6 @@
 #ifdef ATRIUM_XWAYLAND
 #include "xwayland_view.hpp"
+#include "util/log.hpp"
 
 #include "seat.hpp"
 #include "server.hpp"
@@ -12,9 +13,9 @@ XwaylandView::XwaylandView(Server& srv, xwayland::XSurface* xs) : View(srv, Kind
     auto& e = xsurface->events;
 
     // The surface only exists between associate and dissociate.
-    wlr_log(WLR_DEBUG, "x11: window 0x%x created", xsurface->window_id);
+    alog(Log::Debug, "x11: window 0x%x created", xsurface->window_id);
     c.push_back(e.associate.connect([this] {
-        wlr_log(WLR_DEBUG, "x11: window 0x%x has its surface (mapped: %d, buffer: %d)", xsurface->window_id,
+        alog(Log::Debug, "x11: window 0x%x has its surface (mapped: %d, buffer: %d)", xsurface->window_id,
                 surface()->mapped(), surface()->buffer() != nullptr);
         map_ = surface()->events.map.connect([this] { map(); });
         unmap_ = surface()->events.unmap.connect([this] { unmap(); });
@@ -94,7 +95,7 @@ XwaylandView::~XwaylandView() {
 }
 
 void XwaylandView::map() {
-    wlr_log(WLR_DEBUG, "x11: window 0x%x maps", xsurface->window_id);
+    alog(Log::Debug, "x11: window 0x%x maps", xsurface->window_id);
     geom = {xsurface->x, xsurface->y, xsurface->width, xsurface->height};
     handle_map();
     if (unmanaged())

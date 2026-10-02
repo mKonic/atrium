@@ -2,6 +2,7 @@
 // it needs, from wlroots/scenefx).
 
 #include "scene/internal.hpp"
+#include "util/log.hpp"
 #include "backend/allocator.hpp"
 #include "backend/backend.hpp"
 
@@ -820,7 +821,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
 
     render::Renderer* renderer = render::Renderer::from(output->renderer);
     if (!renderer) {
-        wlr_log(WLR_ERROR, "%s: not atrium's renderer", output->name);
+        alog(Log::Error, "%s: not atrium's renderer", output->name);
         return false;
     }
 
@@ -971,7 +972,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
     }
     if ((scanout == Success) != prev_scanout_) {
         prev_scanout_ = scanout == Success;
-        wlr_log(WLR_DEBUG, "Direct scan-out %s", prev_scanout_ ? "enabled" : "disabled");
+        alog(Log::Debug, "Direct scan-out %s", prev_scanout_ ? "enabled" : "disabled");
     }
     if (scanout == Success) {
         attempt_gamma(state);

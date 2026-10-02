@@ -1,4 +1,5 @@
 atrium_sources = files(
+  'util/log.cpp',
   'anim.cpp',
   'cairo_buffer.cpp',
   'backend/allocator.cpp',
