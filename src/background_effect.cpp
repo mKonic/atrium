@@ -81,11 +81,11 @@ void BackgroundEffects::get_background_effect(ExtBackgroundEffectManagerV1* mana
             self->post_error(uint32_t(ExtBackgroundEffectSurfaceV1::Error::SurfaceDestroyed), "the surface is gone");
             return;
         }
-        if (region)
-            if (auto* r = dynamic_cast<wl::RegionResource*>(wl::WlRegion::from(region)))
-                pixman_region32_copy(&e->pending, r->region.get());
-        else
+        if (!region) {
             pixman_region32_clear(&e->pending);
+        } else if (auto* r = dynamic_cast<wl::RegionResource*>(wl::WlRegion::from(region))) {
+            pixman_region32_copy(&e->pending, r->region.get());
+        }
     });
     r->on_gone([this, e] { effect_gone(e); });
 
