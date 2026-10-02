@@ -1,5 +1,6 @@
 #pragma once
 #include "scene/scene.hpp"
+#include "wl/desktop.hpp"
 #include "wlr.hpp"
 
 #include <string>
@@ -48,7 +49,10 @@ public:
     scene::Tree* fullscreen_tree = nullptr;  // fullscreen windows, above panels
     scene::Rect* backdrop = nullptr;         // secret spaces: the dimmed screen behind them
 
-    wlr_ext_workspace_handle_v1* handle = nullptr;
+    // Its entry in ext-workspace (pagers, the portal's workspace list).
+    wl::Workspaces::Workspace* handle = nullptr;
+    // Tells it how the space is now.
+    void sync_handle();
 
     // Tiling (Mod+\): windows share the screen instead of floating, in this
     // order (window ids, oldest first); see Server::retile().

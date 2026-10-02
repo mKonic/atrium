@@ -9,13 +9,30 @@
 
 #include "listener.hpp"
 #include "render/pass.hpp"
+#include "wl/dmabuf.hpp"
+#include "wl/signal.hpp"
 #include "wlr.hpp"
+
+#include <optional>
+#include <vector>
 
 #include <cstdint>
 #include <functional>
 #include <unordered_set>
 #include <unordered_map>
 #include <memory>
+
+namespace atrium::wl {
+class ColorManagement;
+class FractionalScales;
+class GammaControls;
+class LayerSurface;
+class LinuxDmabuf;
+class Output;
+class ShellSurface;
+class Surface;
+class Syncobj;
+} // namespace atrium::wl
 
 namespace atrium::scene {
 
@@ -313,8 +330,6 @@ public:
     void set_filter_mode(wlr_scale_filter_mode mode);
     void set_transfer_function(wlr_color_transfer_function tf);
     void set_primaries(wlr_color_named_primaries primaries);
-    void set_color_encoding(wlr_color_encoding encoding);
-    void set_color_range(wlr_color_range range);
     void set_corner_radius(int r) { set_corner_radii(Radii::all(r)); }
     void set_corner_radii(Radii r);
     void send_frame_done(FrameDoneEvent* event);
@@ -343,9 +358,10 @@ public:
     pixman_region32_t opaque_region;
     wlr_color_transfer_function transfer_function = wlr_color_transfer_function(0);
     wlr_color_named_primaries primaries = wlr_color_named_primaries(0);
-    wlr_color_encoding color_encoding = WLR_COLOR_ENCODING_NONE;
-    wlr_color_range color_range = WLR_COLOR_RANGE_NONE;
     Radii corners;
+    // The dmabuf feedback last sent its surface: for scan-out on that
+    // output, or (null) for rendering.
+    std::optional<std::pair<wlr_output*, bool>> feedback_sent;
 
 private:
     Buffer(Tree* parent, wlr_buffer* buffer);
@@ -358,7 +374,6 @@ private:
 
     uint64_t active_outputs_ = 0;
     wlr_texture* texture_ = nullptr;
-    wlr_linux_dmabuf_feedback_v1_init_options prev_feedback_{};
     bool own_buffer_ = false;
     int buffer_width_ = 0, buffer_height_ = 0;
     bool buffer_is_opaque_ = false;
@@ -367,7 +382,7 @@ private:
     Listener<> buffer_release_;
     Listener<> renderer_destroy_;
     bool single_pixel_ = false;
-    uint32_t single_pixel_color_[4]{};
+    float single_pixel_color_[4]{};
     Blur* mask_of_ = nullptr;
     SurfaceNode* surface_ = nullptr;
 
@@ -378,6 +393,15 @@ private:
     friend struct SceneImpl;
 };
 
+struct Protocols {
+    wl::LinuxDmabuf* dmabuf = nullptr;
+    // The feedback for a surface on `scanout` (null: rendered only).
+    std::function<wl::DmabufFeedback(wlr_output* scanout)> dmabuf_feedback;
+    wl::FractionalScales* fractional_scales = nullptr;
+    wl::ColorManagement* color = nullptr;
+    wl::Syncobj* syncobj = nullptr;
+};
+
 class Scene : public Tree {
 public:
     static Scene* create();
@@ -386,16 +410,15 @@ public:
     void set_blur(const render::BlurParams& params);
     const render::BlurParams& blur() const { return blur_; }
 
-    void set_linux_dmabuf_v1(wlr_linux_dmabuf_v1* dmabuf);
-    void set_gamma_control_manager_v1(wlr_gamma_control_manager_v1* gamma);
-    void set_color_manager_v1(wlr_color_manager_v1* manager);
+    // The protocols surfaces are told things through (null: not there).
+    // The compositor sets them, and clears them before they go.
+    Protocols protocols;
+    void set_gamma_controls(wl::GammaControls* gamma);
 
     SceneOutput* output_for(wlr_output* output);
+    SceneOutput* output_for(const wl::Output* output);
 
     wl_list outputs;  // SceneOutput::link
-    wlr_linux_dmabuf_v1* linux_dmabuf_v1 = nullptr;
-    wlr_gamma_control_manager_v1* gamma_control_manager_v1 = nullptr;
-    wlr_color_manager_v1* color_manager_v1 = nullptr;
 
     bool restack_xwayland_surfaces = true;
     bool direct_scanout = true;
@@ -409,8 +432,8 @@ private:
     // A BlurCache made again since visibility was last computed: what it
     // forced visible below it can be culled again.
     bool blur_cache_rendered_ = false;
-    Listener<> dmabuf_destroy_, gamma_destroy_, color_destroy_;
-    Listener<wlr_gamma_control_manager_v1_set_gamma_event> gamma_set_;
+    wl::GammaControls* gamma_ = nullptr;
+    wl::Connection gamma_set_;
 
     friend class Node;
     friend class SceneOutput;
@@ -452,7 +475,12 @@ public:
     void send_frame_done(const timespec* now);
     void for_each_buffer(const std::function<void(Buffer*, int lx, int ly)>& fn);
 
+    // Surfaces' content shown this frame: their presentation feedbacks,
+    // sent when the output says it was presented.
+    void presentation_pending(std::vector<std::shared_ptr<void>> feedbacks, bool zero_copy);
+
     wlr_output* output;
+    wl::Output* global = nullptr;  // its wl_output (the compositor sets it)
     wl_list link;  // Scene::outputs
     Scene* scene;
     wlr_damage_ring damage_ring;
@@ -482,8 +510,17 @@ private:
     uint8_t dmabuf_feedback_debounce_ = 0;
     bool prev_scanout_ = false;
     bool gamma_lut_changed_ = false;
-    wlr_gamma_control_v1* gamma_lut_ = nullptr;
     wlr_color_transform* gamma_lut_transform_ = nullptr;
+    struct Feedbacks {
+        std::vector<std::shared_ptr<void>> list;
+        bool zero_copy;
+    };
+    std::vector<Feedbacks> sampled_;
+    struct Committed {
+        uint32_t seq;
+        Feedbacks feedbacks;
+    };
+    std::vector<Committed> committed_;
     float sdr_white_nits_ = 0;
     float tint_[3] = {1, 1, 1};
     wlr_color_primaries sdr_primaries_{};
@@ -499,6 +536,7 @@ private:
     };
     std::vector<Highlight*> highlights_;
     Listener<wlr_output_event_commit> commit_;
+    Listener<wlr_output_event_present> present_;
     Listener<wlr_output_event_damage> damage_;
     Listener<> needs_frame_;
     Listener<> renderer_destroy_;
@@ -515,48 +553,66 @@ private:
 // A surface's buffer node, kept in step with the surface's commits.
 class SurfaceNode {
 public:
-    static SurfaceNode* create(Tree* parent, wlr_surface* surface);
+    static SurfaceNode* create(Tree* parent, wl::Surface* surface);
     void send_frame_done(const timespec* when);
     void set_clip(const wlr_box* clip);
 
     Buffer* buffer;
-    wlr_surface* surface;
+    wl::Surface* surface;
     wlr_box clip{};
 
 private:
-    SurfaceNode(Buffer* buffer, wlr_surface* surface);
+    SurfaceNode(Buffer* buffer, wl::Surface* surface);
     ~SurfaceNode();
     void reconfigure();
+    void outputs_changed(SceneOutput** active, size_t n);
+    SceneOutput* pacing_output() const;
+
+    std::vector<SceneOutput*> on_;  // the outputs it was last shown on
+    bool suspended_ = false;        // shown on none just now
     Listener<OutputsUpdateEvent> outputs_update_;
     Listener<OutputSampleEvent> output_sample_;
     Listener<FrameDoneEvent> frame_done_;
-    Listener<> surface_destroy_;
-    Listener<> surface_commit_;
+    wl::Connection surface_destroy_, surface_commit_;
     friend class Buffer;
 };
 
 // A surface and its sub-surfaces, each a tree of its own.
-Tree* subsurface_tree_create(Tree* parent, wlr_surface* surface);
+Tree* subsurface_tree_create(Tree* parent, wl::Surface* surface);
 // Clips a subsurface tree (found under `node`) to a box, surface-local.
 void subsurface_tree_set_clip(Node* node, const wlr_box* clip);
 // An xdg surface: its subsurface tree, offset by its window geometry, and
 // placed at a popup's position.
-Tree* xdg_surface_create(Tree* parent, wlr_xdg_surface* xdg_surface);
-Tree* drag_icon_create(Tree* parent, wlr_drag_icon* icon);
+Tree* xdg_surface_create(Tree* parent, wl::ShellSurface* xdg_surface);
+Tree* drag_icon_create(Tree* parent, wl::Surface* icon);
 
 struct LayerSurfaceNode {
     Tree* tree;
-    wlr_layer_surface_v1* layer_surface;
+    wl::LayerSurface* layer_surface;
 };
-LayerSurfaceNode* layer_surface_v1_create(Tree* parent, wlr_layer_surface_v1* layer_surface);
+LayerSurfaceNode* layer_surface_v1_create(Tree* parent, wl::LayerSurface* layer_surface);
 // Places it by its anchors and margins within `full_area` (or `usable_area`
 // unless it asks for all of it), and takes its exclusive zone out of
 // `usable_area`.
 void layer_surface_v1_configure(LayerSurfaceNode* node, const wlr_box* full_area, wlr_box* usable_area);
 
-// A capture source (ext-image-capture) of a subtree, for per-window
-// screen sharing.
-wlr_ext_image_capture_source_v1* capture_source_create(Node* node, wl_event_loop* loop, wlr_allocator* allocator,
-                                                       wlr_renderer* renderer);
+// A subtree drawn on a private output of its own, sized to what is in it:
+// for capturing one window. Goes with the node.
+class CaptureSource {
+public:
+    static CaptureSource* create(Node* node, wl_event_loop* loop, wlr_allocator* allocator, wlr_renderer* renderer);
+    void destroy();
+
+    // Someone watches: frames are drawn (counted, as sessions come and go).
+    void start();
+    void stop();
+    // A frame wanted: drawn now if `force`, else once something changes.
+    void request_frame(bool force);
+    // The size frames come in (0 before the first).
+    int width() const;
+    int height() const;
+
+    std::function<void(wlr_buffer* buffer, const pixman_region32_t* damage, const timespec& when)> on_frame;
+};
 
 } // namespace atrium::scene

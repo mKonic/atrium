@@ -114,6 +114,8 @@ public:
     const std::string& app_id() const { return app_id_; }
     Toplevel* parent() const { return parent_; }
 
+    void* data = nullptr;  // the compositor's own object
+
     // What the client asked for; the compositor answers with a configure.
     struct Requested {
         bool maximized = false, fullscreen = false, minimized = false;
@@ -201,6 +203,8 @@ public:
     // Where it goes, relative to its parent's window geometry.
     Box geometry() const { return current_; }
     Box scheduled_geometry() const { return scheduled_; }
+
+    void* data = nullptr;  // the compositor's own object
 
     // Keeps it inside `box` (in its parent's window-geometry coordinates).
     void unconstrain_from(const Box& box);

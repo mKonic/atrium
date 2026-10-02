@@ -216,6 +216,8 @@ void Seat::set_keymap(const std::string& keymap) {
             for (auto& k : r->keyboards)
                 if (k)
                     send_keymap(k.get());
+    // A new keymap starts clients' key state afresh: the modifiers go again.
+    mods_sent_ = false;
 }
 
 void Seat::send_keymap(WlKeyboard* k) {
@@ -325,9 +327,10 @@ void Seat::keyboard_key(uint32_t time_ms, uint32_t key, bool pressed) {
 }
 
 void Seat::keyboard_modifiers(const Modifiers& mods) {
-    if (mods == mods_)
+    if (mods == mods_ && mods_sent_)
         return;
     mods_ = mods;
+    mods_sent_ = true;
     if (!keyboard_focus_)
         return;
     const uint32_t serial = next_serial();

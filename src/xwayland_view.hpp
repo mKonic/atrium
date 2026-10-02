@@ -2,6 +2,7 @@
 #ifdef ATRIUM_XWAYLAND
 #include "scene/scene.hpp"
 #include "view.hpp"
+#include "xwayland/xwm.hpp"
 
 namespace atrium {
 
@@ -10,10 +11,10 @@ namespace atrium {
 // never enter the focus order.
 class XwaylandView final : public View {
 public:
-    XwaylandView(Server& server, wlr_xwayland_surface* xsurface);
+    XwaylandView(Server& server, xwayland::XSurface* xsurface);
     ~XwaylandView() override;
 
-    wlr_surface* surface() const override { return xsurface->surface; }
+    wl::Surface* surface() const override { return xsurface->surface; }
     const char* app_id() const override;
     const char* title() const override;
     View* parent() const override;
@@ -28,7 +29,7 @@ public:
     bool passive() const override;
     void close() override;
 
-    wlr_xwayland_surface* const xsurface;
+    xwayland::XSurface* const xsurface;
 
 protected:
     void configure(const wlr_box& frame) override;
@@ -39,27 +40,18 @@ protected:
     scene::Tree* create_content(scene::Tree* parent) override;
 
 private:
-    bool has_type(wlr_xwayland_net_wm_window_type type) const {
-        return wlr_xwayland_surface_has_window_type(xsurface, type);
-    }
-    // _NET_WM_STATE flags the window set (wlroots already updated them).
+    bool has_type(xwayland::WindowType type) const { return xsurface->has_window_type(type); }
+    // _NET_WM_STATE flags the window set (the XWM already updated them).
     void apply_states();
 
     void map();
     void unmap();
-    void request_configure(wlr_xwayland_surface_configure_event* event);
+    void request_configure(const xwayland::XSurface::ConfigureRequest& event);
     void set_geometry();
     void commit();
 
-    Listener<> associate_, dissociate_, destroy_;
-    Listener<> map_, unmap_, commit_;
-    Listener<> request_activate_, request_fullscreen_, request_maximize_, request_close_;
-    Listener<wlr_xwayland_minimize_event> request_minimize_;
-    Listener<wlr_xwayland_surface_configure_event> request_configure_;
-    Listener<> request_move_;
-    Listener<wlr_xwayland_resize_event> request_resize_;
-    Listener<> set_geometry_, set_hints_, set_title_, set_class_, set_decorations_, set_override_redirect_;
-    Listener<> request_above_, request_below_, request_sticky_, request_skip_taskbar_, request_attention_;
+    std::vector<wl::Connection> connections_;
+    wl::Connection map_, unmap_, commit_;
 };
 
 } // namespace atrium

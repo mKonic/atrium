@@ -148,6 +148,32 @@ TEST(WlSeat, KeyboardFollowsFocus) {
     EXPECT_EQ(w.error(), 0);
 }
 
+// A new keymap starts a client's key state afresh: the modifiers held go
+// again, even unchanged (Shift from a virtual keyboard's keymap).
+TEST(WlSeat, ModifiersFollowANewKeymap) {
+    World w;
+    w.seat.set_keymap("xkb_keymap { one };");
+    KeyboardLog log;
+    wl_keyboard* kb = wl_seat_get_keyboard(w.wseat);
+    wl_keyboard_add_listener(kb, &kKeyboard, &log);
+    auto [s, ss] = w.surface();
+    w.pump();
+    w.seat.keyboard_enter(ss, {}, {});
+    w.seat.keyboard_modifiers({.depressed = 1});
+    w.pump();
+    EXPECT_EQ(log.mods_depressed, 1u);
+    log.mods_depressed = 0;  // what a client's new xkb state starts at
+    w.seat.set_keymap("xkb_keymap { two };");
+    w.seat.keyboard_modifiers({.depressed = 1});
+    w.pump();
+    EXPECT_EQ(log.keymap, "xkb_keymap { two };");
+    EXPECT_EQ(log.mods_depressed, 1u);
+    wl_keyboard_release(kb);
+    wl_surface_destroy(s);
+    w.pump();
+    EXPECT_EQ(w.error(), 0);
+}
+
 TEST(WlSeat, PointerEventsAndCursorRequests) {
     World w;
     struct Log {

@@ -43,12 +43,12 @@ GlassShapes::~GlassShapes() {
     }
 }
 
-const std::vector<GlassShape>* GlassShapes::shapes_for(wlr_surface* surface) const {
+const std::vector<GlassShape>* GlassShapes::shapes_for(wl::Surface* surface) const {
     auto it = glass_.find(surface);
     return it == glass_.end() || !it->second->committed ? nullptr : &it->second->current;
 }
 
-void GlassShapes::refresh(wlr_surface* surface) {
+void GlassShapes::refresh(wl::Surface* surface) {
     Owner o = Server::owner_of(surface);
     if (o.layer)
         o.layer->refresh_blur();
@@ -96,7 +96,9 @@ void apply_glass(scene::Blur* blur, const std::vector<GlassShape>& given, float 
 }
 
 void GlassShapes::get_glass(AtriumGlassManagerV1* manager, uint32_t id, wl_resource* surface_resource) {
-    wlr_surface* surface = wlr_surface_from_resource(surface_resource);
+    wl::Surface* surface = wl::Surface::from(surface_resource);
+    if (!surface)
+        return;
     auto* r = wl::make<AtriumGlassV1>(manager->client(), manager->version(), id);
     if (!r)
         return;
@@ -110,12 +112,12 @@ void GlassShapes::get_glass(AtriumGlassManagerV1* manager, uint32_t id, wl_resou
     r->on_set_clipped_shapes([g](AtriumGlassV1*, wl_array* shapes) { take_shapes(g, shapes, 10); });
     r->on_gone([this, g] { glass_gone(g); });
 
-    g->commit.connect(&surface->events.commit, [g](void*) {
+    g->commit = surface->events.commit.connect([g] {
         g->current = g->pending;
         g->committed = true;
         refresh(g->surface);
     });
-    g->destroy.connect(&surface->events.destroy, [this, g](void*) { surface_gone(g); });
+    g->destroy = surface->events.destroy.connect([this, g] { surface_gone(g); });
 }
 
 void GlassShapes::take_shapes(Glass* g, wl_array* shapes, size_t stride) {
@@ -147,7 +149,7 @@ void GlassShapes::surface_gone(Glass* g) {
 }
 
 void GlassShapes::glass_gone(Glass* g) {
-    wlr_surface* surface = g->surface;
+    wl::Surface* surface = g->surface;
     if (surface && glass_.contains(surface) && glass_[surface] == g)
         surface_gone(g);
     std::erase(all_, g);

@@ -491,14 +491,14 @@ RuleResult Server::assign_space(View* view) {
 // --- outputs ----------------------------------------------------------------------------
 
 void Server::output_added(Output* output) {
-    output->workspace_group = wlr_ext_workspace_group_handle_v1_create(workspace_manager, 0);
+    output->workspace_group = wl->workspaces->add_group(0);
     output->workspace_group->data = output;
-    wlr_ext_workspace_group_handle_v1_output_enter(output->workspace_group, output->wlr);
+    wl->workspaces->set_group_outputs(output->workspace_group, {output->global.get()});
     // Spaces left without an output (the last one went away) join this one.
     for (const auto& s : spaces)
         if (!s->secret && !s->output) {
             s->output = output;
-            wlr_ext_workspace_handle_v1_set_group(s->handle, output->workspace_group);
+            wl->workspaces->move(s->handle, output->workspace_group);
         }
     output->active = ensure_space(output, 1);
     output->active->set_shown(true);
@@ -542,7 +542,10 @@ void Server::output_removing(Output* output) {
     }
     output->active = nullptr;
     if (output->workspace_group) {
-        wlr_ext_workspace_group_handle_v1_destroy(output->workspace_group);
+        for (const auto& s : spaces)
+            if (s->handle && s->handle->group == output->workspace_group)
+                wl->workspaces->move(s->handle, nullptr);
+        wl->workspaces->remove_group(output->workspace_group);
         output->workspace_group = nullptr;
     }
     spaces_changed();
@@ -550,22 +553,15 @@ void Server::output_removing(Output* output) {
 
 // --- ext-workspace-v1 ------------------------------------------------------------------
 
-void Server::workspace_requests(wlr_ext_workspace_v1_commit_event* event) {
-    wlr_ext_workspace_v1_request* req;
-    wl_list_for_each(req, event->requests, link) {
-        switch (req->type) {
-        case WLR_EXT_WORKSPACE_V1_REQUEST_ACTIVATE:
-            if (req->activate.workspace && req->activate.workspace->data)
-                reveal(static_cast<Space*>(req->activate.workspace->data));
-            break;
-        case WLR_EXT_WORKSPACE_V1_REQUEST_DEACTIVATE:
-            if (req->deactivate.workspace && req->deactivate.workspace->data &&
-                static_cast<Space*>(req->deactivate.workspace->data) == shown_secret)
-                hide_secret();
-            break;
-        default:
-            break;  // spaces come and go on their own; creation/assignment isn't offered
-        }
+void Server::workspace_requests(const std::vector<wl::Workspaces::Request>& requests) {
+    using Kind = wl::Workspaces::Request::Kind;
+    for (const auto& r : requests) {
+        auto* space = r.workspace ? static_cast<Space*>(r.workspace->data) : nullptr;
+        if (r.kind == Kind::Activate && space)
+            reveal(space);
+        else if (r.kind == Kind::Deactivate && space && space == shown_secret)
+            hide_secret();
+        // Spaces come and go on their own; creating and assigning isn't offered.
     }
 }
 

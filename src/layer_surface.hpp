@@ -1,6 +1,7 @@
 #pragma once
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "wl/layer_shell.hpp"
 
 namespace atrium {
 
@@ -10,7 +11,7 @@ class Server;
 // A wlr-layer-shell surface: wallpaper, panel, dock, launcher, notification.
 class LayerSurface {
 public:
-    LayerSurface(Server& server, wlr_layer_surface_v1* wlr);
+    LayerSurface(Server& server, wl::LayerSurface* ls);
     ~LayerSurface();
     LayerSurface(const LayerSurface&) = delete;
     LayerSurface& operator=(const LayerSurface&) = delete;
@@ -20,7 +21,8 @@ public:
     void refresh_blur() { update_blur(); }
 
     Server& server;
-    wlr_layer_surface_v1* const wlr;
+    wl::LayerSurface* const ls;
+    wl::Surface* surface() const { return ls->surface(); }
     Output* output = nullptr;
     scene::LayerSurfaceNode* scene_layer = nullptr;
     scene::Tree* tree = nullptr;
@@ -40,9 +42,8 @@ private:
     double lensing_ = 1;
     uint32_t keyboard_interactive_ = 0;  // as of the last commit
 
-    Listener<> destroy_;
-    Listener<> unmap_;
-    Listener<> commit_;
+    bool initial_ = false;  // this commit was the first
+    wl::Connection destroy_, unmap_, commit_, initial_commit_;
 };
 
 } // namespace atrium

@@ -3,6 +3,9 @@
 #include "placements.hpp"
 #include "scene/scene.hpp"
 #include "titlebar.hpp"
+#include "wl/desktop.hpp"
+#include "wl/xdg_extras.hpp"
+#include "wl/xdg_shell.hpp"
 
 #include <memory>
 #include <optional>
@@ -32,7 +35,7 @@ public:
     View& operator=(const View&) = delete;
 
     // --- backend specifics -------------------------------------------------
-    virtual wlr_surface* surface() const = 0;
+    virtual wl::Surface* surface() const = 0;
     virtual const char* app_id() const = 0;
     virtual const char* title() const = 0;
     virtual View* parent() const = 0;
@@ -85,7 +88,7 @@ public:
     int below_bar(int y) const;
     // Its name in ext-foreign-toplevel-list: how screen sharing names it.
     std::string toplevel_identifier() const {
-        return ext_handle_ && ext_handle_->identifier ? ext_handle_->identifier : "";
+        return handle_ ? handle_->identifier() : "";
     }
     void set_activated(bool activated);
     // `restore_geometry` false drops the maximized state where the window is
@@ -257,28 +260,13 @@ private:
     void destroy_toplevel_handles();
     void update_output_from_position();
 
-    wlr_ext_foreign_toplevel_handle_v1* ext_handle_ = nullptr;
-    wlr_foreign_toplevel_handle_v1* handle_ = nullptr;
+    // Its entry in the window lists (ext and wlr foreign toplevels).
+    wl::ForeignToplevels::Handle* handle_ = nullptr;
+    std::vector<wl::Connection> handle_connections_;
+    // A private scene holding just this window, for per-window capture.
     scene::Scene* capture_scene_ = nullptr;
-    wlr_ext_image_capture_source_v1* capture_source_ = nullptr;
-    // wlroots' scene-node capture source (0.20) draws only on new damage, so
-    // a client asking for a frame of a still window, even its first, waits
-    // forever, and a viewer that joins after the one frame sees nothing. The
-    // source's request_frame goes through this copy of its functions, which
-    // damages the capture scene when a frame is owed, and a second after the
-    // last frame if nothing else has.
-    struct CaptureImpl {
-        wlr_ext_image_capture_source_v1_interface impl;  // first: source->impl points here
-        const wlr_ext_image_capture_source_v1_interface* base;
-        scene::Node* node;
-        wl_event_source* refresh;
-    } capture_impl_{};
-
-    Listener<wlr_foreign_toplevel_handle_v1_activated_event> handle_activate_;
-    Listener<wlr_foreign_toplevel_handle_v1_maximized_event> handle_maximize_;
-    Listener<wlr_foreign_toplevel_handle_v1_minimized_event> handle_minimize_;
-    Listener<wlr_foreign_toplevel_handle_v1_fullscreen_event> handle_fullscreen_;
-    Listener<> handle_close_;
+    // Tells the window lists how it is now.
+    void sync_handle();
 
     friend class Server;  // image capture requests
 };
@@ -286,10 +274,10 @@ private:
 // Wayland-native window.
 class XdgView final : public View {
 public:
-    XdgView(Server& server, wlr_xdg_toplevel* toplevel);
+    XdgView(Server& server, wl::Toplevel* toplevel);
     ~XdgView() override;
 
-    wlr_surface* surface() const override { return toplevel->base->surface; }
+    wl::Surface* surface() const override { return toplevel->base() ? toplevel->base()->surface() : nullptr; }
     const char* app_id() const override;
     const char* title() const override;
     View* parent() const override;
@@ -300,12 +288,12 @@ public:
     void surface_origin(double& x, double& y) const override;
 
     void dismiss_popups();
-    void set_decoration(wlr_xdg_toplevel_decoration_v1* decoration);
+    void set_decoration(wl::Decorations::Xdg* decoration);
 
-    wlr_xdg_toplevel* const toplevel;
+    wl::Toplevel* const toplevel;
 
     bool wants_ssd() const override;
-    void set_kde_decoration(wlr_server_decoration* decoration);
+    void set_kde_decoration(wl::Decorations::Kde* decoration);
 
 protected:
     void configure(const wlr_box& frame) override;
@@ -318,22 +306,17 @@ protected:
 
 private:
     void commit();
+    void initial_commit();
 
     uint32_t last_size_serial_ = 0;
     void apply_decoration_mode();
 
-    wlr_xdg_toplevel_decoration_v1* decoration_ = nullptr;
-    wlr_server_decoration* kde_decoration_ = nullptr;  // older KDE protocol (Qt5, GTK3 apps via it)
+    wl::Decorations::Xdg* decoration_ = nullptr;
+    wl::Decorations::Kde* kde_decoration_ = nullptr;  // older KDE protocol (Qt5, GTK3 apps via it)
     wlr_box bounds_{};
 
-    Listener<> commit_, map_, unmap_, destroy_;
-    Listener<> request_fullscreen_, request_maximize_, request_minimize_;
-    Listener<wlr_xdg_toplevel_move_event> request_move_;
-    Listener<wlr_xdg_toplevel_resize_event> request_resize_;
-    Listener<wlr_xdg_toplevel_show_window_menu_event> request_window_menu_;
-    Listener<> set_title_, set_app_id_;
-    Listener<> decoration_request_, decoration_destroy_;
-    Listener<> kde_mode_, kde_destroy_;
+    std::vector<wl::Connection> connections_;
+    wl::Connection decoration_request_, decoration_destroy_, kde_mode_, kde_destroy_;
 };
 
 // window_hints.cpp
@@ -346,6 +329,6 @@ View* tearing_view(Server& server, const Output& output);
 View* game_view(Server& server, const Output& output);
 
 // Attach the popup machinery for a new xdg_popup (of a view or a layer surface).
-void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup);
+void handle_new_xdg_popup(Server& server, wl::Popup* popup);
 
 } // namespace atrium

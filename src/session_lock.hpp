@@ -1,6 +1,7 @@
 #pragma once
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "wl/session_lock.hpp"
 
 namespace atrium {
 
@@ -11,22 +12,20 @@ class Server;
 // locked (the lock background keeps covering everything).
 class SessionLock {
 public:
-    SessionLock(Server& server, wlr_session_lock_v1* lock);
+    SessionLock(Server& server, wl::Lock* lock);
     ~SessionLock();
     SessionLock(const SessionLock&) = delete;
     SessionLock& operator=(const SessionLock&) = delete;
 
     Server& server;
-    wlr_session_lock_v1* const wlr;
+    wl::Lock* const lock;
     scene::Tree* tree = nullptr;
 
 private:
-    void new_surface(wlr_session_lock_surface_v1* surface);
+    void new_surface(wl::LockSurface* surface);
     void finish(bool unlocked);
 
-    Listener<wlr_session_lock_surface_v1> new_surface_;
-    Listener<> unlock_;
-    Listener<> destroy_;
+    wl::Connection new_surface_, unlock_, destroy_;
 };
 
 } // namespace atrium

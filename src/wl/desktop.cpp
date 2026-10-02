@@ -810,13 +810,17 @@ void GammaControls::set_size(Output* output, uint32_t size) {
     sizes_[output] = size;
     // A screen that went (size 0): its control fails.
     if (!size)
-        if (auto it = controls_.find(output); it != controls_.end()) {
-            if (auto* r = static_cast<ZwlrGammaControlV1*>(it->second.get())) {
-                r->send_failed();
-                r->detach();
-            }
-            controls_.erase(it);
+        fail(output);
+}
+
+void GammaControls::fail(Output* output) {
+    if (auto it = controls_.find(output); it != controls_.end()) {
+        if (auto* r = static_cast<ZwlrGammaControlV1*>(it->second.get())) {
+            r->send_failed();
+            r->detach();
         }
+        controls_.erase(it);
+    }
 }
 
 } // namespace atrium::wl

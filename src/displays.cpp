@@ -7,56 +7,150 @@
 
 namespace atrium {
 
+std::vector<Server::OutputChange> Server::current_outputs() const {
+    std::vector<OutputChange> out;
+    for (Output* o : outputs) {
+        OutputChange c{o, o->wlr->enabled, o->wlr->current_mode, std::nullopt, o->wlr->scale, o->wlr->transform,
+                       o->box.x, o->box.y, std::nullopt};
+        if (!o->wlr->current_mode)
+            c.custom = std::array{o->wlr->width, o->wlr->height, o->wlr->refresh};
+        out.push_back(c);
+    }
+    return out;
+}
+
 // Both ways an output changes (an output-management client, the Settings
 // app through IPC) go through here: test or commit a whole configuration.
-bool Server::commit_output_config(wlr_output_configuration_v1* config_in, bool test) {
-    size_t n = 0;
-    wlr_backend_output_state* states = wlr_output_configuration_v1_build_state(config_in, &n);
-    if (!states)
-        return false;
+bool Server::commit_output_config(const std::vector<OutputChange>& changes, bool test) {
+    std::vector<wlr_backend_output_state> states(changes.size());
+    for (size_t i = 0; i < changes.size(); ++i) {
+        const OutputChange& c = changes[i];
+        wlr_backend_output_state& st = states[i];
+        st.output = c.output->wlr;
+        wlr_output_state_init(&st.base);
+        wlr_output_state_set_enabled(&st.base, c.enabled);
+        if (!c.enabled)
+            continue;
+        if (c.mode)
+            wlr_output_state_set_mode(&st.base, c.mode);
+        else if (c.custom)
+            wlr_output_state_set_custom_mode(&st.base, (*c.custom)[0], (*c.custom)[1], (*c.custom)[2]);
+        wlr_output_state_set_scale(&st.base, c.scale);
+        wlr_output_state_set_transform(&st.base, c.transform);
+        if (c.adaptive_sync)
+            wlr_output_state_set_adaptive_sync_enabled(&st.base, *c.adaptive_sync);
+    }
 
     wlr_output_swapchain_manager swapchains;
     wlr_output_swapchain_manager_init(&swapchains, backend);
-    bool ok = wlr_output_swapchain_manager_prepare(&swapchains, states, n);
+    bool ok = wlr_output_swapchain_manager_prepare(&swapchains, states.data(), states.size());
     if (ok && !test) {
-        for (size_t i = 0; i < n; ++i) {
-            wlr_swapchain* sc = wlr_output_swapchain_manager_get_swapchain(&swapchains, states[i].output);
-            if (sc && !states[i].output->enabled)
-                wlr_output_state_set_buffer(&states[i].base, wlr_swapchain_acquire(sc));
+        for (auto& st : states) {
+            wlr_swapchain* sc = wlr_output_swapchain_manager_get_swapchain(&swapchains, st.output);
+            if (sc && !st.output->enabled)
+                wlr_output_state_set_buffer(&st.base, wlr_swapchain_acquire(sc));
         }
-        ok = wlr_backend_commit(backend, states, n);
+        ok = wlr_backend_commit(backend, states.data(), states.size());
         if (ok) {
             wlr_output_swapchain_manager_apply(&swapchains);
-            wlr_output_configuration_head_v1* head;
-            wl_list_for_each(head, &config_in->heads, link) {
-                auto* o = static_cast<Output*>(head->state.output->data);
+            for (const OutputChange& c : changes) {
+                Output* o = c.output;
                 o->asleep = false;
                 // Re-adding at the same position would mark the output as
                 // manually placed, so only move it when it actually moved.
-                if (head->state.enabled &&
-                    (o->box.x != head->state.x || o->box.y != head->state.y ||
-                     !wlr_output_layout_get(output_layout, o->wlr)))
-                    wlr_output_layout_add(output_layout, o->wlr, head->state.x, head->state.y);
+                if (c.enabled &&
+                    (o->box.x != c.x || o->box.y != c.y || !wlr_output_layout_get(output_layout, o->wlr)))
+                    wlr_output_layout_add(output_layout, o->wlr, c.x, c.y);
             }
         }
     }
     wlr_output_swapchain_manager_finish(&swapchains);
-    for (size_t i = 0; i < n; ++i)
-        wlr_output_state_finish(&states[i].base);
-    free(states);
+    for (auto& st : states)
+        wlr_output_state_finish(&st.base);
     return ok;
 }
 
-void Server::apply_output_config(wlr_output_configuration_v1* config_in, bool test) {
-    const bool ok = commit_output_config(config_in, test);
-    if (ok)
-        wlr_output_configuration_v1_send_succeeded(config_in);
-    else
-        wlr_output_configuration_v1_send_failed(config_in);
-    wlr_output_configuration_v1_destroy(config_in);
-    if (ok && !test)
-        remember_displays();
-    update_outputs();
+void Server::publish_outputs() {
+    std::vector<wl::OutputManagement::Head> heads;
+    for (Output* o : outputs) {
+        if (o->dying)
+            continue;
+        wlr_output* w = o->wlr;
+        wl::OutputManagement::Head h;
+        h.name = w->name;
+        h.description = w->description ? w->description : "";
+        h.make = w->make ? w->make : "";
+        h.model = w->model ? w->model : "";
+        h.serial = w->serial ? w->serial : "";
+        h.physical_width = w->phys_width;
+        h.physical_height = w->phys_height;
+        wlr_output_mode* mode;
+        int i = 0;
+        wl_list_for_each(mode, &w->modes, link) {
+            h.modes.push_back({mode->width, mode->height, mode->refresh, mode->preferred});
+            if (mode == w->current_mode)
+                h.current_mode = i;
+            ++i;
+        }
+        h.enabled = w->enabled && !o->asleep;
+        h.custom_mode = {w->width, w->height, w->refresh, false};
+        h.x = o->box.x;
+        h.y = o->box.y;
+        h.transform = int32_t(w->transform);
+        h.scale = w->scale;
+        h.adaptive_sync = w->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED;
+        heads.push_back(std::move(h));
+    }
+    wl->output_management->set_heads(std::move(heads));
+}
+
+void Server::setup_outputs_protocols() {
+    connections_.push_back(wl->output_management->apply.connect([this](wl::OutputManagement::Configuration& cfg) {
+        std::vector<OutputChange> changes = current_outputs();
+        for (const auto& hc : cfg.heads) {
+            auto it = std::ranges::find_if(changes, [&](const OutputChange& c) { return hc.name == c.output->wlr->name; });
+            if (it == changes.end())
+                continue;
+            it->enabled = hc.enabled;
+            if (!hc.enabled)
+                continue;
+            if (hc.mode) {
+                it->mode = nullptr;
+                it->custom.reset();
+                wlr_output_mode* m;
+                wl_list_for_each(m, &it->output->wlr->modes, link)
+                    if (m->width == hc.mode->width && m->height == hc.mode->height && m->refresh == hc.mode->refresh)
+                        it->mode = m;
+                if (!it->mode)
+                    it->custom = std::array{hc.mode->width, hc.mode->height, hc.mode->refresh};
+            }
+            if (hc.position)
+                std::tie(it->x, it->y) = *hc.position;
+            if (hc.transform)
+                it->transform = wl_output_transform(*hc.transform);
+            if (hc.scale)
+                it->scale = float(*hc.scale);
+            it->adaptive_sync = hc.adaptive_sync;
+        }
+        const bool ok = commit_output_config(changes, cfg.test_only);
+        cfg.done(ok);
+        if (ok && !cfg.test_only)
+            remember_displays();
+        update_outputs();
+    }));
+    connections_.push_back(wl->output_power->request_mode.connect([this](wl::Output* g, bool on) {
+        auto* o = g ? static_cast<Output*>(g->data) : nullptr;
+        if (!o)
+            return;
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        wlr_output_state_set_enabled(&state, on);
+        wlr_output_commit_state(o->wlr, &state);
+        wlr_output_state_finish(&state);
+        o->asleep = !on;
+        wl->output_power->set_mode(g, on);
+        update_outputs();
+    }));
 }
 
 std::string Server::display_id(const wlr_output* o) const {
@@ -201,16 +295,13 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         return std::nullopt;
     }
 
-    wlr_output_configuration_v1* config = wlr_output_configuration_v1_create();
-    for (Output* o : outputs) {
-        wlr_output_configuration_head_v1* head = wlr_output_configuration_head_v1_create(config, o->wlr);
-        head->state.x = o->box.x;
-        head->state.y = o->box.y;
-        if (o != target)
+    std::vector<OutputChange> changes = current_outputs();
+    for (OutputChange& c : changes) {
+        if (c.output != target)
             continue;
-        auto& st = head->state;
+        Output* o = c.output;
         if (req.contains("enabled") && req["enabled"].is_boolean())
-            st.enabled = req["enabled"];
+            c.enabled = req["enabled"];
         if (req.contains("width") && req.contains("height")) {
             const int w = req.value("width", 0), h = req.value("height", 0), r = req.value("refresh", 0);
             wlr_output_mode* best = nullptr;
@@ -220,41 +311,32 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
                     (!best || std::abs(mode->refresh - r) < std::abs(best->refresh - r)))
                     best = mode;
             if (best) {
-                st.mode = best;
+                c.mode = best;
+                c.custom.reset();
             } else if (wl_list_empty(&o->wlr->modes)) {
-                st.mode = nullptr;
-                st.custom_mode = {w, h, r};
+                c.mode = nullptr;
+                c.custom = std::array{w, h, r};
             } else {
-                wlr_output_configuration_v1_destroy(config);
                 return std::to_string(w) + "×" + std::to_string(h) + " isn't a mode " + o->wlr->name + " has";
             }
         }
         if (req.contains("scale") && req["scale"].is_number()) {
             const double scale = req["scale"];
-            if (scale < 0.5 || scale > 4) {
-                wlr_output_configuration_v1_destroy(config);
+            if (scale < 0.5 || scale > 4)
                 return "scale goes from 0.5 to 4";
-            }
-            st.scale = float(scale);
+            c.scale = float(scale);
         }
         if (req.contains("transform") && req["transform"].is_number_integer())
-            st.transform = wl_output_transform(std::clamp(req["transform"].get<int>(), 0, 7));
+            c.transform = wl_output_transform(std::clamp(req["transform"].get<int>(), 0, 7));
         if (req.contains("x") && req["x"].is_number_integer())
-            st.x = req["x"];
+            c.x = req["x"];
         if (req.contains("y") && req["y"].is_number_integer())
-            st.y = req["y"];
+            c.y = req["y"];
     }
     // Never switch off the last screen.
-    bool any_on = false;
-    wlr_output_configuration_head_v1* head;
-    wl_list_for_each(head, &config->heads, link)
-        any_on = any_on || head->state.enabled;
-    if (!any_on) {
-        wlr_output_configuration_v1_destroy(config);
+    if (std::ranges::none_of(changes, [](const OutputChange& c) { return c.enabled; }))
         return "at least one display stays on";
-    }
-    const bool ok = commit_output_config(config, false);
-    wlr_output_configuration_v1_destroy(config);
+    const bool ok = commit_output_config(changes, false);
     if (!ok)
         return "the display didn't accept that";
     remember_displays();

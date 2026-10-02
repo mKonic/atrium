@@ -1,6 +1,7 @@
 #pragma once
 #include "listener.hpp"
-#include "wl/resource.hpp"
+#include "wl/data_device.hpp"
+#include "wl/xdg_shell.hpp"
 
 #include <memory>
 #include <vector>
@@ -36,10 +37,10 @@ public:
 private:
     struct Drag {
         wl::Weak<wl::XdgToplevelDragV1> resource;
-        wlr_data_source* source;
-        wlr_xdg_toplevel* toplevel = nullptr;
+        wl::DataSource* source;
+        wl::Toplevel* toplevel = nullptr;
         int dx = 0, dy = 0;  // pointer in the window's geometry
-        Listener<> source_destroy, toplevel_unmap, toplevel_destroy;
+        wl::Connection source_destroy, toplevel_unmap, toplevel_destroy;
     };
 
     void get_drag(wl::XdgToplevelDragManagerV1* manager, uint32_t id, wl_resource* source);

@@ -173,7 +173,7 @@ void Overview::open(bool animate) {
     if (server_.focused_view)
         set_highlight(thumb_for(server_.focused_view));
     server_.seat->set_default_cursor();
-    wlr_seat_pointer_notify_clear_focus(server_.seat->wlr);
+    server_.wl->seat->pointer_clear_focus();
 }
 
 void Overview::close(View* pick) {

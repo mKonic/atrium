@@ -1,18 +1,15 @@
 #pragma once
 // Every C header atrium uses, made safe for C++.
 //
-// wlroots headers are written for C11 and trip g++ in four ways:
-//   - `float color[static 4]` array parameters (not valid C++),
-//   - a struct field literally named `class` in wlr_xwayland_surface,
-//   - a parameter and a field named `namespace` in wlr-layer-shell, and
-//   - a state field named `delete` in wlr_input_method_v2.
-// All are fixed with a scoped #define around the offending headers. Every
+// wlroots headers are written for C11 and trip g++ with `float
+// color[static 4]` array parameters (not valid C++), fixed with a scoped
+// #define around the offending header. Every
 // header those pull in transitively is included first, normally, so the macro
 // only ever touches the declarations it is meant for (a stray `static inline`
 // helper would otherwise lose its `static`).
 //
-// atrium has its own scene graph (src/scene): never include
-// <wlr/types/wlr_scene.h>.
+// atrium has its own scene graph (src/scene) and protocol layer (src/wl):
+// only wlroots' backends, renderer types, outputs and input devices are used.
 
 #include <linux/input-event-codes.h>
 
@@ -38,77 +35,30 @@ extern "C" {
 #include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
 #include <wlr/render/allocator.h>
+#include <wlr/render/drm_syncobj.h>
 #include <wlr/render/swapchain.h>
 #include <wlr/render/wlr_renderer.h>
+#include <wlr/render/wlr_texture.h>
 #include <wlr/interfaces/wlr_buffer.h>
-#include <wlr/interfaces/wlr_ext_image_capture_source_v1.h>
 #include <wlr/interfaces/wlr_keyboard.h>
-#include <wlr/types/wlr_alpha_modifier_v1.h>
-#include <wlr/types/wlr_compositor.h>
-#include <wlr/types/wlr_content_type_v1.h>
+#include <wlr/interfaces/wlr_output.h>
+#include <wlr/interfaces/wlr_pointer.h>
+#include <wlr/types/wlr_buffer.h>
 #include <wlr/types/wlr_cursor.h>
-#include <wlr/types/wlr_cursor_shape_v1.h>
 #include <wlr/types/wlr_damage_ring.h>
-#include <wlr/types/wlr_data_control_v1.h>
-#include <wlr/types/wlr_data_device.h>
-#include <wlr/types/wlr_drm.h>
-#include <wlr/types/wlr_export_dmabuf_v1.h>
-#include <wlr/types/wlr_ext_data_control_v1.h>
-#include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
-#include <wlr/types/wlr_ext_image_capture_source_v1.h>
-#include <wlr/types/wlr_ext_image_copy_capture_v1.h>
-#include <wlr/types/wlr_ext_workspace_v1.h>
-#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
-#include <wlr/types/wlr_fractional_scale_v1.h>
-#include <wlr/types/wlr_color_management_v1.h>
-#include <wlr/types/wlr_gamma_control_v1.h>
-#include <wlr/types/wlr_idle_inhibit_v1.h>
-#include <wlr/types/wlr_idle_notify_v1.h>
 #include <wlr/types/wlr_input_device.h>
-// A state field named `delete`.
-#define delete delete_
-#include <wlr/types/wlr_input_method_v2.h>
-#undef delete
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_keyboard_group.h>
-#include <wlr/util/edges.h>
-#define namespace namespace_
-#include <wlr/types/wlr_layer_shell_v1.h>
-#undef namespace
-#include <wlr/types/wlr_linux_dmabuf_v1.h>
-#include <wlr/types/wlr_linux_drm_syncobj_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_output_management_v1.h>
-#include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/types/wlr_output_swapchain_manager.h>
 #include <wlr/types/wlr_pointer.h>
-#include <wlr/types/wlr_keyboard_shortcuts_inhibit_v1.h>
-#include <wlr/types/wlr_pointer_constraints_v1.h>
-#include <wlr/types/wlr_presentation_time.h>
-#include <wlr/types/wlr_primary_selection.h>
-#include <wlr/types/wlr_primary_selection_v1.h>
-#include <wlr/types/wlr_relative_pointer_v1.h>
-#include <wlr/types/wlr_screencopy_v1.h>
-#include <wlr/types/wlr_seat.h>
-#include <wlr/types/wlr_security_context_v1.h>
-#include <wlr/types/wlr_server_decoration.h>
-#include <wlr/types/wlr_session_lock_v1.h>
-#include <wlr/types/wlr_single_pixel_buffer_v1.h>
-#include <wlr/types/wlr_subcompositor.h>
-#include <wlr/types/wlr_tearing_control_v1.h>
-#include <wlr/types/wlr_text_input_v3.h>
-#include <wlr/types/wlr_viewporter.h>
-#include <wlr/types/wlr_virtual_keyboard_v1.h>
-#include <wlr/types/wlr_virtual_pointer_v1.h>
+#include <wlr/types/wlr_switch.h>
+#include <wlr/types/wlr_tablet_pad.h>
+#include <wlr/types/wlr_tablet_tool.h>
+#include <wlr/types/wlr_touch.h>
 #include <wlr/types/wlr_xcursor_manager.h>
-#include <wlr/types/wlr_xdg_activation_v1.h>
-#include <wlr/types/wlr_xdg_decoration_v1.h>
-#include <wlr/types/wlr_xdg_dialog_v1.h>
-#include <wlr/types/wlr_xdg_output_v1.h>
-#include <wlr/types/wlr_xdg_shell.h>
-#include <wlr/types/wlr_xdg_toplevel_icon_v1.h>
-#include <wlr/types/wlr_xdg_toplevel_tag_v1.h>
+#include <wlr/util/edges.h>
 #include <wlr/util/addon.h>
 #include <wlr/util/box.h>
 #include <wlr/util/log.h>
@@ -119,12 +69,12 @@ extern "C" {
 #include <xcb/xcb_ewmh.h>
 #include <xcb/xcb_icccm.h>
 #include <wlr/xwayland/server.h>
-#include <wlr/xwayland/shell.h>
-#define class class_
-#include <wlr/xwayland.h>
-#undef class
 #endif
 }
 
+// The protocols' enums (ZWLR_LAYER_SHELL_V1_LAYER_TOP and the like).
 #include "xdg-shell-protocol.h"
+// It names a parameter `namespace`.
+#define namespace namespace_
 #include "wlr-layer-shell-unstable-v1-protocol.h"
+#undef namespace

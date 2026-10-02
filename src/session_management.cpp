@@ -154,7 +154,7 @@ void SessionManagement::session_gone(Session* s) {
 
 void SessionManagement::track(Session* s, XdgSessionV1* session, uint32_t id, wl_resource* toplevel_resource,
                               const char* name, bool restore) {
-    wlr_xdg_toplevel* toplevel = wlr_xdg_toplevel_from_resource(toplevel_resource);
+    wl::Toplevel* toplevel = wl::Toplevel::from(toplevel_resource);
     for (ToplevelSession* t : s->toplevels) {
         if (t->name == name) {
             session->post_error(uint32_t(XdgSessionV1::Error::NameInUse), "the name is in use");
@@ -165,7 +165,7 @@ void SessionManagement::track(Session* s, XdgSessionV1* session, uint32_t id, wl
             return;
         }
     }
-    if (restore && toplevel && toplevel->base->initialized) {
+    if (restore && toplevel && toplevel->base() && toplevel->base()->initialized()) {
         session->post_error(uint32_t(XdgSessionV1::Error::AlreadyMapped),
                             "restore_toplevel after the toplevel's first commit");
         return;
@@ -183,13 +183,13 @@ void SessionManagement::track(Session* s, XdgSessionV1* session, uint32_t id, wl
     });
     toplevels_.push_back(t);
     if (toplevel)
-        t->toplevel_destroy.connect(&toplevel->events.destroy, [t](void*) {
+        t->toplevel_destroy = toplevel->events.destroy.connect([t] {
             t->toplevel = nullptr;
             t->toplevel_destroy.disconnect();
         });
     s->toplevels.push_back(t);
-    if (toplevel && toplevel->app_id)
-        server_.registry->touch_session(s->id, toplevel->app_id);
+    if (toplevel && !toplevel->app_id().empty())
+        server_.registry->touch_session(s->id, toplevel->app_id());
     if (restore)
         if (auto w = server_.registry->session_window(s->id, name)) {
             t->restore = *w;
@@ -238,7 +238,7 @@ View* SessionManagement::view_of(const ToplevelSession& t) const {
 SessionManagement::ToplevelSession* SessionManagement::find(const View* view) const {
     if (!view || view->kind != View::Kind::Xdg)
         return nullptr;
-    const wlr_xdg_toplevel* toplevel = static_cast<const XdgView*>(view)->toplevel;
+    const wl::Toplevel* toplevel = static_cast<const XdgView*>(view)->toplevel;
     for (Session* s : sessions_)
         for (ToplevelSession* t : s->toplevels)
             if (t->toplevel == toplevel)

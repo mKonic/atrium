@@ -614,11 +614,7 @@ json Ipc::handle(Client& c, const json& req) {
     // it to an app whose notification was clicked, so the app raises the
     // window it came from (Notifications spec 1.2, ActivationToken).
     if (cmd == "activation.token") {
-        wlr_xdg_activation_token_v1* token = wlr_xdg_activation_token_v1_create(server_.activation);
-        if (!token)
-            return fail("couldn't make a token");
-        token->seat = server_.seat->wlr;
-        return ok(std::string(wlr_xdg_activation_token_v1_get_name(token)));
+        return ok(server_.wl->activation->make_token(""));
     }
 
     if (cmd == "windows") {
@@ -635,8 +631,8 @@ json Ipc::handle(Client& c, const json& req) {
             for (int i = 0; i < 4; ++i)
                 for (LayerSurface* l : o->layers[i]) {
                     const wlr_box g = {l->tree ? l->tree->x : 0, l->tree ? l->tree->y : 0,
-                                       int(l->wlr->current.actual_width), int(l->wlr->current.actual_height)};
-                    list.push_back({{"namespace", l->wlr->namespace_ ? l->wlr->namespace_ : ""},
+                                       int(l->ls->current().actual_width), int(l->ls->current().actual_height)};
+                    list.push_back({{"namespace", l->ls->name_space()},
                                     {"layer", kNames[i]}, {"output", o->wlr->name},
                                     {"geometry", box_json(g)}, {"mapped", l->mapped}});
                 }

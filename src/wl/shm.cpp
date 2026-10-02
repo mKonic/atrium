@@ -20,6 +20,7 @@ struct Mapping {
     size_t size = 0;
     int fd = -1;
     bool bus_error = false;  // the client truncated the file under a read
+    bool writable = false;   // mapped for writing too (capture fills client buffers)
 
     ~Mapping() {
         if (data != MAP_FAILED)
@@ -98,9 +99,9 @@ const wlr_buffer_impl kShmBufferImpl = {
         },
     .begin_data_ptr_access =
         [](wlr_buffer* b, uint32_t flags, void** data, uint32_t* format, size_t* stride) {
-            if (flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE)
-                return false;  // the client's memory: read only
             ShmStorage* s = storage_of(b);
+            if ((flags & WLR_BUFFER_DATA_PTR_ACCESS_WRITE) && !s->mapping->writable)
+                return false;  // a read-only file
             g_accessing = s->mapping.get();
             *data = static_cast<char*>(s->mapping->data) + s->offset;
             *format = s->format;
@@ -219,7 +220,12 @@ Shm::Shm(wl_display* display, std::vector<uint32_t> formats) {
                 self->post_error(uint32_t(WlShm::Error::InvalidStride), "a pool needs a size");
                 return;
             }
-            mapping->data = mmap(nullptr, size_t(size), PROT_READ, MAP_SHARED, fd, 0);
+            // Writable where the client allows it: screen capture writes
+            // into its buffers. A read-only file is mapped as one.
+            mapping->data = mmap(nullptr, size_t(size), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            mapping->writable = mapping->data != MAP_FAILED;
+            if (mapping->data == MAP_FAILED)
+                mapping->data = mmap(nullptr, size_t(size), PROT_READ, MAP_SHARED, fd, 0);
             if (mapping->data == MAP_FAILED) {
                 self->post_error(uint32_t(WlShm::Error::InvalidFd), "can't map the pool");
                 return;

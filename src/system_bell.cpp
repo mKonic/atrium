@@ -33,7 +33,7 @@ SystemBell::~SystemBell() {
 
 void SystemBell::ring(wl_resource* surface) {
     if (surface)
-        if (View* v = Server::owner_of(wlr_surface_from_resource(surface)).view;
+        if (View* v = Server::owner_of(wl::Surface::from(surface)).view;
             v && v != server_.focused_view && !v->urgent) {
             v->urgent = true;
             server_.notify_window(*v, "changed");

@@ -21,6 +21,8 @@ public:
 
     Surface* surface() const { return surface_; }
     Output* output() const { return output_; }
+
+    void* data = nullptr;  // the compositor's own object
     // Tells it the size it must be: returns the serial.
     uint32_t configure(uint32_t width, uint32_t height);
 

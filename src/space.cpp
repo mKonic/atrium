@@ -11,8 +11,8 @@ namespace atrium {
 
 namespace {
 
-constexpr uint32_t kWorkspaceCaps =
-    EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_ACTIVATE;
+constexpr uint32_t kActivate = 1, kDeactivate = 2;  // ext_workspace_handle_v1 capabilities
+constexpr uint32_t kActive = 1, kHidden = 4;        // ... and states
 
 } // namespace
 
@@ -23,13 +23,9 @@ Space::Space(Server& srv, Output* out, int n)
     tree->set_enabled(false);
     fullscreen_tree->set_enabled(false);
 
-    handle = wlr_ext_workspace_handle_v1_create(server.workspace_manager, id().c_str(), kWorkspaceCaps);
-    wlr_ext_workspace_handle_v1_set_name(handle, label().c_str());
-    const uint32_t coord = uint32_t(n);
-    wlr_ext_workspace_handle_v1_set_coordinates(handle, &coord, 1);
-    if (output && output->workspace_group)
-        wlr_ext_workspace_handle_v1_set_group(handle, output->workspace_group);
+    handle = server.wl->workspaces->add_workspace(output ? output->workspace_group : nullptr, id(), label());
     handle->data = this;
+    sync_handle();
 }
 
 Space::Space(Server& srv, std::string n)
@@ -44,11 +40,9 @@ Space::Space(Server& srv, std::string n)
     fullscreen_tree = scene::Tree::create(tree);
     tree->set_enabled(false);
 
-    handle = wlr_ext_workspace_handle_v1_create(server.workspace_manager, id().c_str(), kWorkspaceCaps |
-        EXT_WORKSPACE_HANDLE_V1_WORKSPACE_CAPABILITIES_DEACTIVATE);
-    wlr_ext_workspace_handle_v1_set_name(handle, label().c_str());
-    wlr_ext_workspace_handle_v1_set_hidden(handle, true);
+    handle = server.wl->workspaces->add_workspace(nullptr, id(), label());
     handle->data = this;
+    sync_handle();
 }
 
 Space::~Space() {
@@ -61,11 +55,21 @@ Space::~Space() {
         server.animator.cancel_owner(output, true);
     if (handle) {
         handle->data = nullptr;
-        wlr_ext_workspace_handle_v1_destroy(handle);
+        server.wl->workspaces->remove_workspace(handle);
     }
     if (!secret)
         fullscreen_tree->destroy();
     tree->destroy();  // a secret space's fullscreen tree goes with it
+}
+
+void Space::sync_handle() {
+    if (!handle)
+        return;
+    const uint32_t state = (shown_ ? kActive : 0) | (secret ? kHidden : 0);
+    std::vector<uint32_t> coords;
+    if (!secret)
+        coords.push_back(uint32_t(number));
+    server.wl->workspaces->update(handle, label(), state, coords, kActivate | (secret ? kDeactivate : 0));
 }
 
 std::string Space::id() const {
@@ -89,8 +93,7 @@ void Space::set_shown(bool shown, bool linger) {
         if (!secret)
             fullscreen_tree->set_enabled(shown);
     }
-    if (handle)
-        wlr_ext_workspace_handle_v1_set_active(handle, shown);
+    sync_handle();
 }
 
 void Space::hide_now() {

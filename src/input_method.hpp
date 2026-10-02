@@ -1,6 +1,7 @@
 #pragma once
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "wl/ime.hpp"
 
 #include <memory>
 #include <string>
@@ -38,58 +39,41 @@ public:
     bool takes_text_now() const { return takes_text(active_); }
 
 private:
-    struct TextInput {
-        explicit TextInput(wlr_text_input_v3* i) : input(i) {}
-        wlr_text_input_v3* input;
-        // Enabled since it last entered a surface. wlroots keeps the old
-        // enabled state across leave and enter; text sent before the app
-        // enables again is dropped.
-        bool ready = false;
-        Listener<> enable, commit, disable, destroy;
-    };
+    using TextInput = wl::TextInputs::TextInput;
     struct Popup {
-        Popup(wlr_input_popup_surface_v2* s, scene::Tree* t) : surface(s), tree(t) {}
-        wlr_input_popup_surface_v2* surface;
+        Popup(wl::InputMethods::Popup* p, scene::Tree* t) : popup(p), tree(t) {}
+        wl::InputMethods::Popup* popup;
         scene::Tree* tree;
-        Listener<> commit, destroy;
+        wl::Connection commit;
     };
 
-    void new_text_input(wlr_text_input_v3* input);
-    void new_input_method(wlr_input_method_v2* im);
-    void new_popup(wlr_input_popup_surface_v2* surface);
-    void set_focus(wlr_surface* surface);
+    void set_focus(wl::Surface* surface);
     void commit_pending();
     bool takes_text(const TextInput* t) const;
+    // Sends the IME the keymap of the keyboard it is about to hear.
+    bool grab_for(wlr_keyboard* keyboard, wl_client* virtual_owner);
 
     TextInput* find_active() const;
     void update_active();
-    void update_focused_surfaces();
     void send_state();
     void place(Popup& popup);
     void place_popups();
-    wlr_input_method_keyboard_grab_v2* grab_for(wl_client* virtual_owner) const;
 
     Server& server_;
-    wlr_text_input_manager_v3* text_inputs_manager_;
-    wlr_input_method_manager_v2* input_methods_manager_;
-    wlr_input_method_v2* im_ = nullptr;
-    wlr_surface* focused_ = nullptr;
+    wl::TextInputs& text_inputs_;
+    wl::InputMethods& methods_;
+    wl::Surface* focused_ = nullptr;
     std::string pending_text_;
     wl_event_source* pending_timer_ = nullptr;
     wl_event_source* settle_timer_ = nullptr;  // the field's commits have settled
     static constexpr int kSettleMs = 40;
     TextInput* active_ = nullptr;
-    std::vector<std::unique_ptr<TextInput>> text_inputs_;
+    // Enabled since it last entered a surface: text sent before the app
+    // enables again is dropped.
+    std::vector<TextInput*> ready_;
     std::vector<std::unique_ptr<Popup>> popups_;
-
-    Listener<wlr_text_input_v3> new_text_input_;
-    Listener<wlr_input_method_v2> new_input_method_;
-    Listener<> im_commit_, im_destroy_;
-    Listener<wlr_input_method_keyboard_grab_v2> im_grab_;
-    Listener<wlr_input_popup_surface_v2> im_new_popup_;
-    Listener<> grab_destroy_;
-    Listener<wlr_seat_keyboard_focus_change_event> focus_change_;
-    Listener<> focused_destroy_;
+    std::string grab_keymap_;
+    std::vector<wl::Connection> connections_;
 };
 
 } // namespace atrium

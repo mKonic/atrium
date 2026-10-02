@@ -4,9 +4,11 @@
 #include "keyword_watch.hpp"
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "protocols.hpp"
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <array>
 #include <filesystem>
 
 #include <map>
@@ -14,6 +16,11 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+namespace atrium::xwayland {
+class Xwm;
+class XSurface;
+} // namespace atrium::xwayland
 
 namespace atrium {
 
@@ -62,7 +69,7 @@ constexpr int kLayerCount = int(Layer::Count);
 
 // What is under a point in layout coordinates.
 struct Hit {
-    wlr_surface* surface = nullptr;
+    wl::Surface* surface = nullptr;
     View* view = nullptr;
     LayerSurface* layer = nullptr;
     Titlebar* titlebar = nullptr;  // atrium's own title bar (then surface is null)
@@ -70,7 +77,7 @@ struct Hit {
     double sx = 0, sy = 0;         // surface- or title-bar-local
 };
 
-// Which atrium object a wlr_surface belongs to. Popups resolve to the
+// Which atrium object a surface belongs to. Popups resolve to the
 // toplevel or layer surface they hang off.
 struct Owner {
     View* view = nullptr;
@@ -99,7 +106,7 @@ public:
     // `through`: a window the pointer looks through (one riding a drag).
     Hit hit_test(double lx, double ly, View* through = nullptr) const;
     Hit hit_test_scene(double lx, double ly) const;
-    static Owner owner_of(wlr_surface* surface);
+    static Owner owner_of(wl::Surface* surface);
 
     // Focus. `raise` also brings the view to the top of the stack.
     void focus_view(View* view, bool raise = true);
@@ -192,7 +199,7 @@ public:
     std::optional<std::string> create_output();
     // Only virtual screens can be taken away; an error otherwise.
     std::optional<std::string> remove_output(const std::string& name);
-    void check_idle_inhibitors(wlr_surface* exclude = nullptr);
+    void check_idle_inhibitors();
     void spawn(const std::string& command);
     void change_vt(unsigned vt);
     void run_action(const Keybind& bind);
@@ -219,7 +226,8 @@ public:
     wlr_session* session = nullptr;
     wlr_renderer* renderer = nullptr;
     wlr_allocator* allocator = nullptr;
-    wlr_compositor* compositor = nullptr;
+    // Every Wayland global (protocols.hpp).
+    std::unique_ptr<Protocols> wl;
     scene::Scene* scene = nullptr;
     scene::Tree* drag_icons = nullptr;
     scene::Rect* root_bg = nullptr;
@@ -232,31 +240,11 @@ public:
 
     wlr_output_layout* output_layout = nullptr;
     wlr_box layout_box{};
-    wlr_output_manager_v1* output_manager = nullptr;
-    wlr_output_power_manager_v1* power_manager = nullptr;
-
-    wlr_xdg_shell* xdg_shell = nullptr;
-    wlr_layer_shell_v1* layer_shell = nullptr;
-    wlr_xdg_activation_v1* activation = nullptr;
-    wlr_xdg_decoration_manager_v1* xdg_decoration_manager = nullptr;
-    wlr_server_decoration_manager* kde_decoration_manager = nullptr;
-    wlr_idle_notifier_v1* idle_notifier = nullptr;
-    wlr_idle_inhibit_manager_v1* idle_inhibit_manager = nullptr;
-    wlr_session_lock_manager_v1* session_lock_manager = nullptr;
-    wlr_ext_foreign_toplevel_list_v1* ext_toplevel_list = nullptr;
-    wlr_foreign_toplevel_manager_v1* toplevel_manager = nullptr;
-    wlr_ext_foreign_toplevel_image_capture_source_manager_v1* toplevel_capture_manager = nullptr;
-    wlr_keyboard_shortcuts_inhibit_manager_v1* shortcuts_inhibit_manager = nullptr;
-    wlr_pointer_constraints_v1* pointer_constraints = nullptr;
-    wlr_relative_pointer_manager_v1* relative_pointer_manager = nullptr;
-    wlr_cursor_shape_manager_v1* cursor_shape_manager = nullptr;
-    wlr_virtual_keyboard_manager_v1* virtual_keyboard_manager = nullptr;
-    wlr_virtual_pointer_manager_v1* virtual_pointer_manager = nullptr;
-    wlr_security_context_manager_v1* security_context_manager = nullptr;
-    wlr_content_type_manager_v1* content_type_manager = nullptr;
-    wlr_tearing_control_manager_v1* tearing_manager = nullptr;
 #ifdef ATRIUM_XWAYLAND
-    wlr_xwayland* xwayland = nullptr;
+    // Xwayland: the X server (its process, wlroots'), and atrium's own
+    // window manager for it, made once it is ready.
+    wlr_xwayland_server* xwayland = nullptr;
+    std::unique_ptr<xwayland::Xwm> xwm;
 #endif
 
     std::unique_ptr<Settings> settings;
@@ -275,7 +263,6 @@ public:
     std::unique_ptr<SessionManagement> sessions;
     std::unique_ptr<ToplevelIcons> toplevel_icons;
     std::unique_ptr<NightLight> night_light;
-    wlr_gamma_control_manager_v1* gamma_manager = nullptr;  // apps that set gamma themselves
     uint64_t next_view_id = 1;
     std::vector<Output*> outputs;
     Output* focused_output = nullptr;
@@ -289,7 +276,6 @@ public:
 
     std::vector<std::unique_ptr<Space>> spaces;
     Space* shown_secret = nullptr;
-    wlr_ext_workspace_manager_v1* workspace_manager = nullptr;
 
     // Set during teardown: objects dying with the backend skip relayout.
     bool shutting_down = false;
@@ -307,21 +293,46 @@ private:
     void allow_root_x11(const char* display);
 #endif
     void new_output(wlr_output* wlr);
-    void apply_output_config(wlr_output_configuration_v1* config, bool test);
-    bool commit_output_config(wlr_output_configuration_v1* config, bool test);
-    void set_output_power(wlr_output_power_v1_set_mode_event* event);
-    void activation_request(wlr_xdg_activation_v1_request_activate_event* event);
-    void new_toplevel_capture(wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request* request);
-    void new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
+    void setup_protocols();
+    // Output management, power and gamma's protocol side (displays.cpp).
+    void setup_outputs_protocols();
+    // One screen's part of a layout to test or apply.
+    struct OutputChange {
+        Output* output;
+        bool enabled;
+        wlr_output_mode* mode = nullptr;      // a mode it has, or...
+        std::optional<std::array<int, 3>> custom;  // ...width, height, refresh (mHz)
+        float scale;
+        wl_output_transform transform;
+        int x, y;
+        std::optional<bool> adaptive_sync;
+    };
+    // How the screens are now, as a change that changes nothing.
+    std::vector<OutputChange> current_outputs() const;
+    bool commit_output_config(const std::vector<OutputChange>& changes, bool test);
+    // Tells output-management clients how the screens are.
+    void publish_outputs();
+    // Screen and window capture (capture.cpp).
+    void setup_capture();
+    struct CaptureState;
+    std::unique_ptr<CaptureState> capture_;
+    void capture_output_frame(Output* output, wlr_output_event_commit* event);
+    void capture_view_frame(View* view, wlr_buffer* frame, const timespec& when);
+public:
+    // A window's capture scene, or a screen, is going: its captures stop.
+    void capture_view_gone(View* view);
+    void capture_output_gone(Output* output);
+private:
     void gpu_reset();
     void disconnect_listeners();
-    void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
+    void workspace_requests(const std::vector<wl::Workspaces::Request>& requests);
     // Hints windows give about themselves: icon, tag, modal dialogs,
     // content type and tearing (window_hints.cpp).
     void setup_window_hints();
 
     scene::Tree* layers_[kLayerCount]{};
     wlr_backend* headless_ = nullptr;  // made on the first create_output() without a nested backend
+    wl_display* layout_display_ = nullptr;  // the output layout's own (see setup)
     void seed_registry(const std::filesystem::path& dir);
 
     pid_t startup_pid_ = -1;
@@ -334,25 +345,14 @@ private:
 
     Listener<wlr_output> new_output_;
     Listener<> layout_change_;
-    Listener<wlr_output_configuration_v1> output_apply_, output_test_;
-    Listener<wlr_output_power_v1_set_mode_event> output_power_;
-    Listener<wlr_xdg_toplevel> new_xdg_toplevel_;
-    Listener<wlr_xdg_popup> new_xdg_popup_;
-    Listener<wlr_xdg_toplevel_decoration_v1> new_decoration_;
-    Listener<wlr_keyboard_shortcuts_inhibitor_v1> new_shortcuts_inhibitor_;
-    Listener<wlr_server_decoration> new_kde_decoration_;
-    Listener<wlr_layer_surface_v1> new_layer_surface_;
-    Listener<wlr_xdg_activation_v1_request_activate_event> activation_request_;
-    Listener<wlr_idle_inhibitor_v1> new_idle_inhibitor_;
-    Listener<wlr_session_lock_v1> new_lock_;
-    Listener<wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request> new_capture_request_;
     Listener<> gpu_reset_;
     Listener<> backend_destroy_;
-    Listener<wlr_ext_workspace_v1_commit_event> workspace_commit_;
-    Listener<wlr_xdg_toplevel_tag_manager_v1_set_tag_event> set_tag_;
+    // On the protocols' signals.
+    std::vector<wl::Connection> connections_;
 #ifdef ATRIUM_XWAYLAND
-    Listener<> xwayland_ready_;
-    Listener<wlr_xwayland_surface> new_xwayland_surface_;
+    Listener<> xwayland_start_;
+    Listener<wlr_xwayland_server_ready_event> xwayland_ready_;
+    wl::Connection new_x11_window_, xwm_hangup_;
 #endif
 };
 

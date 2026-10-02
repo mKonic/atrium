@@ -1,5 +1,12 @@
 #include "scene/internal.hpp"
 
+#include "wl/compositor.hpp"
+#include "wl/desktop.hpp"
+#include "wl/surface_ext.hpp"
+#ifdef ATRIUM_XWAYLAND
+#include "xwayland/xwm.hpp"
+#endif
+
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
@@ -36,13 +43,13 @@ void add_corner_region(pixman_region32_t* out, const Radii& c, int x, int y, int
 }
 
 #ifdef ATRIUM_XWAYLAND
-wlr_xwayland_surface* managed_xwayland_surface(Node* node) {
+xwayland::XSurface* managed_xwayland_surface(Node* node) {
     if (node->type != Type::Buffer)
         return nullptr;
     SurfaceNode* s = static_cast<Buffer*>(node)->surface();
     if (!s)
         return nullptr;
-    wlr_xwayland_surface* xs = wlr_xwayland_surface_try_from_wlr_surface(s->surface);
+    xwayland::XSurface* xs = xwayland::XSurface::from(s->surface);
     return xs && !xs->override_redirect ? xs : nullptr;
 }
 #endif
@@ -55,7 +62,7 @@ struct UpdateData {
     bool calculate_visibility;
     bool restack_xwayland_surfaces;
 #ifdef ATRIUM_XWAYLAND
-    wlr_xwayland_surface* restack_above = nullptr;
+    xwayland::XSurface* restack_above = nullptr;
 #endif
 };
 
@@ -80,13 +87,13 @@ bool update_iterator(Node* node, const Walk& w, UpdateData* data) {
     SceneImpl::update_outputs(node, data->outputs, nullptr, nullptr);
 #ifdef ATRIUM_XWAYLAND
     if (data->restack_xwayland_surfaces) {
-        if (wlr_xwayland_surface* xs = managed_xwayland_surface(node)) {
+        if (xwayland::XSurface* xs = managed_xwayland_surface(node)) {
             // Only when the whole node is being looked at.
             if (wlr_box_contains_box(&data->update_box, &box)) {
                 if (data->restack_above)
-                    wlr_xwayland_surface_restack(xs, data->restack_above, XCB_STACK_MODE_BELOW);
+                    xs->restack(data->restack_above, XCB_STACK_MODE_BELOW);
                 else
-                    wlr_xwayland_surface_restack(xs, nullptr, XCB_STACK_MODE_ABOVE);
+                    xs->restack(nullptr, XCB_STACK_MODE_ABOVE);
             }
             data->restack_above = xs;
         }
@@ -130,8 +137,8 @@ void cleanup_when_disabled(Node* node, bool restack, wl_list* outputs) {
     SceneImpl::update_outputs(node, outputs, nullptr, nullptr);
 #ifdef ATRIUM_XWAYLAND
     if (restack)
-        if (wlr_xwayland_surface* xs = managed_xwayland_surface(node))
-            wlr_xwayland_surface_restack(xs, nullptr, XCB_STACK_MODE_BELOW);
+        if (xwayland::XSurface* xs = managed_xwayland_surface(node))
+            xs->restack(nullptr, XCB_STACK_MODE_BELOW);
 #else
     (void)restack;
 #endif
@@ -318,7 +325,7 @@ void SceneImpl::update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore
         }
     }
     if (old_primary != b->primary_output)
-        b->prev_feedback_ = {};
+        b->feedback_sent = {};
 
     const uint64_t old_active = b->active_outputs_;
     b->active_outputs_ = active;
@@ -1009,8 +1016,8 @@ void Buffer::set_texture(wlr_texture* t) {
 wlr_texture* Buffer::texture(wlr_renderer* renderer) {
     if (!buffer || texture_)
         return texture_;
-    if (wlr_client_buffer* cb = wlr_client_buffer_get(buffer))
-        return cb->texture;
+    if (wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(buffer))
+        return sb->texture;
     wlr_texture* t = wlr_texture_from_buffer(renderer, buffer);
     if (t && own_buffer_) {
         own_buffer_ = false;
@@ -1024,21 +1031,14 @@ wlr_texture* Buffer::texture(wlr_renderer* renderer) {
 // buffer may be gone after the upload.
 void Buffer::note_single_pixel(wlr_buffer* b) {
     single_pixel_ = false;
-    wlr_client_buffer* cb = b ? wlr_client_buffer_get(b) : nullptr;
-    if (cb && cb->source) {
-        if (wlr_single_pixel_buffer_v1* sp = wlr_single_pixel_buffer_v1_try_from_buffer(cb->source)) {
-            single_pixel_ = true;
-            single_pixel_color_[0] = sp->r;
-            single_pixel_color_[1] = sp->g;
-            single_pixel_color_[2] = sp->b;
-            single_pixel_color_[3] = sp->a;
-        }
-    }
+    wl::SurfaceBuffer* sb = b ? wl::SurfaceBuffer::from(b) : nullptr;
+    if (sb && sb->source.get())
+        single_pixel_ = wl::SinglePixelBuffers::color_of(sb->source.get(), single_pixel_color_);
 }
 
 bool Buffer::is_black_opaque() const {
     return single_pixel_ && single_pixel_color_[0] == 0 && single_pixel_color_[1] == 0 &&
-           single_pixel_color_[2] == 0 && single_pixel_color_[3] == UINT32_MAX && opacity == 1 && corners.empty();
+           single_pixel_color_[2] == 0 && single_pixel_color_[3] == 1 && opacity == 1 && corners.empty();
 }
 
 void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
@@ -1195,20 +1195,6 @@ void Buffer::set_primaries(wlr_color_named_primaries p) {
     update();
 }
 
-void Buffer::set_color_encoding(wlr_color_encoding e) {
-    if (color_encoding == e)
-        return;
-    color_encoding = e;
-    update();
-}
-
-void Buffer::set_color_range(wlr_color_range r) {
-    if (color_range == r)
-        return;
-    color_range = r;
-    update();
-}
-
 void Buffer::set_corner_radii(Radii r) {
     if (corners == r)
         return;
@@ -1247,45 +1233,30 @@ void Scene::set_blur(const render::BlurParams& p) {
     update();
 }
 
-void Scene::set_linux_dmabuf_v1(wlr_linux_dmabuf_v1* d) {
-    linux_dmabuf_v1 = d;
-    dmabuf_destroy_.connect(&d->events.destroy, [this](void*) {
-        linux_dmabuf_v1 = nullptr;
-        dmabuf_destroy_.disconnect();
-    });
-}
-
-void Scene::set_gamma_control_manager_v1(wlr_gamma_control_manager_v1* g) {
-    gamma_control_manager_v1 = g;
-    gamma_destroy_.connect(&g->events.destroy, [this](void*) {
-        gamma_control_manager_v1 = nullptr;
-        gamma_destroy_.disconnect();
-        gamma_set_.disconnect();
-        SceneOutput* o;
-        wl_list_for_each(o, &outputs, link) {
-            o->gamma_lut_changed_ = false;
-            o->gamma_lut_ = nullptr;
-            wlr_color_transform_unref(o->gamma_lut_transform_);
-            o->gamma_lut_transform_ = nullptr;
-        }
-    });
-    gamma_set_.connect(&g->events.set_gamma, [this](wlr_gamma_control_manager_v1_set_gamma_event* e) {
-        SceneOutput* o = output_for(e->output);
+void Scene::set_gamma_controls(wl::GammaControls* g) {
+    gamma_ = g;
+    gamma_set_.disconnect();
+    SceneOutput* o;
+    wl_list_for_each(o, &outputs, link) {
+        o->gamma_lut_changed_ = false;
+        wlr_color_transform_unref(o->gamma_lut_transform_);
+        o->gamma_lut_transform_ = nullptr;
+    }
+    if (!g)
+        return;
+    gamma_set_ = g->set_gamma.connect([this](wl::Output* out, const std::vector<uint16_t>& table) {
+        SceneOutput* o = output_for(out);
         if (!o)
             return;
         o->gamma_lut_changed_ = true;
-        o->gamma_lut_ = e->control;
         wlr_color_transform_unref(o->gamma_lut_transform_);
-        o->gamma_lut_transform_ = wlr_gamma_control_v1_get_color_transform(e->control);
+        o->gamma_lut_transform_ = nullptr;
+        if (!table.empty()) {
+            const size_t n = table.size() / 3;
+            o->gamma_lut_transform_ =
+                wlr_color_transform_init_lut_3x1d(n, table.data(), table.data() + n, table.data() + 2 * n);
+        }
         wlr_output_schedule_frame(o->output);
-    });
-}
-
-void Scene::set_color_manager_v1(wlr_color_manager_v1* m) {
-    color_manager_v1 = m;
-    color_destroy_.connect(&m->events.destroy, [this](void*) {
-        color_manager_v1 = nullptr;
-        color_destroy_.disconnect();
     });
 }
 

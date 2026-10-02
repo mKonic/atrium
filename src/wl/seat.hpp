@@ -115,6 +115,7 @@ private:
     Surface* keyboard_focus_ = nullptr;
     Signal<>::Connection keyboard_focus_gone_;
     Modifiers mods_;
+    bool mods_sent_ = true;  // false after a new keymap: clients need them again
     std::vector<uint32_t> keys_;
 
     Surface* pointer_focus_ = nullptr;

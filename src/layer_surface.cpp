@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <string_view>
 #include <cmath>
+#include <utility>
 
 namespace atrium {
 
@@ -28,27 +29,38 @@ Layer scene_layer_for(uint32_t layer) {
 
 } // namespace
 
-LayerSurface::LayerSurface(Server& srv, wlr_layer_surface_v1* surface) : server(srv), wlr(surface) {
-    wlr->data = this;
-    output = static_cast<Output*>(wlr->output->data);
+LayerSurface::LayerSurface(Server& srv, wl::LayerSurface* l) : server(srv), ls(l) {
+    ls->data = this;
+    output = static_cast<Output*>(ls->output()->data);
 
-    scene::Tree* parent = server.layer(scene_layer_for(wlr->pending.layer));
-    scene_layer = scene::layer_surface_v1_create(parent, wlr);
+    scene::Tree* parent = server.layer(scene_layer_for(ls->pending().layer));
+    scene_layer = scene::layer_surface_v1_create(parent, ls);
     tree = scene_layer->tree;
     // Popups of background/bottom surfaces (a dock's menu) must still show
     // above windows.
-    popups = scene::Tree::create(wlr->pending.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
+    popups = scene::Tree::create(ls->pending().layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
                                        ? server.layer(Layer::Top) : parent);
-    wlr->surface->data = popups;  // parent tree for xdg popups
+    surface()->data = popups;  // parent tree for xdg popups
     tree->data = popups->data = this;
 
-    output->layers[wlr->pending.layer].push_back(this);
+    output->layers[ls->pending().layer].push_back(this);
 
-    commit_.connect(&wlr->surface->events.commit, [this](void*) { commit(); });
-    unmap_.connect(&wlr->surface->events.unmap, [this](void*) { unmap(); });
-    destroy_.connect(&wlr->events.destroy, [this](void*) { delete this; });
+    initial_commit_ = ls->events.initial_commit.connect([this] {
+        initial_ = true;
+        if (!output)
+            return;
+        const float scale = output->wlr->scale;
+        server.wl->fractional_scales->set_preferred_scale(surface(), scale);
+        surface()->set_preferred_scale(int32_t(std::ceil(scale)));
+        // The first configure already has the right size.
+        output->arrange_layers();
+    });
+    commit_ = surface()->events.commit.connect([this] { commit(); });
+    unmap_ = surface()->events.unmap.connect([this] { unmap(); });
+    destroy_ = ls->events.destroy.connect([this] { delete this; });
 
-    wlr_surface_send_enter(wlr->surface, wlr->output);
+    if (output->global)
+        surface()->enter(*output->global);
 }
 
 LayerSurface::~LayerSurface() {
@@ -56,13 +68,16 @@ LayerSurface::~LayerSurface() {
     if (output)
         for (auto& list : output->layers)
             std::erase(list, this);
-    // `tree` belongs to the scene helper, which frees it on this same destroy
-    // signal; only the popup tree is ours.
+    // `tree` belongs to the scene helper, which frees it as the layer surface
+    // goes; only the popup tree is ours.
     popups->destroy();
+    ls->data = nullptr;
+    if (ls->surface())
+        ls->surface()->data = nullptr;
 }
 
 bool LayerSurface::wants_exclusive_keyboard() const {
-    return wlr->current.keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
+    return ls->current().keyboard_interactive == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE;
 }
 
 bool LayerSurface::shown_on_output() const {
@@ -75,39 +90,25 @@ bool LayerSurface::shown_on_output() const {
 }
 
 void LayerSurface::commit() {
-    if (!output)
+    if (std::exchange(initial_, false) || !output)
         return;
+    const wl::LayerSurface::State& st = ls->current();
     // The shared background blur is cached; wallpaper and bottom panels
     // changing invalidate it.
-    if (wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM && !wlr->initial_commit)
+    if (st.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM)
         server.background_blur->mark_dirty();
-
-    if (wlr->initial_commit) {
-        float scale = output->wlr->scale;
-        wlr_fractional_scale_v1_notify_scale(wlr->surface, scale);
-        wlr_surface_set_preferred_buffer_scale(wlr->surface, int32_t(std::ceil(scale)));
-
-        // Arrange as if the pending state were current, so the first configure
-        // already has the right size.
-        wlr_layer_surface_v1_state old = wlr->current;
-        wlr->current = wlr->pending;
-        output->arrange_layers();
-        wlr->current = old;
-        return;
-    }
 
     // Covered entirely (the bar waiting under a fullscreen app), the surface
     // gets no frame callbacks from the scene, and Qt draws nothing, so
     // commits nothing, until it has one: not even the layer change that
     // would bring it over. A frame for its screen sends it one.
-    if (wlr->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP &&
-        !wl_list_empty(&wlr->surface->current.frame_callback_list) && !shown_on_output())
+    if (st.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP && surface()->wants_frame() && !shown_on_output())
         wlr_output_schedule_frame(output->wlr);
 
-    if (wlr->current.committed == 0 && mapped == wlr->surface->mapped)
+    if (!(surface()->current().committed & wl::SurfaceState::Layer) && mapped == surface()->mapped())
         return;
     const bool was_mapped = mapped;
-    mapped = wlr->surface->mapped;
+    mapped = surface()->mapped();
     // Liquid Glass comes in by bending light more and more, not by fading.
     if (mapped && !was_mapped && server.config.liquid_glass) {
         lensing_ = 0;
@@ -118,13 +119,13 @@ void LayerSurface::commit() {
         });
     }
 
-    scene::Tree* parent = server.layer(scene_layer_for(wlr->current.layer));
+    scene::Tree* parent = server.layer(scene_layer_for(st.layer));
     if (parent != tree->parent) {
         tree->reparent(parent);
         for (auto& list : output->layers)
             std::erase(list, this);
-        output->layers[wlr->current.layer].push_back(this);
-        popups->reparent(wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
+        output->layers[st.layer].push_back(this);
+        popups->reparent(st.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
                                                    ? server.layer(Layer::Top) : parent);
     }
 
@@ -133,9 +134,9 @@ void LayerSurface::commit() {
 
     // The menu bar brought over a fullscreen app (the shell lifts it to the
     // overlay layer): the app's title bar comes out below it, and goes with it.
-    if (wlr->namespace_ && std::string_view(wlr->namespace_) == "atrium-bar") {
-        const bool over = mapped && wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
-        const int bottom = tree->y - output->box.y + int(wlr->current.actual_height);
+    if (ls->name_space() == "atrium-bar") {
+        const bool over = mapped && st.layer == ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY;
+        const int bottom = tree->y - output->box.y + int(st.actual_height);
         for (View* v : server.views)
             if (v->output == output && v->fullscreen_front() && v->visible())
                 v->reveal_titlebar(over, bottom);
@@ -145,9 +146,9 @@ void LayerSurface::commit() {
     // arrange_layers. Below windows that is ours to decide: a desktop asking
     // for the keyboard (to rename a file) gets it once, as a click would give
     // it, and gives it back when done.
-    const uint32_t ki = wlr->current.keyboard_interactive;
-    if (ki != keyboard_interactive_ && wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
-        const bool focused = server.seat->wlr->keyboard_state.focused_surface == wlr->surface;
+    const uint32_t ki = st.keyboard_interactive;
+    if (ki != keyboard_interactive_ && st.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
+        const bool focused = server.wl->seat->keyboard_focus() == surface();
         if (ki == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE && mapped)
             server.focus_layer(this);
         else if (ki == ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_NONE && focused)
@@ -180,23 +181,23 @@ void LayerSurface::update_blur() {
     const Config& c = server.config;
     // Liquid Glass only where the shell said it is (atrium-glass-v1): a
     // surface without shapes (the desktop, the wallpaper) is no glass.
-    const auto* given = server.glass_shapes ? server.glass_shapes->shapes_for(wlr->surface) : nullptr;
+    const auto* given = server.glass_shapes ? server.glass_shapes->shapes_for(surface()) : nullptr;
     const bool is_glass = c.liquid_glass && given && !given->empty();
-    const bool want = mapped && c.blur && (c.transparency || is_glass) && wlr->namespace_ &&
-                      namespace_matches(wlr->namespace_, c.blurred_panels);
+    const bool want = mapped && c.blur && (c.transparency || is_glass) &&
+                      namespace_matches(ls->name_space(), c.blurred_panels);
     if (!want) {
         if (blur_)
             blur_->set_enabled(false);
         return;
     }
-    scene::Buffer* mask = main_buffer(tree, wlr->surface);
+    scene::Buffer* mask = main_buffer(tree, surface());
     if (!mask)
         return;
     if (!blur_) {
         blur_ = scene::Blur::create(tree, 0, 0);
         blur_->set_use_cache(false);  // windows under a bar too
     }
-    const int width = wlr->surface->current.width, height = wlr->surface->current.height;
+    const int width = surface()->current().width, height = surface()->current().height;
     blur_->lower_to_bottom();
     blur_->set_enabled(true);
     // Liquid Glass casts a soft shadow past the panel's edge: room for it.
@@ -216,12 +217,12 @@ void LayerSurface::update_blur() {
 
 void LayerSurface::unmap() {
     mapped = false;
-    if (wlr->current.layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM)
+    if (ls->current().layer <= ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM)
         server.background_blur->mark_dirty();
     tree->set_enabled(false);
-    if (wlr->output && (output = static_cast<Output*>(wlr->output->data)))
+    if (ls->output() && (output = static_cast<Output*>(ls->output()->data)))
         output->arrange_layers();
-    if (wlr->surface == server.seat->wlr->keyboard_state.focused_surface)
+    if (surface() == server.wl->seat->keyboard_focus())
         server.focus_top();
     server.seat->refresh_pointer();
 }

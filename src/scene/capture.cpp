@@ -1,42 +1,33 @@
 // A capture source of a subtree: a private output the subtree is drawn on,
-// sized to what's in it. Ported from wlroots'
-// ext_image_capture_source_v1/scene.c (MIT).
+// sized to what's in it. After wlroots' ext_image_capture_source_v1/scene.c
+// (MIT).
 
 #include "scene/internal.hpp"
 
 #include <climits>
 #include <cstdio>
+#include <unordered_map>
 
 extern "C" {
-#include <wlr/interfaces/wlr_ext_image_capture_source_v1.h>
 #include <wlr/interfaces/wlr_output.h>
 #include <wlr/backend/interface.h>
 }
 
 namespace atrium::scene {
 
+
 namespace {
 
 struct Source;
 
-// wlroots' embedded structs, each with a way back to the source.
-struct SourceHook {
-    wlr_ext_image_capture_source_v1 base;
-    Source* self;
-};
+// wlroots' embedded output, with a way back to the source.
 struct OutputHook {
     wlr_output base;
     Source* self;
 };
 
-struct FrameEvent {
-    wlr_ext_image_capture_source_v1_frame_event base;
-    wlr_buffer* buffer;
-    timespec when;
-};
-
 struct Source {
-    SourceHook source{};
+    CaptureSource* pub;
     OutputHook output{};
     wlr_backend backend{};
     Node* node = nullptr;
@@ -80,64 +71,25 @@ void Source::render() {
     wlr_output_state_finish(&state);
 }
 
+std::unordered_map<const CaptureSource*, Source*>& sources() {
+    static std::unordered_map<const CaptureSource*, Source*> m;
+    return m;
+}
+
 void Source::destroy() {
     node_destroy.disconnect();
     scene_output_destroy.disconnect();
     output_frame.disconnect();
-    wlr_ext_image_capture_source_v1_finish(&source.base);
     if (scene_output)
         scene_output->destroy();
     wlr_output_finish(&output.base);
     wlr_backend_finish(&backend);
+    sources().erase(pub);
+    delete pub;
     delete this;
 }
 
-Source* of(wlr_ext_image_capture_source_v1* s) { return reinterpret_cast<SourceHook*>(s)->self; }
 Source* of(wlr_output* o) { return reinterpret_cast<OutputHook*>(o)->self; }
-
-void source_start(wlr_ext_image_capture_source_v1* base, bool) {
-    Source* s = of(base);
-    if (++s->started > 1)
-        return;
-    s->render();
-    timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    s->scene_output->send_frame_done(&now);
-}
-
-void source_stop(wlr_ext_image_capture_source_v1* base) {
-    Source* s = of(base);
-    if (--s->started > 0)
-        return;
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, false);
-    wlr_output_commit_state(&s->output.base, &state);
-    wlr_output_state_finish(&state);
-}
-
-void source_request_frame(wlr_ext_image_capture_source_v1* base, bool schedule) {
-    Source* s = of(base);
-    if (s->output.base.frame_pending)
-        wlr_output_send_frame(&s->output.base);
-    if (schedule)
-        wlr_output_update_needs_frame(&s->output.base);
-}
-
-void source_copy_frame(wlr_ext_image_capture_source_v1* base, wlr_ext_image_copy_capture_frame_v1* frame,
-                       wlr_ext_image_capture_source_v1_frame_event* ev) {
-    Source* s = of(base);
-    auto* e = reinterpret_cast<FrameEvent*>(ev);
-    if (wlr_ext_image_copy_capture_frame_v1_copy_buffer(frame, e->buffer, s->output.base.renderer))
-        wlr_ext_image_copy_capture_frame_v1_ready(frame, s->output.base.transform, &e->when);
-}
-
-const wlr_ext_image_capture_source_v1_interface kSourceImpl = {
-    .start = source_start,
-    .stop = source_stop,
-    .request_frame = source_request_frame,
-    .copy_frame = source_copy_frame,
-};
 
 const wlr_backend_impl kBackendImpl = {};
 
@@ -166,19 +118,17 @@ bool output_commit(wlr_output* o, const wlr_output_state* st) {
     Source* s = of(o);
     if ((st->committed & WLR_OUTPUT_STATE_ENABLED) && !st->enabled)
         return true;
-    if ((st->committed & WLR_OUTPUT_STATE_MODE) &&
-        wlr_output_configure_primary_swapchain(o, st, &o->swapchain))
-        wlr_ext_image_capture_source_v1_set_constraints_from_swapchain(&s->source.base, o->swapchain, o->renderer);
+    if (st->committed & WLR_OUTPUT_STATE_MODE)
+        wlr_output_configure_primary_swapchain(o, st, &o->swapchain);
     if (!(st->committed & WLR_OUTPUT_STATE_BUFFER))
         return false;
     wlr_buffer* buffer = st->buffer;
     pixman_region32_t full;
     pixman_region32_init_rect(&full, 0, 0, unsigned(buffer->width), unsigned(buffer->height));
-    FrameEvent ev{};
-    ev.base.damage = (st->committed & WLR_OUTPUT_STATE_DAMAGE) ? &st->damage : &full;
-    ev.buffer = buffer;
-    clock_gettime(CLOCK_MONOTONIC, &ev.when);
-    wl_signal_emit_mutable(&s->source.base.events.frame, &ev.base);
+    timespec when;
+    clock_gettime(CLOCK_MONOTONIC, &when);
+    if (s->pub->on_frame)
+        s->pub->on_frame(buffer, (st->committed & WLR_OUTPUT_STATE_DAMAGE) ? &st->damage : &full, when);
     pixman_region32_fini(&full);
     return true;
 }
@@ -190,13 +140,13 @@ const wlr_output_impl kOutputImpl = {
 
 } // namespace
 
-wlr_ext_image_capture_source_v1* capture_source_create(Node* node, wl_event_loop* loop, wlr_allocator* allocator,
-                                                       wlr_renderer* renderer) {
+CaptureSource* CaptureSource::create(Node* node, wl_event_loop* loop, wlr_allocator* allocator,
+                                     wlr_renderer* renderer) {
     auto* s = new Source();
+    s->pub = new CaptureSource();
+    sources()[s->pub] = s;
     s->node = node;
-    s->source.self = s;
     s->output.self = s;
-    wlr_ext_image_capture_source_v1_init(&s->source.base, &kSourceImpl);
     wlr_backend_init(&s->backend, &kBackendImpl);
     s->backend.buffer_caps = WLR_BUFFER_CAP_DMABUF | WLR_BUFFER_CAP_SHM;
     wlr_output_init(&s->output.base, &s->backend, &kOutputImpl, loop, nullptr);
@@ -221,7 +171,54 @@ wlr_ext_image_capture_source_v1* capture_source_create(Node* node, wl_event_loop
         clock_gettime(CLOCK_MONOTONIC, &now);
         s->scene_output->send_frame_done(&now);
     });
-    return &s->source.base;
+    return s->pub;
+}
+
+void CaptureSource::destroy() {
+    sources().at(this)->destroy();
+}
+
+void CaptureSource::start() {
+    Source* s = sources().at(this);
+    if (++s->started > 1)
+        return;
+    s->render();
+    timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    if (s->scene_output)
+        s->scene_output->send_frame_done(&now);
+}
+
+void CaptureSource::stop() {
+    Source* s = sources().at(this);
+    if (s->started == 0 || --s->started > 0)
+        return;
+    wlr_output_state state;
+    wlr_output_state_init(&state);
+    wlr_output_state_set_enabled(&state, false);
+    wlr_output_commit_state(&s->output.base, &state);
+    wlr_output_state_finish(&state);
+}
+
+void CaptureSource::request_frame(bool force) {
+    Source* s = sources().at(this);
+    if (force && s->scene_output) {
+        // Drawn whole now, changed or not: a still window's first frame.
+        s->scene_output->damage_whole();
+        s->render();
+        return;
+    }
+    if (s->output.base.frame_pending)
+        wlr_output_send_frame(&s->output.base);
+    wlr_output_update_needs_frame(&s->output.base);
+}
+
+int CaptureSource::width() const {
+    return sources().at(this)->output.base.width;
+}
+
+int CaptureSource::height() const {
+    return sources().at(this)->output.base.height;
 }
 
 } // namespace atrium::scene

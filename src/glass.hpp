@@ -1,7 +1,7 @@
 #pragma once
 #include "listener.hpp"
 #include "scene/scene.hpp"
-#include "wl/resource.hpp"
+#include "wl/compositor.hpp"
 
 #include <memory>
 
@@ -49,27 +49,27 @@ public:
     GlassShapes& operator=(const GlassShapes&) = delete;
 
     // The shapes `surface` committed, or null when it never said.
-    const std::vector<GlassShape>* shapes_for(wlr_surface* surface) const;
+    const std::vector<GlassShape>* shapes_for(wl::Surface* surface) const;
 
 private:
     struct Glass {
         wl::Weak<wl::AtriumGlassV1> resource;
-        wlr_surface* surface;
+        wl::Surface* surface;
         std::vector<GlassShape> pending, current;
         bool committed = false;
-        Listener<> commit, destroy;
+        wl::Connection commit, destroy;
     };
 
     void get_glass(wl::AtriumGlassManagerV1* manager, uint32_t id, wl_resource* surface);
     static void take_shapes(Glass* glass, wl_array* shapes, size_t stride);
     void surface_gone(Glass* glass);
     void glass_gone(Glass* glass);
-    static void refresh(wlr_surface* surface);
+    static void refresh(wl::Surface* surface);
 
     Server& server_;
     std::unique_ptr<wl::Global> global_;
     std::vector<wl::Weak<wl::AtriumGlassManagerV1>> managers_;
-    std::unordered_map<wlr_surface*, Glass*> glass_;
+    std::unordered_map<wl::Surface*, Glass*> glass_;
     std::vector<Glass*> all_;  // including ones whose surface is gone
 };
 

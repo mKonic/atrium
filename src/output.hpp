@@ -2,7 +2,11 @@
 #include "edid.hpp"
 #include "listener.hpp"
 #include "scene/scene.hpp"
+#include "wl/desktop.hpp"
+#include "wl/output.hpp"
+#include "wl/session_lock.hpp"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -42,9 +46,13 @@ public:
 
     std::vector<LayerSurface*> layers[4];  // indexed by zwlr_layer_shell_v1_layer
 
-    wlr_session_lock_surface_v1* lock_surface = nullptr;
-    Listener<> lock_surface_commit;
-    Listener<> lock_surface_destroy;
+    // Its wl_output (and xdg-output), kept in step with the screen.
+    std::unique_ptr<wl::Output> global;
+    void sync_global();
+
+    wl::LockSurface* lock_surface = nullptr;
+    wl::Connection lock_surface_commit;
+    wl::Connection lock_surface_destroy;
 
     bool asleep = false;  // turned off through wlr-output-power-management
     // Variable refresh: "off", "games" (while a fullscreen game is in front), "on".
@@ -77,7 +85,7 @@ public:
     }
 
     Space* active = nullptr;  // the numbered space shown here
-    wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;
+    wl::Workspaces::Group* workspace_group = nullptr;
 
 private:
     void frame();

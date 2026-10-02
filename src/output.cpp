@@ -60,7 +60,12 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
     server.retile(active);
     fullscreen_bg->set_enabled(false);
 
+    global = std::make_unique<wl::Output>(server.display, wl::OutputInfo{});
+    global->data = this;
+    sync_global();
     scene_output = scene::SceneOutput::create(server.scene, wlr);
+    scene_output->global = global.get();
+    server.wl->gamma->set_size(global.get(), uint32_t(wlr_output_get_gamma_size(wlr)));
     if (!wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr))
         hdr_caps = hdr_caps_from_edid(connector_edid(wlr->name));
     // Adding to the layout fires layout.change, which runs update_outputs().
@@ -77,6 +82,7 @@ Output::~Output() {
     scene_output->destroy();
     scene_output = nullptr;
     server.animator.cancel_owner(this, true);
+    server.capture_output_gone(this);
     if (server.overview)
         server.overview->output_removed(this);
     if (!server.shutting_down)
@@ -85,8 +91,9 @@ Output::~Output() {
     for (auto& list : layers) {
         auto copy = list;
         for (LayerSurface* l : copy)
-            wlr_layer_surface_v1_destroy(l->wlr);
+            l->ls->close();  // its destroy event takes ours with it
     }
+    server.wl->gamma->set_size(global.get(), 0);
     if (lock_surface) {
         lock_surface_commit.disconnect();
         lock_surface_destroy.disconnect();
@@ -116,10 +123,43 @@ Output::~Output() {
     }
 
     wlr->data = nullptr;
+    global->data = nullptr;
+    global.reset();
     fullscreen_bg->destroy();
 
     if (!server.shutting_down)
         server.update_outputs();
+}
+
+// What clients learn of the screen, as it is now.
+void Output::sync_global() {
+    if (!global)
+        return;
+    wl::OutputInfo i;
+    i.name = wlr->name;
+    i.description = wlr->description ? wlr->description : "";
+    i.make = wlr->make ? wlr->make : "";
+    i.model = wlr->model ? wlr->model : "";
+    i.physical_width = wlr->phys_width;
+    i.physical_height = wlr->phys_height;
+    i.subpixel = int32_t(wlr->subpixel);
+    i.transform = int32_t(wlr->transform);
+    i.scale = wlr->scale;
+    i.mode_width = wlr->width;
+    i.mode_height = wlr->height;
+    i.refresh = wlr->refresh;
+    i.x = box.x;
+    i.y = box.y;
+    int w = 0, h = 0;
+    wlr_output_effective_resolution(wlr, &w, &h);
+    i.logical_width = w;
+    i.logical_height = h;
+    global->update(i);
+    // What content suits it: HDR10 while it shows HDR, else sRGB.
+    wl::ImageDescription d;
+    d.tf_named = hdr_active() ? 11 : 2;
+    d.primaries_named = hdr_active() ? 6 : 1;
+    server.wl->color->set_output_description(global.get(), d);
 }
 
 bool Output::hdr_supported() const {
@@ -322,7 +362,7 @@ void Output::render() {
     // while no app sets the screen's gamma itself; screens without one
     // (nested) do without. A change repaints the whole screen.
     const NightLight* night = server.night_light.get();
-    const bool own_gamma = wlr_gamma_control_manager_v1_get_control(server.gamma_manager, wlr) != nullptr;
+    const bool own_gamma = server.wl->gamma->active(global.get());
     const night::Rgb w = night && (hdr_active() || !own_gamma) ? night->linear_white() : night::Rgb{1, 1, 1};
     scene_output->set_tint(float(w.r), float(w.g), float(w.b));
     // Variable refresh, as set: always, or while a fullscreen game is in front.
@@ -376,10 +416,11 @@ void Output::send_frame_done() {
     clock_gettime(CLOCK_MONOTONIC, &now);
     scene_output->send_frame_done(&now);
     // Top and overlay only: a wallpaper animating under a window stays paused.
+    const uint32_t ms = uint32_t(int64_t(now.tv_sec) * 1000 + now.tv_nsec / 1000000);
     for (auto layer : {ZWLR_LAYER_SHELL_V1_LAYER_TOP, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY})
         for (LayerSurface* l : layers[layer])
             if (l->mapped)
-                wlr_surface_send_frame_done(l->wlr->surface, &now);
+                l->surface()->send_frame_done(ms);
 }
 
 namespace {
@@ -387,9 +428,9 @@ namespace {
 void arrange_layer(Output& o, std::vector<LayerSurface*>& list, wlr_box& usable, bool exclusive) {
     const wlr_box full = o.box;
     for (LayerSurface* l : list) {
-        if (!l->wlr->initialized)
+        if (!l->ls->initialized())
             continue;
-        if (exclusive != (l->wlr->current.exclusive_zone > 0))
+        if (exclusive != (l->ls->current().exclusive_zone > 0))
             continue;
         scene::layer_surface_v1_configure(l->scene_layer, &full, &usable);
         l->popups->set_position(l->tree->x, l->tree->y);

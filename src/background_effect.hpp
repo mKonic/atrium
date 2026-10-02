@@ -1,6 +1,6 @@
 #pragma once
 #include "listener.hpp"
-#include "wl/resource.hpp"
+#include "wl/compositor.hpp"
 
 #include <memory>
 #include <optional>
@@ -28,17 +28,17 @@ public:
 
     // What `surface` asked for: nothing (nullopt), no blur (an empty box), or
     // blur over this box, in surface coordinates.
-    std::optional<wlr_box> blur_for(wlr_surface* surface) const;
+    std::optional<wlr_box> blur_for(wl::Surface* surface) const;
     // The settings changed: tell the apps whether blur is on offer.
     void announce();
 
 private:
     struct Effect {
         wl::Weak<wl::ExtBackgroundEffectSurfaceV1> resource;
-        wlr_surface* surface;
+        wl::Surface* surface;
         pixman_region32_t pending, current;
         bool requested = false;  // set_blur_region has been committed at least once
-        Listener<> commit, destroy;
+        wl::Connection commit, destroy;
     };
 
     void get_background_effect(wl::ExtBackgroundEffectManagerV1* manager, uint32_t id, wl_resource* surface);
@@ -49,7 +49,7 @@ private:
     Server& server_;
     std::unique_ptr<wl::Global> global_;
     std::vector<wl::Weak<wl::ExtBackgroundEffectManagerV1>> managers_;
-    std::unordered_map<wlr_surface*, Effect*> effects_;
+    std::unordered_map<wl::Surface*, Effect*> effects_;
     std::vector<Effect*> all_;  // including ones whose surface is gone
 };
 

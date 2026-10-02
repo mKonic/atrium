@@ -41,11 +41,7 @@ ToplevelDrags::~ToplevelDrags() {
 }
 
 void ToplevelDrags::get_drag(XdgToplevelDragManagerV1* manager, uint32_t id, wl_resource* source_resource) {
-    // wlroots keeps no public way from a wl_data_source to its
-    // wlr_data_source, but a client's source is a wlr_client_data_source,
-    // whose first member is the wlr_data_source. Null once the client
-    // destroyed it.
-    auto* source = static_cast<wlr_data_source*>(wl_resource_get_user_data(source_resource));
+    auto* source = dynamic_cast<wl::DataSource*>(wl::WlDataSource::from(source_resource));
     auto* r = wl::make<XdgToplevelDragV1>(manager->client(), manager->version(), id);
     if (!r)
         return;
@@ -61,7 +57,7 @@ void ToplevelDrags::get_drag(XdgToplevelDragManagerV1* manager, uint32_t id, wl_
         std::erase(drags_, d);
         delete d;
     });
-    d->source_destroy.connect(&source->events.destroy, [this, d](void*) {
+    d->source_destroy = source->events.destroy.connect([this, d] {
         // The drag is over (dropped or cancelled) and the source with it.
         detach(*d);
         d->source = nullptr;
@@ -72,8 +68,9 @@ void ToplevelDrags::get_drag(XdgToplevelDragManagerV1* manager, uint32_t id, wl_
 
 void ToplevelDrags::attach(Drag* d, XdgToplevelDragV1* resource, wl_resource* toplevel_resource, int32_t dx,
                            int32_t dy) {
-    wlr_xdg_toplevel* toplevel = wlr_xdg_toplevel_from_resource(toplevel_resource);
-    if (d->toplevel && d->toplevel->base->surface->mapped) {
+    wl::Toplevel* toplevel = wl::Toplevel::from(toplevel_resource);
+    if (d->toplevel && d->toplevel->base() && d->toplevel->base()->surface() &&
+        d->toplevel->base()->surface()->mapped()) {
         resource->post_error(uint32_t(XdgToplevelDragV1::Error::ToplevelAttached),
                              "a mapped toplevel is already attached");
         return;
@@ -85,8 +82,9 @@ void ToplevelDrags::attach(Drag* d, XdgToplevelDragV1* resource, wl_resource* to
     d->dx = dx;
     d->dy = dy;
     // Unmapped or gone, it drops off the drag.
-    d->toplevel_unmap.connect(&toplevel->base->surface->events.unmap, [this, d](void*) { detach(*d); });
-    d->toplevel_destroy.connect(&toplevel->events.destroy, [this, d](void*) { detach(*d); });
+    if (toplevel->base() && toplevel->base()->surface())
+        d->toplevel_unmap = toplevel->base()->surface()->events.unmap.connect([this, d] { detach(*d); });
+    d->toplevel_destroy = toplevel->events.destroy.connect([this, d] { detach(*d); });
     // Already on screen (dragging a whole window): it follows from now on.
     if (View* v = view_of(*d); v && v->mapped)
         motion(server_.seat->cursor->x, server_.seat->cursor->y);
@@ -99,11 +97,11 @@ void ToplevelDrags::detach(Drag& d) {
 }
 
 ToplevelDrags::Drag* ToplevelDrags::current() const {
-    const wlr_drag* drag = server_.seat->wlr->drag;
-    if (!drag || !drag->source)
+    const wl::Drag* drag = server_.wl->data->drag();
+    if (!drag || !drag->source())
         return nullptr;
     for (Drag* d : drags_)
-        if (d->source == drag->source && d->toplevel)
+        if (d->source == drag->source() && d->toplevel)
             return d;
     return nullptr;
 }

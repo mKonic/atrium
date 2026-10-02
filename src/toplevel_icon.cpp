@@ -1,5 +1,7 @@
 #include "toplevel_icon.hpp"
 
+#include "wl/buffer.hpp"
+
 #include "server.hpp"
 #include "view.hpp"
 
@@ -70,7 +72,8 @@ void buffer_gone(wl_listener* listener, void*) {
 void Icon::add_buffer(wl_resource* buffer_resource, int32_t scale) {
     if (!mutable_())
         return;
-    wlr_buffer* buffer = wlr_buffer_try_from_resource(buffer_resource);
+    wl::ClientBuffer* cb = wl::ClientBuffer::from(buffer_resource);
+    wlr_buffer* buffer = cb ? wlr_buffer_lock(cb->buffer()) : nullptr;
     wlr_shm_attributes shm{};
     if (!buffer || !wlr_buffer_get_shm(buffer, &shm) || buffer->width != buffer->height) {
         if (buffer)
@@ -162,8 +165,8 @@ void ToplevelIcons::set_icon(wl_resource* toplevel_resource, XdgToplevelIconV1* 
     auto* icon = dynamic_cast<Icon*>(icon_resource);
     if (icon)
         icon->immutable = true;
-    wlr_xdg_toplevel* toplevel = wlr_xdg_toplevel_from_resource(toplevel_resource);
-    View* v = (toplevel && toplevel->base) ? static_cast<View*>(toplevel->base->data) : nullptr;
+    wl::Toplevel* toplevel = wl::Toplevel::from(toplevel_resource);
+    View* v = toplevel ? static_cast<View*>(toplevel->data) : nullptr;
     if (!v)
         return;
     std::error_code ec;

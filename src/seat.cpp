@@ -15,6 +15,9 @@
 #include "toplevel_drag.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
+#ifdef ATRIUM_XWAYLAND
+#include "xwayland/xwm.hpp"
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -86,29 +89,45 @@ KeyboardGroup::KeyboardGroup(Seat& s, bool virt) : seat(s), is_virtual(virt) {
         return g->seat.key_repeat(*g);
     }, this);
 
-    // The seat has one keyboard; the physical group is it.
-    if (!virt)
-        wlr_seat_set_keyboard(seat.wlr, &group->keyboard);
+    // A new keymap (a layout change): clients get it when this one speaks.
+    this->keymap.connect(&group->keyboard.events.keymap, [this](void*) {
+        if (seat.seat_kb_ == &group->keyboard)
+            seat.use_keyboard(&group->keyboard, true);
+    });
 }
 
 KeyboardGroup::~KeyboardGroup() {
     wl_event_source_remove(repeat_source);
     key.disconnect();
     modifiers.disconnect();
-    destroy.disconnect();
+    keymap.disconnect();
+    connections.clear();
+    if (seat.seat_kb_ == &group->keyboard)
+        seat.seat_kb_ = nullptr;
+    if (device) {
+        wlr_keyboard_group_remove_keyboard(group, device.get());
+        wlr_keyboard_finish(device.get());
+    }
     wlr_keyboard_group_destroy(group);
 }
 
 // --- seat ----------------------------------------------------------------------
 
-struct Seat::Constraint {
-    explicit Constraint(wlr_pointer_constraint_v1* c) : wlr(c) {}
-    wlr_pointer_constraint_v1* wlr;
-    Listener<> destroy;
+// A virtual pointer's device, as a backend's would be.
+struct Seat::VirtualPointer {
+    wlr_pointer pointer{};
+    wl::VirtualInputs::Pointer* vp = nullptr;
+    uint32_t axis_source = WL_POINTER_AXIS_SOURCE_WHEEL;
+    std::vector<wl::Connection> connections;
 };
 
+namespace {
+const wlr_keyboard_impl kVirtualKeyboard = {.name = "atrium-virtual-keyboard", .led_update = nullptr};
+const wlr_pointer_impl kVirtualPointer = {.name = "atrium-virtual-pointer"};
+} // namespace
+
 Seat::Seat(Server& srv) : server(srv) {
-    wlr = wlr_seat_create(server.display, "seat0");
+    wl::Seat& ws = *server.wl->seat;
     cursor = wlr_cursor_create();
     wlr_cursor_attach_output_layout(cursor, server.output_layout);
     apply_cursor_theme();
@@ -128,104 +147,253 @@ Seat::Seat(Server& srv) : server(srv) {
         });
     cursor_button_.connect(&cursor->events.button, [this](wlr_pointer_button_event* e) { button(e); });
     cursor_axis_.connect(&cursor->events.axis, [this](wlr_pointer_axis_event* e) { axis(e); });
-    cursor_frame_.connect(&cursor->events.frame, [this](void*) { wlr_seat_pointer_notify_frame(wlr); });
+    cursor_frame_.connect(&cursor->events.frame, [this](void*) { server.wl->seat->pointer_frame(); });
 
-    request_cursor_.connect(&wlr->events.request_set_cursor,
-        [this](wlr_seat_pointer_request_set_cursor_event* e) {
-            // While we own the pointer (move/resize) the client's image waits.
-            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
-                return;
-            if (e->seat_client == wlr->pointer_state.focused_client)
-                wlr_cursor_set_surface(cursor, e->surface, e->hotspot_x, e->hotspot_y);
-        });
-    request_cursor_shape_.connect(&server.cursor_shape_manager->events.request_set_shape,
-        [this](wlr_cursor_shape_manager_v1_request_set_shape_event* e) {
-            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
-                return;
-            if (e->seat_client == wlr->pointer_state.focused_client)
-                wlr_cursor_set_xcursor(cursor, xcursor, wlr_cursor_shape_v1_name(e->shape));
-        });
-    request_selection_.connect(&wlr->events.request_set_selection,
-        [this](wlr_seat_request_set_selection_event* e) { wlr_seat_set_selection(wlr, e->source, e->serial); });
-    request_primary_selection_.connect(&wlr->events.request_set_primary_selection,
-        [this](wlr_seat_request_set_primary_selection_event* e) {
-            wlr_seat_set_primary_selection(wlr, e->source, e->serial);
-        });
-    request_start_drag_.connect(&wlr->events.request_start_drag,
-        [this](wlr_seat_request_start_drag_event* e) {
-            if (wlr_seat_validate_pointer_grab_serial(wlr, e->origin, e->serial))
-                wlr_seat_start_pointer_drag(wlr, e->drag, e->serial);
-            else
-                wlr_data_source_destroy(e->drag->source);
-        });
-    start_drag_.connect(&wlr->events.start_drag, [this](wlr_drag* drag) {
-        if (!drag->icon)
+    auto& c = connections_;
+    c.push_back(ws.events.request_cursor.connect([this](const wl::Seat::CursorRequest& r) {
+        // While we own the pointer (move/resize) the client's image waits.
+        if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
             return;
-        drag->icon->data = static_cast<scene::Node*>(scene::drag_icon_create(server.drag_icons, drag->icon));
-        struct Watch {
-            Listener<> destroy;
-        };
-        auto* watch = new Watch;
-        watch->destroy.connect(&drag->icon->events.destroy, [this, watch](void*) {
-            // Focus enter is not sent during a drag; restore it now.
-            server.focus_top();
-            refresh_pointer();
-            delete watch;
-        });
-    });
-
-    new_constraint_.connect(&server.pointer_constraints->events.new_constraint,
-        [this](wlr_pointer_constraint_v1* c) { new_constraint(c); });
+        wl::Surface* focus = server.wl->seat->pointer_focus();
+        if (focus && focus->client() == r.client)
+            set_cursor_surface(r.surface, r.hotspot_x, r.hotspot_y);
+    }));
+    c.push_back(server.wl->cursor_shapes->request_shape.connect([this](const wl::CursorShapes::Request& r) {
+        if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_ || r.tablet_tool)
+            return;
+        wl::Surface* focus = server.wl->seat->pointer_focus();
+        if (focus && focus->client() == r.client) {
+            set_cursor_surface(nullptr, 0, 0);
+            wlr_cursor_set_xcursor(cursor, xcursor, wl::CursorShapes::name_of(r.shape));
+        }
+    }));
+    // A drag needs a press it can quote; a selection is granted (the
+    // protocol layer checks the client may set it).
+    c.push_back(server.wl->data->events.request_drag.connect([this](const wl::DataDevices::DragRequest& r) {
+        if (r.origin && server.wl->seat->validate_grab_serial(r.origin->client(), r.serial))
+            server.wl->data->start_drag(r.source, r.origin, r.icon);
+        else if (r.source)
+            r.source->cancelled();
+    }));
+    c.push_back(server.wl->data->events.drag_started.connect([this](wl::Drag* d) { start_drag(d); }));
+    c.push_back(server.wl->pointer_constraints->events.destroy.connect([this](wl::PointerConstraints::Constraint* k) {
+        if (active_constraint_ == k) {
+            warp_to_constraint_hint();
+            active_constraint_ = nullptr;
+        }
+    }));
 
     new_input_.connect(&server.backend->events.new_input, [this](wlr_input_device* d) { new_input(d); });
-    new_virtual_keyboard_.connect(&server.virtual_keyboard_manager->events.new_virtual_keyboard,
-        [this](wlr_virtual_keyboard_v1* vk) {
-            // Its own group: synthetic input never shares modifier state with
-            // the physical keyboard.
-            auto group = std::make_unique<KeyboardGroup>(*this, true);
-            KeyboardGroup* g = group.get();
-            g->owner = wl_resource_get_client(vk->resource);
-            wlr_keyboard_set_keymap(&vk->keyboard, g->group->keyboard.keymap);
-            g->destroy.connect(&vk->keyboard.base.events.destroy, [this, g](void*) {
-                std::erase_if(virtual_keyboards_, [g](auto& p) { return p.get() == g; });
-                // Gone (the IME quit): the seat's keyboard is the real one again.
-                if (!wlr_seat_get_keyboard(wlr))
-                    wlr_seat_set_keyboard(wlr, physical_keyboard());
-            });
-            wlr_keyboard_group_add_keyboard(g->group, &vk->keyboard);
-            virtual_keyboards_.push_back(std::move(group));
-            wlr_seat_set_capabilities(wlr, wlr->capabilities | WL_SEAT_CAPABILITY_KEYBOARD);
-        });
-    new_virtual_pointer_.connect(&server.virtual_pointer_manager->events.new_virtual_pointer,
-        [this](wlr_virtual_pointer_v1_new_pointer_event* e) {
-            wlr_input_device* dev = &e->new_pointer->pointer.base;
-            wlr_cursor_attach_input_device(cursor, dev);
-            if (e->suggested_output)
-                wlr_cursor_map_input_to_output(cursor, dev, e->suggested_output);
-            wlr_seat_set_capabilities(wlr, wlr->capabilities | WL_SEAT_CAPABILITY_POINTER);
-        });
+    c.push_back(server.wl->virtual_inputs->new_keyboard.connect(
+        [this](wl::VirtualInputs::Keyboard* vk) { new_virtual_keyboard(vk); }));
+    c.push_back(server.wl->virtual_inputs->new_pointer.connect(
+        [this](wl::VirtualInputs::Pointer* vp) { new_virtual_pointer(vp); }));
 
     keyboards_ = std::make_unique<KeyboardGroup>(*this, false);
+    use_keyboard(physical_keyboard(), true);
+    update_capabilities();
+}
+
+void Seat::new_virtual_keyboard(wl::VirtualInputs::Keyboard* vk) {
+    // Its own group: synthetic input never shares modifier state with the
+    // physical keyboard.
+    auto group = std::make_unique<KeyboardGroup>(*this, true);
+    KeyboardGroup* g = group.get();
+    g->owner = vk->resource ? vk->resource->client() : nullptr;
+    g->device = std::make_unique<wlr_keyboard>();
+    wlr_keyboard* kb = g->device.get();
+    wlr_keyboard_init(kb, &kVirtualKeyboard, "virtual keyboard");
+    auto set_keymap = [kb, vk] {
+        xkb_context* ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+        if (xkb_keymap* km = xkb_keymap_new_from_string(ctx, vk->keymap.c_str(), XKB_KEYMAP_FORMAT_TEXT_V1,
+                                                        XKB_KEYMAP_COMPILE_NO_FLAGS)) {
+            wlr_keyboard_set_keymap(kb, km);
+            xkb_keymap_unref(km);
+        }
+        xkb_context_unref(ctx);
+    };
+    if (vk->keymap.empty())
+        wlr_keyboard_set_keymap(kb, g->group->keyboard.keymap);
+    else
+        set_keymap();
+    wlr_keyboard_group_add_keyboard(g->group, kb);
+    g->connections.push_back(vk->keymap_changed.connect(set_keymap));
+    g->connections.push_back(vk->key.connect([kb](uint32_t time, uint32_t key, bool pressed) {
+        wlr_keyboard_key_event e{};
+        e.time_msec = time;
+        e.keycode = key;
+        e.update_state = false;
+        e.state = pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED;
+        wlr_keyboard_notify_key(kb, &e);
+    }));
+    g->connections.push_back(vk->modifiers.connect([kb](const wl::Seat::Modifiers& m) {
+        wlr_keyboard_notify_modifiers(kb, m.depressed, m.latched, m.locked, m.group);
+    }));
+    g->connections.push_back(vk->destroy.connect([this, g] {
+        std::erase_if(virtual_keyboards_, [g](auto& p) { return p.get() == g; });
+        // Gone (the IME quit): the seat's keyboard is the real one again.
+        if (!seat_kb_)
+            use_keyboard(physical_keyboard());
+    }));
+    virtual_keyboards_.push_back(std::move(group));
+    update_capabilities();
+}
+
+void Seat::new_virtual_pointer(wl::VirtualInputs::Pointer* vp) {
+    auto p = std::make_unique<VirtualPointer>();
+    VirtualPointer* v = p.get();
+    v->vp = vp;
+    wlr_pointer_init(&v->pointer, &kVirtualPointer, "virtual pointer");
+    wlr_input_device* dev = &v->pointer.base;
+    wlr_cursor_attach_input_device(cursor, dev);
+    if (vp->output && vp->output->data)
+        wlr_cursor_map_input_to_output(cursor, dev, static_cast<Output*>(vp->output->data)->wlr);
+    auto& c = v->connections;
+    c.push_back(vp->motion.connect([v](uint32_t time, double dx, double dy) {
+        wlr_pointer_motion_event e{&v->pointer, time, dx, dy, dx, dy};
+        wl_signal_emit_mutable(&v->pointer.events.motion, &e);
+    }));
+    c.push_back(vp->motion_absolute.connect([v](uint32_t time, double x, double y) {
+        wlr_pointer_motion_absolute_event e{&v->pointer, time, x, y};
+        wl_signal_emit_mutable(&v->pointer.events.motion_absolute, &e);
+    }));
+    c.push_back(vp->button.connect([v](uint32_t time, uint32_t button, bool pressed) {
+        wlr_pointer_button_event e{&v->pointer, time, button,
+                                   pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED};
+        wl_signal_emit_mutable(&v->pointer.events.button, &e);
+    }));
+    c.push_back(vp->axis_source.connect([v](uint32_t source) { v->axis_source = source; }));
+    c.push_back(vp->axis.connect([v](uint32_t time, uint32_t axis, double value, int32_t discrete) {
+        wlr_pointer_axis_event e{};
+        e.pointer = &v->pointer;
+        e.time_msec = time;
+        e.source = wl_pointer_axis_source(v->axis_source);
+        e.orientation = wl_pointer_axis(axis);
+        e.relative_direction = WL_POINTER_AXIS_RELATIVE_DIRECTION_IDENTICAL;
+        e.delta = value;
+        e.delta_discrete = discrete * 120;
+        wl_signal_emit_mutable(&v->pointer.events.axis, &e);
+    }));
+    c.push_back(vp->axis_stop.connect([v](uint32_t time, uint32_t axis) {
+        wlr_pointer_axis_event e{};
+        e.pointer = &v->pointer;
+        e.time_msec = time;
+        e.source = wl_pointer_axis_source(v->axis_source);
+        e.orientation = wl_pointer_axis(axis);
+        wl_signal_emit_mutable(&v->pointer.events.axis, &e);
+    }));
+    c.push_back(vp->frame.connect([v] { wl_signal_emit_mutable(&v->pointer.events.frame, &v->pointer); }));
+    c.push_back(vp->destroy.connect([this, v] {
+        wlr_cursor_detach_input_device(cursor, &v->pointer.base);
+        v->connections.clear();
+        wlr_pointer_finish(&v->pointer);
+        std::erase_if(virtual_pointers_, [v](auto& p) { return p.get() == v; });
+    }));
+    virtual_pointers_.push_back(std::move(p));
+}
+
+// The keyboard clients hear: its keymap goes out when it changes.
+void Seat::use_keyboard(wlr_keyboard* kb, bool force) {
+    if (!kb || (kb == seat_kb_ && !force))
+        return;
+    seat_kb_ = kb;
+    if (kb->keymap) {
+        char* text = xkb_keymap_get_as_string(kb->keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
+        if (text && sent_keymap_ != text) {
+            sent_keymap_ = text;
+            server.wl->seat->set_keymap(sent_keymap_);
+            // Clients start this keymap with no modifiers: its own go along.
+            const wlr_keyboard_modifiers& m = kb->modifiers;
+            server.wl->seat->keyboard_modifiers({m.depressed, m.latched, m.locked, m.group});
+        }
+        free(text);
+    }
+    server.wl->seat->set_repeat_info(kb->repeat_info.rate, kb->repeat_info.delay);
+}
+
+void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
+    cursor_commit_.disconnect();
+    cursor_gone_.disconnect();
+    cursor_surface_ = surface;
+    cursor_hot_x_ = hot_x;
+    cursor_hot_y_ = hot_y;
+    if (!surface) {
+        wlr_cursor_unset_image(cursor);
+        return;
+    }
+    auto show = [this] {
+        wl::Surface* s = cursor_surface_;
+        // Moved by its attach offset: the hotspot moves against it.
+        cursor_hot_x_ -= s->current().dx;
+        cursor_hot_y_ -= s->current().dy;
+        if (wlr_buffer* b = s->buffer())
+            wlr_cursor_set_buffer(cursor, b, cursor_hot_x_ * s->current().scale, cursor_hot_y_ * s->current().scale,
+                                  float(s->current().scale));
+        else
+            wlr_cursor_unset_image(cursor);
+        timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        s->send_frame_done(uint32_t(int64_t(now.tv_sec) * 1000 + now.tv_nsec / 1000000));
+    };
+    cursor_commit_ = surface->events.commit.connect(show);
+    cursor_gone_ = surface->events.destroy.connect([this] {
+        cursor_commit_.disconnect();
+        cursor_gone_.disconnect();
+        cursor_surface_ = nullptr;
+        wlr_cursor_unset_image(cursor);
+    });
+    if (wlr_buffer* b = surface->buffer())
+        wlr_cursor_set_buffer(cursor, b, hot_x * surface->current().scale, hot_y * surface->current().scale,
+                              float(surface->current().scale));
+    else
+        wlr_cursor_unset_image(cursor);
+}
+
+void Seat::start_drag(wl::Drag* drag) {
+    if (wl::Surface* icon = drag->icon()) {
+        drag_icon_ = scene::drag_icon_create(server.drag_icons, icon);
+        drag_icon_gone_.connect(&drag_icon_->events.destroy, [this](void*) {
+            drag_icon_ = nullptr;
+            drag_icon_gone_.disconnect();
+        });
+    }
+    server.wl->seat->pointer_clear_focus();
+    drag_ended_ = drag->ended.connect([this] {
+        drag_ended_.disconnect();
+        if (drag_icon_) {
+            drag_icon_gone_.disconnect();
+            drag_icon_->destroy();
+            drag_icon_ = nullptr;
+        }
+        // Focus enter is not sent during a drag; restore it now.
+        wl_event_loop_add_idle(server.loop, [](void* data) {
+            auto* seat = static_cast<Seat*>(data);
+            seat->server.focus_top();
+            seat->refresh_pointer();
+        }, this);
+    });
+    refresh_pointer();
 }
 
 Seat::~Seat() {
     // Off every signal before the objects carrying them go away.
     new_input_.disconnect();
-    new_virtual_keyboard_.disconnect();
-    new_virtual_pointer_.disconnect();
     cursor_motion_.disconnect();
     cursor_motion_absolute_.disconnect();
     cursor_button_.disconnect();
     cursor_axis_.disconnect();
     cursor_frame_.disconnect();
-    request_cursor_.disconnect();
-    request_cursor_shape_.disconnect();
-    request_selection_.disconnect();
-    request_primary_selection_.disconnect();
-    request_start_drag_.disconnect();
-    start_drag_.disconnect();
-    new_constraint_.disconnect();
-    constraints_.clear();
+    connections_.clear();
+    cursor_commit_.disconnect();
+    cursor_gone_.disconnect();
+    drag_ended_.disconnect();
+    drag_icon_gone_.disconnect();
+    for (auto& v : virtual_pointers_) {
+        v->connections.clear();
+        wlr_cursor_detach_input_device(cursor, &v->pointer.base);
+        wlr_pointer_finish(&v->pointer);
+    }
+    virtual_pointers_.clear();
     pointers_.clear();
     virtual_keyboards_.clear();
     keyboards_.reset();
@@ -238,6 +406,19 @@ Seat::~Seat() {
     wlr_xcursor_manager_destroy(xcursor);
     wlr_cursor_destroy(cursor);
 }
+
+#ifdef ATRIUM_XWAYLAND
+void Seat::set_x11_cursor() {
+    if (!server.xwm)
+        return;
+    wlr_xcursor_manager_load(xcursor, 1);
+    if (wlr_xcursor* xc = wlr_xcursor_manager_get_xcursor(xcursor, "default", 1)) {
+        const wlr_xcursor_image* img = xc->images[0];
+        server.xwm->set_cursor(img->buffer, img->width * 4, int(img->width), int(img->height), int(img->hotspot_x),
+                               int(img->hotspot_y));
+    }
+}
+#endif
 
 void Seat::apply_keyboard_config() {
     xkb_keymap* keymap = compile_keymap(server.config);
@@ -255,6 +436,7 @@ void Seat::apply_keyboard_config() {
     for (auto& g : virtual_keyboards_)
         apply(*g);
     xkb_keymap_unref(keymap);
+    use_keyboard(physical_keyboard(), true);
     // A new keymap starts at its first layout, and the names may differ.
     last_layout_ = layout();
     server.keyboard_layout_changed();
@@ -312,7 +494,7 @@ void Seat::shake_settle() {
         // The app under the pointer sets its own cursor again, as on entering.
         shaking_ = false;
         if (mode == Mode::Normal) {
-            wlr_seat_pointer_clear_focus(wlr);
+            server.wl->seat->pointer_clear_focus();
             refresh_pointer();
         }
     });
@@ -448,10 +630,10 @@ void Seat::configure_libinput(libinput_device* dev) {
 
 void Seat::update_capabilities() {
     // Always advertise a pointer: there is always a cursor.
-    uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
-    if (!wl_list_empty(&keyboards_->group->devices))
-        caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-    wlr_seat_set_capabilities(wlr, caps);
+    uint32_t caps = wl::Seat::Pointer;
+    if (!wl_list_empty(&keyboards_->group->devices) || !virtual_keyboards_.empty())
+        caps |= wl::Seat::Keyboard;
+    server.wl->seat->set_capabilities(caps);
 }
 
 // --- keyboard ------------------------------------------------------------------
@@ -486,26 +668,23 @@ bool Seat::watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym) {
     return true;
 }
 
-void Seat::keyboard_enter(wlr_surface* surface) {
+void Seat::keyboard_enter(wl::Surface* surface) {
     server.keywords.reset();
     // Never enter with no keyboard (and so no keymap) while a real one exists.
-    if (!wlr_seat_get_keyboard(wlr))
-        wlr_seat_set_keyboard(wlr, physical_keyboard());
-    wlr_keyboard* kb = wlr_seat_get_keyboard(wlr);
-    if (!kb) {
-        wlr_seat_keyboard_notify_enter(wlr, surface, nullptr, 0, nullptr);
-        return;
-    }
-    uint32_t held[WLR_KEYBOARD_KEYS_CAP];
-    size_t n = 0;
+    if (!seat_kb_)
+        use_keyboard(physical_keyboard());
+    wlr_keyboard* kb = seat_kb_;
+    std::vector<uint32_t> held;
     for (size_t i = 0; i < kb->num_keycodes; ++i)
         if (!consumed_[kb->keycodes[i]])
-            held[n++] = kb->keycodes[i];
-    wlr_seat_keyboard_notify_enter(wlr, surface, held, n, &kb->modifiers);
+            held.push_back(kb->keycodes[i]);
+    server.wl->seat->keyboard_enter(surface, held,
+                                    {kb->modifiers.depressed, kb->modifiers.latched, kb->modifiers.locked,
+                                     kb->modifiers.group});
 }
 
 void Seat::clear_keyboard_focus() {
-    wlr_seat_keyboard_notify_clear_focus(wlr);
+    server.wl->seat->keyboard_clear_focus();
 }
 
 const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
@@ -523,14 +702,11 @@ const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
 }
 
 bool Seat::shortcuts_inhibited() const {
-    wlr_surface* focused = wlr->keyboard_state.focused_surface;
-    if (!focused || !server.shortcuts_inhibit_manager)
+    wl::Surface* focused = server.wl->seat->keyboard_focus();
+    if (!focused)
         return false;
-    wlr_keyboard_shortcuts_inhibitor_v1* inhibitor;
-    wl_list_for_each(inhibitor, &server.shortcuts_inhibit_manager->inhibitors, link)
-        if (inhibitor->active && inhibitor->surface == focused && inhibitor->seat == wlr)
-            return true;
-    return false;
+    const auto* i = server.wl->shortcut_inhibitors->for_surface(focused);
+    return i && i->active;
 }
 
 void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
@@ -544,7 +720,7 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         g.syms[level] = sym_at_level(kb->keymap, keycode, layout, level);
     g.mods = wlr_keyboard_get_modifiers(kb);
 
-    wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    server.wl->idle_notifier->activity();
 
     const Keybind* bind = nullptr;
     if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
@@ -611,14 +787,14 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     if (server.input_method && server.input_method->forward_key(kb, g.owner, e))
         return;
 
-    wlr_seat_set_keyboard(wlr, kb);
-    wlr_seat_keyboard_notify_key(wlr, e->time_msec, e->keycode, e->state);
+    use_keyboard(kb);
+    server.wl->seat->keyboard_key(e->time_msec, e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED);
     // A virtual keyboard (an IME typing) speaks for itself only for its own
     // keys: the seat goes back to the real one, whose keymap every client
     // gets. Left on a virtual one, a client connecting later gets no keymap
     // (or none at all once it is gone), which crashes Chromium on focus.
     if (g.is_virtual)
-        wlr_seat_set_keyboard(wlr, physical_keyboard());
+        use_keyboard(physical_keyboard());
 }
 
 // Held on any keyboard: the seat speaks for the real one between a virtual
@@ -636,10 +812,11 @@ wlr_keyboard* Seat::physical_keyboard() const {
 
 void Seat::modifiers(KeyboardGroup& g) {
     if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.owner)) {
-        wlr_seat_set_keyboard(wlr, &g.group->keyboard);
-        wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
+        const wlr_keyboard_modifiers& m = g.group->keyboard.modifiers;
+        use_keyboard(&g.group->keyboard);
+        server.wl->seat->keyboard_modifiers({m.depressed, m.latched, m.locked, m.group});
         if (g.is_virtual)
-            wlr_seat_set_keyboard(wlr, physical_keyboard());
+            use_keyboard(physical_keyboard());
     }
     // Letting go of Alt picks the window the switcher is on.
     server.switcher->modifiers(wlr_keyboard_get_modifiers(&g.group->keyboard));
@@ -705,16 +882,14 @@ void Seat::reach_edge() {
 
 void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
-    wlr_surface* focused = wlr->pointer_state.focused_surface;
+    wl::Surface* focused = server.wl->seat->pointer_focus();
+    wl::Drag* drag = server.wl->data->drag();
 
     // time == 0: an internal refresh, not real motion.
     if (time) {
-        wlr_relative_pointer_manager_v1_send_relative_motion(server.relative_pointer_manager, wlr,
-            uint64_t(time) * 1000, dx, dy, dx_unaccel, dy_unaccel);
+        server.wl->relative_pointers->send_motion(uint64_t(time) * 1000, dx, dy, dx_unaccel, dy_unaccel);
 
-        activate_constraint(focused ? wlr_pointer_constraints_v1_constraint_for_surface(
-                                          server.pointer_constraints, focused, wlr)
-                                    : nullptr);
+        activate_constraint(focused ? server.wl->pointer_constraints->for_surface(focused) : nullptr);
 
         if (active_constraint_ && mode != Mode::Move && mode != Mode::Resize &&
             active_constraint_->surface == focused) {
@@ -722,17 +897,17 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                 double ox, oy;
                 owner.view->surface_origin(ox, oy);
                 double sx = cursor->x - ox, sy = cursor->y - oy, cx, cy;
-                if (wlr_region_confine(&active_constraint_->region, sx, sy, sx + dx, sy + dy, &cx, &cy)) {
+                if (wlr_region_confine(active_constraint_->region.get(), sx, sy, sx + dx, sy + dy, &cx, &cy)) {
                     dx = cx - sx;
                     dy = cy - sy;
                 }
-                if (active_constraint_->type == WLR_POINTER_CONSTRAINT_V1_LOCKED)
+                if (active_constraint_->type == wl::PointerConstraints::Type::Lock)
                     return;
             }
         }
 
         wlr_cursor_move(cursor, device, dx, dy);
-        wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+        server.wl->idle_notifier->activity();
         if (server.config.shake_to_find && mode == Mode::Normal && shake_.feed(time, cursor->x, cursor->y))
             shake_grow();
         if (mode == Mode::Move && grab_view_)
@@ -799,18 +974,23 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     // A window riding a drag and drop follows the pointer, which looks
     // through it for where to drop.
     View* riding = nullptr;
-    if (wlr->drag) {
+    if (drag) {
         server.toplevel_drags->motion(cursor->x, cursor->y);
         riding = server.toplevel_drags->dragged();
     }
     Hit hit = server.hit_test(cursor->x, cursor->y, riding);
+    // A drag and drop: what is under it hears of the drag, not the pointer.
+    if (drag && !server.locked) {
+        drag->motion(hit.surface, hit.sx, hit.sy, time ? time : now_ms());
+        return;
+    }
 
     // Among tiles (and in a secret space) focus follows the pointer, as in
     // caelestia; floating windows keep click to focus. Not while a panel or
     // menu has the keyboard.
     if (time && mode == Mode::Normal && !server.locked && hit.view && !hit.layer && hit.view->layout_owned() &&
         hit.view != server.focused_view) {
-        wlr_surface* kf = wlr->keyboard_state.focused_surface;
+        wl::Surface* kf = server.wl->seat->keyboard_focus();
         if (!kf || (server.focused_view && kf == server.focused_view->surface()))
             server.focus_view(hit.view, false);
     }
@@ -826,19 +1006,19 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     if (mode != Mode::Pressed) {
         if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
             set_titlebar_hover(nullptr, 0);
-            wlr_seat_pointer_notify_clear_focus(wlr);
+            server.wl->seat->pointer_clear_focus();
             wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(zone.edges)));
             return;
         }
         if (hit.backdrop) {
             set_titlebar_hover(nullptr, 0);
-            wlr_seat_pointer_notify_clear_focus(wlr);
+            server.wl->seat->pointer_clear_focus();
             set_default_cursor();
             return;
         }
         if (hit.titlebar) {
             set_titlebar_hover(hit.titlebar, int(hit.titlebar->part_at(hit.sx, hit.sy)));
-            wlr_seat_pointer_notify_clear_focus(wlr);
+            server.wl->seat->pointer_clear_focus();
             set_default_cursor();
             return;
         }
@@ -847,7 +1027,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
     // Implicit grab: while a button is held, events stay with the surface
     // that got the press, even when the cursor leaves it.
-    if (mode == Mode::Pressed && !wlr->drag && focused && hit.surface != focused) {
+    if (mode == Mode::Pressed && focused && hit.surface != focused) {
         if (Owner owner = Server::owner_of(focused)) {
             double ox, oy;
             if (owner.layer) {
@@ -864,27 +1044,42 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         }
     }
 
-    if (!hit.surface && !wlr->drag)
+    if (!hit.surface)
         set_default_cursor();
     pointer_focus(hit.view, hit.surface, hit.sx, hit.sy, time);
 }
 
-void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint32_t time) {
+void Seat::pointer_focus(View*, wl::Surface* surface, double sx, double sy, uint32_t time) {
+    wl::Seat& ws = *server.wl->seat;
     if (!surface) {
-        wlr_seat_pointer_notify_clear_focus(wlr);
+        if (ws.pointer_focus())
+            set_cursor_surface(nullptr, 0, 0);
+        ws.pointer_clear_focus();
         return;
     }
     if (!time)
         time = now_ms();
-    // Enter is a no-op when the surface already has pointer focus.
-    wlr_seat_pointer_notify_enter(wlr, surface, sx, sy);
-    wlr_seat_pointer_notify_motion(wlr, time, sx, sy);
+    // Entering another surface: its own image comes with its enter.
+    if (surface != ws.pointer_focus()) {
+        set_cursor_surface(nullptr, 0, 0);
+        set_default_cursor();
+        ws.pointer_enter(surface, sx, sy);
+    }
+    ws.pointer_motion(time, sx, sy);
 }
 
 void Seat::button(wlr_pointer_button_event* e) {
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED)
         server.keywords.reset();  // a click moves the caret
-    wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    server.wl->idle_notifier->activity();
+
+    // A drag and drop ends with the button: dropped where it is.
+    if (wl::Drag* drag = server.wl->data->drag()) {
+        if (e->state == WL_POINTER_BUTTON_STATE_RELEASED)
+            drag->drop(e->time_msec);
+        mode = Mode::Normal;
+        return;
+    }
 
     // A press on the overview is the overview's, and so is its release, even
     // when the overview has gone by then.
@@ -905,7 +1100,7 @@ void Seat::button(wlr_pointer_button_event* e) {
         if (Output* o = server.output_at(cursor->x, cursor->y))
             server.focused_output = o;
         if (server.locked) {
-            wlr_seat_pointer_notify_button(wlr, e->time_msec, e->button, e->state);
+            server.wl->seat->pointer_button(e->time_msec, e->button, true);
             return;
         }
 
@@ -915,7 +1110,7 @@ void Seat::button(wlr_pointer_button_event* e) {
         // anywhere else, as macOS's do (focus isn't a reliable sign of that:
         // a click on the window already focused changes nothing).
         if (server.ipc) {
-            const char* ns = hit.layer && hit.layer->wlr->namespace_ ? hit.layer->wlr->namespace_ : "";
+            const std::string ns = hit.layer ? hit.layer->ls->name_space() : "";
             server.ipc->broadcast("shell", {{"event", "pointer.pressed"}, {"namespace", ns}});
         }
 
@@ -937,7 +1132,7 @@ void Seat::button(wlr_pointer_button_event* e) {
         // Click to focus, and a click raises: the desktop model, not the tiling one.
         if (hit.view && (!hit.view->unmanaged() || hit.view->wants_focus()))
             server.focus_view(hit.view);
-        else if (hit.layer && hit.layer->wlr->current.keyboard_interactive)
+        else if (hit.layer && hit.layer->ls->current().keyboard_interactive)
             server.focus_layer(hit.layer);
 
         // Mod + drag moves (left) or resizes (right) from anywhere in a window.
@@ -969,14 +1164,14 @@ void Seat::button(wlr_pointer_button_event* e) {
                 dropped->fit_secret(false);  // back to its frame
             else if (dropped && zone)
                 dropped->snap(zone);
-            wlr_seat_pointer_clear_focus(wlr);
+            server.wl->seat->pointer_clear_focus();
             set_default_cursor();
             refresh_pointer();
             return;
         }
         mode = Mode::Normal;
     }
-    wlr_seat_pointer_notify_button(wlr, e->time_msec, e->button, e->state);
+    server.wl->seat->pointer_button(e->time_msec, e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED);
 }
 
 // --- title bars and frame edges -----------------------------------------------------
@@ -987,7 +1182,7 @@ Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
     if (server.locked)
         return {};
     // Panels, docks and menus above windows keep their clicks.
-    if (hit.layer && hit.layer->wlr->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+    if (hit.layer && hit.layer->ls->current().layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP)
         return {};
 
     // `views` is in stacking order: the first window under the point hides
@@ -1060,7 +1255,7 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
         press_bar_ = hit.titlebar;
         press_part_ = int(part);
         press_bar_->set_pressed(part);
-        wlr_seat_pointer_clear_focus(wlr);
+        server.wl->seat->pointer_clear_focus();
         return true;
     }
 
@@ -1095,7 +1290,7 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
 }
 
 void Seat::axis(wlr_pointer_axis_event* e) {
-    wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    server.wl->idle_notifier->activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a
     // touchpad once per stretch of scrolling.
@@ -1117,8 +1312,9 @@ void Seat::axis(wlr_pointer_axis_event* e) {
         return;
     }
     space_scroll_ = 0;
-    wlr_seat_pointer_notify_axis(wlr, e->time_msec, e->orientation, e->delta, e->delta_discrete,
-                                 e->source, e->relative_direction);
+    server.wl->seat->pointer_axis(e->time_msec, e->orientation, e->delta, e->delta_discrete,
+                                  wl::Seat::AxisSource(e->source),
+                                  e->relative_direction == WL_POINTER_AXIS_RELATIVE_DIRECTION_INVERTED);
 }
 
 // --- interactive move / resize ---------------------------------------------------
@@ -1137,7 +1333,7 @@ void Seat::begin_move(View* view) {
     edge_push_ = 0;
     edge_carried_ = false;
     mode = Mode::Move;
-    wlr_seat_pointer_clear_focus(wlr);
+    server.wl->seat->pointer_clear_focus();
     wlr_cursor_set_xcursor(cursor, xcursor, "grabbing");
 }
 
@@ -1174,7 +1370,7 @@ void Seat::begin_resize(View* view, uint32_t edges) {
     grab_edges_ = edges;
     mode = Mode::Resize;
     view->begin_resize(edges);
-    wlr_seat_pointer_clear_focus(wlr);
+    server.wl->seat->pointer_clear_focus();
     wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(edges)));
 }
 
@@ -1238,41 +1434,26 @@ void Seat::view_unmapped(View* view) {
 
 // --- pointer constraints (games, remote desktops) ------------------------------------
 
-void Seat::new_constraint(wlr_pointer_constraint_v1* c) {
-    auto constraint = std::make_unique<Constraint>(c);
-    Constraint* raw = constraint.get();
-    raw->destroy.connect(&c->events.destroy, [this, raw](void*) {
-        if (active_constraint_ == raw->wlr) {
-            warp_to_constraint_hint();
-            active_constraint_ = nullptr;
-        }
-        std::erase_if(constraints_, [raw](auto& p) { return p.get() == raw; });
-    });
-    constraints_.push_back(std::move(constraint));
-}
-
-void Seat::activate_constraint(wlr_pointer_constraint_v1* c) {
+void Seat::activate_constraint(wl::PointerConstraints::Constraint* c) {
     if (active_constraint_ == c)
         return;
     if (active_constraint_)
-        wlr_pointer_constraint_v1_send_deactivated(active_constraint_);
+        server.wl->pointer_constraints->deactivate(active_constraint_);
     active_constraint_ = c;
     if (c)
-        wlr_pointer_constraint_v1_send_activated(c);
+        server.wl->pointer_constraints->activate(c);
 }
 
 void Seat::warp_to_constraint_hint() {
     auto* c = active_constraint_;
-    if (!c->current.cursor_hint.enabled)
+    if (!c->cursor_hint)
         return;
     Owner owner = Server::owner_of(c->surface);
     if (!owner.view)
         return;
     double ox, oy;
     owner.view->surface_origin(ox, oy);
-    const double sx = c->current.cursor_hint.x, sy = c->current.cursor_hint.y;
-    wlr_cursor_warp(cursor, nullptr, ox + sx, oy + sy);
-    wlr_seat_pointer_warp(c->seat, sx, sy);
+    wlr_cursor_warp(cursor, nullptr, ox + c->cursor_hint->first, oy + c->cursor_hint->second);
 }
 
 } // namespace atrium

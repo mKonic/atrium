@@ -82,7 +82,12 @@ Presentation::~Presentation() {
 
 void Presentation::presented(Surface* surface, Output* output, const timespec& when, uint32_t refresh_ns,
                              uint64_t seq, uint32_t flags) {
-    for (auto& p : surface->take_feedbacks()) {
+    presented(surface->take_feedbacks(), output, when, refresh_ns, seq, flags);
+}
+
+void Presentation::presented(std::vector<std::shared_ptr<void>> feedbacks, Output* output, const timespec& when,
+                             uint32_t refresh_ns, uint64_t seq, uint32_t flags) {
+    for (auto& p : feedbacks) {
         auto fb = std::static_pointer_cast<Feedback>(p);
         WpPresentationFeedback* r = fb->resource.get();
         if (!r)

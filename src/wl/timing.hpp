@@ -18,6 +18,10 @@ public:
     // `surface`'s current content was shown on `output` at `when`.
     static void presented(Surface* surface, Output* output, const timespec& when, uint32_t refresh_ns, uint64_t seq,
                           uint32_t flags);
+    // Feedbacks taken from a surface when its content was shown (sent once
+    // the output says when that was).
+    static void presented(std::vector<std::shared_ptr<void>> feedbacks, Output* output, const timespec& when,
+                          uint32_t refresh_ns, uint64_t seq, uint32_t flags);
 
 private:
     std::unique_ptr<Global> global_;

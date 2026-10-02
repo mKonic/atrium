@@ -615,14 +615,11 @@ void View::update_output_from_position() {
 void View::set_output(Output* o) {
     if (!o || o == output || o->dying)
         return;
-    if (handle_ && output)
-        wlr_foreign_toplevel_handle_v1_output_leave(handle_, output->wlr);
     output = o;
-    if (handle_)
-        wlr_foreign_toplevel_handle_v1_output_enter(handle_, output->wlr);
-    if (wlr_surface* s = surface()) {
-        wlr_fractional_scale_v1_notify_scale(s, o->wlr->scale);
-        wlr_surface_set_preferred_buffer_scale(s, int32_t(std::ceil(o->wlr->scale)));
+    sync_handle();
+    if (wl::Surface* s = surface()) {
+        server.wl->fractional_scales->set_preferred_scale(s, o->wlr->scale);
+        s->set_preferred_scale(int32_t(std::ceil(o->wlr->scale)));
     }
 }
 
@@ -714,8 +711,7 @@ void View::set_activated(bool a) {
     const bool was = activated;
     activated = a;
     send_activated(a);
-    if (handle_)
-        wlr_foreign_toplevel_handle_v1_set_activated(handle_, a);
+    sync_handle();
     // The focus ring fades from one tile to the next, as caelestia's border
     // does (600 ms, standard curve).
     server.animator.cancel_owner(&ring_, false);
@@ -736,8 +732,7 @@ void View::set_maximized(bool m, bool restore_geometry) {
         return;
     maximized = m;
     send_maximized(m);
-    if (handle_)
-        wlr_foreign_toplevel_handle_v1_set_maximized(handle_, m);
+    sync_handle();
     server.notify_window(*this, "changed");
     if (fullscreen)
         return;  // takes effect when fullscreen ends
@@ -935,8 +930,7 @@ void View::set_fullscreen(bool f) {
     geom.height += top() - old_top;  // the bar hides while fullscreen
     layout_frame();
     send_fullscreen(f);
-    if (handle_)
-        wlr_foreign_toplevel_handle_v1_set_fullscreen(handle_, f);
+    sync_handle();
 
     covered = false;
     tree->reparent(home_tree());
@@ -1019,8 +1013,7 @@ void View::set_minimized(bool m) {
             server.animator.start(this, 500, Ease::EmphasizedDecel, [step](double t) { step(1 - t); }, settle);
     }
     send_suspended(m);
-    if (handle_)
-        wlr_foreign_toplevel_handle_v1_set_minimized(handle_, m);
+    sync_handle();
     server.notify_window(*this, "changed");
     server.restack_fullscreen();
     if (fullscreen && output)
@@ -1211,34 +1204,41 @@ void View::update_corners() {
 
 // --- foreign toplevel handles (docks, task switchers, screen sharing) ---------
 
+void View::sync_handle() {
+    if (!handle_)
+        return;
+    wl::ForeignToplevels::Info info;
+    info.title = title();
+    info.app_id = app_id();
+    info.maximized = maximized;
+    info.minimized = minimized;
+    info.fullscreen = fullscreen;
+    info.activated = activated;
+    if (output && output->global)
+        info.outputs.push_back(output->global.get());
+    handle_->update(info);
+}
+
 void View::create_toplevel_handles() {
-    wlr_ext_foreign_toplevel_handle_v1_state state{};
-    state.title = title();
-    state.app_id = app_id();
-    ext_handle_ = wlr_ext_foreign_toplevel_handle_v1_create(server.ext_toplevel_list, &state);
-    ext_handle_->data = this;
-
-    handle_ = wlr_foreign_toplevel_handle_v1_create(server.toplevel_manager);
+    wl::ForeignToplevels::Info info;
+    info.title = title();
+    info.app_id = app_id();
+    handle_ = server.wl->toplevels->create(info);
     handle_->data = this;
-    wlr_foreign_toplevel_handle_v1_set_title(handle_, title());
-    wlr_foreign_toplevel_handle_v1_set_app_id(handle_, app_id());
-    if (output)
-        wlr_foreign_toplevel_handle_v1_output_enter(handle_, output->wlr);
+    sync_handle();
     if (View* p = parent(); p && p->handle_)
-        wlr_foreign_toplevel_handle_v1_set_parent(handle_, p->handle_);
+        handle_->set_parent(p->handle_);
 
-    handle_activate_.connect(&handle_->events.request_activate, [this](auto*) {
+    auto& c = handle_connections_;
+    c.push_back(handle_->events.request_activate.connect([this](wl::Seat*) {
         if (minimized)
             set_minimized(false);
         server.focus_view(this);
-    });
-    handle_maximize_.connect(&handle_->events.request_maximize,
-        [this](wlr_foreign_toplevel_handle_v1_maximized_event* e) { set_maximized(e->maximized); });
-    handle_minimize_.connect(&handle_->events.request_minimize,
-        [this](wlr_foreign_toplevel_handle_v1_minimized_event* e) { set_minimized(e->minimized); });
-    handle_fullscreen_.connect(&handle_->events.request_fullscreen,
-        [this](wlr_foreign_toplevel_handle_v1_fullscreen_event* e) { set_fullscreen(e->fullscreen); });
-    handle_close_.connect(&handle_->events.request_close, [this](void*) { close(); });
+    }));
+    c.push_back(handle_->events.request_maximize.connect([this](bool on) { set_maximized(on); }));
+    c.push_back(handle_->events.request_minimize.connect([this](bool on) { set_minimized(on); }));
+    c.push_back(handle_->events.request_fullscreen.connect([this](bool on, wl::Output*) { set_fullscreen(on); }));
+    c.push_back(handle_->events.request_close.connect([this] { close(); }));
 
     // A private scene holding just this window, for per-window screen capture.
     capture_scene_ = scene::Scene::create();
@@ -1246,41 +1246,20 @@ void View::create_toplevel_handles() {
 }
 
 void View::destroy_toplevel_handles() {
-    handle_activate_.disconnect();
-    handle_maximize_.disconnect();
-    handle_minimize_.disconnect();
-    handle_fullscreen_.disconnect();
-    handle_close_.disconnect();
+    handle_connections_.clear();
     if (handle_) {
-        wlr_foreign_toplevel_handle_v1_destroy(handle_);
+        server.wl->toplevels->destroy(handle_);
         handle_ = nullptr;
     }
-    if (ext_handle_) {
-        wlr_ext_foreign_toplevel_handle_v1_destroy(ext_handle_);
-        ext_handle_ = nullptr;
-    }
-    if (capture_impl_.refresh) {
-        wl_event_source_remove(capture_impl_.refresh);
-        capture_impl_.refresh = nullptr;
-    }
     if (capture_scene_) {
-        (capture_scene_)->destroy();
+        server.capture_view_gone(this);
+        capture_scene_->destroy();
         capture_scene_ = nullptr;
-        capture_source_ = nullptr;  // owned by the scene node
     }
 }
 
 void View::update_title() {
-    if (ext_handle_) {
-        wlr_ext_foreign_toplevel_handle_v1_state state{};
-        state.title = title();
-        state.app_id = app_id();
-        wlr_ext_foreign_toplevel_handle_v1_update_state(ext_handle_, &state);
-    }
-    if (handle_) {
-        wlr_foreign_toplevel_handle_v1_set_title(handle_, title());
-        wlr_foreign_toplevel_handle_v1_set_app_id(handle_, app_id());
-    }
+    sync_handle();
     if (titlebar)
         titlebar->update();
     if (mapped)

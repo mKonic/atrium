@@ -31,6 +31,8 @@ LockSurface::~LockSurface() {
 }
 
 uint32_t LockSurface::configure(uint32_t width, uint32_t height) {
+    if (!client())
+        return 0;
     const uint32_t serial = wl_display_next_serial(wl_client_get_display(client()));
     sent_.push_back({serial, width, height});
     send_configure(serial, width, height);

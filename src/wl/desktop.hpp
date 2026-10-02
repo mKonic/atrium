@@ -28,6 +28,7 @@ public:
     public:
         const Info& info() const { return info_; }
         const std::string& identifier() const { return identifier_; }
+        void* data = nullptr;  // the compositor's own object
         void update(const Info& info);
         void set_parent(Handle* parent);
 
@@ -79,10 +80,12 @@ public:
         uint32_t state = 0;  // ext_workspace_handle_v1.state bits: 1 active, 2 urgent, 4 hidden
         uint32_t capabilities = 0;  // 1 activate, 2 deactivate, 4 remove, 8 assign
         Group* group = nullptr;
+        void* data = nullptr;
         std::vector<Weak<Resource>> resources;
     };
     struct Group {
         uint32_t capabilities = 0;  // 1 create workspace
+        void* data = nullptr;
         std::vector<Output*> outputs;
         std::vector<Weak<Resource>> resources;
     };
@@ -206,6 +209,13 @@ public:
     ~GammaControls();
     // How many entries per channel `output` takes (0: none; clients fail).
     void set_size(Output* output, uint32_t size);
+    // The screen couldn't take the table: its control fails.
+    void fail(Output* output);
+    // Whether an app holds the screen's gamma (night light stands aside).
+    bool active(Output* output) const {
+        auto it = controls_.find(output);
+        return it != controls_.end() && it->second;
+    }
     // A table to apply (red, green, blue ramps), or empty: the default again.
     Signal<Output*, const std::vector<uint16_t>&> set_gamma;
 

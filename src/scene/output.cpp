@@ -2,6 +2,11 @@
 // it needs, from wlroots/scenefx).
 
 #include "scene/internal.hpp"
+
+#include "wl/compositor.hpp"
+#include "wl/desktop.hpp"
+#include "wl/dmabuf.hpp"
+#include "wl/timing.hpp"
 #include "warp.hpp"
 
 #include "render/matrix.hpp"
@@ -104,20 +109,18 @@ int tf_index(wlr_color_transfer_function tf) {
     }
 }
 
-void send_dmabuf_feedback(Scene* scene, Buffer* b, const wlr_linux_dmabuf_feedback_v1_init_options& o,
-                          wlr_linux_dmabuf_feedback_v1_init_options* prev) {
-    if (!scene->linux_dmabuf_v1 || !b->surface())
+// Tells a surface which buffers suit where it is shown: `scanout` when it
+// could go straight to that screen, else rendered.
+void send_dmabuf_feedback(Scene* scene, Buffer* b, wlr_output* scanout) {
+    const Protocols& p = scene->protocols;
+    if (!p.dmabuf || !p.dmabuf_feedback || !b->surface())
         return;
-    if (std::memcmp(&o, prev, sizeof(o)) == 0)
+    const std::pair<wlr_output*, bool> key{scanout, true};
+    if (b->feedback_sent == key)
         return;
-    *prev = o;
-    wlr_linux_dmabuf_feedback_v1 fb{};
-    if (!wlr_linux_dmabuf_feedback_v1_init_with_options(&fb, &o))
-        return;
-    wlr_surface_set_preferred_buffer_transform(
-        b->surface()->surface, o.scanout_primary_output ? o.scanout_primary_output->transform : WL_OUTPUT_TRANSFORM_NORMAL);
-    wlr_linux_dmabuf_v1_set_surface_feedback(scene->linux_dmabuf_v1, b->surface()->surface, &fb);
-    wlr_linux_dmabuf_feedback_v1_finish(&fb);
+    b->feedback_sent = key;
+    b->surface()->surface->set_preferred_transform(scanout ? uint32_t(scanout->transform) : uint32_t(WL_OUTPUT_TRANSFORM_NORMAL));
+    p.dmabuf->set_surface_feedback(b->surface()->surface, p.dmabuf_feedback(scanout));
 }
 
 bool scanout_colour_allowed(const wlr_output_image_description* desc, const Buffer* b) {
@@ -191,9 +194,28 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
         if (so->scene->debug_damage == Scene::DebugDamage::Highlight && !so->highlights_.empty())
             wlr_output_schedule_frame(so->output);
         // Enabled again: the gamma table is sent again.
-        if (so->scene->gamma_control_manager_v1 && (st->committed & WLR_OUTPUT_STATE_ENABLED) &&
-            !so->output->enabled)
+        if (so->scene->gamma_ && (st->committed & WLR_OUTPUT_STATE_ENABLED) && !so->output->enabled)
             so->gamma_lut_changed_ = true;
+        // What was shown with this frame waits to hear when.
+        if (st->committed & WLR_OUTPUT_STATE_BUFFER) {
+            for (Feedbacks& f : so->sampled_)
+                so->committed_.push_back({so->output->commit_seq, std::move(f)});
+            so->sampled_.clear();
+        }
+    });
+    so->present_.connect(&output->events.present, [so](wlr_output_event_present* e) {
+        std::vector<Committed> due;
+        std::erase_if(so->committed_, [&](Committed& c) {
+            if (int32_t(c.seq - e->commit_seq) > 0)
+                return false;
+            due.push_back(std::move(c));
+            return true;
+        });
+        if (!e->presented)
+            return;  // dropped: they say "discarded"
+        for (Committed& c : due)
+            wl::Presentation::presented(std::move(c.feedbacks.list), so->global, e->when, uint32_t(e->refresh),
+                                        e->seq, e->flags | (c.feedbacks.zero_copy ? uint32_t(wl::Presentation::ZeroCopy) : 0u));
     });
     so->damage_.connect(&output->events.damage, [so](wlr_output_event_damage* e) {
         int w, h;
@@ -268,6 +290,19 @@ void SceneOutput::set_color_lut(std::unique_ptr<render::ColorLut> lut) {
     lut_ = std::move(lut);
     color_changed_ = true;
     damage_whole();
+}
+
+SceneOutput* Scene::output_for(const wl::Output* o) {
+    SceneOutput* so;
+    wl_list_for_each(so, &outputs, link)
+        if (so->global == o)
+            return so;
+    return nullptr;
+}
+
+void SceneOutput::presentation_pending(std::vector<std::shared_ptr<void>> feedbacks, bool zero_copy) {
+    if (!feedbacks.empty())
+        sampled_.push_back({std::move(feedbacks), zero_copy});
 }
 
 SceneOutput* Scene::output_for(wlr_output* o) {
@@ -405,9 +440,8 @@ void SceneOutput::attempt_gamma(wlr_output_state* state) {
     wlr_output_state_set_color_transform(&pending, gamma_lut_transform_);
     gamma_lut_changed_ = false;
     if (!wlr_output_test_state(output, &pending)) {
-        if (gamma_lut_)
-            wlr_gamma_control_v1_send_failed_and_destroy(gamma_lut_);
-        gamma_lut_ = nullptr;
+        if (scene->gamma_ && global)
+            scene->gamma_->fail(global);
         wlr_color_transform_unref(gamma_lut_transform_);
         gamma_lut_transform_ = nullptr;
         wlr_output_state_finish(&pending);
@@ -575,9 +609,9 @@ void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render
             // Drawn as a rectangle, which is cheaper.
             render::RectDraw rd;
             rd.box = dst;
-            const float a = float(b->single_pixel_color_[3]) / float(UINT32_MAX) * alpha;
+            const float a = b->single_pixel_color_[3] * alpha;
             for (int i = 0; i < 3; ++i)
-                rd.color[i] = float(b->single_pixel_color_[i]) / float(UINT32_MAX) * (alpha);
+                rd.color[i] = b->single_pixel_color_[i] * (alpha);
             rd.color[3] = a;
             rd.clip = &region;
             pass->add_rect(rd);
@@ -914,16 +948,10 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
         !(state->committed & (WLR_OUTPUT_STATE_MODE | WLR_OUTPUT_STATE_ENABLED | WLR_OUTPUT_STATE_RENDER_FORMAT)) &&
         wlr_output_is_direct_scanout_allowed(output)) {
         Buffer* b = static_cast<Buffer*>(list[0].node);
-        const bool plain_repr = (b->color_encoding == WLR_COLOR_ENCODING_NONE && b->color_range == WLR_COLOR_RANGE_NONE) ||
-                                (b->color_encoding == WLR_COLOR_ENCODING_IDENTITY && b->color_range == WLR_COLOR_RANGE_FULL);
-        if (b->buffer && b->transform == d.transform && scanout_colour_allowed(desc, b) && plain_repr) {
+        if (b->buffer && b->transform == d.transform && scanout_colour_allowed(desc, b)) {
             scanout = Candidate;
-            if (dmabuf_feedback_debounce_ >= kDmabufFeedbackDebounce && b->primary_output == this) {
-                wlr_linux_dmabuf_feedback_v1_init_options fo{};
-                fo.main_renderer = output->renderer;
-                fo.scanout_primary_output = output;
-                send_dmabuf_feedback(scene, b, fo, &b->prev_feedback_);
-            }
+            if (dmabuf_feedback_debounce_ >= kDmabufFeedbackDebounce && b->primary_output == this)
+                send_dmabuf_feedback(scene, b, output);
             wlr_output_state pending;
             wlr_output_state_init(&pending);
             if (wlr_output_state_copy(&pending, state)) {
@@ -938,9 +966,9 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
                 wlr_box_transform(&dst, &dst, wlr_output_transform_invert(d.transform), d.trans_width, d.trans_height);
                 pending.buffer_dst_box = dst;
                 wlr_buffer* wb = b->buffer;
-                wlr_client_buffer* cb = wlr_client_buffer_get(wb);
-                if (cb && cb->source && cb->source->n_locks > 0)
-                    wb = cb->source;
+                wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(wb);
+                if (sb && sb->source.get() && sb->source.get()->n_locks > 0)
+                    wb = sb->source.get();
                 wlr_output_state_set_buffer(&pending, wb);
                 if (b->wait_timeline_)
                     wlr_output_state_set_wait_timeline(&pending, b->wait_timeline_, b->wait_point_);
@@ -1092,11 +1120,8 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
             Buffer* b = static_cast<Buffer*>(it->node);
             // Composited: feedback for composition once direct scan-out has
             // stopped being tried.
-            if (dmabuf_feedback_debounce_ == 0 && b->primary_output == this) {
-                wlr_linux_dmabuf_feedback_v1_init_options fo{};
-                fo.main_renderer = output->renderer;
-                send_dmabuf_feedback(scene, b, fo, &b->prev_feedback_);
-            }
+            if (dmabuf_feedback_debounce_ == 0 && b->primary_output == this)
+                send_dmabuf_feedback(scene, b, nullptr);
         }
     }
     // Layers of trees no longer warped go.

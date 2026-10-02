@@ -32,6 +32,8 @@ public:
     Output* output() const { return output_; }
     void set_output(Output* output) { output_ = output; }
     const std::string& name_space() const { return namespace_; }
+
+    void* data = nullptr;  // the compositor's own object
     const State& current() const;
     const State& pending() const;
     bool initialized() const { return initialized_; }

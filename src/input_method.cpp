@@ -13,7 +13,8 @@
 
 namespace atrium {
 
-InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
+InputMethodRelay::InputMethodRelay(Server& server)
+    : server_(server), text_inputs_(*server.wl->text_inputs), methods_(*server.wl->input_methods) {
     pending_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
         // No field took it: the shell copies it instead.
         auto* self = static_cast<InputMethodRelay*>(data);
@@ -28,34 +29,108 @@ InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
             self->commit_pending();
         return 0;
     }, this);
-    text_inputs_manager_ = wlr_text_input_manager_v3_create(server.display);
-    input_methods_manager_ = wlr_input_method_manager_v2_create(server.display);
-    new_text_input_.connect(&text_inputs_manager_->events.new_text_input,
-        [this](wlr_text_input_v3* t) { new_text_input(t); });
-    new_input_method_.connect(&input_methods_manager_->events.new_input_method,
-        [this](wlr_input_method_v2* im) { new_input_method(im); });
+    auto& c = connections_;
+    auto& ti = text_inputs_.events;
+    c.push_back(ti.enable.connect([this](TextInput* t) {
+        if (std::ranges::find(ready_, t) == ready_.end())
+            ready_.push_back(t);
+        update_active();
+        if (active_ == t) {
+            place_popups();
+            send_state();
+        }
+        text_inputs_.send_done(t);
+    }));
+    c.push_back(ti.disable.connect([this](TextInput* t) {
+        std::erase(ready_, t);
+        update_active();
+    }));
+    c.push_back(ti.commit.connect([this](TextInput* t) {
+        if (active_ == t) {
+            place_popups();
+            send_state();
+            if (!pending_text_.empty() && takes_text(t))
+                wl_event_source_timer_update(settle_timer_, kSettleMs);
+        }
+    }));
+    c.push_back(ti.destroy.connect([this](TextInput* t) {
+        std::erase(ready_, t);
+        if (active_ == t)
+            active_ = nullptr;
+        update_active();
+    }));
+
+    auto& im = methods_.events;
+    c.push_back(im.new_method.connect([this](wl::InputMethods::InputMethod*) {
+        grab_keymap_.clear();
+        // A field was already active (atrium focuses fields without an IME
+        // too): this IME hasn't heard of it yet.
+        if (active_)
+            methods_.activate(active_->current);
+    }));
+    // What the IME composed goes to the app.
+    c.push_back(im.commit.connect([this](wl::InputMethods::InputMethod* m) {
+        if (!active_)
+            return;
+        const auto& cur = m->current;
+        if (cur.preedit)
+            text_inputs_.send_preedit(active_, cur.preedit->c_str(), cur.preedit_begin, cur.preedit_end);
+        if (cur.commit)
+            text_inputs_.send_commit(active_, cur.commit->c_str());
+        if (cur.delete_before || cur.delete_after)
+            text_inputs_.send_delete(active_, cur.delete_before, cur.delete_after);
+        text_inputs_.send_done(active_);
+    }));
+    c.push_back(im.grab.connect([this](bool taken) {
+        grab_keymap_.clear();
+        wlr_keyboard* kb = server_.seat->physical_keyboard();
+        if (taken) {
+            // Start it off with the keymap and modifiers in use right now.
+            grab_for(kb, nullptr);
+            methods_.grab_modifiers({kb->modifiers.depressed, kb->modifiers.latched, kb->modifiers.locked,
+                                     kb->modifiers.group});
+        } else {
+            // The app gets the modifier state back.
+            server_.wl->seat->keyboard_modifiers({kb->modifiers.depressed, kb->modifiers.latched,
+                                                  kb->modifiers.locked, kb->modifiers.group});
+        }
+    }));
+    c.push_back(im.new_popup.connect([this](wl::InputMethods::Popup* p) {
+        auto popup = std::make_unique<Popup>(p, scene::Tree::create(server_.layer(Layer::InputPopup)));
+        Popup* pp = popup.get();
+        scene::subsurface_tree_create(pp->tree, p->surface);
+        attach_surface_blur(server_, pp->tree, p->surface);
+        pp->commit = p->surface->events.commit.connect([this, pp] { place(*pp); });
+        popups_.push_back(std::move(popup));
+        place(*pp);
+    }));
+    c.push_back(im.destroy_popup.connect([this](wl::InputMethods::Popup* p) {
+        std::erase_if(popups_, [p](const auto& q) {
+            if (q->popup != p)
+                return false;
+            q->tree->destroy();
+            return true;
+        });
+    }));
+    c.push_back(im.destroy.connect([this](wl::InputMethods::InputMethod*) {
+        grab_keymap_.clear();
+        for (auto& p : popups_)
+            p->tree->destroy();
+        popups_.clear();
+    }));
     // The IME follows the keyboard, wherever focus moves and however.
-    focus_change_.connect(&server.seat->wlr->keyboard_state.events.focus_change,
-        [this](wlr_seat_keyboard_focus_change_event* e) { set_focus(e->new_surface); });
+    c.push_back(server.wl->seat->events.keyboard_focus.connect([this](wl::Surface* s) { set_focus(s); }));
 }
 
 InputMethodRelay::~InputMethodRelay() {
-    // The managers go with the display; nothing may stay hooked to them.
     if (pending_timer_)
         wl_event_source_remove(pending_timer_);
     if (settle_timer_)
         wl_event_source_remove(settle_timer_);
+    connections_.clear();
+    for (auto& p : popups_)
+        p->tree->destroy();
     popups_.clear();
-    text_inputs_.clear();
-    new_text_input_.disconnect();
-    new_input_method_.disconnect();
-    im_commit_.disconnect();
-    im_destroy_.disconnect();
-    im_grab_.disconnect();
-    im_new_popup_.disconnect();
-    grab_destroy_.disconnect();
-    focus_change_.disconnect();
-    focused_destroy_.disconnect();
 }
 
 // --- keys --------------------------------------------------------------------------
@@ -63,49 +138,54 @@ InputMethodRelay::~InputMethodRelay() {
 // Every keyboard is grabbed but the IME's own: it types back through a
 // virtual keyboard of its own, which must reach the app, not loop. Another
 // client's (an on-screen keyboard, wtype) is typing like a real one.
-wlr_input_method_keyboard_grab_v2* InputMethodRelay::grab_for(wl_client* virtual_owner) const {
-    if (!im_ || !im_->keyboard_grab)
-        return nullptr;
-    if (virtual_owner && virtual_owner == wl_resource_get_client(im_->resource))
-        return nullptr;
-    return im_->keyboard_grab;
+bool InputMethodRelay::grab_for(wlr_keyboard* keyboard, wl_client* virtual_owner) {
+    const auto* m = methods_.current();
+    if (!m || !methods_.grabbed())
+        return false;
+    if (virtual_owner && m->resource && virtual_owner == m->resource->client())
+        return false;
+    if (keyboard && keyboard->keymap) {
+        char* text = xkb_keymap_get_as_string(keyboard->keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
+        if (text && grab_keymap_ != text) {
+            grab_keymap_ = text;
+            methods_.grab_keymap(grab_keymap_);
+        }
+        free(text);
+    }
+    return true;
 }
 
 bool InputMethodRelay::forward_key(wlr_keyboard* keyboard, wl_client* virtual_owner, const wlr_keyboard_key_event* e) {
-    wlr_input_method_keyboard_grab_v2* grab = grab_for(virtual_owner);
-    if (!grab)
+    if (!grab_for(keyboard, virtual_owner))
         return false;
-    wlr_input_method_keyboard_grab_v2_set_keyboard(grab, keyboard);
-    wlr_input_method_keyboard_grab_v2_send_key(grab, e->time_msec, e->keycode, e->state);
+    methods_.grab_key(e->time_msec, e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED);
     return true;
 }
 
 bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, wl_client* virtual_owner) {
-    wlr_input_method_keyboard_grab_v2* grab = grab_for(virtual_owner);
-    if (!grab)
+    if (!grab_for(keyboard, virtual_owner))
         return false;
-    wlr_input_method_keyboard_grab_v2_set_keyboard(grab, keyboard);
-    wlr_input_method_keyboard_grab_v2_send_modifiers(grab, &keyboard->modifiers);
+    const wlr_keyboard_modifiers& m = keyboard->modifiers;
+    methods_.grab_modifiers({m.depressed, m.latched, m.locked, m.group});
     return true;
 }
 
 // --- text inputs (apps) ------------------------------------------------------------
 
 InputMethodRelay::TextInput* InputMethodRelay::find_active() const {
-    for (const auto& t : text_inputs_)
-        if (t->input->focused_surface && t->input->current_enabled && t->ready)
-            return t.get();
+    for (TextInput* t : ready_)
+        if (t->focus && t->current.enabled)
+            return t;
     return nullptr;
 }
 
 void InputMethodRelay::update_active() {
     TextInput* now = find_active();
-    if (im_ && now != active_) {
+    if (methods_.current() && now != active_) {
         if (now)
-            wlr_input_method_v2_send_activate(im_);
+            methods_.activate(now->current);
         else
-            wlr_input_method_v2_send_deactivate(im_);
-        wlr_input_method_v2_send_done(im_);
+            methods_.deactivate();
     }
     active_ = now;
     // Text waiting for a field (the emoji picker's): the field is back.
@@ -118,76 +198,12 @@ void InputMethodRelay::update_active() {
 // A window's field. The shell's own (the picker's search) is where the
 // request came from, going away as it arrives: never its target.
 bool InputMethodRelay::takes_text(const TextInput* t) const {
-    return t && t->input->focused_surface && !wlr_layer_surface_v1_try_from_wlr_surface(t->input->focused_surface);
-}
-
-// Enter the focused surface on the text inputs of its client, leave elsewhere.
-void InputMethodRelay::update_focused_surfaces() {
-    for (const auto& t : text_inputs_) {
-        wlr_text_input_v3* input = t->input;
-        wlr_surface* target = nullptr;
-        // Also without an IME: atrium itself types into fields (emoji).
-        if (focused_ && wl_resource_get_client(input->resource) == wl_resource_get_client(focused_->resource))
-            target = focused_;
-        if (input->focused_surface == target)
-            continue;
-        t->ready = false;
-        if (input->focused_surface)
-            wlr_text_input_v3_send_leave(input);
-        if (target)
-            wlr_text_input_v3_send_enter(input, target);
-    }
+    return t && t->focus && !wl::LayerSurface::from(t->focus);
 }
 
 void InputMethodRelay::send_state() {
-    if (!im_)
-        return;
-    wlr_text_input_v3* input = active_->input;
-    if (input->active_features & WLR_TEXT_INPUT_V3_FEATURE_SURROUNDING_TEXT)
-        wlr_input_method_v2_send_surrounding_text(im_, input->current.surrounding.text,
-                                                  input->current.surrounding.cursor,
-                                                  input->current.surrounding.anchor);
-    wlr_input_method_v2_send_text_change_cause(im_, input->current.text_change_cause);
-    if (input->active_features & WLR_TEXT_INPUT_V3_FEATURE_CONTENT_TYPE)
-        wlr_input_method_v2_send_content_type(im_, input->current.content_type.hint,
-                                              input->current.content_type.purpose);
-    wlr_input_method_v2_send_done(im_);
-}
-
-void InputMethodRelay::new_text_input(wlr_text_input_v3* input) {
-    if (input->seat != server_.seat->wlr)
-        return;
-    auto t = std::make_unique<TextInput>(input);
-    TextInput* tp = t.get();
-    tp->enable.connect(&input->events.enable, [this, tp](void*) {
-        tp->ready = true;
-        update_active();
-        if (active_ == tp) {
-            place_popups();
-            send_state();
-        }
-        wlr_text_input_v3_send_done(tp->input);
-    });
-    tp->disable.connect(&input->events.disable, [this, tp](void*) {
-        tp->ready = false;
-        update_active();
-    });
-    tp->commit.connect(&input->events.commit, [this, tp](void*) {
-        if (active_ == tp) {
-            place_popups();
-            send_state();
-            if (!pending_text_.empty() && takes_text(tp))
-                wl_event_source_timer_update(settle_timer_, kSettleMs);
-        }
-    });
-    tp->destroy.connect(&input->events.destroy, [this, tp](void*) {
-        if (active_ == tp)
-            active_ = nullptr;
-        std::erase_if(text_inputs_, [tp](const auto& p) { return p.get() == tp; });
-        update_active();
-    });
-    text_inputs_.push_back(std::move(t));
-    update_focused_surfaces();
+    if (methods_.current() && active_)
+        methods_.send_state(active_->current);
 }
 
 void InputMethodRelay::insert_text(const std::string& text) {
@@ -203,110 +219,31 @@ void InputMethodRelay::insert_text(const std::string& text) {
 bool InputMethodRelay::replace_text(size_t before, const std::string& text) {
     if (!takes_text(active_))
         return false;
-    wlr_text_input_v3_send_delete_surrounding_text(active_->input, uint32_t(before), 0);
-    wlr_text_input_v3_send_commit_string(active_->input, text.c_str());
-    wlr_text_input_v3_send_done(active_->input);
+    text_inputs_.send_delete(active_, uint32_t(before), 0);
+    text_inputs_.send_commit(active_, text.c_str());
+    text_inputs_.send_done(active_);
     return true;
 }
 
 void InputMethodRelay::commit_pending() {
-    wlr_text_input_v3_send_commit_string(active_->input, pending_text_.c_str());
-    wlr_text_input_v3_send_done(active_->input);
+    text_inputs_.send_commit(active_, pending_text_.c_str());
+    text_inputs_.send_done(active_);
     pending_text_.clear();
     wl_event_source_timer_update(pending_timer_, 0);
     wl_event_source_timer_update(settle_timer_, 0);
 }
 
-void InputMethodRelay::set_focus(wlr_surface* surface) {
+void InputMethodRelay::set_focus(wl::Surface* surface) {
     if (focused_ == surface)
         return;
-    focused_destroy_.disconnect();
     focused_ = surface;
-    if (surface)
-        focused_destroy_.connect(&surface->events.destroy, [this](void*) { set_focus(nullptr); });
-    update_focused_surfaces();
+    // Also without an IME: atrium itself types into fields (emoji).
+    ready_.clear();
+    text_inputs_.focus(surface);
     update_active();
-}
-
-// --- the input method ------------------------------------------------------------
-
-void InputMethodRelay::new_input_method(wlr_input_method_v2* im) {
-    if (im->seat != server_.seat->wlr)
-        return;
-    if (im_) {  // one at a time
-        wlr_input_method_v2_send_unavailable(im);
-        return;
-    }
-    im_ = im;
-
-    // What the IME composed goes to the app.
-    im_commit_.connect(&im->events.commit, [this](void*) {
-        if (!active_)
-            return;
-        wlr_text_input_v3* input = active_->input;
-        if (im_->current.preedit.text)
-            wlr_text_input_v3_send_preedit_string(input, im_->current.preedit.text,
-                                                  im_->current.preedit.cursor_begin,
-                                                  im_->current.preedit.cursor_end);
-        if (im_->current.commit_text)
-            wlr_text_input_v3_send_commit_string(input, im_->current.commit_text);
-        if (im_->current.delete_.before_length || im_->current.delete_.after_length)
-            wlr_text_input_v3_send_delete_surrounding_text(input, im_->current.delete_.before_length,
-                                                           im_->current.delete_.after_length);
-        wlr_text_input_v3_send_done(input);
-    });
-
-    im_grab_.connect(&im->events.grab_keyboard, [this](wlr_input_method_keyboard_grab_v2* grab) {
-        // Start it off with the modifiers held right now.
-        if (wlr_keyboard* kb = server_.seat->physical_keyboard())
-            wlr_input_method_keyboard_grab_v2_set_keyboard(grab, kb);
-        grab_destroy_.connect(&grab->events.destroy, [this, grab](void*) {
-            grab_destroy_.disconnect();
-            // The app gets the modifier state back.
-            if (grab->keyboard)
-                wlr_seat_keyboard_notify_modifiers(server_.seat->wlr, &grab->keyboard->modifiers);
-        });
-    });
-
-    im_new_popup_.connect(&im->events.new_popup_surface,
-        [this](wlr_input_popup_surface_v2* s) { new_popup(s); });
-
-    im_destroy_.connect(&im->events.destroy, [this](void*) {
-        im_commit_.disconnect();
-        im_grab_.disconnect();
-        im_new_popup_.disconnect();
-        im_destroy_.disconnect();
-        grab_destroy_.disconnect();
-        im_ = nullptr;
-        update_focused_surfaces();
-        update_active();
-    });
-
-    update_focused_surfaces();
-    update_active();
-    // A field was already active (atrium focuses fields without an IME
-    // too): this IME hasn't heard of it yet.
-    if (active_) {
-        wlr_input_method_v2_send_activate(im_);
-        send_state();
-    }
 }
 
 // --- candidate popups ------------------------------------------------------------
-
-void InputMethodRelay::new_popup(wlr_input_popup_surface_v2* surface) {
-    auto p = std::make_unique<Popup>(surface, scene::Tree::create(server_.layer(Layer::InputPopup)));
-    Popup* pp = p.get();
-    scene::subsurface_tree_create(pp->tree, surface->surface);
-    attach_surface_blur(server_, pp->tree, surface->surface);
-    pp->commit.connect(&surface->surface->events.commit, [this, pp](void*) { place(*pp); });
-    pp->destroy.connect(&surface->events.destroy, [this, pp](void*) {
-        pp->tree->destroy();
-        std::erase_if(popups_, [pp](const auto& q) { return q.get() == pp; });
-    });
-    popups_.push_back(std::move(p));
-    place(*pp);
-}
 
 void InputMethodRelay::place_popups() {
     for (const auto& p : popups_)
@@ -315,11 +252,12 @@ void InputMethodRelay::place_popups() {
 
 // Under the text cursor, flipped above it or slid sideways to stay on screen.
 void InputMethodRelay::place(Popup& popup) {
-    if (!active_ || !focused_ || !popup.surface->surface->mapped)
+    wl::Surface* s = popup.popup->surface;
+    if (!active_ || !focused_ || !s || !s->mapped())
         return;
 
     wlr_box cursor{};
-    if (active_->input->current.features & WLR_TEXT_INPUT_V3_FEATURE_CURSOR_RECTANGLE) {
+    if (active_->current.cursor_rect) {
         double ox = 0, oy = 0;
         bool known = true;
         const Owner owner = Server::owner_of(focused_);
@@ -334,9 +272,8 @@ void InputMethodRelay::place(Popup& popup) {
             known = false;
         }
         if (known) {
-            cursor = active_->input->current.cursor_rectangle;
-            cursor.x += int(ox);
-            cursor.y += int(oy);
+            const wl::Box& r = *active_->current.cursor_rect;
+            cursor = {r.x + int(ox), r.y + int(oy), r.width, r.height};
         }
     }
 
@@ -346,21 +283,19 @@ void InputMethodRelay::place(Popup& popup) {
     if (!output || !output->enabled())
         return;
 
-    wlr_xdg_positioner_rules rules{};
-    rules.anchor_rect = cursor;
-    rules.anchor = XDG_POSITIONER_ANCHOR_BOTTOM_LEFT;
-    rules.gravity = XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT;
-    rules.size = {popup.surface->surface->current.width, popup.surface->surface->current.height};
-    rules.constraint_adjustment = static_cast<xdg_positioner_constraint_adjustment>(
-        XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y | XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X);
-    wlr_box box{};
-    wlr_xdg_positioner_rules_get_geometry(&rules, &box);
-    wlr_xdg_positioner_rules_unconstrain_box(&rules, &output->box, &box);
+    wl::PositionerRules rules;
+    rules.anchor_rect = {cursor.x, cursor.y, std::max(1, cursor.width), std::max(1, cursor.height)};
+    rules.anchor = wl::PositionerRules::BottomLeft;
+    rules.gravity = wl::PositionerRules::BottomRight;
+    rules.width = s->current().width;
+    rules.height = s->current().height;
+    rules.constraint_adjustment = wl::PositionerRules::FlipY | wl::PositionerRules::SlideX;
+    wl::Box box = rules.geometry();
+    rules.unconstrain({output->box.x, output->box.y, output->box.width, output->box.height}, box);
 
     popup.tree->set_position(box.x, box.y);
     popup.tree->raise_to_top();
-    wlr_box relative{cursor.x - box.x, cursor.y - box.y, cursor.width, cursor.height};
-    wlr_input_popup_surface_v2_send_text_input_rectangle(popup.surface, &relative);
+    methods_.set_popup_rectangle(popup.popup, {cursor.x - box.x, cursor.y - box.y, cursor.width, cursor.height});
 }
 
 } // namespace atrium

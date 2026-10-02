@@ -1,7 +1,8 @@
 #pragma once
 #include "listener.hpp"
 #include "registry.hpp"
-#include "wl/resource.hpp"
+#include "wl/data_device.hpp"
+#include "wl/xdg_shell.hpp"
 
 #include <memory>
 #include <optional>
@@ -49,10 +50,10 @@ private:
     struct ToplevelSession {
         Session* session;  // null once inert
         wl::Weak<wl::XdgToplevelSessionV1> resource;
-        wlr_xdg_toplevel* toplevel;
+        wl::Toplevel* toplevel;
         std::string name;
         std::optional<SessionWindow> restore;
-        Listener<> toplevel_destroy;
+        wl::Connection toplevel_destroy;
     };
 
     void get_session(wl::XdgSessionManagerV1* manager, uint32_t id, uint32_t reason, const char* session_id);

@@ -11,43 +11,35 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace atrium {
 
-namespace {
-
-View* view_of(wlr_xdg_toplevel* toplevel) {
-    return toplevel && toplevel->base ? static_cast<View*>(toplevel->base->data) : nullptr;
-}
-
-} // namespace
-
 void Server::setup_window_hints() {
-    wlr_xdg_wm_dialog_v1_create(display, 1);  // read through View::modal()
-
     toplevel_icons = std::make_unique<ToplevelIcons>(*this);
 
-    auto* tags = wlr_xdg_toplevel_tag_manager_v1_create(display, 1);
-    set_tag_.connect(&tags->events.set_tag, [this](wlr_xdg_toplevel_tag_manager_v1_set_tag_event* e) {
-        if (View* v = view_of(e->toplevel)) {
-            v->tag = e->tag ? e->tag : "";
+    connections_.push_back(wl->tags->set_tag.connect([this](const wl::ToplevelTags::Event& e) {
+        if (View* v = e.toplevel ? static_cast<View*>(e.toplevel->data) : nullptr) {
+            v->tag = e.tag;
             if (v->mapped)
                 notify_window(*v, "changed");
         }
-    });
-
-    content_type_manager = wlr_content_type_manager_v1_create(display, 1);
-    tearing_manager = wlr_tearing_control_manager_v1_create(display, 1);
+    }));
 
     // Sandboxed apps don't get to see the screen, other windows or the
-    // clipboard behind their back, fake input, or change the desktop.
-    security_context_manager = wlr_security_context_manager_v1_create(display);
+    // clipboard behind their back, fake input, or change the desktop. And
+    // xwayland_shell_v1 is Xwayland's alone.
     wl_display_set_global_filter(display, [](const wl_client* client, const wl_global* global, void* data) {
-        auto* manager = static_cast<wlr_security_context_manager_v1*>(data);
-        if (!wlr_security_context_manager_v1_lookup_client(manager, client))
+        auto* server = static_cast<Server*>(data);
+        const char* name = wl_global_get_interface(global)->name;
+#ifdef ATRIUM_XWAYLAND
+        if (std::string_view(name) == "xwayland_shell_v1")
+            return server->xwayland && client == server->xwayland->client;
+#endif
+        if (!server->wl->security->lookup(client))
             return true;
-        return !privileged_protocol(wl_global_get_interface(global)->name);
-    }, security_context_manager);
+        return !privileged_protocol(name);
+    }, this);
 }
 
 void forget_icon(const View& view) {
@@ -58,18 +50,19 @@ void forget_icon(const View& view) {
 }
 
 const char* content_type_name(Server& server, const View& view) {
-    if (!server.content_type_manager || !view.surface())
+    (void)server;
+    if (!view.surface())
         return "none";
-    switch (wlr_surface_get_content_type_v1(server.content_type_manager, view.surface())) {
-    case WP_CONTENT_TYPE_V1_TYPE_PHOTO: return "photo";
-    case WP_CONTENT_TYPE_V1_TYPE_VIDEO: return "video";
-    case WP_CONTENT_TYPE_V1_TYPE_GAME: return "game";
+    switch (view.surface()->current().content_type) {  // wp_content_type_v1.type
+    case 1: return "photo";
+    case 2: return "video";
+    case 3: return "game";
     default: return "none";
     }
 }
 
 View* tearing_view(Server& server, const Output& output) {
-    if (!server.config.allow_tearing || !server.tearing_manager)
+    if (!server.config.allow_tearing)
         return nullptr;
     // The front window, if it is fullscreen here and asked for it.
     for (View* v : server.views) {
@@ -77,10 +70,7 @@ View* tearing_view(Server& server, const Output& output) {
             continue;
         if (!v->fullscreen || !v->surface())
             return nullptr;
-        return wlr_tearing_control_manager_v1_surface_hint_from_surface(server.tearing_manager, v->surface()) ==
-                       WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC
-                   ? v
-                   : nullptr;
+        return v->surface()->current().presentation_hint == 1 ? v : nullptr;  // async
     }
     return nullptr;
 }
@@ -94,9 +84,7 @@ View* game_view(Server& server, const Output& output) {
         if (!v->fullscreen || !v->surface())
             return nullptr;
         const bool game = std::string_view(content_type_name(server, *v)) == "game" ||
-                          (server.tearing_manager &&
-                           wlr_tearing_control_manager_v1_surface_hint_from_surface(server.tearing_manager, v->surface()) ==
-                               WP_TEARING_CONTROL_V1_PRESENTATION_HINT_ASYNC);
+                          v->surface()->current().presentation_hint == 1;
         return game ? v : nullptr;
     }
     return nullptr;

@@ -1,7 +1,11 @@
 #pragma once
 #include "config.hpp"
+#include "scene/scene.hpp"
 #include "listener.hpp"
 #include "shake.hpp"
+#include "wl/data_device.hpp"
+#include "wl/ime.hpp"
+#include "wl/input_ext.hpp"
 
 #include <array>
 #include <string>
@@ -33,7 +37,10 @@ struct KeyboardGroup {
 
     Listener<wlr_keyboard_key_event> key;
     Listener<> modifiers;
-    Listener<> destroy;  // virtual keyboards only
+    Listener<> keymap;
+    // A virtual keyboard's own: the device the client types through.
+    std::unique_ptr<wlr_keyboard> device;
+    std::vector<wl::Connection> connections;
 };
 
 class Seat {
@@ -54,7 +61,7 @@ public:
 
     // Keyboard focus with held keys filtered: a key that triggered a binding
     // must not reach the newly focused client as "still held".
-    void keyboard_enter(wlr_surface* surface);
+    void keyboard_enter(wl::Surface* surface);
     void clear_keyboard_focus();
 
     // Re-evaluate what is under the cursor without it having moved
@@ -77,9 +84,14 @@ public:
     std::vector<wlr_pointer*> pointer_devices() const;
     void apply_cursor_theme();
     void set_default_cursor();
+#ifdef ATRIUM_XWAYLAND
+    // X11 windows' pointer, when they set none: the theme's arrow.
+    void set_x11_cursor();
+#endif
+    // The keyboard whose keymap and modifiers clients get.
+    void use_keyboard(wlr_keyboard* kb, bool force = false);
 
     Server& server;
-    wlr_seat* wlr = nullptr;
     wlr_cursor* cursor = nullptr;
     wlr_xcursor_manager* xcursor = nullptr;
     Mode mode = Mode::Normal;
@@ -117,11 +129,15 @@ private:
     void button(wlr_pointer_button_event* event);
     void axis(wlr_pointer_axis_event* event);
     double space_scroll_ = 0;  // Mod + scroll, toward the next space step
-    void pointer_focus(View* view, wlr_surface* surface, double sx, double sy, uint32_t time);
+    void pointer_focus(View* view, wl::Surface* surface, double sx, double sy, uint32_t time);
 
-    void new_constraint(wlr_pointer_constraint_v1* constraint);
-    void activate_constraint(wlr_pointer_constraint_v1* constraint);
+    void activate_constraint(wl::PointerConstraints::Constraint* constraint);
     void warp_to_constraint_hint();
+    // A client's pointer image: its surface, shown as the cursor.
+    void set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y);
+    void start_drag(wl::Drag* drag);
+    void new_virtual_keyboard(wl::VirtualInputs::Keyboard* vk);
+    void new_virtual_pointer(wl::VirtualInputs::Pointer* vp);
 
     friend struct KeyboardGroup;
 
@@ -180,25 +196,26 @@ private:
     std::vector<std::unique_ptr<PhysicalKeyboard>> physical_;
     uint32_t last_layout_ = 0;
 
-    wlr_pointer_constraint_v1* active_constraint_ = nullptr;
-    struct Constraint;
-    std::vector<std::unique_ptr<Constraint>> constraints_;
+    wl::PointerConstraints::Constraint* active_constraint_ = nullptr;
+
+    wlr_keyboard* seat_kb_ = nullptr;  // see use_keyboard
+    std::string sent_keymap_;
+    wl::Surface* cursor_surface_ = nullptr;
+    int cursor_hot_x_ = 0, cursor_hot_y_ = 0;
+    wl::Connection cursor_commit_, cursor_gone_;
+    scene::Node* drag_icon_ = nullptr;
+    Listener<> drag_icon_gone_;
+    wl::Connection drag_ended_;
+    struct VirtualPointer;
+    std::vector<std::unique_ptr<VirtualPointer>> virtual_pointers_;
 
     Listener<wlr_input_device> new_input_;
-    Listener<wlr_virtual_keyboard_v1> new_virtual_keyboard_;
-    Listener<wlr_virtual_pointer_v1_new_pointer_event> new_virtual_pointer_;
     Listener<wlr_pointer_motion_event> cursor_motion_;
     Listener<wlr_pointer_motion_absolute_event> cursor_motion_absolute_;
     Listener<wlr_pointer_button_event> cursor_button_;
     Listener<wlr_pointer_axis_event> cursor_axis_;
     Listener<> cursor_frame_;
-    Listener<wlr_seat_pointer_request_set_cursor_event> request_cursor_;
-    Listener<wlr_cursor_shape_manager_v1_request_set_shape_event> request_cursor_shape_;
-    Listener<wlr_seat_request_set_selection_event> request_selection_;
-    Listener<wlr_seat_request_set_primary_selection_event> request_primary_selection_;
-    Listener<wlr_seat_request_start_drag_event> request_start_drag_;
-    Listener<wlr_drag> start_drag_;
-    Listener<wlr_pointer_constraint_v1> new_constraint_;
+    std::vector<wl::Connection> connections_;
 };
 
 } // namespace atrium

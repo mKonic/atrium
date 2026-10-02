@@ -203,6 +203,8 @@ public:
     void unmap();
     bool mapped() const { return mapped_; }
 
+    void* data = nullptr;  // the compositor's own object
+
     // Subsurfaces, in stacking order (the current state's), with where they sit.
     const std::vector<SurfaceState::Placement>& children() const { return current_.subsurfaces; }
     Subsurface* subsurface() const { return subsurface_; }
@@ -310,6 +312,8 @@ public:
     Compositor& operator=(const Compositor&) = delete;
 
     wlr_renderer* renderer() const { return renderer_; }
+    // A new renderer (the GPU was reset): textures come from it from now on.
+    void set_renderer(wlr_renderer* renderer) { renderer_ = renderer; }
 
     Signal<Surface*> new_surface;
 

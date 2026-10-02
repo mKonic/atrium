@@ -151,7 +151,8 @@ void LayerSurface::reset() {
 }
 
 uint32_t LayerSurface::configure(uint32_t width, uint32_t height) {
-    if (closed_ || !initialized_)
+    // Gone (or going: its surface unmaps as it is destroyed): nobody to tell.
+    if (closed_ || !initialized_ || !client())
         return 0;
     const uint32_t serial = wl_display_next_serial(wl_client_get_display(client()));
     sent_.push_back({serial, width, height});

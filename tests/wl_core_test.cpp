@@ -383,6 +383,35 @@ TEST(WlCore, ShrunkPoolDoesNotCrashTheServer) {
     wl_buffer_destroy(b);
 }
 
+// Screen capture writes into a client's shm buffer; what it writes is what
+// the client reads.
+TEST(WlCore, ShmBuffersCanBeWrittenForCapture) {
+    Core c;
+    wl_surface* s = wl_compositor_create_surface(c.wl_comp);
+    wl::Surface* ss = c.server_surface(s);
+    int fd = -1;
+    wl_buffer* b = c.buffer(16, 16, &fd);
+    wl_surface_attach(s, b, 0, 0);
+    wl_surface_commit(s);
+    c.pump();
+    wlr_buffer* wb = ss->current().buffer.get();
+    ASSERT_NE(wb, nullptr);
+    void* data;
+    uint32_t format;
+    size_t stride;
+    ASSERT_TRUE(wlr_buffer_begin_data_ptr_access(wb, WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride));
+    static_cast<uint8_t*>(data)[5] = 0xab;
+    wlr_buffer_end_data_ptr_access(wb);
+    uint8_t seen = 0;
+    ASSERT_EQ(pread(fd, &seen, 1, 5), 1);
+    EXPECT_EQ(seen, 0xab);
+    close(fd);
+    wl_surface_destroy(s);
+    wl_buffer_destroy(b);
+    c.pump();
+    EXPECT_EQ(c.error(), 0);
+}
+
 TEST(WlCore, OutputsDescribeAndUpdate) {
     Core c;
     wl::OutputInfo info{.name = "DP-1", .description = "Test screen", .make = "ACME", .model = "M1",

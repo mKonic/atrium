@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "capture_state.hpp"
 #include "stacking.hpp"
 #include "render/renderer.hpp"
 #include "terminal.hpp"
@@ -32,6 +33,12 @@
 #include "titlebar.hpp"
 #include "view.hpp"
 #include "xwayland_view.hpp"
+#ifdef ATRIUM_XWAYLAND
+#include "xwayland/xwm.hpp"
+#endif
+
+#include <sys/stat.h>
+#include <xf86drm.h>
 
 #include <algorithm>
 #include <csignal>
@@ -231,150 +238,21 @@ void Server::setup() {
 
     apply_screen_shader();
 
-    wlr_renderer_init_wl_shm(renderer, display);
-    if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
-        wlr_drm_create(display, renderer);
-        scene->set_linux_dmabuf_v1(wlr_linux_dmabuf_v1_create_with_renderer(display, 5, renderer));
-    }
-    int drm_fd = wlr_renderer_get_drm_fd(renderer);
-    if (drm_fd >= 0 && renderer->features.timeline && backend->features.timeline)
-        wlr_linux_drm_syncobj_manager_v1_create(display, 1, drm_fd);
-
     allocator = wlr_allocator_autocreate(backend, renderer);
     if (!allocator)
         die("couldn't create allocator");
 
-    compositor = wlr_compositor_create(display, 6, renderer);
-    wlr_subcompositor_create(display);
-    wlr_data_device_manager_create(display);
-    wlr_export_dmabuf_manager_v1_create(display);
-    wlr_screencopy_manager_v1_create(display);
-    wlr_ext_image_copy_capture_manager_v1_create(display, 1);
-    wlr_ext_output_image_capture_source_manager_v1_create(display, 1);
-    wlr_data_control_manager_v1_create(display);
-    wlr_ext_data_control_manager_v1_create(display, 1);
-    wlr_primary_selection_v1_device_manager_create(display);
-    wlr_viewporter_create(display);
-    wlr_single_pixel_buffer_manager_v1_create(display);
-    wlr_fractional_scale_manager_v1_create(display, 1);
-    wlr_presentation_create(display, backend, 2);
-    wlr_alpha_modifier_v1_create(display);
-
-    activation = wlr_xdg_activation_v1_create(display);
-    activation_request_.connect(&activation->events.request_activate,
-        [this](auto* e) { activation_request(e); });
-
-    gamma_manager = wlr_gamma_control_manager_v1_create(display);
-    scene->set_gamma_control_manager_v1(gamma_manager);
-    // Color management: apps say what their content is (an HDR video, a
-    // game's HDR10 swapchain) and hear what a screen prefers. The renderer
-    // converts PQ or linear content in BT.2020 or sRGB primaries.
-    {
-        static constexpr wp_color_manager_v1_render_intent intents[] = {WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL};
-        // What wlroots 0.20 can describe (no deprecated sRGB curve, no
-        // custom primaries).
-        static constexpr wp_color_manager_v1_transfer_function tfs[] = {
-            WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_GAMMA22, WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
-            WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR};
-        static constexpr wp_color_manager_v1_primaries primaries[] = {
-            WP_COLOR_MANAGER_V1_PRIMARIES_SRGB, WP_COLOR_MANAGER_V1_PRIMARIES_BT2020};
-        wlr_color_manager_v1_options options{};
-        options.features.parametric = true;
-        options.features.set_mastering_display_primaries = true;
-        options.render_intents = intents;
-        options.render_intents_len = std::size(intents);
-        options.transfer_functions = tfs;
-        options.transfer_functions_len = std::size(tfs);
-        options.primaries = primaries;
-        options.primaries_len = std::size(primaries);
-        if (wlr_color_manager_v1* cm = wlr_color_manager_v1_create(display, 1, &options))
-            scene->set_color_manager_v1(cm);
-    }
-
-    power_manager = wlr_output_power_manager_v1_create(display);
-    output_power_.connect(&power_manager->events.set_mode, [this](auto* e) { set_output_power(e); });
-
-    output_layout = wlr_output_layout_create(display);
+    // wlroots' layout makes a wl_output global for every screen it holds:
+    // on a display of its own nobody connects to, as atrium serves its own.
+    layout_display_ = wl_display_create();
+    output_layout = wlr_output_layout_create(layout_display_);
     layout_change_.connect(&output_layout->events.change, [this](void*) { update_outputs(); });
-    wlr_xdg_output_manager_v1_create(display, output_layout);
-
-    workspace_manager = wlr_ext_workspace_manager_v1_create(display, 1);
-    workspace_commit_.connect(&workspace_manager->events.commit,
-        [this](wlr_ext_workspace_v1_commit_event* e) { workspace_requests(e); });
-
     new_output_.connect(&backend->events.new_output, [this](wlr_output* o) { new_output(o); });
 
-    xdg_shell = wlr_xdg_shell_create(display, 6);
-    new_xdg_toplevel_.connect(&xdg_shell->events.new_toplevel,
-        [this](wlr_xdg_toplevel* t) { new XdgView(*this, t); });
-    new_xdg_popup_.connect(&xdg_shell->events.new_popup,
-        [this](wlr_xdg_popup* p) { handle_new_xdg_popup(*this, p); });
-
-    layer_shell = wlr_layer_shell_v1_create(display, 4);
-    new_layer_surface_.connect(&layer_shell->events.new_surface, [this](wlr_layer_surface_v1* l) {
-        if (!l->output) {
-            if (!focused_output) {
-                wlr_layer_surface_v1_destroy(l);
-                return;
-            }
-            l->output = focused_output->wlr;
-        }
-        new LayerSurface(*this, l);
-    });
-
-    idle_notifier = wlr_idle_notifier_v1_create(display);
-    idle_inhibit_manager = wlr_idle_inhibit_v1_create(display);
-    new_idle_inhibitor_.connect(&idle_inhibit_manager->events.new_inhibitor,
-        [this](wlr_idle_inhibitor_v1* i) { new_idle_inhibitor(i); });
-
-    session_lock_manager = wlr_session_lock_manager_v1_create(display);
-    new_lock_.connect(&session_lock_manager->events.new_lock, [this](wlr_session_lock_v1* l) {
-        locked_bg->set_enabled(true);
-        if (lock) {  // one lock at a time
-            wlr_session_lock_v1_destroy(l);
-            return;
-        }
-        lock = new SessionLock(*this, l);
-    });
     locked_bg = scene::Rect::create(layer(Layer::Lock), 0, 0, config.lock_background.data());
     locked_bg->set_enabled(false);
 
-    ext_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(display, 1);
-    toplevel_manager = wlr_foreign_toplevel_manager_v1_create(display);
-    toplevel_capture_manager =
-        wlr_ext_foreign_toplevel_image_capture_source_manager_v1_create(display, 1);
-    new_capture_request_.connect(&toplevel_capture_manager->events.new_request,
-        [this](auto* r) { new_toplevel_capture(r); });
-
-    // atrium decorates every window that lets it, over both protocols.
-    kde_decoration_manager = wlr_server_decoration_manager_create(display);
-    wlr_server_decoration_manager_set_default_mode(kde_decoration_manager, WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
-    // Usually arrives before the surface has its toplevel role; XdgView picks
-    // those up itself when it is created.
-    new_kde_decoration_.connect(&kde_decoration_manager->events.new_decoration, [](wlr_server_decoration* d) {
-        wlr_xdg_surface* xdg = wlr_xdg_surface_try_from_wlr_surface(d->surface);
-        if (xdg && xdg->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL && xdg->data)
-            static_cast<XdgView*>(xdg->data)->set_kde_decoration(d);
-    });
-    xdg_decoration_manager = wlr_xdg_decoration_manager_v1_create(display);
-    new_decoration_.connect(&xdg_decoration_manager->events.new_toplevel_decoration,
-        [](wlr_xdg_toplevel_decoration_v1* d) {
-            if (auto* view = static_cast<XdgView*>(d->toplevel->base->data))
-                view->set_decoration(d);
-        });
-
-    pointer_constraints = wlr_pointer_constraints_v1_create(display);
-    // A client that asks (a VM, remote desktop, the Settings app recording a
-    // shortcut) gets the keys atrium would otherwise take, while focused.
-    shortcuts_inhibit_manager = wlr_keyboard_shortcuts_inhibit_v1_create(display);
-    new_shortcuts_inhibitor_.connect(&shortcuts_inhibit_manager->events.new_inhibitor,
-        [](wlr_keyboard_shortcuts_inhibitor_v1* inhibitor) {
-            wlr_keyboard_shortcuts_inhibitor_v1_activate(inhibitor);
-        });
-    relative_pointer_manager = wlr_relative_pointer_manager_v1_create(display);
-    cursor_shape_manager = wlr_cursor_shape_manager_v1_create(display, 1);
-    virtual_keyboard_manager = wlr_virtual_keyboard_manager_v1_create(display);
-    virtual_pointer_manager = wlr_virtual_pointer_manager_v1_create(display);
+    setup_protocols();
     setup_window_hints();
 
     seat = std::make_unique<Seat>(*this);
@@ -385,33 +263,39 @@ void Server::setup() {
     toplevel_drags = std::make_unique<ToplevelDrags>(*this);
     sessions = std::make_unique<SessionManagement>(*this);
 
-    output_manager = wlr_output_manager_v1_create(display);
-    output_apply_.connect(&output_manager->events.apply,
-        [this](wlr_output_configuration_v1* c) { apply_output_config(c, false); });
-    output_test_.connect(&output_manager->events.test,
-        [this](wlr_output_configuration_v1* c) { apply_output_config(c, true); });
-
     // X clients must never reach the parent X server when running nested.
     unsetenv("DISPLAY");
 #ifdef ATRIUM_XWAYLAND
-    // Xwayland starts lazily, on the first X client.
     // Not lazy: an app elevated with pkexec may be the first X client, and
     // it must find root already let in (allow_root_x11), which only works
     // once Xwayland is up. A lazily started one also forgets it on restart.
-    xwayland = wlr_xwayland_create(display, compositor, false);
+    wlr_xwayland_server_options xopts{};
+    xopts.enable_wm = true;
+    xwayland = wlr_xwayland_server_create(display, &xopts);
     if (xwayland) {
-        xwayland_ready_.connect(&xwayland->events.ready, [this](void*) {
+        // Only Xwayland may bind xwayland_shell_v1.
+        xwayland_start_.connect(&xwayland->events.start,
+                                [this](void*) { wl->xwayland_shell->set_client(xwayland->client); });
+        xwayland_ready_.connect(&xwayland->events.ready, [this](wlr_xwayland_server_ready_event* e) {
+            xwm = std::make_unique<xwayland::Xwm>(display, e->wm_fd, xwayland->client, *wl->compositor,
+                                                  wl->xwayland_shell.get(), false);
+            if (!xwm->ok()) {
+                xwm.reset();
+                return;
+            }
+            new_x11_window_ = xwm->events.new_surface.connect(
+                [this](xwayland::XSurface* s) { new XwaylandView(*this, s); });
+            // Xwayland gone (it restarts on the next X client): so is its WM.
+            xwm_hangup_ = xwm->events.hangup.connect([this] {
+                new_x11_window_.disconnect();
+                xwm_hangup_.disconnect();
+                wl_event_loop_add_idle(loop, [](void* data) { static_cast<Server*>(data)->xwm.reset(); }, this);
+            });
+            xwm->set_seat(wl->seat.get(), wl->data.get(), wl->primary.get());
+            seat->set_x11_cursor();
             allow_root_x11(xwayland->display_name);
             run_startup();
-            wlr_xwayland_set_seat(xwayland, seat->wlr);
-            if (auto* xc = wlr_xcursor_manager_get_xcursor(seat->xcursor, "default", 1)) {
-                auto* img = xc->images[0];
-                wlr_xwayland_set_cursor(xwayland, wlr_xcursor_image_get_buffer(img),
-                                        img->hotspot_x, img->hotspot_y);
-            }
         });
-        new_xwayland_surface_.connect(&xwayland->events.new_surface,
-            [this](wlr_xwayland_surface* s) { new XwaylandView(*this, s); });
         setenv("DISPLAY", xwayland->display_name, 1);
     } else {
         wlr_log(WLR_ERROR, "failed to set up Xwayland, continuing without it");
@@ -419,30 +303,215 @@ void Server::setup() {
 #endif
 }
 
+// What a client should allocate for a surface: for scan-out on `scanout`
+// first (when it could go straight there), then for rendering.
+static wl::DmabufFeedback dmabuf_feedback(wlr_renderer* renderer, wlr_output* scanout) {
+    wl::DmabufFeedback fb;
+    struct stat st{};
+    if (int fd = wlr_renderer_get_drm_fd(renderer); fd >= 0 && fstat(fd, &st) == 0)
+        fb.main_device = st.st_rdev;
+    const wlr_drm_format_set* texture = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF);
+    auto has = [](const wlr_drm_format_set* set, uint32_t format, uint64_t modifier) {
+        return set && wlr_drm_format_set_has(set, format, modifier);
+    };
+    if (scanout) {
+        if (const wlr_drm_format_set* primary = wlr_output_get_primary_formats(scanout, WLR_BUFFER_CAP_DMABUF)) {
+            wl::DmabufFeedback::Tranche t;
+            t.target_device = fb.main_device;
+            t.scanout = true;
+            for (size_t i = 0; i < primary->len; ++i)
+                for (size_t j = 0; j < primary->formats[i].len; ++j)
+                    if (has(texture, primary->formats[i].format, primary->formats[i].modifiers[j]))
+                        t.formats.emplace_back(primary->formats[i].format, primary->formats[i].modifiers[j]);
+            if (!t.formats.empty())
+                fb.tranches.push_back(std::move(t));
+        }
+    }
+    wl::DmabufFeedback::Tranche render;
+    render.target_device = fb.main_device;
+    if (texture)
+        for (size_t i = 0; i < texture->len; ++i)
+            for (size_t j = 0; j < texture->formats[i].len; ++j)
+                render.formats.emplace_back(texture->formats[i].format, texture->formats[i].modifiers[j]);
+    fb.tranches.push_back(std::move(render));
+    return fb;
+}
+
+void Server::setup_protocols() {
+    wl = std::make_unique<Protocols>();
+    Protocols& p = *wl;
+    auto& c = connections_;
+
+    // Buffers and surfaces.
+    std::vector<uint32_t> shm_formats;
+    if (const wlr_drm_format_set* f = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DATA_PTR))
+        for (size_t i = 0; i < f->len; ++i)
+            shm_formats.push_back(f->formats[i].format);
+    p.shm = std::make_unique<wl::Shm>(display, shm_formats);
+    if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
+        // A dmabuf the renderer can't import is refused as it is made.
+        auto check = [this](const wlr_dmabuf_attributes& attrs) {
+            wlr_texture* t = wlr_texture_from_dmabuf(renderer, const_cast<wlr_dmabuf_attributes*>(&attrs));
+            if (t)
+                wlr_texture_destroy(t);
+            return t != nullptr;
+        };
+        p.dmabuf = std::make_unique<wl::LinuxDmabuf>(display, dmabuf_feedback(renderer, nullptr), check);
+        std::vector<uint32_t> formats;
+        const wlr_drm_format_set* f = wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF);
+        for (size_t i = 0; i < f->len; ++i)
+            formats.push_back(f->formats[i].format);
+        if (char* node = drmGetRenderDeviceNameFromFd(wlr_renderer_get_drm_fd(renderer))) {
+            p.drm = std::make_unique<wl::LegacyDrm>(display, node, formats, check);
+            free(node);
+        }
+    }
+    if (int drm_fd = wlr_renderer_get_drm_fd(renderer);
+        drm_fd >= 0 && renderer->features.timeline && backend->features.timeline)
+        p.syncobj = std::make_unique<wl::Syncobj>(display, drm_fd);
+    p.compositor = std::make_unique<wl::Compositor>(display, renderer);
+    p.viewporter = std::make_unique<wl::Viewporter>(display);
+    p.single_pixel = std::make_unique<wl::SinglePixelBuffers>(display);
+    p.fractional_scales = std::make_unique<wl::FractionalScales>(display);
+    p.surface_hints = std::make_unique<wl::SurfaceHints>(display);
+    p.presentation = std::make_unique<wl::Presentation>(display);
+    p.fifo = std::make_unique<wl::Fifo>(display);
+    p.commit_timing = std::make_unique<wl::CommitTiming>(display);
+    // Color management: apps say what their content is (an HDR video, a
+    // game's HDR10 swapchain) and hear what a screen prefers. The renderer
+    // converts PQ or linear content in BT.2020 or sRGB primaries.
+    p.color = std::make_unique<wl::ColorManagement>(display, wl::ColorManagement::Options{
+        .intents = {0},          // perceptual
+        .features = {1, 5},      // parametric, mastering display primaries
+        .transfer_functions = {2, 11, 5},  // gamma 2.2, PQ, linear
+        .primaries = {1, 6},     // sRGB, BT.2020
+    });
+
+    scene->protocols = {
+        .dmabuf = p.dmabuf.get(),
+        .dmabuf_feedback = [this](wlr_output* scanout) { return dmabuf_feedback(renderer, scanout); },
+        .fractional_scales = p.fractional_scales.get(),
+        .color = p.color.get(),
+        .syncobj = p.syncobj.get(),
+    };
+
+    // Input.
+    p.seat = std::make_unique<wl::Seat>(display, "seat0");
+    p.data = std::make_unique<wl::DataDevices>(display, *p.seat);
+    p.primary = std::make_unique<wl::PrimarySelection>(display, *p.seat);
+    p.data_control = std::make_unique<wl::DataControl>(display, *p.seat, p.data->slot(), p.primary->slot());
+    p.relative_pointers = std::make_unique<wl::RelativePointers>(display, *p.seat);
+    p.pointer_constraints = std::make_unique<wl::PointerConstraints>(display, *p.seat);
+    p.pointer_gestures = std::make_unique<wl::PointerGestures>(display, *p.seat);
+    p.pointer_warps = std::make_unique<wl::PointerWarps>(display, *p.seat);
+    // A client that asks (a VM, remote desktop, the Settings app recording
+    // a shortcut) gets the keys atrium would otherwise take, while focused.
+    p.shortcut_inhibitors = std::make_unique<wl::ShortcutInhibitors>(display);
+    c.push_back(p.shortcut_inhibitors->new_inhibitor.connect(
+        [&p](wl::ShortcutInhibitors::Inhibitor* i) { p.shortcut_inhibitors->set_active(i, true); }));
+    p.cursor_shapes = std::make_unique<wl::CursorShapes>(display, *p.seat);
+    p.idle_inhibitors = std::make_unique<wl::IdleInhibitors>(display);
+    c.push_back(p.idle_inhibitors->changed.connect([this] { check_idle_inhibitors(); }));
+    p.idle_notifier = std::make_unique<wl::IdleNotifier>(display, *p.seat);
+    p.text_inputs = std::make_unique<wl::TextInputs>(display, *p.seat);
+    p.input_methods = std::make_unique<wl::InputMethods>(display, *p.seat);
+    p.virtual_inputs = std::make_unique<wl::VirtualInputs>(display, *p.seat);
+    p.tablets = std::make_unique<wl::Tablets>(display, *p.seat);
+
+    // Windows.
+    p.xdg = std::make_unique<wl::Shell>(display);
+    c.push_back(p.xdg->events.new_toplevel.connect([this](wl::Toplevel* t) { new XdgView(*this, t); }));
+    c.push_back(p.xdg->events.new_popup.connect([this](wl::Popup* popup) { handle_new_xdg_popup(*this, popup); }));
+    p.pip = std::make_unique<wl::PipShell>(display);
+    // atrium decorates every window that lets it, over both protocols.
+    p.decorations = std::make_unique<wl::Decorations>(display, wl::Decorations::ServerSide);
+    c.push_back(p.decorations->events.new_xdg.connect([](wl::Decorations::Xdg* d) {
+        if (auto* view = static_cast<XdgView*>(d->toplevel->data))
+            view->set_decoration(d);
+    }));
+    // Usually arrives before the surface has its toplevel role; XdgView
+    // picks those up itself when it is created.
+    c.push_back(p.decorations->events.new_kde.connect([](wl::Decorations::Kde* d) {
+        if (wl::Toplevel* t = wl::Toplevel::from(d->surface); t && t->data)
+            static_cast<XdgView*>(t->data)->set_kde_decoration(d);
+    }));
+    p.dialogs = std::make_unique<wl::Dialogs>(display);
+    p.activation = std::make_unique<wl::Activation>(display, *p.seat);
+    c.push_back(p.activation->request_activate.connect([this](const wl::Activation::Request& r) {
+        View* view = owner_of(r.surface).view;
+        if (!view || view == focused_view)
+            return;
+        const bool from_input = r.token && r.token->seat;
+        // Asked for before it has shown (a terminal launched from a shortcut
+        // does): it takes focus as it opens.
+        if (!view->mapped) {
+            view->activate_on_map = from_input;
+            return;
+        }
+        // A token minted from real user input (a click on a link, a
+        // notification) may take focus; anything else only marks the
+        // window as wanting attention.
+        if (from_input) {
+            if (view->minimized)
+                view->set_minimized(false);
+            focus_view(view);
+        } else {
+            view->urgent = true;
+        }
+    }));
+    p.tags = std::make_unique<wl::ToplevelTags>(display);
+    p.foreign = std::make_unique<wl::XdgForeign>(display);
+    p.layer_shell = std::make_unique<wl::LayerShell>(display);
+    c.push_back(p.layer_shell->new_surface.connect([this](wl::LayerSurface* l) {
+        if (!l->output()) {
+            if (!focused_output) {
+                l->close();
+                return;
+            }
+            l->set_output(focused_output->global.get());
+        }
+        new LayerSurface(*this, l);
+    }));
+    p.session_lock = std::make_unique<wl::SessionLockManager>(display);
+    c.push_back(p.session_lock->new_lock.connect([this](wl::Lock* l) {
+        locked_bg->set_enabled(true);
+        if (lock) {  // one lock at a time
+            l->finish();
+            return;
+        }
+        lock = new SessionLock(*this, l);
+    }));
+    p.xwayland_shell = std::make_unique<wl::XwaylandShell>(display);
+
+    // The desktop.
+    p.xdg_outputs = std::make_unique<wl::XdgOutputs>(display);
+    p.output_management = std::make_unique<wl::OutputManagement>(display);
+    p.output_power = std::make_unique<wl::OutputPower>(display);
+    p.gamma = std::make_unique<wl::GammaControls>(display);
+    scene->set_gamma_controls(p.gamma.get());
+    p.toplevels = std::make_unique<wl::ForeignToplevels>(display);
+    p.workspaces = std::make_unique<wl::Workspaces>(display);
+    c.push_back(p.workspaces->requests.connect(
+        [this](const std::vector<wl::Workspaces::Request>& r) { workspace_requests(r); }));
+    p.capture = std::make_unique<wl::Capture>(display, *p.seat, *p.toplevels);
+    p.global_shortcuts = std::make_unique<wl::GlobalShortcuts>(display);
+    p.security = std::make_unique<wl::SecurityContexts>(display);
+    setup_outputs_protocols();
+    setup_capture();
+}
+
 // Every listener must be off its signal before the object carrying the signal
 // is freed: a Listener destroyed later would unlink from freed memory.
 void Server::disconnect_listeners() {
     new_output_.disconnect();
     layout_change_.disconnect();
-    output_apply_.disconnect();
-    output_test_.disconnect();
-    output_power_.disconnect();
-    new_xdg_toplevel_.disconnect();
-    new_xdg_popup_.disconnect();
-    new_decoration_.disconnect();
-    new_kde_decoration_.disconnect();
-    new_layer_surface_.disconnect();
-    activation_request_.disconnect();
-    new_idle_inhibitor_.disconnect();
-    new_lock_.disconnect();
-    new_capture_request_.disconnect();
     gpu_reset_.disconnect();
-    workspace_commit_.disconnect();
-    new_shortcuts_inhibitor_.disconnect();
-    set_tag_.disconnect();
+    connections_.clear();
 #ifdef ATRIUM_XWAYLAND
+    xwayland_start_.disconnect();
     xwayland_ready_.disconnect();
-    new_xwayland_surface_.disconnect();
+    new_x11_window_.disconnect();
+    xwm_hangup_.disconnect();
 #endif
 }
 
@@ -546,7 +615,9 @@ void Server::teardown() {
     ipc.reset();
     disconnect_listeners();
 #ifdef ATRIUM_XWAYLAND
-    wlr_xwayland_destroy(xwayland);
+    xwm.reset();
+    if (xwayland)
+        wlr_xwayland_server_destroy(xwayland);
     xwayland = nullptr;
 #endif
     shell.reset();  // stops it
@@ -576,13 +647,18 @@ void Server::teardown() {
     sessions.reset();
     toplevel_icons.reset();
     seat.reset();
+    capture_.reset();
 
-    // wlroots needs the backend destroyed by hand before the display, or the
-    // seat is used after free.
+    // The backend by hand before the display: its outputs go (and tell the
+    // protocols so), then the globals, before the display.
     backend_destroy_.disconnect();
     if (backend)  // gone already if the host session ended
         wlr_backend_destroy(backend);
+    scene->protocols = {};
+    scene->set_gamma_controls(nullptr);
+    wl.reset();
     wl_display_destroy(display);
+    wl_display_destroy(layout_display_);
     // Only after the display: outputs are gone and no scene output is left.
     (scene)->destroy();
 }
@@ -757,14 +833,10 @@ Output* Server::output_at(double lx, double ly) const {
 void Server::update_outputs() {
     if (night_light)
         night_light->update();  // a screen that can (or can't) show it came or went
-    auto* config_out = wlr_output_configuration_v1_create();
-
     // Disabled outputs leave the layout first, so the cursor cannot enter them.
     for (Output* o : outputs) {
         if (o->enabled() || o->dying)  // leaving: already out of the layout
             continue;
-        auto* head = wlr_output_configuration_head_v1_create(config_out, o->wlr);
-        head->state.enabled = false;
         if (o->asleep)
             continue;
         wlr_output_layout_remove(output_layout, o->wlr);
@@ -787,26 +859,22 @@ void Server::update_outputs() {
     for (Output* o : outputs) {
         if (!o->enabled() || o->dying)
             continue;
-        auto* head = wlr_output_configuration_head_v1_create(config_out, o->wlr);
-
         wlr_output_layout_get_box(output_layout, o->wlr, &o->box);
         o->usable = o->box;
         if (o->scene_output)
             o->scene_output->set_position(o->box.x, o->box.y);
+        o->sync_global();
         o->fullscreen_bg->set_position(o->box.x, o->box.y);
         o->fullscreen_bg->set_size(o->box.width, o->box.height);
 
         if (o->lock_surface) {
-            auto* tree = static_cast<scene::Tree*>(o->lock_surface->surface->data);
+            auto* tree = static_cast<scene::Tree*>(o->lock_surface->surface()->data);
             tree->set_position(o->box.x, o->box.y);
-            wlr_session_lock_surface_v1_configure(o->lock_surface, o->box.width, o->box.height);
+            o->lock_surface->configure(uint32_t(o->box.width), uint32_t(o->box.height));
         }
 
         o->arrange_layers();
         o->refit_views();
-
-        head->state.x = o->box.x;
-        head->state.y = o->box.y;
 
         if (!focused_output)
             focused_output = o;
@@ -826,28 +894,15 @@ void Server::update_outputs() {
         if (!locked)
             focus_top();
         if (focused_output->lock_surface)
-            seat->keyboard_enter(focused_output->lock_surface->surface);
+            seat->keyboard_enter(focused_output->lock_surface->surface());
     }
 
     // The cursor image can end up at 0,0 after outputs come back; re-place it.
     wlr_cursor_move(seat->cursor, nullptr, 0, 0);
 
-    wlr_output_manager_v1_set_configuration(output_manager, config_out);
+    publish_outputs();
     if (ipc)
         ipc->broadcast("outputs", {{"event", "outputs.changed"}});
-}
-
-void Server::set_output_power(wlr_output_power_v1_set_mode_event* event) {
-    auto* o = static_cast<Output*>(event->output->data);
-    if (!o)
-        return;
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, event->mode);
-    wlr_output_commit_state(o->wlr, &state);
-    wlr_output_state_finish(&state);
-    o->asleep = !event->mode;
-    update_outputs();
 }
 
 void Server::gpu_reset() {
@@ -863,7 +918,7 @@ void Server::gpu_reset() {
         die("couldn't recreate allocator");
 
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
-    wlr_compositor_set_renderer(compositor, renderer);
+    wl->compositor->set_renderer(renderer);
     apply_screen_shader();
     for (Output* o : outputs)
         wlr_output_init_render(o->wlr, allocator, renderer);
@@ -874,40 +929,38 @@ void Server::gpu_reset() {
 
 // --- focus and hit testing -------------------------------------------------
 
-Owner Server::owner_of(wlr_surface* surface) {
+Owner Server::owner_of(wl::Surface* surface) {
     Owner owner;
     if (!surface)
         return owner;
-    wlr_surface* root = wlr_surface_get_root_surface(surface);
-
+    wl::Surface* root = surface->root();
 #ifdef ATRIUM_XWAYLAND
-    if (auto* xs = wlr_xwayland_surface_try_from_wlr_surface(root)) {
+    if (auto* xs = xwayland::XSurface::from(root)) {
         owner.view = static_cast<View*>(xs->data);
         return owner;
     }
 #endif
-    if (auto* ls = wlr_layer_surface_v1_try_from_wlr_surface(root)) {
+    if (auto* ls = wl::LayerSurface::from(root)) {
         owner.layer = static_cast<LayerSurface*>(ls->data);
         return owner;
     }
-
-    // Walk popup parents up to the toplevel or layer surface they belong to.
-    wlr_xdg_surface* xdg = wlr_xdg_surface_try_from_wlr_surface(root);
-    while (xdg) {
-        switch (xdg->role) {
-        case WLR_XDG_SURFACE_ROLE_POPUP: {
-            if (!xdg->popup || !xdg->popup->parent)
+    // Popups up to the toplevel or layer surface they belong to.
+    for (wl::ShellSurface* xdg = wl::ShellSurface::from(root); xdg;) {
+        switch (xdg->kind()) {
+        case wl::ShellSurface::Kind::Popup: {
+            wl::Popup* p = xdg->popup();
+            if (!p || !p->parent())
                 return owner;
-            wlr_xdg_surface* parent = wlr_xdg_surface_try_from_wlr_surface(xdg->popup->parent);
+            wl::ShellSurface* parent = wl::ShellSurface::from(p->parent());
             if (!parent)
-                return owner_of(xdg->popup->parent);
+                return owner_of(p->parent());
             xdg = parent;
             break;
         }
-        case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
-            owner.view = static_cast<View*>(xdg->data);
+        case wl::ShellSurface::Kind::Toplevel:
+            owner.view = static_cast<View*>(xdg->toplevel()->data);
             return owner;
-        case WLR_XDG_SURFACE_ROLE_NONE:
+        default:
             return owner;
         }
     }
@@ -1063,7 +1116,7 @@ void Server::focus_view(View* view, bool raise) {
     }
     restack_fullscreen();
 
-    wlr_surface* old = seat->wlr->keyboard_state.focused_surface;
+    wl::Surface* old = wl->seat->keyboard_focus();
     if (view && view->surface() == old)
         return;
 
@@ -1074,7 +1127,7 @@ void Server::focus_view(View* view, bool raise) {
     // A top/overlay layer surface holding exclusive keyboard focus (a lock
     // screen stand-in, a launcher) keeps it; the view only moves up the order.
     if (old_owner.layer && old_owner.layer->mapped && old_owner.layer->wants_exclusive_keyboard() &&
-        old_owner.layer->wlr->current.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+        old_owner.layer->ls->current().layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP)
         return;
 
     if (focused_view && focused_view != view && !(view && view->unmanaged())) {
@@ -1130,7 +1183,7 @@ std::optional<wlr_box> Server::dock_icon_of(const View& view) const {
     const LayerSurface* dock = nullptr;
     for (const auto& list : view.output->layers)
         for (const LayerSurface* l : list)
-            if (l->mapped && l->wlr->namespace_ && std::string_view(l->wlr->namespace_) == "atrium-dock")
+            if (l->mapped && l->ls->name_space() == "atrium-dock")
                 dock = l;
     if (!dock || !dock->tree)
         return std::nullopt;
@@ -1182,9 +1235,9 @@ void Server::focus_layer(LayerSurface* layer) {
     // on a Mac, the window stays the active one under them (its title bar,
     // the bar's app name). The desktop below windows is another matter: it
     // takes focus the way an app does.
-    if (focused_view && layer->wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
+    if (focused_view && layer->ls->current().layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP)
         drop_focus();
-    seat->keyboard_enter(layer->wlr->surface);
+    seat->keyboard_enter(layer->surface());
 }
 
 void Server::cycle_focus(int direction) {
@@ -1201,99 +1254,19 @@ void Server::cycle_focus(int direction) {
     focus_view(direction > 0 ? candidates.back() : candidates[1]);
 }
 
-void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* event) {
-    Owner owner = owner_of(event->surface);
-    View* view = owner.view;
-    if (!view || view == focused_view)
-        return;
-    // Asked for before it has shown (a terminal launched from a shortcut
-    // does): it takes focus as it opens.
-    if (!view->mapped) {
-        view->activate_on_map = event->token && event->token->seat;
-        return;
-    }
-
-    // A token minted from real user input (a click on a link, a notification)
-    // may take focus; anything else only marks the window as wanting attention.
-    if (event->token && event->token->seat) {
-        if (view->minimized)
-            view->set_minimized(false);
-        focus_view(view);
-    } else {
-        view->urgent = true;
-    }
-}
-
-void Server::new_toplevel_capture(
-    wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request* request) {
-    auto* view = static_cast<View*>(request->toplevel_handle->data);
-    if (!view || !view->capture_scene_)
-        return;
-    if (!view->capture_source_) {
-        view->capture_source_ = scene::capture_source_create(view->capture_scene_, loop, allocator, renderer);
-        if (!view->capture_source_)
-            return;
-        View::CaptureImpl& ci = view->capture_impl_;
-        ci.base = view->capture_source_->impl;
-        ci.impl = *ci.base;
-        ci.node = view->capture_scene_;
-        // Off and on again damages all of it.
-        static constexpr auto redraw = [](scene::Node* node) {
-            node->set_enabled(false);
-            node->set_enabled(true);
-        };
-        ci.refresh = wl_event_loop_add_timer(loop, [](void* data) {
-            redraw(static_cast<View::CaptureImpl*>(data)->node);
-            return 0;
-        }, &ci);
-        ci.impl.request_frame = [](wlr_ext_image_capture_source_v1* source, bool schedule_frame) {
-            const auto* ci = reinterpret_cast<const View::CaptureImpl*>(source->impl);
-            // Owed: a new session's first, or one drawn while the client
-            // wasn't asking.
-            if (schedule_frame)
-                redraw(ci->node);
-            else if (ci->refresh)
-                wl_event_source_timer_update(ci->refresh, 1000);
-            ci->base->request_frame(source, schedule_frame);
-        };
-        view->capture_source_->impl = &ci.impl;
-    }
-    wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request_accept(
-        request, view->capture_source_);
-    view->send_suspended(false);
-}
-
 // --- idle ----------------------------------------------------------------------
 
-void Server::new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor) {
-    // Owned by the inhibitor's lifetime; freed on its destroy signal.
-    struct Watch {
-        Listener<wlr_surface> destroy;
-    };
-    auto* watch = new Watch;
-    watch->destroy.connect(&inhibitor->events.destroy, [this, watch](wlr_surface* surface) {
-        // The inhibitor is still in the manager's list here: exclude it.
-        check_idle_inhibitors(wlr_surface_get_root_surface(surface));
-        delete watch;
-    });
-    check_idle_inhibitors();
-}
-
-void Server::check_idle_inhibitors(wlr_surface* exclude) {
+void Server::check_idle_inhibitors() {
     bool inhibited = false;
-    wlr_idle_inhibitor_v1* inhibitor;
-    wl_list_for_each(inhibitor, &idle_inhibit_manager->inhibitors, link) {
-        wlr_surface* surface = wlr_surface_get_root_surface(inhibitor->surface);
-        auto* tree = static_cast<scene::Tree*>(surface->data);
+    for (wl::Surface* surface : wl->idle_inhibitors->surfaces()) {
+        auto* tree = static_cast<scene::Tree*>(surface->root()->data);
         int x, y;
-        if (exclude != surface &&
-            (config.idle_inhibit_ignore_visibility || !tree ||
-             tree->coords(&x, &y))) {
+        if (config.idle_inhibit_ignore_visibility || !tree || tree->coords(&x, &y)) {
             inhibited = true;
             break;
         }
     }
-    wlr_idle_notifier_v1_set_inhibited(idle_notifier, inhibited);
+    wl->idle_notifier->set_inhibited(inhibited);
 }
 
 // --- processes -------------------------------------------------------------------

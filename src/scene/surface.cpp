@@ -1,159 +1,176 @@
 // Surfaces in the scene: ported from wlroots' types/scene (surface.c,
-// subsurface_tree.c, xdg_shell.c, layer_shell_v1.c, drag_icon.c; MIT).
+// subsurface_tree.c, xdg_shell.c, layer_shell_v1.c, drag_icon.c; MIT), on
+// atrium's own protocol layer.
 
 #include "scene/internal.hpp"
 
+#include "wl/color.hpp"
+#include "wl/dmabuf.hpp"
+#include "wl/layer_shell.hpp"
+#include "wl/output.hpp"
+#include "wl/surface_ext.hpp"
+#include "wl/timing.hpp"
+#include "wl/xdg_shell.hpp"
+
 #include <algorithm>
 #include <cassert>
-
-extern "C" {
-#include <wlr/types/wlr_color_representation_v1.h>
-}
+#include <cmath>
 
 namespace atrium::scene {
 
 namespace {
 
-double preferred_buffer_scale(wlr_surface* surface) {
-    double scale = 1;
-    wlr_surface_output* so;
-    wl_list_for_each(so, &surface->current_outputs, link)
-        scale = std::max(scale, double(so->output->scale));
-    return scale;
+// wp_color_manager_v1's named values to the renderer's.
+wlr_color_transfer_function tf_of(uint32_t wp) {
+    switch (wp) {
+    case 1: return WLR_COLOR_TRANSFER_FUNCTION_BT1886;
+    case 5: return WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR;
+    case 9: return WLR_COLOR_TRANSFER_FUNCTION_SRGB;
+    case 11: return WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+    default: return WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
+    }
 }
 
-// The output that paces the surface's frames (callbacks, presentation).
-wlr_output* frame_pacing_output(wlr_surface* surface) {
-    wlr_output* best = nullptr;
-    wlr_surface_output* so;
-    wl_list_for_each(so, &surface->current_outputs, link)
-        if (!so->WLR_PRIVATE.suspended && (!best || so->output->refresh > best->refresh))
-            best = so->output;
-    return best;
+wlr_color_named_primaries primaries_of(uint32_t wp) {
+    return wp == 6 ? WLR_COLOR_NAMED_PRIMARIES_BT2020 : WLR_COLOR_NAMED_PRIMARIES_SRGB;
+}
+
+uint32_t wp_tf(wlr_color_transfer_function tf) {
+    switch (tf) {
+    case WLR_COLOR_TRANSFER_FUNCTION_BT1886: return 1;
+    case WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR: return 5;
+    case WLR_COLOR_TRANSFER_FUNCTION_SRGB: return 9;
+    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ: return 11;
+    default: return 2;
+    }
 }
 
 int tf_preference(wlr_color_transfer_function tf) {
     switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_GAMMA22:
-        return 0;
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ:
-        return 1;
-    default:
-        return -1;
+    case WLR_COLOR_TRANSFER_FUNCTION_GAMMA22: return 0;
+    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ: return 1;
+    default: return -1;
     }
 }
 
-int primaries_preference(wlr_color_named_primaries p) {
-    return p == WLR_COLOR_NAMED_PRIMARIES_BT2020 ? 1 : 0;
-}
-
-wlr_image_description_v1_data preferred_image_description(wlr_surface* surface) {
-    wlr_output_image_description preferred{};
-    preferred.transfer_function = WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
-    preferred.primaries = WLR_COLOR_NAMED_PRIMARIES_SRGB;
-    wlr_surface_output* so;
-    wl_list_for_each(so, &surface->current_outputs, link) {
-        const wlr_output_image_description* d = so->output->image_description;
-        if (!d)
-            continue;
-        if (tf_preference(preferred.transfer_function) < tf_preference(d->transfer_function))
-            preferred.transfer_function = d->transfer_function;
-        if (primaries_preference(preferred.primaries) < primaries_preference(d->primaries))
-            preferred.primaries = d->primaries;
-    }
-    wlr_image_description_v1_data out{};
-    out.tf_named = wlr_color_manager_v1_transfer_function_from_wlr(preferred.transfer_function);
-    out.primaries_named = wlr_color_manager_v1_primaries_from_wlr(preferred.primaries);
-    return out;
+bool alive(Scene* scene, SceneOutput* o) {
+    SceneOutput* s;
+    wl_list_for_each(s, &scene->outputs, link)
+        if (s == o)
+            return true;
+    return false;
 }
 
 void unmark_client_buffer(Buffer* b) {
     if (!b->buffer)
         return;
-    wlr_client_buffer* cb = wlr_client_buffer_get(b->buffer);
-    if (cb && cb->WLR_PRIVATE.n_ignore_locks > 0)
-        --cb->WLR_PRIVATE.n_ignore_locks;
+    if (wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(b->buffer); sb && sb->ignore_locks > 0)
+        --sb->ignore_locks;
 }
 
 bool surface_accepts_input(Buffer* b, double* sx, double* sy) {
     SurfaceNode* s = b->surface();
     *sx += s->clip.x;
     *sy += s->clip.y;
-    return wlr_surface_point_accepts_input(s->surface, *sx, *sy);
+    return s->surface->accepts_input(*sx, *sy);
+}
+
+uint32_t ms_of(const timespec& t) {
+    return uint32_t(int64_t(t.tv_sec) * 1000 + t.tv_nsec / 1000000);
 }
 
 } // namespace
 
 // ---- SurfaceNode ------------------------------------------------------------
 
-SurfaceNode::SurfaceNode(Buffer* b, wlr_surface* s) : buffer(b), surface(s) {}
+SurfaceNode::SurfaceNode(Buffer* b, wl::Surface* s) : buffer(b), surface(s) {}
 
 SurfaceNode::~SurfaceNode() { unmark_client_buffer(buffer); }
 
-SurfaceNode* SurfaceNode::create(Tree* parent, wlr_surface* surface) {
+// The output that paces the surface's frames (callbacks, presentation): of
+// those it is on, the fastest.
+SceneOutput* SurfaceNode::pacing_output() const {
+    if (suspended_)
+        return nullptr;
+    Scene* scene = buffer->root();
+    SceneOutput* best = nullptr;
+    for (SceneOutput* o : on_)
+        if (alive(scene, o) && (!best || o->output->refresh > best->output->refresh))
+            best = o;
+    return best;
+}
+
+void SurfaceNode::outputs_changed(SceneOutput** active, size_t n) {
+    Scene* scene = buffer->root();
+    // Seen on no output: keep what was last sent, so a surface hidden and
+    // shown again on the same output isn't told to leave and enter.
+    if (n == 0) {
+        suspended_ = true;
+        return;
+    }
+    suspended_ = false;
+    std::vector<SceneOutput*> next(active, active + n);
+    for (SceneOutput* o : on_)
+        if (alive(scene, o) && o->global && std::ranges::find(next, o) == next.end())
+            surface->leave(*o->global);
+    for (SceneOutput* o : next)
+        if (o->global)
+            surface->enter(*o->global);
+    on_ = std::move(next);
+
+    double scale = 1;
+    wlr_color_transfer_function tf = WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
+    bool wide = false;
+    for (SceneOutput* o : on_) {
+        scale = std::max(scale, double(o->output->scale));
+        if (const wlr_output_image_description* d = o->output->image_description) {
+            if (tf_preference(tf) < tf_preference(d->transfer_function))
+                tf = d->transfer_function;
+            wide = wide || d->primaries == WLR_COLOR_NAMED_PRIMARIES_BT2020;
+        }
+    }
+    const Protocols& p = scene->protocols;
+    if (p.fractional_scales)
+        p.fractional_scales->set_preferred_scale(surface, scale);
+    surface->set_preferred_scale(int32_t(std::ceil(scale)));
+    if (p.color) {
+        wl::ImageDescription d;
+        d.tf_named = wp_tf(tf);
+        d.primaries_named = wide ? 6 : 1;
+        p.color->set_preferred(surface, d);
+    }
+}
+
+SurfaceNode* SurfaceNode::create(Tree* parent, wl::Surface* surface) {
     Buffer* b = Buffer::create(parent, nullptr);
     auto* sn = new SurfaceNode(b, surface);
     b->surface_ = sn;
     b->point_accepts_input = surface_accepts_input;
 
-    sn->outputs_update_.connect(&b->events.outputs_update, [sn](OutputsUpdateEvent* e) {
-        Scene* scene = sn->buffer->root();
-        // Seen on no output: keep what was last sent, so a surface hidden
-        // and shown again on the same output isn't told to leave and enter.
-        const bool suspend = e->size == 0;
-        wlr_surface_output *entered, *tmp;
-        wl_list_for_each_safe(entered, tmp, &sn->surface->current_outputs, link) {
-            bool active = false;
-            for (size_t i = 0; i < e->size; ++i)
-                active = active || entered->output == e->active[i]->output;
-            SceneOutput* o;
-            wl_list_for_each(o, &scene->outputs, link) {
-                if (o->output == entered->output) {
-                    entered->WLR_PRIVATE.suspended = suspend;
-                    if (!suspend && !active)
-                        wlr_surface_send_leave(sn->surface, entered->output);
-                    break;
-                }
-            }
-        }
-        if (suspend)
-            return;
-        for (size_t i = 0; i < e->size; ++i)
-            wlr_surface_send_enter(sn->surface, e->active[i]->output);
-        const double scale = preferred_buffer_scale(sn->surface);
-        wlr_fractional_scale_v1_notify_scale(sn->surface, scale);
-        wlr_surface_set_preferred_buffer_scale(sn->surface, int32_t(std::ceil(scale)));
-        if (scene->color_manager_v1) {
-            const wlr_image_description_v1_data d = preferred_image_description(sn->surface);
-            wlr_color_manager_v1_set_surface_preferred_image_description(scene->color_manager_v1, sn->surface, &d);
-        }
-    });
+    sn->outputs_update_.connect(&b->events.outputs_update,
+                                [sn](OutputsUpdateEvent* e) { sn->outputs_changed(e->active, e->size); });
     sn->output_sample_.connect(&b->events.output_sample, [sn](OutputSampleEvent* e) {
-        wlr_output* output = e->output->output;
-        if (frame_pacing_output(sn->surface) != output)
+        if (sn->pacing_output() != e->output)
             return;
-        if (e->direct_scanout)
-            wlr_presentation_surface_scanned_out_on_output(sn->surface, output);
-        else
-            wlr_presentation_surface_textured_on_output(sn->surface, output);
-        wlr_linux_drm_syncobj_surface_v1_state* sync = wlr_linux_drm_syncobj_v1_get_surface_state(sn->surface);
-        if (sync && e->release_timeline)
-            wlr_linux_drm_syncobj_v1_state_add_release_point(sync, e->release_timeline, e->release_point,
-                                                             output->event_loop);
+        // Its presentation feedbacks go out once the output says when.
+        e->output->presentation_pending(sn->surface->take_feedbacks(), e->direct_scanout);
+        if (e->release_timeline && sn->buffer->root()->protocols.syncobj)
+            sn->buffer->root()->protocols.syncobj->add_release_point(sn->surface, e->release_timeline,
+                                                                     e->release_point);
     });
     sn->frame_done_.connect(&b->events.frame_done, [sn](FrameDoneEvent* e) {
-        if (frame_pacing_output(sn->surface) == e->output->output)
-            wlr_surface_send_frame_done(sn->surface, &e->when);
+        if (sn->pacing_output() == e->output)
+            sn->surface->send_frame_done(ms_of(e->when));
     });
-    sn->surface_destroy_.connect(&surface->events.destroy, [sn](void*) { sn->buffer->destroy(); });
-    sn->surface_commit_.connect(&surface->events.commit, [sn](void*) {
+    sn->surface_destroy_ = surface->events.destroy.connect([sn] { sn->buffer->destroy(); });
+    sn->surface_commit_ = surface->events.commit.connect([sn] {
         sn->reconfigure();
         // A frame asked for: schedule one where it would be seen.
         int lx, ly;
         const bool on = sn->buffer->coords(&lx, &ly);
-        wlr_output* out = frame_pacing_output(sn->surface);
-        if (!wl_list_empty(&sn->surface->current.frame_callback_list) && out && on)
-            wlr_output_schedule_frame(out);
+        SceneOutput* out = sn->pacing_output();
+        if (sn->surface->wants_frame() && out && on)
+            wlr_output_schedule_frame(out->output);
     });
     sn->reconfigure();
     return sn;
@@ -161,7 +178,7 @@ SurfaceNode* SurfaceNode::create(Tree* parent, wlr_surface* surface) {
 
 void SurfaceNode::send_frame_done(const timespec* when) {
     if (pixman_region32_not_empty(&buffer->visible))
-        wlr_surface_send_frame_done(surface, when);
+        surface->send_frame_done(ms_of(*when));
 }
 
 void SurfaceNode::set_clip(const wlr_box* c) {
@@ -174,25 +191,25 @@ void SurfaceNode::set_clip(const wlr_box* c) {
 
 void SurfaceNode::reconfigure() {
     Buffer* b = buffer;
-    wlr_surface_state* state = &surface->current;
-    wlr_fbox src;
-    wlr_surface_get_buffer_source_box(surface, &src);
+    const wl::SurfaceState& state = surface->current();
+    wlr_fbox src = surface->source_box();
     pixman_region32_t opaque;
     pixman_region32_init(&opaque);
-    pixman_region32_copy(&opaque, &surface->opaque_region);
-    int width = state->width, height = state->height;
+    pixman_region32_copy(&opaque, state.opaque.get());
+    int width = state.width, height = state.height;
 
     if (!wlr_box_empty(&clip)) {
-        int bw = state->buffer_width, bh = state->buffer_height;
+        int bw = state.buffer_width, bh = state.buffer_height;
+        const auto t = wl_output_transform(state.transform);
         width = std::min(clip.width, width - clip.x);
         height = std::min(clip.height, height - clip.y);
-        wlr_fbox_transform(&src, &src, state->transform, bw, bh);
-        wlr_output_transform_coords(state->transform, &bw, &bh);
-        src.x += double(clip.x) * src.width / state->width;
-        src.y += double(clip.y) * src.height / state->height;
-        src.width *= double(width) / state->width;
-        src.height *= double(height) / state->height;
-        wlr_fbox_transform(&src, &src, wlr_output_transform_invert(state->transform), bw, bh);
+        wlr_fbox_transform(&src, &src, t, bw, bh);
+        wlr_output_transform_coords(t, &bw, &bh);
+        src.x += double(clip.x) * src.width / state.width;
+        src.y += double(clip.y) * src.height / state.height;
+        src.width *= double(width) / state.width;
+        src.height *= double(height) / state.height;
+        wlr_fbox_transform(&src, &src, wlr_output_transform_invert(t), bw, bh);
         pixman_region32_translate(&opaque, -clip.x, -clip.y);
         pixman_region32_intersect_rect(&opaque, &opaque, 0, 0, unsigned(std::max(0, width)),
                                        unsigned(std::max(0, height)));
@@ -203,49 +220,37 @@ void SurfaceNode::reconfigure() {
         return;
     }
 
-    float opacity = 1;
-    if (const wlr_alpha_modifier_surface_v1_state* a = wlr_alpha_modifier_v1_get_surface_state(surface))
-        opacity = float(a->multiplier);
-
     wlr_color_transfer_function tf = WLR_COLOR_TRANSFER_FUNCTION_GAMMA22;
     wlr_color_named_primaries primaries = WLR_COLOR_NAMED_PRIMARIES_SRGB;
-    if (const wlr_image_description_v1_data* d = wlr_surface_get_image_description_v1_data(surface)) {
-        tf = wlr_color_manager_v1_transfer_function_to_wlr(wp_color_manager_v1_transfer_function(d->tf_named));
-        primaries = wlr_color_manager_v1_primaries_to_wlr(wp_color_manager_v1_primaries(d->primaries_named));
-    }
-    wlr_color_encoding encoding = WLR_COLOR_ENCODING_NONE;
-    wlr_color_range range = WLR_COLOR_RANGE_NONE;
-    if (const wlr_color_representation_v1_surface_state* r = wlr_color_representation_v1_get_surface_state(surface)) {
-        if (r->coefficients)
-            encoding = wlr_color_representation_v1_color_encoding_to_wlr(wp_color_representation_surface_v1_coefficients(r->coefficients));
-        if (r->range)
-            range = wlr_color_representation_v1_color_range_to_wlr(wp_color_representation_surface_v1_range(r->range));
+    if (const auto& d = state.image_description) {
+        tf = tf_of(d->tf_named);
+        primaries = primaries_of(d->primaries_named);
     }
 
     b->set_opaque_region(&opaque);
     b->set_source_box(&src);
     b->set_dest_size(width, height);
-    b->set_transform(wl_output_transform(state->transform));
-    b->set_opacity(opacity);
+    b->set_transform(wl_output_transform(state.transform));
+    b->set_opacity(state.alpha);
     b->set_transfer_function(tf);
     b->set_primaries(primaries);
-    b->set_color_encoding(encoding);
-    b->set_color_range(range);
     unmark_client_buffer(b);
 
-    if (surface->buffer) {
+    if (wlr_buffer* wb = surface->buffer()) {
         // In-place texture updates are fine unless the colour of a
         // single-pixel buffer was cached.
-        bool single_pixel = surface->buffer->source && wlr_single_pixel_buffer_v1_try_from_buffer(surface->buffer->source);
-        if (!single_pixel)
-            ++surface->buffer->WLR_PRIVATE.n_ignore_locks;
+        wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(wb);
+        float rgba[4];
+        const bool single_pixel = sb && wl::SinglePixelBuffers::color_of(sb->source.get(), rgba);
+        if (sb && !single_pixel)
+            ++sb->ignore_locks;
         BufferOptions o;
-        o.damage = &surface->buffer_damage;
-        if (wlr_linux_drm_syncobj_surface_v1_state* sync = wlr_linux_drm_syncobj_v1_get_surface_state(surface)) {
-            o.wait_timeline = sync->acquire_timeline;
-            o.wait_point = sync->acquire_point;
+        o.damage = surface->buffer_damage().get();
+        if (state.sync.acquire) {
+            o.wait_timeline = state.sync.acquire.get();
+            o.wait_point = state.sync.acquire_point;
         }
-        b->set_buffer(&surface->buffer->base, o);
+        b->set_buffer(wb, o);
     } else {
         b->set_buffer(nullptr);
     }
@@ -258,51 +263,22 @@ namespace {
 
 struct SubsurfaceTree;
 
-// A wlr_addon that knows its tree (SubsurfaceTree isn't standard layout).
-struct AddonHook {
-    wlr_addon addon{};
-    SubsurfaceTree* self = nullptr;
-};
+// Each tree knows its node's tree; a surface knows its trees by parent.
+std::unordered_map<const Node*, SubsurfaceTree*>& trees_by_node() {
+    static std::unordered_map<const Node*, SubsurfaceTree*> m;
+    return m;
+}
 
 struct SubsurfaceTree {
     Tree* tree = nullptr;
-    wlr_surface* surface = nullptr;
+    wl::Surface* surface = nullptr;
     SurfaceNode* node = nullptr;
     SubsurfaceTree* parent = nullptr;  // null for the top surface
     wlr_box clip{};
-    AddonHook scene_addon;    // on tree's node
-    AddonHook surface_addon;  // sub-surfaces: on the surface, keyed by parent
-    Listener<> surface_destroy, surface_commit, surface_map, surface_unmap, subsurface_destroy;
-    Listener<wlr_subsurface> new_subsurface;
+    std::unordered_map<wl::Subsurface*, SubsurfaceTree*> children;
+    Listener<> tree_destroy;
+    wl::Connection surface_destroy, surface_commit, surface_map, surface_unmap;
 };
-
-void tree_addon_destroy(wlr_addon* a);
-void surface_addon_destroy(wlr_addon* a);
-const wlr_addon_interface kTreeAddon = {.name = "atrium_subsurface_tree", .destroy = tree_addon_destroy};
-const wlr_addon_interface kSurfaceAddon = {.name = "atrium_subsurface_tree", .destroy = surface_addon_destroy};
-
-SubsurfaceTree* from_scene_addon(wlr_addon* a) { return reinterpret_cast<AddonHook*>(a)->self; }
-
-SubsurfaceTree* from_surface_addon(wlr_addon* a) { return reinterpret_cast<AddonHook*>(a)->self; }
-
-void tree_addon_destroy(wlr_addon* a) {
-    // Its tree and node go with the scene node.
-    SubsurfaceTree* t = from_scene_addon(a);
-    if (t->parent)
-        wlr_addon_finish(&t->surface_addon.addon);
-    wlr_addon_finish(&t->scene_addon.addon);
-    delete t;
-}
-
-void surface_addon_destroy(wlr_addon* a) {
-    from_surface_addon(a)->tree->destroy();
-}
-
-SubsurfaceTree* child_of(SubsurfaceTree* parent, wlr_subsurface* sub) {
-    wlr_addon* a = wlr_addon_find(&sub->surface->addons, parent, &kSurfaceAddon);
-    assert(a);
-    return from_surface_addon(a);
-}
 
 bool reconfigure_clip(SubsurfaceTree* t) {
     if (t->parent)
@@ -316,7 +292,7 @@ bool reconfigure_clip(SubsurfaceTree* t) {
         return false;
     }
     wlr_box clip = t->clip;
-    const wlr_box surface_box{0, 0, t->surface->current.width, t->surface->current.height};
+    const wlr_box surface_box{0, 0, t->surface->current().width, t->surface->current().height};
     const bool meets = wlr_box_intersection(&clip, &clip, &surface_box);
     b->set_enabled(meets);
     if (meets) {
@@ -326,71 +302,74 @@ bool reconfigure_clip(SubsurfaceTree* t) {
     return true;
 }
 
+SubsurfaceTree* surface_tree_create(Tree* parent, wl::Surface* surface);
+
+SubsurfaceTree* create_child(SubsurfaceTree* parent, wl::Subsurface* sub) {
+    SubsurfaceTree* c = surface_tree_create(parent->tree, sub->surface());
+    c->parent = parent;
+    parent->children[sub] = c;
+    return c;
+}
+
 void reconfigure(SubsurfaceTree* t) {
     const bool clipped = reconfigure_clip(t);
-    wlr_surface* surface = t->surface;
+    // Children in stacking order; `sub` null is the surface itself.
     Node* prev = nullptr;
-    wlr_subsurface* sub;
-    wl_list_for_each(sub, &surface->current.subsurfaces_below, current.link) {
-        SubsurfaceTree* c = child_of(t, sub);
+    for (const wl::SurfaceState::Placement& p : t->surface->children()) {
+        Node* n;
+        if (!p.sub) {
+            n = t->node->buffer;
+        } else {
+            auto it = t->children.find(p.sub);
+            // A new subsurface at a gone one's address: not that one's tree.
+            if (it != t->children.end() && it->second->surface != p.sub->surface()) {
+                it->second->tree->destroy();
+                it = t->children.end();
+            }
+            SubsurfaceTree* c = it != t->children.end() ? it->second : create_child(t, p.sub);
+            c->tree->set_position(p.x, p.y);
+            if (clipped)
+                reconfigure_clip(c);
+            n = c->tree;
+        }
         if (prev)
-            c->tree->place_above(prev);
-        prev = c->tree;
-        c->tree->set_position(sub->current.x, sub->current.y);
-        if (clipped)
-            reconfigure_clip(c);
-    }
-    if (prev)
-        t->node->buffer->place_above(prev);
-    prev = t->node->buffer;
-    wl_list_for_each(sub, &surface->current.subsurfaces_above, current.link) {
-        SubsurfaceTree* c = child_of(t, sub);
-        c->tree->place_above(prev);
-        prev = c->tree;
-        c->tree->set_position(sub->current.x, sub->current.y);
-        if (clipped)
-            reconfigure_clip(c);
+            n->place_above(prev);
+        prev = n;
     }
 }
 
-SubsurfaceTree* surface_tree_create(Tree* parent, wlr_surface* surface);
-
-bool create_child(SubsurfaceTree* parent, wlr_subsurface* sub) {
-    SubsurfaceTree* c = surface_tree_create(parent->tree, sub->surface);
-    if (!c)
-        return false;
-    c->parent = parent;
-    c->surface_addon.self = c;
-    wlr_addon_init(&c->surface_addon.addon, &sub->surface->addons, parent, &kSurfaceAddon);
-    c->subsurface_destroy.connect(&sub->events.destroy, [c](void*) { c->tree->destroy(); });
-    return true;
-}
-
-SubsurfaceTree* surface_tree_create(Tree* parent, wlr_surface* surface) {
+SubsurfaceTree* surface_tree_create(Tree* parent, wl::Surface* surface) {
     auto* t = new SubsurfaceTree();
     t->tree = Tree::create(parent);
     t->node = SurfaceNode::create(t->tree, surface);
     t->surface = surface;
-    t->scene_addon.self = t;
-    wlr_addon_init(&t->scene_addon.addon, &t->tree->addons, nullptr, &kTreeAddon);
-
-    wlr_subsurface* sub;
-    wl_list_for_each(sub, &surface->current.subsurfaces_below, current.link)
-        create_child(t, sub);
-    wl_list_for_each(sub, &surface->current.subsurfaces_above, current.link)
-        create_child(t, sub);
+    trees_by_node()[t->tree] = t;
+    t->tree_destroy.connect(&t->tree->events.destroy, [t](void*) {
+        // Its tree and node go with the scene node.
+        trees_by_node().erase(t->tree);
+        if (t->parent)
+            std::erase_if(t->parent->children, [t](const auto& kv) { return kv.second == t; });
+        for (auto& [sub, c] : t->children)
+            c->parent = nullptr;
+        delete t;
+    });
     reconfigure(t);
 
-    t->surface_destroy.connect(&surface->events.destroy, [t](void*) { t->tree->destroy(); });
+    t->surface_destroy = surface->events.destroy.connect([t] { t->tree->destroy(); });
     // TODO(upstream too): only on a change of order or position.
-    t->surface_commit.connect(&surface->events.commit, [t](void*) { reconfigure(t); });
-    t->surface_map.connect(&surface->events.map, [t](void*) { t->tree->set_enabled(true); });
-    t->surface_unmap.connect(&surface->events.unmap, [t](void*) { t->tree->set_enabled(false); });
-    t->new_subsurface.connect(&surface->events.new_subsurface, [t](wlr_subsurface* s) {
-        if (!create_child(t, s))
-            wl_resource_post_no_memory(s->resource);
+    t->surface_commit = surface->events.commit.connect([t] {
+        // A subsurface gone from the list: its tree goes.
+        std::vector<SubsurfaceTree*> stale;
+        for (auto& [sub, c] : t->children)
+            if (std::ranges::none_of(t->surface->children(), [sub](const auto& p) { return p.sub == sub; }))
+                stale.push_back(c);
+        for (SubsurfaceTree* c : stale)
+            c->tree->destroy();
+        reconfigure(t);
     });
-    t->tree->set_enabled(surface->mapped);
+    t->surface_map = surface->events.map.connect([t] { t->tree->set_enabled(true); });
+    t->surface_unmap = surface->events.unmap.connect([t] { t->tree->set_enabled(false); });
+    t->tree->set_enabled(surface->mapped());
     return t;
 }
 
@@ -398,8 +377,8 @@ bool set_clip(Node* node, const wlr_box* clip) {
     if (node->type != Type::Tree)
         return false;
     bool found = false;
-    if (wlr_addon* a = wlr_addon_find(&node->addons, nullptr, &kTreeAddon)) {
-        SubsurfaceTree* t = from_scene_addon(a);
+    if (auto it = trees_by_node().find(node); it != trees_by_node().end()) {
+        SubsurfaceTree* t = it->second;
         if (!t->parent) {
             const wlr_box next = clip ? *clip : wlr_box{};
             if (wlr_box_equal(&t->clip, &next))
@@ -416,7 +395,7 @@ bool set_clip(Node* node, const wlr_box* clip) {
 
 } // namespace
 
-Tree* subsurface_tree_create(Tree* parent, wlr_surface* surface) {
+Tree* subsurface_tree_create(Tree* parent, wl::Surface* surface) {
     return surface_tree_create(parent, surface)->tree;
 }
 
@@ -432,26 +411,28 @@ namespace {
 struct XdgSurfaceNode {
     Tree* tree;
     Tree* surface_tree;
-    wlr_xdg_surface* xdg;
-    Listener<> tree_destroy, xdg_destroy, commit;
+    wl::ShellSurface* xdg;
+    Listener<> tree_destroy;
+    wl::Connection xdg_destroy, commit;
 
     void update_position() {
-        surface_tree->set_position(-xdg->geometry.x, -xdg->geometry.y);
-        if (xdg->role == WLR_XDG_SURFACE_ROLE_POPUP && xdg->popup)
-            tree->set_position(xdg->popup->current.geometry.x, xdg->popup->current.geometry.y);
+        const wl::Box g = xdg->geometry();
+        surface_tree->set_position(-g.x, -g.y);
+        if (wl::Popup* p = xdg->popup())
+            tree->set_position(p->geometry().x, p->geometry().y);
     }
 };
 
 } // namespace
 
-Tree* xdg_surface_create(Tree* parent, wlr_xdg_surface* xdg) {
+Tree* xdg_surface_create(Tree* parent, wl::ShellSurface* xdg) {
     auto* x = new XdgSurfaceNode();
     x->xdg = xdg;
     x->tree = Tree::create(parent);
-    x->surface_tree = subsurface_tree_create(x->tree, xdg->surface);
+    x->surface_tree = subsurface_tree_create(x->tree, xdg->surface());
     x->tree_destroy.connect(&x->tree->events.destroy, [x](void*) { delete x; });
-    x->xdg_destroy.connect(&xdg->events.destroy, [x](void*) { x->tree->destroy(); });
-    x->commit.connect(&xdg->surface->events.commit, [x](void*) { x->update_position(); });
+    x->xdg_destroy = xdg->events.destroy.connect([x] { x->tree->destroy(); });
+    x->commit = xdg->surface()->events.commit.connect([x] { x->update_position(); });
     x->update_position();
     return x->tree;
 }
@@ -460,29 +441,52 @@ Tree* xdg_surface_create(Tree* parent, wlr_xdg_surface* xdg) {
 
 namespace {
 
+constexpr uint32_t kTop = 1, kBottom = 2, kLeft = 4, kRight = 8;
+
 struct LayerNodeImpl {
     LayerSurfaceNode pub;
-    Listener<> tree_destroy, layer_destroy;
+    Listener<> tree_destroy;
+    wl::Connection layer_destroy;
 };
 
-void exclusive_zone(const wlr_layer_surface_v1_state* s, wlr_edges edge, wlr_box* usable) {
+// The edge its exclusive zone is taken from (wlroots'
+// wlr_layer_surface_v1_get_exclusive_edge).
+uint32_t exclusive_edge(const wl::LayerSurface::State& s) {
+    if (s.exclusive_zone <= 0)
+        return 0;
+    if (s.exclusive_edge != 0 || s.anchor == (kTop | kBottom | kLeft | kRight))
+        return s.exclusive_edge;
+    switch (s.anchor) {
+    case kTop:
+    case kTop | kLeft | kRight: return kTop;
+    case kBottom:
+    case kBottom | kLeft | kRight: return kBottom;
+    case kLeft:
+    case kLeft | kTop | kBottom: return kLeft;
+    case kRight:
+    case kRight | kTop | kBottom: return kRight;
+    default: return 0;
+    }
+}
+
+void take_exclusive_zone(const wl::LayerSurface::State& s, uint32_t edge, wlr_box* usable) {
     switch (edge) {
-    case WLR_EDGE_NONE:
+    case kTop:
+        usable->y += s.exclusive_zone + s.margin_top;
+        usable->height -= s.exclusive_zone + s.margin_top;
+        break;
+    case kBottom:
+        usable->height -= s.exclusive_zone + s.margin_bottom;
+        break;
+    case kLeft:
+        usable->x += s.exclusive_zone + s.margin_left;
+        usable->width -= s.exclusive_zone + s.margin_left;
+        break;
+    case kRight:
+        usable->width -= s.exclusive_zone + s.margin_right;
+        break;
+    default:
         return;
-    case WLR_EDGE_TOP:
-        usable->y += s->exclusive_zone + s->margin.top;
-        usable->height -= s->exclusive_zone + s->margin.top;
-        break;
-    case WLR_EDGE_BOTTOM:
-        usable->height -= s->exclusive_zone + s->margin.bottom;
-        break;
-    case WLR_EDGE_LEFT:
-        usable->x += s->exclusive_zone + s->margin.left;
-        usable->width -= s->exclusive_zone + s->margin.left;
-        break;
-    case WLR_EDGE_RIGHT:
-        usable->width -= s->exclusive_zone + s->margin.right;
-        break;
     }
     usable->width = std::max(usable->width, 0);
     usable->height = std::max(usable->height, 0);
@@ -490,53 +494,51 @@ void exclusive_zone(const wlr_layer_surface_v1_state* s, wlr_edges edge, wlr_box
 
 } // namespace
 
-LayerSurfaceNode* layer_surface_v1_create(Tree* parent, wlr_layer_surface_v1* layer) {
+LayerSurfaceNode* layer_surface_v1_create(Tree* parent, wl::LayerSurface* layer) {
     auto* l = new LayerNodeImpl();
     l->pub.layer_surface = layer;
     l->pub.tree = Tree::create(parent);
-    subsurface_tree_create(l->pub.tree, layer->surface);
+    subsurface_tree_create(l->pub.tree, layer->surface());
     l->tree_destroy.connect(&l->pub.tree->events.destroy, [l](void*) { delete l; });
-    l->layer_destroy.connect(&layer->events.destroy, [l](void*) { l->pub.tree->destroy(); });
+    l->layer_destroy = layer->events.destroy.connect([l] { l->pub.tree->destroy(); });
     return &l->pub;
 }
 
 void layer_surface_v1_configure(LayerSurfaceNode* node, const wlr_box* full_area, wlr_box* usable_area) {
-    wlr_layer_surface_v1* layer = node->layer_surface;
-    const wlr_layer_surface_v1_state* s = &layer->current;
+    wl::LayerSurface* layer = node->layer_surface;
+    const wl::LayerSurface::State& s = layer->current();
     // Exclusive zone -1: the whole output, else what's left of it.
-    const wlr_box bounds = s->exclusive_zone == -1 ? *full_area : *usable_area;
-    wlr_box box{0, 0, int(s->desired_width), int(s->desired_height)};
-    const uint32_t a = s->anchor;
-    constexpr uint32_t L = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT, R = ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT;
-    constexpr uint32_t T = ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP, B = ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
+    const wlr_box bounds = s.exclusive_zone == -1 ? *full_area : *usable_area;
+    wlr_box box{0, 0, int(s.desired_width), int(s.desired_height)};
+    const uint32_t a = s.anchor;
     if (box.width == 0) {
-        box.x = bounds.x + int(s->margin.left);
-        box.width = bounds.width - int(s->margin.left + s->margin.right);
-    } else if ((a & L) && (a & R)) {
+        box.x = bounds.x + s.margin_left;
+        box.width = bounds.width - (s.margin_left + s.margin_right);
+    } else if ((a & kLeft) && (a & kRight)) {
         box.x = bounds.x + bounds.width / 2 - box.width / 2;
-    } else if (a & L) {
-        box.x = bounds.x + int(s->margin.left);
-    } else if (a & R) {
-        box.x = bounds.x + bounds.width - box.width - int(s->margin.right);
+    } else if (a & kLeft) {
+        box.x = bounds.x + s.margin_left;
+    } else if (a & kRight) {
+        box.x = bounds.x + bounds.width - box.width - s.margin_right;
     } else {
         box.x = bounds.x + bounds.width / 2 - box.width / 2;
     }
     if (box.height == 0) {
-        box.y = bounds.y + int(s->margin.top);
-        box.height = bounds.height - int(s->margin.top + s->margin.bottom);
-    } else if ((a & T) && (a & B)) {
+        box.y = bounds.y + s.margin_top;
+        box.height = bounds.height - (s.margin_top + s.margin_bottom);
+    } else if ((a & kTop) && (a & kBottom)) {
         box.y = bounds.y + bounds.height / 2 - box.height / 2;
-    } else if (a & T) {
-        box.y = bounds.y + int(s->margin.top);
-    } else if (a & B) {
-        box.y = bounds.y + bounds.height - box.height - int(s->margin.bottom);
+    } else if (a & kTop) {
+        box.y = bounds.y + s.margin_top;
+    } else if (a & kBottom) {
+        box.y = bounds.y + bounds.height - box.height - s.margin_bottom;
     } else {
         box.y = bounds.y + bounds.height / 2 - box.height / 2;
     }
     node->tree->set_position(box.x, box.y);
-    wlr_layer_surface_v1_configure(layer, uint32_t(box.width), uint32_t(box.height));
-    if (layer->surface->mapped && s->exclusive_zone > 0)
-        exclusive_zone(s, wlr_layer_surface_v1_get_exclusive_edge(layer), usable_area);
+    layer->configure(uint32_t(std::max(0, box.width)), uint32_t(std::max(0, box.height)));
+    if (layer->surface()->mapped() && s.exclusive_zone > 0)
+        take_exclusive_zone(s, exclusive_edge(s), usable_area);
 }
 
 // ---- drag icons ---------------------------------------------------------------
@@ -546,23 +548,24 @@ namespace {
 struct DragIconNode {
     Tree* tree;
     Tree* surface_tree;
-    wlr_drag_icon* icon;
-    Listener<> tree_destroy, commit, icon_destroy;
+    wl::Surface* icon;
+    Listener<> tree_destroy;
+    wl::Connection commit, icon_destroy;
 };
 
 } // namespace
 
-Tree* drag_icon_create(Tree* parent, wlr_drag_icon* icon) {
+Tree* drag_icon_create(Tree* parent, wl::Surface* icon) {
     auto* d = new DragIconNode();
     d->icon = icon;
     d->tree = Tree::create(parent);
-    d->surface_tree = subsurface_tree_create(d->tree, icon->surface);
+    d->surface_tree = subsurface_tree_create(d->tree, icon);
     d->tree_destroy.connect(&d->tree->events.destroy, [d](void*) { delete d; });
-    d->commit.connect(&icon->surface->events.commit, [d](void*) {
-        wlr_surface* s = d->icon->surface;
-        d->surface_tree->set_position(d->surface_tree->x + s->current.dx, d->surface_tree->y + s->current.dy);
+    d->commit = icon->events.commit.connect([d] {
+        const wl::SurfaceState& s = d->icon->current();
+        d->surface_tree->set_position(d->surface_tree->x + s.dx, d->surface_tree->y + s.dy);
     });
-    d->icon_destroy.connect(&icon->events.destroy, [d](void*) { d->tree->destroy(); });
+    d->icon_destroy = icon->events.destroy.connect([d] { d->tree->destroy(); });
     return d->tree;
 }
 

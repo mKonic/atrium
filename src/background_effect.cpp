@@ -59,7 +59,9 @@ void BackgroundEffects::announce() {
 
 void BackgroundEffects::get_background_effect(ExtBackgroundEffectManagerV1* manager, uint32_t id,
                                               wl_resource* surface_resource) {
-    wlr_surface* surface = wlr_surface_from_resource(surface_resource);
+    wl::Surface* surface = wl::Surface::from(surface_resource);
+    if (!surface)
+        return;
     if (effects_.contains(surface)) {
         manager->post_error(uint32_t(ExtBackgroundEffectManagerV1::Error::BackgroundEffectExists),
                             "this surface already has a background effect");
@@ -80,20 +82,21 @@ void BackgroundEffects::get_background_effect(ExtBackgroundEffectManagerV1* mana
             return;
         }
         if (region)
-            pixman_region32_copy(&e->pending, wlr_region_from_resource(region));
+            if (auto* r = dynamic_cast<wl::RegionResource*>(wl::WlRegion::from(region)))
+                pixman_region32_copy(&e->pending, r->region.get());
         else
             pixman_region32_clear(&e->pending);
     });
     r->on_gone([this, e] { effect_gone(e); });
 
     // Double-buffered: what was asked takes effect with the surface's commit.
-    e->commit.connect(&surface->events.commit, [e](void*) {
+    e->commit = surface->events.commit.connect([e] {
         pixman_region32_copy(&e->current, &e->pending);
         e->requested = true;
         if (Owner o = Server::owner_of(e->surface); o.view)
             o.view->update_decorations();
     });
-    e->destroy.connect(&surface->events.destroy, [this, e](void*) { surface_gone(e); });
+    e->destroy = surface->events.destroy.connect([this, e] { surface_gone(e); });
 }
 
 void BackgroundEffects::surface_gone(Effect* e) {
@@ -104,7 +107,7 @@ void BackgroundEffects::surface_gone(Effect* e) {
 }
 
 void BackgroundEffects::effect_gone(Effect* e) {
-    wlr_surface* surface = e->surface;
+    wl::Surface* surface = e->surface;
     if (surface)
         surface_gone(e);
     std::erase(all_, e);
@@ -117,7 +120,7 @@ void BackgroundEffects::effect_gone(Effect* e) {
             o.view->update_decorations();
 }
 
-std::optional<wlr_box> BackgroundEffects::blur_for(wlr_surface* surface) const {
+std::optional<wlr_box> BackgroundEffects::blur_for(wl::Surface* surface) const {
     auto it = effects_.find(surface);
     if (it == effects_.end() || !it->second->requested)
         return std::nullopt;

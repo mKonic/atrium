@@ -11,119 +11,114 @@
 
 namespace atrium {
 
-XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), toplevel(t) {
-    toplevel->base->data = this;
-    wlr_surface* s = toplevel->base->surface;
+XdgView::XdgView(Server& srv, wl::Toplevel* t) : View(srv, Kind::Xdg), toplevel(t) {
+    toplevel->data = this;
+    wl::Surface* s = toplevel->base()->surface();
+    auto& c = connections_;
 
-    commit_.connect(&s->events.commit, [this](void*) { commit(); });
-    map_.connect(&s->events.map, [this](void*) {
-        const wlr_box& g = toplevel->base->geometry;
+    c.push_back(s->events.commit.connect([this] { commit(); }));
+    c.push_back(s->events.map.connect([this] {
+        const wl::Box g = toplevel->base()->geometry();
         geom.width = g.width;
         geom.height = g.height;
         handle_map();
-        if (toplevel->requested.fullscreen)
+        if (toplevel->requested().fullscreen)
             set_fullscreen(true);
-        else if (toplevel->requested.maximized)
+        else if (toplevel->requested().maximized)
             set_maximized(true);
-    });
-    unmap_.connect(&s->events.unmap, [this](void*) { handle_unmap(); });
-    destroy_.connect(&toplevel->events.destroy, [this](void*) { delete this; });
+    }));
+    c.push_back(s->events.unmap.connect([this] { handle_unmap(); }));
+    c.push_back(toplevel->events.destroy.connect([this] { delete this; }));
+    c.push_back(toplevel->events.initial_commit.connect([this] { initial_commit(); }));
 
     // xdg-shell wants a configure in reply to every state request, even one
     // the compositor ignores or that changes nothing.
     auto reply = [this] {
-        if (toplevel->base->initialized)
-            wlr_xdg_surface_schedule_configure(toplevel->base);
+        if (toplevel->base() && toplevel->base()->initialized())
+            toplevel->base()->schedule_configure();
     };
-    request_fullscreen_.connect(&toplevel->events.request_fullscreen, [this, reply](void*) {
-        if (mapped && toplevel->requested.fullscreen != fullscreen)
-            set_fullscreen(toplevel->requested.fullscreen);
+    c.push_back(toplevel->events.request_fullscreen.connect([this, reply] {
+        if (mapped && toplevel->requested().fullscreen != fullscreen)
+            set_fullscreen(toplevel->requested().fullscreen);
         else
             reply();
-    });
-    request_maximize_.connect(&toplevel->events.request_maximize, [this, reply](void*) {
-        if (mapped && !fullscreen && !layout_owned() && toplevel->requested.maximized != maximized)
-            set_maximized(toplevel->requested.maximized);
+    }));
+    c.push_back(toplevel->events.request_maximize.connect([this, reply] {
+        if (mapped && !fullscreen && !layout_owned() && toplevel->requested().maximized != maximized)
+            set_maximized(toplevel->requested().maximized);
         else
             reply();
-    });
-    request_minimize_.connect(&toplevel->events.request_minimize, [this](void*) {
+    }));
+    c.push_back(toplevel->events.request_minimize.connect([this] {
         if (mapped && !layout_owned())
             request_minimized(true);
-    });
-    request_move_.connect(&toplevel->events.request_move, [this](wlr_xdg_toplevel_move_event* e) {
-        if (mapped && !layout_owned() && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
+    }));
+    c.push_back(toplevel->events.request_move.connect([this](const wl::Toplevel::MoveRequest& e) {
+        if (mapped && !layout_owned() && server.wl->seat->validate_grab_serial(toplevel->client(), e.serial))
             server.seat->begin_move(this);
-    });
-    request_resize_.connect(&toplevel->events.request_resize, [this](wlr_xdg_toplevel_resize_event* e) {
-        if (mapped && !layout_owned() && wlr_seat_validate_pointer_grab_serial(server.seat->wlr, surface(), e->serial))
-            server.seat->begin_resize(this, e->edges);
-    });
+    }));
+    c.push_back(toplevel->events.request_resize.connect([this](const wl::Toplevel::ResizeRequest& e) {
+        // xdg_toplevel's resize edges are wlr_edges' bits.
+        if (mapped && !layout_owned() && server.wl->seat->validate_grab_serial(toplevel->client(), e.serial))
+            server.seat->begin_resize(this, e.edges);
+    }));
     // A right-click on a GTK header bar: atrium's window menu.
-    request_window_menu_.connect(&toplevel->events.request_show_window_menu,
-        [this](wlr_xdg_toplevel_show_window_menu_event* e) {
-            if (!mapped)
-                return;
-            double ox, oy;
-            surface_origin(ox, oy);
-            server.show_window_menu(this, ox + e->x, oy + e->y);
-        });
-    set_title_.connect(&toplevel->events.set_title, [this](void*) { update_title(); });
-    set_app_id_.connect(&toplevel->events.set_app_id, [this](void*) { update_title(); });
+    c.push_back(toplevel->events.request_window_menu.connect([this](const wl::Toplevel::MenuRequest& e) {
+        if (!mapped)
+            return;
+        double ox, oy;
+        surface_origin(ox, oy);
+        server.show_window_menu(this, ox + e.x, oy + e.y);
+    }));
+    c.push_back(toplevel->events.set_title.connect([this] { update_title(); }));
+    c.push_back(toplevel->events.set_app_id.connect([this] { update_title(); }));
 
-    // A KDE decoration announced before this toplevel existed.
-    wlr_server_decoration* d;
-    wl_list_for_each(d, &server.kde_decoration_manager->decorations, link)
-        if (d->surface == s) {
-            set_kde_decoration(d);
-            break;
-        }
+    // Decorations announced before this toplevel existed.
+    if (auto* d = server.wl->decorations->kde_for(s))
+        set_kde_decoration(d);
+    if (auto* d = server.wl->decorations->xdg_for(toplevel))
+        set_decoration(d);
 }
 
 XdgView::~XdgView() {
-    toplevel->base->data = nullptr;
+    toplevel->data = nullptr;
+}
+
+void XdgView::initial_commit() {
+    toplevel->set_wm_capabilities(2 | 4 | 8);  // maximize, fullscreen, minimize
+    wl::Surface* s = surface();
+    if (Output* o = server.focused_output) {
+        server.wl->fractional_scales->set_preferred_scale(s, o->wlr->scale);
+        s->set_preferred_scale(int32_t(std::ceil(o->wlr->scale)));
+        // Tell the client how much room there is before it picks a size.
+        toplevel->set_bounds(o->usable.width, o->usable.height - (wants_ssd() ? Titlebar::kHeight : 0));
+    }
+    apply_decoration_mode();
+    // A rule sends it to a secret space: start at the size it will have
+    // there. Otherwise reopen at the size the app last had, or let it pick
+    // its own.
+    remembered_ = server.placement_for(this);
+    const bool secret = server.focused_output && !toplevel->app_id().empty() &&
+        !apply_rules(server.config.rules, toplevel->app_id(), toplevel->title()).secret.empty();
+    if (secret && !toplevel->parent()) {
+        const wlr_box f = geometry::secret_frame(server.focused_output->usable, server.config.secret_margin);
+        toplevel->set_size(f.width, std::max(1, f.height - (wants_ssd() ? Titlebar::kHeight : 0)));
+    } else if (remembered_) {
+        toplevel->set_size(remembered_->width, std::max(1, remembered_->height - (wants_ssd() ? Titlebar::kHeight : 0)));
+    } else {
+        toplevel->set_size(0, 0);
+    }
 }
 
 void XdgView::commit() {
-    wlr_xdg_surface* base = toplevel->base;
-    if (base->initial_commit) {
-        wlr_xdg_toplevel_set_wm_capabilities(toplevel,
-            WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE |
-            WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN |
-            WLR_XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE);
-        if (Output* o = server.focused_output) {
-            wlr_fractional_scale_v1_notify_scale(base->surface, o->wlr->scale);
-            wlr_surface_set_preferred_buffer_scale(base->surface, int32_t(std::ceil(o->wlr->scale)));
-            // Tell the client how much room there is before it picks a size.
-            if (wl_resource_get_version(toplevel->resource) >= XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION)
-                wlr_xdg_toplevel_set_bounds(toplevel, o->usable.width,
-                                            o->usable.height - (wants_ssd() ? Titlebar::kHeight : 0));
-        }
-        apply_decoration_mode();
-        // A rule sends it to a secret space: start at the size it will have
-        // there. Otherwise reopen at the size the app last had, or let it
-        // pick its own.
-        remembered_ = server.placement_for(this);
-        const bool secret = server.focused_output && toplevel->app_id &&
-            !apply_rules(server.config.rules, toplevel->app_id, toplevel->title ? toplevel->title : "").secret.empty();
-        if (secret && !toplevel->parent) {
-            const wlr_box f = geometry::secret_frame(server.focused_output->usable, server.config.secret_margin);
-            wlr_xdg_toplevel_set_size(toplevel, f.width, std::max(1, f.height - (wants_ssd() ? Titlebar::kHeight : 0)));
-        } else if (remembered_)
-            wlr_xdg_toplevel_set_size(toplevel, remembered_->width,
-                                      std::max(1, remembered_->height - (wants_ssd() ? Titlebar::kHeight : 0)));
-        else
-            wlr_xdg_toplevel_set_size(toplevel, 0, 0);
-        return;
-    }
     if (!mapped)
         return;
-
     // Crop to the window geometry: client-side shadows are the client's
     // business, ours are drawn by the compositor.
-    wlr_box clip = base->geometry;
+    const wl::Box g = toplevel->base()->geometry();
+    const wlr_box clip{g.x, g.y, g.width, g.height};
     scene::subsurface_tree_set_clip(content, &clip);
-    handle_size(base->geometry.width, base->geometry.height);
+    handle_size(g.width, g.height);
     if (resize_settling_ && !awaiting_configure())
         settle_resize();
     update_corners();
@@ -131,89 +126,96 @@ void XdgView::commit() {
 
 bool XdgView::awaiting_configure() const {
     // Serials wrap; compare by signed distance.
-    return last_size_serial_ &&
-           int32_t(toplevel->base->current.configure_serial - last_size_serial_) < 0;
+    return last_size_serial_ && toplevel->base() &&
+           int32_t(toplevel->base()->configure_serial() - last_size_serial_) < 0;
 }
 
 void XdgView::configure(const wlr_box& frame) {
-    if (!toplevel->base->initialized)
+    if (!toplevel->base() || !toplevel->base()->initialized())
         return;
     const wlr_box box = content_box(frame);
-    if (box.width != toplevel->scheduled.width || box.height != toplevel->scheduled.height)
-        last_size_serial_ = wlr_xdg_toplevel_set_size(toplevel, box.width, box.height);
+    if (box.width != toplevel->scheduled().width || box.height != toplevel->scheduled().height)
+        last_size_serial_ = toplevel->set_size(box.width, box.height);
 }
 
 scene::Tree* XdgView::create_content(scene::Tree* parent) {
-    return scene::xdg_surface_create(parent, toplevel->base);
+    return scene::xdg_surface_create(parent, toplevel->base());
 }
 
 void XdgView::surface_origin(double& x, double& y) const {
-    x = geom.x - toplevel->base->geometry.x;
-    y = geom.y + top() - toplevel->base->geometry.y;
+    const wl::Box g = toplevel->base()->geometry();
+    x = geom.x - g.x;
+    y = geom.y + top() - g.y;
 }
 
 const char* XdgView::app_id() const {
-    return toplevel->app_id ? toplevel->app_id : "";
+    return toplevel->app_id().c_str();
 }
 
 const char* XdgView::title() const {
-    return toplevel->title ? toplevel->title : "";
+    return toplevel->title().c_str();
 }
 
 View* XdgView::parent() const {
-    return toplevel->parent ? static_cast<View*>(toplevel->parent->base->data) : nullptr;
+    return toplevel->parent() ? static_cast<View*>(toplevel->parent()->data) : nullptr;
 }
 
 void XdgView::size_hints(wlr_box& min, wlr_box& max) const {
-    const auto& s = toplevel->current;
-    min = {0, 0, s.min_width, s.min_height};
-    max = {0, 0, s.max_width, s.max_height};
+    min = {0, 0, toplevel->min_width(), toplevel->min_height()};
+    max = {0, 0, toplevel->max_width(), toplevel->max_height()};
 }
 
 bool XdgView::is_dialog() const {
     wlr_box min, max;
     size_hints(min, max);
-    return toplevel->parent ||
+    return toplevel->parent() ||
            (min.width > 0 && min.height > 0 && (min.width == max.width || min.height == max.height));
 }
 
 bool XdgView::modal() const {
-    const wlr_xdg_dialog_v1* d = wlr_xdg_dialog_v1_try_from_wlr_xdg_toplevel(toplevel);
-    return d && d->modal && toplevel->parent;
+    return toplevel->parent() && server.wl->dialogs->modal(toplevel);
 }
 
 void XdgView::close() {
-    wlr_xdg_toplevel_send_close(toplevel);
+    toplevel->close();
 }
 
 void XdgView::send_activated(bool a) {
-    wlr_xdg_toplevel_set_activated(toplevel, a);
+    toplevel->set_activated(a);
 }
 
 void XdgView::send_maximized(bool m) {
-    wlr_xdg_toplevel_set_maximized(toplevel, m);
+    toplevel->set_maximized(m);
 }
 
 void XdgView::send_fullscreen(bool f) {
-    wlr_xdg_toplevel_set_fullscreen(toplevel, f);
+    toplevel->set_fullscreen(f);
 }
 
 void XdgView::send_suspended(bool s) {
-    wlr_xdg_toplevel_set_suspended(toplevel, s);
+    toplevel->set_suspended(s);
 }
 
 void XdgView::dismiss_popups() {
-    wlr_xdg_popup *popup, *tmp;
-    wl_list_for_each_safe(popup, tmp, &toplevel->base->popups, link)
-        wlr_xdg_popup_destroy(popup);
+    if (!toplevel->base())
+        return;
+    const std::vector<wl::Popup*> popups = toplevel->base()->popups();
+    for (wl::Popup* p : popups)
+        p->dismiss();
 }
 
 // --- decorations -------------------------------------------------------------
 
-void XdgView::set_decoration(wlr_xdg_toplevel_decoration_v1* d) {
+void XdgView::set_decoration(wl::Decorations::Xdg* d) {
     decoration_ = d;
-    decoration_request_.connect(&d->events.request_mode, [this](void*) { apply_decoration_mode(); });
-    decoration_destroy_.connect(&d->events.destroy, [this](void*) {
+    auto& decorations = *server.wl->decorations;
+    decoration_request_ = decorations.events.request_mode.connect([this](wl::Decorations::Xdg* x) {
+        if (x == decoration_)
+            apply_decoration_mode();
+    });
+    decoration_destroy_ = decorations.events.destroy_xdg.connect([this](wl::Decorations::Xdg* x) {
+        if (x != decoration_)
+            return;
         decoration_ = nullptr;
         decoration_request_.disconnect();
         decoration_destroy_.disconnect();
@@ -222,10 +224,16 @@ void XdgView::set_decoration(wlr_xdg_toplevel_decoration_v1* d) {
     apply_decoration_mode();
 }
 
-void XdgView::set_kde_decoration(wlr_server_decoration* d) {
+void XdgView::set_kde_decoration(wl::Decorations::Kde* d) {
     kde_decoration_ = d;
-    kde_mode_.connect(&d->events.mode, [this](void*) { refresh_decoration_mode(); });
-    kde_destroy_.connect(&d->events.destroy, [this](void*) {
+    auto& decorations = *server.wl->decorations;
+    kde_mode_ = decorations.events.kde_mode.connect([this](wl::Decorations::Kde* k) {
+        if (k == kde_decoration_)
+            refresh_decoration_mode();
+    });
+    kde_destroy_ = decorations.events.destroy_kde.connect([this](wl::Decorations::Kde* k) {
+        if (k != kde_decoration_)
+            return;
         kde_decoration_ = nullptr;
         kde_mode_.disconnect();
         kde_destroy_.disconnect();
@@ -235,52 +243,49 @@ void XdgView::set_kde_decoration(wlr_server_decoration* d) {
 }
 
 bool XdgView::wants_ssd() const {
-    return (decoration_ && decoration_->requested_mode != WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE) ||
-           (kde_decoration_ && kde_decoration_->mode == WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
+    return (decoration_ && decoration_->requested != wl::Decorations::ClientSide) ||
+           (kde_decoration_ && kde_decoration_->mode == wl::Decorations::ServerSide);
 }
 
 void XdgView::apply_decoration_mode() {
     // atrium's title bar unless the client says it draws its own (a
     // browser's tab strip with its buttons): forcing ours on those gave two.
-    if (decoration_ && toplevel->base->initialized)
-        wlr_xdg_toplevel_decoration_v1_set_mode(decoration_, wants_ssd()
-            ? WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
-            : WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+    if (decoration_ && toplevel->base() && toplevel->base()->initialized())
+        server.wl->decorations->set_mode(decoration_,
+                                         wants_ssd() ? wl::Decorations::ServerSide : wl::Decorations::ClientSide);
     refresh_decoration_mode();
 }
 
 // --- popups --------------------------------------------------------------------
 
-void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup) {
+void handle_new_xdg_popup(Server& server, wl::Popup* popup) {
     // Lives until the popup's first commit (or its destruction, whichever
     // comes first); after that the scene helpers track the popup themselves.
     struct Watch {
-        Listener<> commit;
-        Listener<> destroy;
+        wl::Connection commit, destroy;
     };
     auto* watch = new Watch;
-
-    watch->destroy.connect(&popup->events.destroy, [watch](void*) { delete watch; });
-    watch->commit.connect(&popup->base->surface->events.commit, [&server, popup, watch](void*) {
-        if (!popup->base->initial_commit)
+    wl::Surface* surface = popup->base()->surface();
+    watch->destroy = popup->events.destroy.connect([watch] { delete watch; });
+    watch->commit = surface->events.commit.connect([&server, popup, surface, watch] {
+        if (!popup->base()->initialized())
             return;
-
-        Owner owner = Server::owner_of(popup->base->surface);
-        auto* parent_tree = popup->parent ? static_cast<scene::Tree*>(popup->parent->data) : nullptr;
+        Owner owner = Server::owner_of(surface);
+        auto* parent_tree = popup->parent() ? static_cast<scene::Tree*>(popup->parent()->data) : nullptr;
         if (!owner || !parent_tree) {
             delete watch;
             return;
         }
-        auto* popup_tree = scene::xdg_surface_create(parent_tree, popup->base);
-        popup->base->surface->data = popup_tree;
-        attach_surface_blur(server, popup_tree, popup->base->surface);
+        auto* popup_tree = scene::xdg_surface_create(parent_tree, popup->base());
+        surface->data = popup_tree;
+        attach_surface_blur(server, popup_tree, surface);
 
         // Keep the popup on its output, in the toplevel's coordinate space.
         wlr_box box;
         if (owner.layer) {
             if (!owner.layer->output) {
                 delete watch;
-                wlr_xdg_popup_destroy(popup);
+                popup->dismiss();
                 return;
             }
             box = owner.layer->output->box;
@@ -290,14 +295,14 @@ void handle_new_xdg_popup(Server& server, wlr_xdg_popup* popup) {
             View* v = owner.view;
             if (!v->output) {
                 delete watch;
-                wlr_xdg_popup_destroy(popup);
+                popup->dismiss();
                 return;
             }
             box = v->output->usable;
             box.x -= v->geom.x;
             box.y -= v->geom.y + v->top();
         }
-        wlr_xdg_popup_unconstrain_from_box(popup, &box);
+        popup->unconstrain_from({box.x, box.y, box.width, box.height});
         delete watch;
     });
 }
