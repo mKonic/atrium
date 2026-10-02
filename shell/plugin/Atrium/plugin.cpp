@@ -12,6 +12,7 @@
 #include "levels.hpp"
 #include "session.hpp"
 #include "greeter.hpp"
+#include "unlock.hpp"
 #include "mpris.hpp"
 #include "tray.hpp"
 #include "audio.hpp"
@@ -198,6 +199,10 @@ public:
         // greetd, for the login screen.
         qmlRegisterSingletonType<Greeter>(uri, 1, 0, "Greeter", [](QQmlEngine*, QJSEngine*) -> QObject* {
             return new Greeter;
+        });
+        // The lock screen's password check.
+        qmlRegisterSingletonType<Unlock>(uri, 1, 0, "Unlock", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            return new Unlock;
         });
         qmlRegisterUncreatableType<AuthFlow>(uri, 1, 0, "AuthFlow", "from PolkitAgent");
         qmlRegisterUncreatableType<PolkitIdentity>(uri, 1, 0, "PolkitIdentity", "from an AuthFlow");

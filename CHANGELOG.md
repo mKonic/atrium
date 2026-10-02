@@ -26,6 +26,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - VR headsets go to VR apps (SteamVR, Monado) instead of joining the desktop.
 - "Launch on …" another graphics card in an app's menu in the Dock and the launcher; apps that ask for the discrete GPU get it.
 - atrium-login, atrium's own login manager: the login screen, autologin, and back to the login screen after logging out (in place of SDDM or greetd).
+- A lock screen (Super+L), which stays locked if it crashes and comes back.
 
 ### Changed
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.

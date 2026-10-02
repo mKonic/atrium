@@ -254,6 +254,7 @@ TEST(Registry, MigratesOldArrowDefaults) {
     EXPECT_EQ(find("Mod+period")->arg, "emoji");
     EXPECT_EQ(find("Print")->arg, "screenshot");
     EXPECT_EQ(find("Mod+Shift+S")->arg, "screenshot-region");
+    EXPECT_EQ(find("Mod+L")->action, "lock");
     std::remove(path.c_str());
 }
 

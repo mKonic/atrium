@@ -63,7 +63,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 14;
+constexpr int kSchemaVersion = 15;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -290,6 +290,11 @@ void Registry::migrate() {
     // 14: a colour profile (ICC file) per display.
     if (version > 0 && version < 14)
         exec("ALTER TABLE displays ADD COLUMN icc TEXT NOT NULL DEFAULT ''");
+    // 15: the lock screen (Super+L).
+    if (version >= 2 && version < 15)
+        exec("INSERT INTO shortcuts (position, keys, action) "
+             "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+L', 'lock' FROM shortcuts "
+             "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = 'Mod+L')");
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

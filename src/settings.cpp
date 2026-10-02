@@ -90,6 +90,7 @@ constexpr ActionName kActions[] = {
     {Action::ToggleFloating, "toggle-floating"},
     {Action::TogglePin, "toggle-pin"},
     {Action::Place, "place"},
+    {Action::Lock, "lock"},
 };
 
 } // namespace
@@ -196,6 +197,7 @@ json default_keybinds() {
         {{"keys", "Mod+Tab"}, {"action", "cycle-space-next"}},
         {{"keys", "Mod+Shift+Tab"}, {"action", "cycle-space-prev"}},
         {{"keys", "Mod+Shift+E"}, {"action", "quit"}},
+        {{"keys", "Mod+L"}, {"action", "lock"}},
         {{"keys", "Mod+Left"}, {"action", "focus-direction"}, {"arg", "left"}},
         {{"keys", "Mod+Right"}, {"action", "focus-direction"}, {"arg", "right"}},
         {{"keys", "Mod+Up"}, {"action", "focus-direction"}, {"arg", "up"}},

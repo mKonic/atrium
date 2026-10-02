@@ -8,6 +8,13 @@ namespace atrium {
 
 class Server;
 
+// atrium's own shell's QML directory (the source tree's when atrium runs
+// from its build directory), and atrium-shell, which runs it.
+std::string builtin_dir();
+std::string shell_binary();
+// `s` in single quotes for /bin/sh.
+std::string quoted(const std::string& s);
+
 // The desktop shell (bar, dock, launcher...) as a child atrium keeps
 // running: started with the session, restarted when it dies, backing off
 // if it keeps dying right away.
@@ -38,6 +45,7 @@ private:
     int quick_failures_ = 0;
     static constexpr int kSafeAfter = 3;  // quick failures before safe mode
     int pipe_[2] = {-1, -1};  // the SIGCHLD handler reports the shell's exit here
+    int watch_ = -1;
     wl_event_source* pipe_source_ = nullptr;
     wl_event_source* retry_ = nullptr;
 };

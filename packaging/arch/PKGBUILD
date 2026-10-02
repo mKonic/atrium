@@ -44,7 +44,7 @@ optdepends=(
   'kate: a text editor'
 )
 provides=(atrium)
-backup=(etc/pam.d/atrium-login etc/pam.d/atrium-greeter etc/pam.d/atrium-autologin)
+backup=(etc/pam.d/atrium-login etc/pam.d/atrium-greeter etc/pam.d/atrium-autologin etc/pam.d/atrium-lock)
 conflicts=(atrium)
 source=("atrium::git+file://${ATRIUM_SRC:-${startdir}/../..}")
 sha256sums=('SKIP')

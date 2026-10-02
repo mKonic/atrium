@@ -9,6 +9,8 @@ atrium_sources = files(
   'util/timeline.cpp',
   'util/xcursor.cpp',
   'anim.cpp',
+  'child_watch.cpp',
+  'lock_screen.cpp',
   'cairo_buffer.cpp',
   'backend/allocator.cpp',
   'backend/drm/drm.cpp',

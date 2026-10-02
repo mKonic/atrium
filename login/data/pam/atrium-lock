@@ -1,0 +1,5 @@
+#%PAM-1.0
+# Unlocking atrium's lock screen (it runs as the user: pam_unix checks
+# through unix_chkpwd).
+auth       include      system-local-login
+account    include      system-local-login

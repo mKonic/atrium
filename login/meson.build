@@ -23,6 +23,6 @@ install_data('data/sysusers.conf', rename: 'atrium-login.conf',
   install_dir: get_option('prefix') / 'lib' / 'sysusers.d')
 install_data('data/tmpfiles.conf', rename: 'atrium-login.conf',
   install_dir: get_option('prefix') / 'lib' / 'tmpfiles.d')
-install_data('data/pam/atrium-login', 'data/pam/atrium-greeter', 'data/pam/atrium-autologin',
+install_data('data/pam/atrium-login', 'data/pam/atrium-greeter', 'data/pam/atrium-autologin', 'data/pam/atrium-lock',
   install_dir: get_option('sysconfdir') / 'pam.d')
 install_data('data/login.conf', install_dir: get_option('datadir') / 'atrium')

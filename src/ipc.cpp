@@ -1,4 +1,5 @@
 #include "ipc.hpp"
+#include "lock_screen.hpp"
 #include "util/log.hpp"
 #include "input_method.hpp"
 #include "keyboard_conf.hpp"
@@ -780,6 +781,9 @@ json Ipc::handle(Client& c, const json& req) {
         server_.dock_icons[req["output"].get<std::string>()] = std::move(icons);
         return ok();
     }
+    if (cmd == "session")
+        return ok({{"locked", server_.locked},
+                   {"lock_screen", server_.lock_screen && server_.lock_screen->running()}});
     if (cmd == "night_light")
         return server_.night_light ? ok(server_.night_light->state()) : fail("no night light here");
     if (cmd == "night_light.set") {

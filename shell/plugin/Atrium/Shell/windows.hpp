@@ -233,6 +233,16 @@ private:
     LayerShellQt::Window* shell_ = nullptr;
 };
 
+// A lock screen's window: in a process run with the atrium-lock shell
+// integration (QT_WAYLAND_SHELL_INTEGRATION=atrium-lock), a lock surface
+// covering its screen.
+class LockWindow : public ShellWindow {
+    Q_OBJECT
+
+public:
+    using ShellWindow::ShellWindow;
+};
+
 class FloatingWindow : public ShellWindow {
     Q_OBJECT
     Q_PROPERTY(QSize minimumSize READ minimumSize WRITE setMinimumSize NOTIFY minimumSizeChanged)
