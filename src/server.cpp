@@ -640,6 +640,23 @@ void Server::start_clipboard_sync() {
         spawn("exec '" + bin.string() + "'");
 }
 
+// atrium-phonelink, a phone's sound over the network: always started, it
+// idles while phone.audio is off. The sound is the user's, so a nested
+// atrium leaves it to the host session.
+void Server::start_phone_link() {
+    namespace fs = std::filesystem;
+    if (nested && !std::getenv("ATRIUM_PHONELINK"))
+        return;
+    std::error_code ec;
+    const fs::path exe = fs::read_symlink("/proc/self/exe", ec);
+    fs::path bin = fs::path(ATRIUM_BINDIR) / "atrium-phonelink";
+    if (const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "shell" / "phonelink" / "atrium-phonelink";
+        !ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built))
+        bin = built;
+    if (fs::exists(bin))
+        spawn("exec '" + bin.string() + "'");
+}
+
 // Things the hardware forgets between boots (the monitors' brightness is the
 // shell's: it talks to them anyway, and two talking at once collide).
 void Server::restore_power_and_brightness() {
@@ -820,6 +837,7 @@ void Server::run(const char* startup_cmd) {
     if (!config.greeter) {
         start_clipboard_history();
         start_clipboard_sync();
+        start_phone_link();
         restore_power_and_brightness();
     }
     if (!nested && !config.greeter)

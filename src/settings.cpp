@@ -651,6 +651,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Share the clipboard with a paired phone while it is connected: the last few copies when it connects, then "
         "every copy on either side. The phone needs the atrium clipboard module.", false, [](Config&, const json&) {}));
     s.back().custom = true;
+    // Read by atrium-phonelink; the Phone page draws it.
+    s.push_back(make("phone.audio", SettingType::Bool, "Phone", "Phone audio",
+        "Play a paired phone's sound here, over the network, while both are on it. The phone needs the atrium "
+        "clipboard module.", false, [](Config&, const json&) {}));
+    s.back().custom = true;
 
     // Dock (read by the shell; the compositor itself has no use for them)
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
