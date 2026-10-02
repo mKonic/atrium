@@ -13,6 +13,9 @@ extern "C" {
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <sys/mman.h>
+#include <xf86drm.h>
+#include <xf86drmMode.h>
 #include <algorithm>
 
 namespace atrium::backend {
@@ -23,6 +26,46 @@ struct GbmBuffer {
     wlr_buffer base;
     gbm_bo* bo;
     wlr_dmabuf_attributes dmabuf;
+};
+
+// A dumb buffer: CPU-written, scanned out, nothing renders into it.
+struct DumbBuffer {
+    wlr_buffer base;
+    int drm_fd;
+    uint32_t handle;
+    void* map;
+    size_t size;
+    wlr_dmabuf_attributes dmabuf;
+};
+
+DumbBuffer* dumb_of(wlr_buffer* b) {
+    return reinterpret_cast<DumbBuffer*>(b);
+}
+
+const wlr_buffer_impl kDumbBufferImpl = {
+    .destroy =
+        [](wlr_buffer* b) {
+            DumbBuffer* d = dumb_of(b);
+            wlr_buffer_finish(b);
+            wlr_dmabuf_attributes_finish(&d->dmabuf);
+            munmap(d->map, d->size);
+            drmModeDestroyDumbBuffer(d->drm_fd, d->handle);
+            delete d;
+        },
+    .get_dmabuf =
+        [](wlr_buffer* b, wlr_dmabuf_attributes* out) {
+            *out = dumb_of(b)->dmabuf;
+            return true;
+        },
+    .begin_data_ptr_access =
+        [](wlr_buffer* b, uint32_t, void** data, uint32_t* format, size_t* stride) {
+            DumbBuffer* d = dumb_of(b);
+            *data = d->map;
+            *format = d->dmabuf.format;
+            *stride = d->dmabuf.stride[0];
+            return true;
+        },
+    .end_data_ptr_access = [](wlr_buffer*) {},
 };
 
 GbmBuffer* gbm_of(wlr_buffer* b) {
@@ -71,6 +114,20 @@ bool export_dmabuf(gbm_bo* bo, wlr_dmabuf_attributes* out) {
 
 } // namespace
 
+std::unique_ptr<Allocator> Allocator::create_dumb(int drm_fd) {
+    const int fd = fcntl(drm_fd, F_DUPFD_CLOEXEC, 0);
+    if (fd < 0)
+        return nullptr;
+    uint64_t cap = 0;
+    if (drmGetCap(fd, DRM_CAP_DUMB_BUFFER, &cap) || !cap) {
+        close(fd);
+        return nullptr;
+    }
+    std::unique_ptr<Allocator> a(new Allocator());
+    a->fd_ = fd;
+    return a;
+}
+
 std::unique_ptr<Allocator> Allocator::create(int drm_fd) {
     const int fd = fcntl(drm_fd, F_DUPFD_CLOEXEC, 0);
     if (fd < 0)
@@ -95,6 +152,8 @@ Allocator::~Allocator() {
 }
 
 wlr_buffer* Allocator::allocate(int width, int height, uint32_t format, const std::vector<uint64_t>& modifiers) {
+    if (!gbm_)
+        return allocate_dumb(width, height, format);
     const bool implicit = modifiers.empty() ||
                           (modifiers.size() == 1 && modifiers[0] == DRM_FORMAT_MOD_INVALID);
     gbm_bo* bo = nullptr;
@@ -180,6 +239,48 @@ wlr_buffer* Swapchain::acquire() {
     };
     wl_signal_add(&free->buffer->events.release, &free->release);
     return wlr_buffer_lock(free->buffer);
+}
+
+} // namespace atrium::backend
+
+namespace atrium::backend {
+
+wlr_buffer* Allocator::allocate_dumb(int width, int height, uint32_t format) {
+    // 32 bits a pixel: what the screens take from a CPU.
+    if (format != DRM_FORMAT_XRGB8888 && format != DRM_FORMAT_ARGB8888 && format != DRM_FORMAT_XBGR8888 &&
+        format != DRM_FORMAT_ABGR8888)
+        return nullptr;
+    uint32_t handle = 0, stride = 0;
+    uint64_t size = 0;
+    if (drmModeCreateDumbBuffer(fd_, uint32_t(width), uint32_t(height), 32, 0, &handle, &stride, &size) != 0) {
+        wlr_log(WLR_ERROR, "allocator: no %dx%d dumb buffer", width, height);
+        return nullptr;
+    }
+    uint64_t offset = 0;
+    void* map = MAP_FAILED;
+    if (drmModeMapDumbBuffer(fd_, handle, &offset) == 0)
+        map = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, off_t(offset));
+    int prime = -1;
+    if (map == MAP_FAILED || drmPrimeHandleToFD(fd_, handle, DRM_CLOEXEC | DRM_RDWR, &prime) != 0) {
+        if (map != MAP_FAILED)
+            munmap(map, size);
+        drmModeDestroyDumbBuffer(fd_, handle);
+        return nullptr;
+    }
+    auto* d = new DumbBuffer{};
+    wlr_buffer_init(&d->base, &kDumbBufferImpl, width, height);
+    d->drm_fd = fd_;
+    d->handle = handle;
+    d->map = map;
+    d->size = size_t(size);
+    d->dmabuf.width = width;
+    d->dmabuf.height = height;
+    d->dmabuf.format = format;
+    d->dmabuf.modifier = DRM_FORMAT_MOD_LINEAR;
+    d->dmabuf.n_planes = 1;
+    d->dmabuf.fd[0] = prime;
+    d->dmabuf.stride[0] = stride;
+    return &d->base;
 }
 
 } // namespace atrium::backend

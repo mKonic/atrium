@@ -87,11 +87,11 @@ int open_render_node(int drm_fd) {
 
 } // namespace
 
-std::unique_ptr<Egl> Egl::create(int drm_fd) {
+std::unique_ptr<Egl> Egl::create(int drm_fd, bool software_ok) {
     std::unique_ptr<Egl> egl(new Egl());
     if (!egl->load_client_extensions())
         return nullptr;
-    const bool allow_software = drm_fd < 0;
+    const bool allow_software = software_ok || drm_fd < 0;
 
     if (egl->exts.EXT_platform_device) {
         EGLDeviceEXT device = egl->device_for(drm_fd);

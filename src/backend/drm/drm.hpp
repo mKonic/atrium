@@ -4,6 +4,7 @@
 // its frames go to the CRTC's primary plane and the pointer to its cursor
 // plane. After wlroots' backend/drm (MIT), with aquamarine's and KWin's
 // as further reference.
+#include "backend/allocator.hpp"
 #include "backend/backend.hpp"
 #include "backend/drm/props.hpp"
 #include "backend/session.hpp"
@@ -21,13 +22,19 @@ extern "C" {
 struct wlr_buffer;
 struct wlr_drm_syncobj_timeline;
 
+namespace atrium::render {
+class Renderer;
+}
+
 namespace atrium::backend::drm {
 
 class Drm final : public Backend {
 public:
     // The KMS device at `path`, opened through the session; null if it has
-    // no display outputs or can't be driven.
-    static std::unique_ptr<Drm> create(wl_event_loop* loop, Session& session, const std::string& path);
+    // no display outputs or can't be driven. With a `parent` (the GPU that
+    // renders), frames arrive from it and are copied over before scan-out.
+    static std::unique_ptr<Drm> create(wl_event_loop* loop, Session& session, const std::string& path,
+                                       Drm* parent = nullptr);
     ~Drm() override;
 
     bool start() override;
@@ -35,9 +42,13 @@ public:
     uint32_t buffer_caps() const override;
     bool commit(const std::vector<std::pair<Output*, OutputState>>& states, bool test_only) override;
     bool is_drm() const override { return true; }
-    bool supports_timelines() const override { return timeline_; }
+    bool supports_timelines() const override;
 
     const std::string& name() const { return name_; }
+    Drm* parent() const { return parent_; }
+
+    // Its device was unplugged.
+    wl::Signal<> removed;
 
 private:
     struct Plane;
@@ -62,14 +73,32 @@ private:
 
     bool commit_connector(Connector& c, const OutputState& state, bool test_only);
     bool commit_states(std::vector<ConnState>& states, bool modeset, bool nonblock, bool test_only, bool async);
-    bool prepare(ConnState& st, bool modeset);
+    bool prepare(ConnState& st, bool modeset, bool test_only);
     bool legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_only, bool async, PageFlip* flip);
     uint32_t current_crtc(uint32_t connector, const drmModeConnector* info) const;
+    bool init_mgpu();
+    // `src` (the parent GPU's) drawn into a buffer of ours from `sc`, locked;
+    // `fence` gets a sync_file for the copy's end when timelines work.
+    // `from` is the renderer that drew it, for copies through the CPU.
+    wlr_buffer* copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
+                        wlr_renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence);
+    bool cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm_syncobj_timeline* wait,
+                  uint64_t wait_point);
     void handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned crtc_id, PageFlip* flip);
     void session_active(bool active);
     void restore(const std::vector<Connector*>& conns);
 
     Session& session_;
+    Drm* parent_ = nullptr;
+    // A secondary GPU's own renderer for the copies, what it can read of
+    // the parent's buffers (explicit modifiers), and its copies' timeline.
+    render::Renderer* mgpu_renderer_ = nullptr;
+    std::unique_ptr<Allocator> mgpu_allocator_;
+    std::unique_ptr<Allocator> mgpu_dumb_;  // copies through the CPU
+    wlr_drm_format_set mgpu_formats_{};
+    wlr_drm_syncobj_timeline* mgpu_timeline_ = nullptr;
+    uint64_t mgpu_point_ = 0;
+    bool mgpu_cpu_ = false;  // it can't read the parent's buffers
     Session::Device* device_ = nullptr;
     int fd_ = -1;
     std::string name_;

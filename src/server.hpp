@@ -22,6 +22,10 @@
 #include <string>
 #include <vector>
 
+namespace atrium::backend::drm {
+class Drm;
+}
+
 namespace atrium::xwayland {
 class Xwm;
 class XSurface;
@@ -344,6 +348,11 @@ private:
 
     scene::Tree* layers_[kLayerCount]{};
     std::unique_ptr<backend::Session> own_session_;
+    backend::drm::Drm* primary_gpu_ = nullptr;
+    std::vector<backend::drm::Drm*> pending_gpu_removal_;
+    wl::Connection gpu_added_;
+    std::vector<wl::Connection> gpu_removed_;
+    void add_gpu(const std::string& path);
     std::unique_ptr<backend::Multi> backend_;
     std::unique_ptr<backend::Allocator> allocator_;
     std::unique_ptr<OutputLayout> output_layout_;

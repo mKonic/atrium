@@ -2,17 +2,23 @@
 
 #include "backend/drm/match.hpp"
 #include "listener.hpp"
+#include "render/renderer.hpp"
 #include "wlr.hpp"
 
 extern "C" {
 #include <libdisplay-info/cvt.h>
 #include <libdisplay-info/info.h>
 #include <wlr/render/dmabuf.h>
+#include <wlr/render/drm_syncobj.h>
+#include <wlr/render/pass.h>
+#include <wlr/render/wlr_renderer.h>
+#include <wlr/render/wlr_texture.h>
 #include <wlr/util/transform.h>
 }
 
 #include <drm_fourcc.h>
 #include <libdrm/drm_mode.h>
+#include <poll.h>
 #include <unistd.h>
 #include <xf86drm.h>
 
@@ -186,6 +192,9 @@ struct Drm::Connector {
     wlr_buffer* cursor_pending = nullptr;
     int cursor_x = 0, cursor_y = 0, hotspot_x = 0, hotspot_y = 0, cursor_w = 0, cursor_h = 0;
 
+    // A secondary GPU's copies of the frames and the cursor.
+    std::unique_ptr<Swapchain> mgpu_swapchain, mgpu_cursor;
+
     ~Connector() {
         if (cursor_pending)
             wlr_buffer_unlock(cursor_pending);
@@ -215,6 +224,7 @@ struct Drm::ConnState {
     uint32_t mode_id = 0, gamma_lut = 0, damage_clips = 0, hdr_metadata = 0;
     int in_fence = -1;
     bool vrr = false;
+    bool copied = false;  // from the parent GPU: its release is signalled already
     uint64_t colorspace = 0;
 
     void finish() {
@@ -244,8 +254,11 @@ public:
             return size_t(size);
         return size_t(conn.crtc->legacy_gamma_size);
     }
+    // On a secondary GPU: what it can copy from (the parent renders).
     const wlr_drm_format_set* primary_formats(uint32_t) const override {
-        return drm.alloc_crtc(conn) ? &conn.crtc->primary->formats : nullptr;
+        if (!drm.alloc_crtc(conn))
+            return nullptr;
+        return drm.parent_ ? &drm.mgpu_formats_ : &conn.crtc->primary->formats;
     }
     bool direct_scanout_allowed() const override { return true; }
 
@@ -254,7 +267,9 @@ public:
         return has_cursor_plane() ? conn.crtc->cursor->cursor_sizes : std::vector<std::pair<int, int>>{};
     }
     const wlr_drm_format_set* cursor_formats(uint32_t) const override {
-        return has_cursor_plane() ? &conn.crtc->cursor->formats : nullptr;
+        if (!has_cursor_plane())
+            return nullptr;
+        return drm.parent_ ? &drm.mgpu_formats_ : &conn.crtc->cursor->formats;
     }
 
     bool set_cursor(wlr_buffer* buffer, int hx, int hy) override {
@@ -276,9 +291,17 @@ public:
             const bool fits = std::ranges::any_of(plane->cursor_sizes, [&](auto s) {
                 return s.first == buffer->width && s.second == buffer->height;
             });
-            if (!fits || !drm.fb_for(buffer, &plane->formats))
+            if (!fits)
                 return false;
-            conn.cursor_pending = wlr_buffer_lock(buffer);
+            wlr_buffer* shown = drm.parent_
+                                    ? drm.copy_in(buffer, conn.mgpu_cursor, &plane->formats, renderer, nullptr, 0, nullptr)
+                                    : wlr_buffer_lock(buffer);
+            if (!shown || !drm.fb_for(shown, &plane->formats)) {
+                if (shown)
+                    wlr_buffer_unlock(shown);
+                return false;
+            }
+            conn.cursor_pending = shown;
             conn.cursor_enabled = true;
             conn.cursor_w = buffer->width;
             conn.cursor_h = buffer->height;
@@ -315,8 +338,9 @@ protected:
 
 Drm::Drm(wl_event_loop* loop, Session& session) : Backend(loop), session_(session) {}
 
-std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const std::string& path) {
+std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const std::string& path, Drm* parent) {
     std::unique_ptr<Drm> d(new Drm(loop, session));
+    d->parent_ = parent;
     d->device_ = session.open(path);
     if (!d->device_)
         return nullptr;
@@ -330,6 +354,8 @@ std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const st
     if (v)
         drmFreeVersion(v);
     if (!d->check_features() || !d->init_resources())
+        return nullptr;
+    if (parent && !d->init_mgpu())
         return nullptr;
 
     d->event_source_ = wl_event_loop_add_fd(
@@ -355,6 +381,7 @@ std::unique_ptr<Drm> Drm::create(wl_event_loop* loop, Session& session, const st
         if (c.type == Session::Device::Change::Type::Hotplug)
             raw->scan_connectors(c.connector);
     }));
+    d->connections_.push_back(d->device_->events.remove.connect([raw = d.get()] { raw->removed.emit(); }));
     wlr_log(WLR_INFO, "drm: driving %s", d->name_.c_str());
     return d;
 }
@@ -381,6 +408,13 @@ Drm::~Drm() {
             drmModeRmFB(fd_, fb->id);
     }
     fbs_.clear();
+    if (mgpu_timeline_)
+        wlr_drm_syncobj_timeline_unref(mgpu_timeline_);
+    wlr_drm_format_set_finish(&mgpu_formats_);
+    mgpu_allocator_.reset();
+    mgpu_dumb_.reset();
+    if (mgpu_renderer_)
+        wlr_renderer_destroy(mgpu_renderer_->wlr());
     if (event_source_)
         wl_event_source_remove(event_source_);
     if (device_)
@@ -714,6 +748,8 @@ void Drm::disconnect(Connector& c) {
     }
     destroy_blob(fd_, c.hdr_metadata);
     c.hdr_metadata = 0;
+    c.mgpu_swapchain.reset();
+    c.mgpu_cursor.reset();
     ConnOutput* o = c.output;
     c.output = nullptr;
     c.status = DRM_MODE_DISCONNECTED;
@@ -901,7 +937,7 @@ bool Drm::commit(const std::vector<std::pair<Output*, OutputState>>& in, bool te
 }
 
 // The connector's part: what it will show, and the blobs and fences for it.
-bool Drm::prepare(ConnState& st, bool modeset) {
+bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
     Connector& c = *st.conn;
     const OutputState& s = *st.base;
     ConnOutput& o = *c.output;
@@ -929,14 +965,50 @@ bool Drm::prepare(ConnState& st, bool modeset) {
     if (st.active) {
         Crtc& crtc = *c.crtc;
         Plane& primary = *crtc.primary;
-        if (s.committed & OutputState::Buffer) {
+        const bool wait = (s.committed & OutputState::WaitTimeline) && s.wait_timeline;
+        wlr_buffer* last = primary.queued ? primary.queued : primary.current;
+        if ((s.committed & OutputState::Buffer) && parent_ && test_only && last &&
+            last->width == s.buffer->width && last->height == s.buffer->height) {
+            // A test needn't copy: the last copy stands in.
+            st.primary_fb = fb_for(last, &primary.formats);
+            if (!st.primary_fb)
+                return false;
+            st.primary = wlr_buffer_lock(last);
+            st.src = src_box_of(s);
+            st.dst = dst_box_of(s, last->width, last->height);
+        } else if ((s.committed & OutputState::Buffer) && parent_) {
+            // The parent GPU drew it: copied into one of ours first. The copy
+            // waits for the frame, KMS for the copy, and the frame is free
+            // once copied.
+            int fence = -1;
+            st.primary = copy_in(s.buffer, c.mgpu_swapchain, &primary.formats, o.renderer,
+                                 wait ? s.wait_timeline : nullptr, s.wait_point, &fence);
+            if (!st.primary)
+                return false;
+            st.primary_fb = fb_for(st.primary, &primary.formats);
+            if (!st.primary_fb) {
+                if (fence >= 0)
+                    close(fence);
+                return false;
+            }
+            st.src = src_box_of(s);
+            st.dst = dst_box_of(s, s.buffer->width, s.buffer->height);
+            st.in_fence = fence;
+            st.copied = true;
+            if (!test_only && (s.committed & OutputState::SignalTimeline) && s.signal_timeline) {
+                if (fence >= 0)
+                    wlr_drm_syncobj_timeline_import_sync_file(s.signal_timeline, s.signal_point, fence);
+                else
+                    wlr_drm_syncobj_timeline_signal(s.signal_timeline, s.signal_point);  // copied already
+            }
+        } else if (s.committed & OutputState::Buffer) {
             st.primary_fb = fb_for(s.buffer, &primary.formats);
             if (!st.primary_fb)
                 return false;
             st.primary = wlr_buffer_lock(s.buffer);
             st.src = src_box_of(s);
             st.dst = dst_box_of(s, s.buffer->width, s.buffer->height);
-            if ((s.committed & OutputState::WaitTimeline) && s.wait_timeline) {
+            if (wait) {
                 st.wait = wlr_drm_syncobj_timeline_ref(s.wait_timeline);
                 st.wait_point = s.wait_point;
             }
@@ -1050,7 +1122,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
     size_t prepared = 0;
     for (ConnState& st : states) {
         ++prepared;
-        if (!prepare(st, modeset)) {
+        if (!prepare(st, modeset, test_only)) {
             ok = false;
             break;
         }
@@ -1199,7 +1271,7 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
                 wlr_drm_syncobj_timeline_unref(primary.queued_release);
                 primary.queued_release = nullptr;
             }
-            if ((st.base->committed & OutputState::SignalTimeline) && st.base->signal_timeline) {
+            if ((st.base->committed & OutputState::SignalTimeline) && st.base->signal_timeline && !st.copied) {
                 primary.queued_release = wlr_drm_syncobj_timeline_ref(st.base->signal_timeline);
                 primary.queued_point = st.base->signal_point;
             }
@@ -1295,6 +1367,162 @@ void Drm::handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned c
     o->send_present(p);
     if (session_.active() && c->output == o)
         o->send_frame();
+}
+
+bool Drm::supports_timelines() const {
+    if (parent_)
+        return timeline_ && mgpu_timeline_;
+    return timeline_;
+}
+
+// A secondary GPU: a renderer of its own to copy the parent's frames with.
+bool Drm::init_mgpu() {
+    // Copies are cheap enough on the CPU where the GPU has no 3D (DisplayLink).
+    mgpu_renderer_ = render::Renderer::create_on(fd_, true);
+    if (!mgpu_renderer_) {
+        wlr_log(WLR_ERROR, "drm: %s: no renderer to copy frames to it with", name_.c_str());
+        return false;
+    }
+    mgpu_allocator_ = Allocator::create(fd_);
+    if (!mgpu_allocator_) {
+        wlr_log(WLR_ERROR, "drm: %s: no allocator for copies", name_.c_str());
+        return false;
+    }
+    // What it reads of another GPU's buffers. Implicit modifiers mean
+    // something different on each GPU, so only explicit ones.
+    const wlr_drm_format_set* tex = wlr_renderer_get_texture_formats(mgpu_renderer_->wlr(), WLR_BUFFER_CAP_DMABUF);
+    for (size_t i = 0; tex && i < tex->len; ++i)
+        for (size_t k = 0; k < tex->formats[i].len; ++k)
+            if (tex->formats[i].modifiers[k] != DRM_FORMAT_MOD_INVALID)
+                wlr_drm_format_set_add(&mgpu_formats_, tex->formats[i].format, tex->formats[i].modifiers[k]);
+    if (mgpu_formats_.len == 0) {
+        wlr_log(WLR_ERROR, "drm: %s can't read other GPUs' buffers", name_.c_str());
+        return false;
+    }
+    if (timeline_ && mgpu_renderer_->wlr()->features.timeline)
+        mgpu_timeline_ = wlr_drm_syncobj_timeline_create(fd_);
+    wlr_log(WLR_INFO, "drm: %s shows frames rendered on %s", name_.c_str(), parent_->name_.c_str());
+    return true;
+}
+
+// Through the CPU: `from` (the parent's renderer) reads the frame back into
+// our buffer's mapping. Waits for the frame on the CPU first.
+bool Drm::cpu_copy(wlr_buffer* src, wlr_buffer* dst, wlr_renderer* from, wlr_drm_syncobj_timeline* wait,
+                   uint64_t wait_point) {
+    if (!from)
+        return false;
+    if (wait) {
+        const int fd = wlr_drm_syncobj_timeline_export_sync_file(wait, wait_point);
+        if (fd >= 0) {
+            pollfd p{fd, POLLIN, 0};
+            poll(&p, 1, 1000);
+            close(fd);
+        }
+    }
+    wlr_texture* tex = wlr_texture_from_buffer(from, src);
+    if (!tex) {
+        wlr_log(WLR_ERROR, "drm: %s: the frame can't be read back", name_.c_str());
+        return false;
+    }
+    void* data = nullptr;
+    uint32_t format = 0;
+    size_t stride = 0;
+    bool ok = false;
+    if (wlr_buffer_begin_data_ptr_access(dst, WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
+        wlr_texture_read_pixels_options o{};
+        o.data = data;
+        o.format = format;
+        o.stride = uint32_t(stride);
+        ok = wlr_texture_read_pixels(tex, &o);
+        wlr_buffer_end_data_ptr_access(dst);
+    } else {
+        wlr_log(WLR_ERROR, "drm: %s: couldn't map a buffer to copy into", name_.c_str());
+    }
+    wlr_texture_destroy(tex);
+    return ok;
+}
+
+wlr_buffer* Drm::copy_in(wlr_buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
+                         wlr_renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence) {
+    if (fence)
+        *fence = -1;
+    wlr_dmabuf_attributes a;
+    if (!wlr_buffer_get_dmabuf(src, &a))
+        return nullptr;
+    wlr_texture* tex = mgpu_cpu_ ? nullptr : wlr_texture_from_buffer(mgpu_renderer_->wlr(), src);
+    if (!tex && !mgpu_cpu_) {
+        // It can't read the parent's buffers (they live in the other GPU's
+        // memory): the parent reads them back and the CPU writes ours.
+        mgpu_dumb_ = Allocator::create_dumb(fd_);
+        if (!mgpu_dumb_) {
+            wlr_log(WLR_ERROR, "drm: %s can't read the frames and has no dumb buffers", name_.c_str());
+            return nullptr;
+        }
+        wlr_log(WLR_INFO, "drm: %s: copying frames through the CPU", name_.c_str());
+        mgpu_cpu_ = true;
+        for (auto& c : connectors_) {
+            c->mgpu_swapchain.reset();
+            c->mgpu_cursor.reset();
+        }
+    }
+    if (!sc || sc->width != src->width || sc->height != src->height || sc->format != a.format) {
+        sc.reset();
+        // What the plane shows and this GPU draws into (a CPU writes linear).
+        const wlr_drm_format* shown = wlr_drm_format_set_get(formats, a.format);
+        const wlr_drm_format* drawn = wlr_drm_format_set_get(mgpu_renderer_->egl().render_formats(), a.format);
+        std::vector<uint64_t> mods;
+        for (size_t i = 0; shown && i < shown->len; ++i)
+            if (mgpu_cpu_ ? shown->modifiers[i] == DRM_FORMAT_MOD_LINEAR
+                          : drawn && std::find(drawn->modifiers, drawn->modifiers + drawn->len, shown->modifiers[i]) !=
+                                         drawn->modifiers + drawn->len)
+                mods.push_back(shown->modifiers[i]);
+        if (mods.empty()) {
+            wlr_log(WLR_ERROR, "drm: %s: no buffer for copies of 0x%08x", name_.c_str(), a.format);
+            if (tex)
+                wlr_texture_destroy(tex);
+            return nullptr;
+        }
+        sc = std::make_unique<Swapchain>(mgpu_cpu_ ? *mgpu_dumb_ : *mgpu_allocator_, src->width, src->height,
+                                         a.format, mods);
+    }
+    wlr_buffer* dst = sc->acquire();
+    if (!dst) {
+        wlr_log(WLR_ERROR, "drm: %s: couldn't allocate a buffer to copy into", name_.c_str());
+        sc.reset();
+        if (tex)
+            wlr_texture_destroy(tex);
+        return nullptr;
+    }
+    if (mgpu_cpu_) {
+        const bool ok = cpu_copy(src, dst, from, wait, wait_point);
+        if (!ok)
+            wlr_buffer_unlock(dst);
+        return ok ? dst : nullptr;
+    }
+    wlr_buffer_pass_options opts{};
+    const bool signal = mgpu_timeline_ && fence;
+    if (signal) {
+        opts.signal_timeline = mgpu_timeline_;
+        opts.signal_point = ++mgpu_point_;
+    }
+    bool ok = false;
+    if (wlr_render_pass* pass = wlr_renderer_begin_buffer_pass(mgpu_renderer_->wlr(), dst, &opts)) {
+        wlr_render_texture_options t{};
+        t.texture = tex;
+        t.blend_mode = WLR_RENDER_BLEND_MODE_NONE;
+        t.wait_timeline = mgpu_timeline_ ? wait : nullptr;
+        t.wait_point = wait_point;
+        wlr_render_pass_add_texture(pass, &t);
+        ok = wlr_render_pass_submit(pass);
+    }
+    wlr_texture_destroy(tex);
+    if (!ok) {
+        wlr_buffer_unlock(dst);
+        return nullptr;
+    }
+    if (signal)
+        *fence = wlr_drm_syncobj_timeline_export_sync_file(mgpu_timeline_, opts.signal_point);
+    return dst;
 }
 
 // The CRTC driving a connector now (the boot splash's, another session's).

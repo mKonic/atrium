@@ -75,6 +75,8 @@ public:
     ~Multi() override;
 
     void add(std::unique_ptr<Backend> b);
+    // Destroys `b` (its outputs go first).
+    void remove(Backend* b);
     bool start() override;
     int drm_fd() const override;
     uint32_t buffer_caps() const override;

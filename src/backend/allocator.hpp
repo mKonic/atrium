@@ -19,6 +19,8 @@ class Allocator {
 public:
     // On `drm_fd` (duplicated; the caller keeps its own). Null without GBM.
     static std::unique_ptr<Allocator> create(int drm_fd);
+    // Dumb buffers on `drm_fd`: linear, CPU-written, for scan-out only.
+    static std::unique_ptr<Allocator> create_dumb(int drm_fd);
     ~Allocator();
     Allocator(const Allocator&) = delete;
     Allocator& operator=(const Allocator&) = delete;
@@ -30,6 +32,7 @@ public:
 
 private:
     Allocator() = default;
+    wlr_buffer* allocate_dumb(int width, int height, uint32_t format);
     int fd_ = -1;
     gbm_device* gbm_ = nullptr;
 };

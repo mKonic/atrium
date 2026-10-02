@@ -289,14 +289,12 @@ void Server::setup() {
         own_session_ = backend::Session::create(loop);
         if (!own_session_)
             die("couldn't take a seat (is logind or seatd running?)");
-        for (const std::string& gpu : own_session_->find_gpus()) {
-            if (auto d = backend::drm::Drm::create(loop, *own_session_, gpu)) {
-                backend->add(std::move(d));
-                break;  // the boot GPU's screens (others: PLAN, multi-GPU)
-            }
-        }
+        // The first GPU that drives renders; screens on the others get copies.
+        for (const std::string& gpu : own_session_->find_gpus())
+            add_gpu(gpu);
         if (!backend->is_drm())
             die("no GPU with screens to drive");
+        gpu_added_ = own_session_->events.add_gpu.connect([this](const std::string& path) { add_gpu(path); });
         device_seat = std::make_unique<SessionDeviceSeat>(*own_session_);
     } else {
         wlroots = wlr_backend_autocreate(loop, &session);
@@ -920,6 +918,30 @@ void Server::note_last_session() {
               "atrium 0 dialog-warning 'atrium stopped unexpectedly' "
               "'Your last session ended in a crash. For the details: coredumpctl info atrium' "
               "'[]' '{}' 10000 >/dev/null 2>&1 && break; sleep 1; done");
+}
+
+// A GPU's screens (at startup, or an eGPU or dock plugged in later). Unplugged,
+// a secondary one goes with its screens; the primary renders everything.
+void Server::add_gpu(const std::string& path) {
+    auto d = backend::drm::Drm::create(loop, *own_session_, path, primary_gpu_);
+    if (!d)
+        return;
+    backend::drm::Drm* raw = d.get();
+    if (!primary_gpu_)
+        primary_gpu_ = raw;
+    else
+        gpu_removed_.push_back(raw->removed.connect([this, raw] {
+            // Not from inside the session's own device list: on the next idle.
+            pending_gpu_removal_.push_back(raw);
+            wl_event_loop_add_idle(loop, [](void* data) {
+                auto* self = static_cast<Server*>(data);
+                for (backend::drm::Drm* g : std::exchange(self->pending_gpu_removal_, {})) {
+                    wlr_log(WLR_INFO, "drm: %s unplugged", g->name().c_str());
+                    self->backend->remove(g);
+                }
+            }, this);
+        }));
+    backend->add(std::move(d));
 }
 
 void Server::quit() {

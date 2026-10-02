@@ -537,10 +537,14 @@ Renderer* Renderer::create(const backend::Backend& backend) {
         wlr_log(WLR_ERROR, "No GPU to render with");
         return nullptr;
     }
-
-    auto egl = Egl::create(drm_fd);
+    Renderer* r = create_on(drm_fd);
     if (own_fd)
         close(drm_fd);
+    return r;
+}
+
+Renderer* Renderer::create_on(int drm_fd, bool software_ok) {
+    auto egl = Egl::create(drm_fd, software_ok);
     if (!egl)
         return nullptr;
 

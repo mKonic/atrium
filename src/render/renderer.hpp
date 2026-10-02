@@ -138,6 +138,9 @@ class Renderer {
 public:
     // A renderer on the backend's GPU, or null.
     static Renderer* create(const backend::Backend& backend);
+    // A renderer on exactly this GPU (`drm_fd` stays the caller's); with
+    // `software_ok`, Mesa's software rasterizer will do (a display-only GPU).
+    static Renderer* create_on(int drm_fd, bool software_ok = false);
     // Ours, or null if `r` is some other wlr_renderer.
     static Renderer* from(wlr_renderer* r);
     static Texture* texture(wlr_texture* t);

@@ -16,7 +16,7 @@ class Egl {
 public:
     // A display for the DRM device behind `drm_fd` (any render node when
     // it's -1 and software is allowed), or null.
-    static std::unique_ptr<Egl> create(int drm_fd);
+    static std::unique_ptr<Egl> create(int drm_fd, bool software_ok = false);
     ~Egl();
     Egl(const Egl&) = delete;
     Egl& operator=(const Egl&) = delete;

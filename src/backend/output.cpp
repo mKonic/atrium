@@ -560,6 +560,15 @@ void Multi::add(std::unique_ptr<Backend> b) {
         raw->start();
 }
 
+void Multi::remove(Backend* b) {
+    auto it = std::ranges::find_if(backends_, [b](const auto& x) { return x.get() == b; });
+    if (it == backends_.end())
+        return;
+    std::unique_ptr<Backend> gone = std::move(*it);
+    backends_.erase(it);
+    gone.reset();
+}
+
 bool Multi::start() {
     started_ = true;
     for (auto& b : backends_)
