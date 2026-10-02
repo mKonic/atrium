@@ -1,9 +1,10 @@
 #pragma once
-// Logging in through greetd, for the login screen: `Greeter.login(user,
-// password, session)` runs greetd's exchange (create the session, answer
-// its questions with the password, start the chosen desktop) and quits the
-// greeter when the desktop starts. The protocol is JSON over the socket in
-// GREETD_SOCK, each message preceded by its length.
+// Logging in through atrium-login (or greetd, which speaks the same), for
+// the login screen: `Greeter.login(user, password, session)` runs greetd's
+// exchange (create the session, answer its questions with the password,
+// start the chosen desktop) and quits the greeter when the desktop starts.
+// The protocol is JSON over the socket in GREETD_SOCK, each message
+// preceded by its length.
 
 #include <QJsonObject>
 #include <QLocalSocket>

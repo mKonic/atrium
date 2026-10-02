@@ -16,7 +16,7 @@ depends=(
   # compositor
   wayland libinput seatd systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info lcms2
   libglvnd mesa
-  libxcb xcb-util-wm libxcrypt fontconfig xorg-xwayland
+  libxcb xcb-util-wm libxcrypt fontconfig xorg-xwayland pam
   # shell
   qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse
   # what the shell fronts
@@ -30,7 +30,7 @@ depends=(
 )
 makedepends=(git meson ninja wayland-protocols gtest cmake)
 optdepends=(
-  "greetd: atrium's login screen (see /usr/share/atrium/greetd-config.toml)"
+  "greetd: atrium's login screen under greetd instead of atrium-login (see /usr/share/atrium/greetd-config.toml)"
   'uwsm: the uwsm-managed session'
   'gpu-screen-recorder: screen recording'
   'ddcutil: brightness of external monitors'
@@ -44,6 +44,7 @@ optdepends=(
   'kate: a text editor'
 )
 provides=(atrium)
+backup=(etc/pam.d/atrium-login etc/pam.d/atrium-greeter etc/pam.d/atrium-autologin)
 conflicts=(atrium)
 source=("atrium::git+file://${ATRIUM_SRC:-${startdir}/../..}")
 sha256sums=('SKIP')

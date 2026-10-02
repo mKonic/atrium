@@ -29,7 +29,7 @@ void Greeter::login(const QString& user, const QString& password, const QVariant
     if (busy_ || user.isEmpty())
         return;
     if (!available()) {
-        fail(QStringLiteral("The login service (greetd) isn't running."), false);
+        fail(QStringLiteral("The login service isn't running."), false);
         return;
     }
     user_ = user;
@@ -45,7 +45,7 @@ void Greeter::login(const QString& user, const QString& password, const QVariant
     if (socket_.state() != QLocalSocket::ConnectedState) {
         socket_.connectToServer(path_);
         if (!socket_.waitForConnected(2000)) {
-            fail(QStringLiteral("The login service (greetd) isn't running."), false);
+            fail(QStringLiteral("The login service isn't running."), false);
             return;
         }
     }

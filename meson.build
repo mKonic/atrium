@@ -112,4 +112,5 @@ subdir('shell/portal')
 subdir('shell/clipsync')
 
 subdir('src')
+subdir('login')
 subdir('tests')
