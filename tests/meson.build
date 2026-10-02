@@ -96,6 +96,7 @@ if gtest.found()
     'util_buffer_test.cpp',
     'util_color_test.cpp',
     'util_timeline_test.cpp',
+    'util_xcursor_test.cpp',
     'wallpaper_test.cpp',
     'mimeapps_test.cpp',
     'keyboard_test.cpp',

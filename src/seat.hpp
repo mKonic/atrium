@@ -8,6 +8,7 @@
 #include "wl/data_device.hpp"
 #include "wl/ime.hpp"
 #include "wl/input_ext.hpp"
+#include "util/xcursor.hpp"
 #include "wl/tablet.hpp"
 
 #include <array>
@@ -114,7 +115,7 @@ public:
 
     Server& server;
     Cursor* cursor = nullptr;  // the server's
-    wlr_xcursor_manager* xcursor = nullptr;
+    std::unique_ptr<xcursor::Manager> xcursor;
     Mode mode = Mode::Normal;
 
 private:
@@ -124,7 +125,7 @@ private:
     void show_shake_level(int level);
     ShakeDetector shake_;
     static constexpr int kShakeLevels = 4;  // sizes on the way up: 1.5x to 3x
-    std::array<wlr_xcursor_manager*, kShakeLevels> shake_xcursor_{};
+    std::array<std::unique_ptr<xcursor::Manager>, kShakeLevels> shake_xcursor_;
     int shake_level_ = 0;  // 0: normal size
     bool shaking_ = false;
     wl_event_source* shake_end_ = nullptr;

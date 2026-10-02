@@ -118,7 +118,7 @@ Seat::Seat(Server& srv) : server(srv) {
         wl::Surface* focus = server.wl->seat->pointer_focus();
         if (focus && focus->client() == r.client) {
             set_cursor_surface(nullptr, 0, 0);
-            cursor->set_xcursor(xcursor, wl::CursorShapes::name_of(r.shape));
+            cursor->set_xcursor(xcursor.get(), wl::CursorShapes::name_of(r.shape));
         }
     }));
     // A drag needs a press it can quote; a selection is granted (the
@@ -355,20 +355,15 @@ Seat::~Seat() {
     server.animator.cancel_owner(&shake_, false);
     if (shake_end_)
         wl_event_source_remove(shake_end_);
-    for (wlr_xcursor_manager* m : shake_xcursor_)
-        if (m)
-            wlr_xcursor_manager_destroy(m);
-    wlr_xcursor_manager_destroy(xcursor);
 }
 
 #ifdef ATRIUM_XWAYLAND
 void Seat::set_x11_cursor() {
     if (!server.xwm)
         return;
-    wlr_xcursor_manager_load(xcursor, 1);
-    if (wlr_xcursor* xc = wlr_xcursor_manager_get_xcursor(xcursor, "default", 1)) {
-        const wlr_xcursor_image* img = xc->images[0];
-        server.xwm->set_cursor(img->buffer, img->width * 4, int(img->width), int(img->height), int(img->hotspot_x),
+    if (const xcursor::Cursor* xc = xcursor->get("default", 1)) {
+        const xcursor::Image* img = &xc->images[0];
+        server.xwm->set_cursor(img->pixels.data(), img->width * 4, int(img->width), int(img->height), int(img->hotspot_x),
                                int(img->hotspot_y));
     }
 }
@@ -393,16 +388,12 @@ void Seat::apply_keyboard_config() {
 void Seat::apply_cursor_theme() {
     // The image may be one of the old theme's (set again by the caller).
     cursor->unset_image();
-    if (xcursor)
-        wlr_xcursor_manager_destroy(xcursor);
     const Config& c = server.config;
     const char* theme = c.cursor_theme.empty() ? getenv("XCURSOR_THEME") : c.cursor_theme.c_str();
-    xcursor = wlr_xcursor_manager_create(theme, c.cursor_size);
-    for (int i = 0; i < kShakeLevels; ++i) {
-        if (shake_xcursor_[i])
-            wlr_xcursor_manager_destroy(shake_xcursor_[i]);
-        shake_xcursor_[i] = wlr_xcursor_manager_create(theme, uint32_t(std::lround(c.cursor_size * (1.5 + 0.5 * i))));
-    }
+    xcursor = std::make_unique<xcursor::Manager>(theme, c.cursor_size);
+    for (int i = 0; i < kShakeLevels; ++i)
+        shake_xcursor_[i] =
+            std::make_unique<xcursor::Manager>(theme, uint32_t(std::lround(c.cursor_size * (1.5 + 0.5 * i))));
     setenv("XCURSOR_SIZE", std::to_string(c.cursor_size).c_str(), 1);
     if (theme)
         setenv("XCURSOR_THEME", theme, 1);
@@ -412,7 +403,7 @@ void Seat::apply_cursor_theme() {
 
 void Seat::show_shake_level(int level) {
     shake_level_ = level;
-    cursor->set_xcursor(level ? shake_xcursor_[level - 1] : xcursor, "default");
+    cursor->set_xcursor(level ? shake_xcursor_[level - 1].get() : xcursor.get(), "default");
 }
 
 // The arrow grows while the shaking goes on, and settles once it stops.
@@ -451,7 +442,7 @@ void Seat::shake_settle() {
 }
 
 void Seat::set_default_cursor() {
-    cursor->set_xcursor(xcursor, "default");
+    cursor->set_xcursor(xcursor.get(), "default");
 }
 
 // --- devices -----------------------------------------------------------------
@@ -963,7 +954,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
             set_titlebar_hover(nullptr, 0);
             server.wl->seat->pointer_clear_focus();
-            cursor->set_xcursor(xcursor, resize_cursor_name(zone.edges));
+            cursor->set_xcursor(xcursor.get(), resize_cursor_name(zone.edges));
             return;
         }
         if (hit.backdrop) {
@@ -1304,7 +1295,7 @@ void Seat::begin_move(View* view) {
     edge_carried_ = false;
     mode = Mode::Move;
     server.wl->seat->pointer_clear_focus();
-    cursor->set_xcursor(xcursor, "grabbing");
+    cursor->set_xcursor(xcursor.get(), "grabbing");
 }
 
 // Dragging a maximized window restores its size under the cursor, keeping the
@@ -1341,7 +1332,7 @@ void Seat::begin_resize(View* view, uint32_t edges) {
     mode = Mode::Resize;
     view->begin_resize(edges);
     server.wl->seat->pointer_clear_focus();
-    cursor->set_xcursor(xcursor, resize_cursor_name(edges));
+    cursor->set_xcursor(xcursor.get(), resize_cursor_name(edges));
 }
 
 void Seat::push_edge(double dx) {

@@ -5,13 +5,13 @@
 // each frame. After wlroots' wlr_cursor and wlr_output_cursor (MIT).
 #include "render/fwd.hpp"
 #include "util/buffer.hpp"
+#include "util/xcursor.hpp"
 #include "output_layout.hpp"
 
 #include <memory>
 #include <string>
 #include <vector>
 
-struct wlr_xcursor_manager;
 
 namespace atrium {
 
@@ -39,7 +39,7 @@ public:
     // The image: a theme's cursor (animated if it is), a client's buffer
     // (hotspot in buffer pixels, at `scale` buffer pixels per logical one),
     // or none.
-    void set_xcursor(wlr_xcursor_manager* manager, const char* name);
+    void set_xcursor(xcursor::Manager* manager, const char* name);
     void set_buffer(Buffer* buffer, int hotspot_x, int hotspot_y, float scale);
     void unset_image();
 
@@ -71,7 +71,7 @@ private:
     std::vector<std::unique_ptr<Screen>> screens_;
 
     Kind kind_ = Kind::None;
-    wlr_xcursor_manager* manager_ = nullptr;
+    xcursor::Manager* manager_ = nullptr;
     std::string name_;
     Buffer* buffer_ = nullptr;  // locked
     int hot_x_ = 0, hot_y_ = 0;

@@ -9,7 +9,6 @@
 
 extern "C" {
 #include <wlr/render/pass.h>
-#include <wlr/xcursor.h>
 }
 
 #include <drm_fourcc.h>
@@ -159,11 +158,10 @@ void Cursor::refresh(Screen& s) {
     if (o.renderer && o.enabled) {
         if (kind_ == Kind::XCursor) {
             // The theme at this screen's scale: one image pixel per screen pixel.
-            wlr_xcursor_manager_load(manager_, o.scale);
-            if (wlr_xcursor* xc = wlr_xcursor_manager_get_xcursor(manager_, name_.c_str(), o.scale)) {
-                const wlr_xcursor_image* img = xc->images[frame_ % xc->image_count];
+            if (const xcursor::Cursor* xc = manager_->get(name_, o.scale)) {
+                const xcursor::Image* img = &xc->images[frame_ % xc->images.size()];
                 s.texture = o.renderer->texture_from_pixels(DRM_FORMAT_ARGB8888, img->width * 4, img->width,
-                                                    img->height, img->buffer);
+                                                            img->height, img->pixels.data());
                 s.width = int(img->width);
                 s.height = int(img->height);
                 s.hot_x = int(img->hotspot_x);
@@ -319,7 +317,7 @@ void Cursor::absolute_to_layout(double fx, double fy, double* lx, double* ly) co
     *ly = e.y + fy * e.height;
 }
 
-void Cursor::set_xcursor(wlr_xcursor_manager* manager, const char* name) {
+void Cursor::set_xcursor(xcursor::Manager* manager, const char* name) {
     if (kind_ == Kind::XCursor && manager_ == manager && name_ == name)
         return;
     if (buffer_)
@@ -359,11 +357,10 @@ void Cursor::schedule_animation() {
         return;
     // The theme's frames, at the delay the theme gives (scale 1 is as good
     // as any: every scale has the same frames).
-    wlr_xcursor_manager_load(manager_, 1);
-    wlr_xcursor* xc = wlr_xcursor_manager_get_xcursor(manager_, name_.c_str(), 1);
-    if (!xc || xc->image_count < 2)
+    const xcursor::Cursor* xc = manager_->get(name_, 1);
+    if (!xc || xc->images.size() < 2)
         return;
-    const uint32_t delay = xc->images[frame_ % xc->image_count]->delay;
+    const uint32_t delay = xc->images[frame_ % xc->images.size()].delay;
     if (!delay)
         return;
     animation_ = wl_event_loop_add_timer(
