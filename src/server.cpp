@@ -41,6 +41,7 @@
 #include "view.hpp"
 #include "xwayland_view.hpp"
 #ifdef ATRIUM_XWAYLAND
+#include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
 
@@ -379,15 +380,14 @@ void Server::setup() {
     // Not lazy: an app elevated with pkexec may be the first X client, and
     // it must find root already let in (allow_root_x11), which only works
     // once Xwayland is up. A lazily started one also forgets it on restart.
-    wlr_xwayland_server_options xopts{};
-    xopts.enable_wm = true;
-    xwayland = wlr_xwayland_server_create(display, &xopts);
+    xwayland = std::make_unique<xwayland::Server>(display);
+    if (!xwayland->ok())
+        xwayland.reset();
     if (xwayland) {
         // Only Xwayland may bind xwayland_shell_v1.
-        xwayland_start_.connect(&xwayland->events.start,
-                                [this](void*) { wl->xwayland_shell->set_client(xwayland->client); });
-        xwayland_ready_.connect(&xwayland->events.ready, [this](wlr_xwayland_server_ready_event* e) {
-            xwm = std::make_unique<xwayland::Xwm>(display, e->wm_fd, xwayland->client, *wl->compositor,
+        xwayland_start_ = xwayland->events.start.connect([this] { wl->xwayland_shell->set_client(xwayland->client()); });
+        xwayland_ready_ = xwayland->events.ready.connect([this](int wm_fd) {
+            xwm = std::make_unique<xwayland::Xwm>(display, wm_fd, xwayland->client(), *wl->compositor,
                                                   wl->xwayland_shell.get(), false);
             if (!xwm->ok()) {
                 xwm.reset();
@@ -403,10 +403,10 @@ void Server::setup() {
             });
             xwm->set_seat(wl->seat.get(), wl->data.get(), wl->primary.get());
             seat->set_x11_cursor();
-            allow_root_x11(xwayland->display_name);
+            allow_root_x11(xwayland->display_name());
             run_startup();
         });
-        setenv("DISPLAY", xwayland->display_name, 1);
+        setenv("DISPLAY", xwayland->display_name(), 1);
     } else {
         alog(Log::Error, "failed to set up Xwayland, continuing without it");
     }
@@ -723,9 +723,9 @@ void Server::teardown() {
     disconnect_listeners();
 #ifdef ATRIUM_XWAYLAND
     xwm.reset();
-    if (xwayland)
-        wlr_xwayland_server_destroy(xwayland);
-    xwayland = nullptr;
+    xwayland_start_.disconnect();
+    xwayland_ready_.disconnect();
+    xwayland.reset();
 #endif
     shell.reset();  // stops it
     if (startup_timer_) {

@@ -46,18 +46,16 @@ lcms2 = dependency('lcms2')
 sqlite = dependency('sqlite3')
 json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
 
-have_xwayland = wlroots.get_variable(pkgconfig: 'have_xwayland', default_value: 'false') == 'true'
-xwayland_opt = get_option('xwayland')
-if xwayland_opt.enabled() and not have_xwayland
-  error('xwayland requested but wlroots was built without it')
-endif
-use_xwayland = have_xwayland and not xwayland_opt.disabled()
+xwayland = dependency('xwayland', required: get_option('xwayland'))
+use_xwayland = xwayland.found()
 
 deps = [wlroots, wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm'), dependency('xcb-composite'), dependency('xcb-xfixes'),
            dependency('xcb-res'), dependency('xcb-render'), dependency('xcb-ewmh')]
-  add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')
+  add_project_arguments('-DATRIUM_XWAYLAND',
+                        '-DATRIUM_XWAYLAND_PATH="@0@"'.format(xwayland.get_variable(pkgconfig: 'xwayland')),
+                        language: 'cpp')
 endif
 # Logging to the journal when a display manager starts the session.
 libsystemd = dependency('libsystemd', required: false)

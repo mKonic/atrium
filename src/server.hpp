@@ -27,6 +27,7 @@ class Drm;
 }
 
 namespace atrium::xwayland {
+class Server;
 class Xwm;
 class XSurface;
 } // namespace atrium::xwayland
@@ -257,9 +258,9 @@ public:
     std::unique_ptr<Cursor> cursor;
     Box layout_box{};
 #ifdef ATRIUM_XWAYLAND
-    // Xwayland: the X server (its process, wlroots'), and atrium's own
+    // Xwayland: the X server (its process and sockets), and atrium's own
     // window manager for it, made once it is ready.
-    wlr_xwayland_server* xwayland = nullptr;
+    std::unique_ptr<xwayland::Server> xwayland;
     std::unique_ptr<xwayland::Xwm> xwm;
 #endif
 
@@ -378,8 +379,7 @@ private:
     // On the protocols' signals.
     std::vector<wl::Connection> connections_;
 #ifdef ATRIUM_XWAYLAND
-    Listener<> xwayland_start_;
-    Listener<wlr_xwayland_server_ready_event> xwayland_ready_;
+    wl::Connection xwayland_start_, xwayland_ready_;
     wl::Connection new_x11_window_, xwm_hangup_;
 #endif
 };

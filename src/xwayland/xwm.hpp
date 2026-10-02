@@ -1,7 +1,7 @@
 #pragma once
 // atrium's X11 window manager for Xwayland, on its own protocol layer: a port
 // of wlroots' xwayland/xwm.c and xwayland/selection (MIT). Xwayland itself is
-// still started by wlr_xwayland_server (process and sockets only).
+// started by xwayland::Server.
 #include "wl/compositor.hpp"
 #include "wl/data_device.hpp"
 #include "wl/signal.hpp"

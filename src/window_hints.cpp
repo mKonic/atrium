@@ -7,6 +7,9 @@
 #include "server.hpp"
 #include "toplevel_icon.hpp"
 #include "view.hpp"
+#ifdef ATRIUM_XWAYLAND
+#include "xwayland/server.hpp"
+#endif
 
 #include <cstdlib>
 #include <filesystem>
@@ -34,7 +37,7 @@ void Server::setup_window_hints() {
         const char* name = wl_global_get_interface(global)->name;
 #ifdef ATRIUM_XWAYLAND
         if (std::string_view(name) == "xwayland_shell_v1")
-            return server->xwayland && client == server->xwayland->client;
+            return server->xwayland && client == server->xwayland->client();
 #endif
         if (!server->wl->security->lookup(client))
             return true;

@@ -8,11 +8,8 @@
 #include "wl/selection.hpp"
 #include "wl/shm.hpp"
 #include "wl/xwayland_shell.hpp"
+#include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
-
-extern "C" {
-#include <wlr/xwayland/server.h>
-}
 
 #include <gtest/gtest.h>
 
@@ -31,7 +28,7 @@ namespace {
 
 xcb_atom_t intern(xcb_connection_t* c, const char* name) {
     xcb_intern_atom_reply_t* r = xcb_intern_atom_reply(c, xcb_intern_atom(c, 0, uint16_t(strlen(name)), name), nullptr);
-    const xcb_atom_t a = r ? r->atom : XCB_ATOM_NONE;
+    const xcb_atom_t a = r ? r->atom : xcb_atom_t(XCB_ATOM_NONE);
     free(r);
     return a;
 }
@@ -56,11 +53,11 @@ struct XHarness : DisplayOwner {
     wl::Output output{display, wl::OutputInfo{.name = "X-1", .mode_width = 1280, .mode_height = 720,
                                               .refresh = 60000, .logical_width = 1280, .logical_height = 720}};
     std::unique_ptr<wl::XwaylandShell> shell;
-    wlr_xwayland_server* server = nullptr;
+    std::unique_ptr<xwayland::Server> server;
     std::unique_ptr<Xwm> xwm;
     std::vector<XSurface*> made;
     wl::Connection made_c;
-    wl_listener start{}, ready{};
+    wl::Connection start, ready;
     xcb_connection_t* x = nullptr;
     // X11 events for the client, as they came.
     std::vector<xcb_generic_event_t*> xevents;
@@ -69,28 +66,23 @@ struct XHarness : DisplayOwner {
     explicit XHarness(bool with_shell = true) {
         if (with_shell)
             shell = std::make_unique<wl::XwaylandShell>(display);
-        wlr_xwayland_server_options options{};
-        options.enable_wm = true;
-        server = wlr_xwayland_server_create(display, &options);
-        if (!server)
+        server = std::make_unique<xwayland::Server>(display);
+        if (!server->ok()) {
+            server.reset();
             return;
-        start.notify = [](wl_listener* l, void*) {
-            XHarness* h = wl_container_of(l, h, start);
-            if (h->shell)
-                h->shell->set_client(h->server->client);
-        };
-        wl_signal_add(&server->events.start, &start);
-        ready.notify = [](wl_listener* l, void* data) {
-            XHarness* h = wl_container_of(l, h, ready);
-            auto* e = static_cast<wlr_xwayland_server_ready_event*>(data);
-            h->xwm = std::make_unique<Xwm>(h->display, e->wm_fd, h->server->client, h->compositor, h->shell.get(), false);
-            h->xwm->set_seat(&h->seat, &h->data, &h->primary);
-            h->made_c = h->xwm->events.new_surface.connect([h](XSurface* s) { h->made.push_back(s); });
-        };
-        wl_signal_add(&server->events.ready, &ready);
+        }
+        start = server->events.start.connect([this] {
+            if (shell)
+                shell->set_client(server->client());
+        });
+        ready = server->events.ready.connect([this](int wm_fd) {
+            xwm = std::make_unique<Xwm>(display, wm_fd, server->client(), compositor, shell.get(), false);
+            xwm->set_seat(&seat, &data, &primary);
+            made_c = xwm->events.new_surface.connect([this](XSurface* s) { made.push_back(s); });
+        });
         run_until([this] { return xwm != nullptr; });
         if (xwm)
-            x = xcb_connect(server->display_name, nullptr);
+            x = xcb_connect(server->display_name(), nullptr);
     }
 
     ~XHarness() {
@@ -101,11 +93,9 @@ struct XHarness : DisplayOwner {
         // Before the server: the XWM's surfaces watch its globals.
         made_c.disconnect();
         xwm.reset();
-        if (server) {
-            wl_list_remove(&start.link);
-            wl_list_remove(&ready.link);
-            wlr_xwayland_server_destroy(server);
-        }
+        start.disconnect();
+        ready.disconnect();
+        server.reset();
     }
 
     bool ok() const { return xwm && x && !xcb_connection_has_error(x); }

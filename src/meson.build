@@ -74,6 +74,7 @@ atrium_sources = files(
   'xdg_view.cpp',
   'xwayland_view.cpp',
   'xwayland/selection.cpp',
+  'xwayland/server.cpp',
   'xwayland/xwm.cpp',
   'scene/capture.cpp',
   'scene/output.cpp',
