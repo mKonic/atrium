@@ -134,6 +134,17 @@ TEST(WlLayer, ConfigureAckMap) {
     EXPECT_TRUE(made->surface()->mapped());
     EXPECT_EQ(made->current().actual_width, 800u);
 
+    // An ack applies the size without counting as a layer change (else the
+    // compositor arranges and configures again: a loop at commit rate).
+    made->configure(640, 30);
+    d.pump();
+    zwlr_layer_surface_v1_ack_configure(ls, log.serial);
+    wl_surface_commit(s);
+    d.pump();
+    EXPECT_EQ(made->current().actual_width, 640u);
+    EXPECT_TRUE(made->surface()->current().committed & wl::SurfaceState::LayerAck);
+    EXPECT_FALSE(made->surface()->current().committed & wl::SurfaceState::Layer);
+
     // A change that isn't committed doesn't apply; values stay as set.
     zwlr_layer_surface_v1_set_exclusive_zone(ls, 50);
     d.pump();

@@ -101,7 +101,7 @@ void SurfaceState::merge(SurfaceState&& later) {
         max_width = later.max_width;
         max_height = later.max_height;
     }
-    if (later.committed & Layer)
+    if (later.committed & (Layer | LayerAck))
         layer = later.layer;
     if (later.committed & Sync)
         sync = std::move(later.sync);
@@ -381,7 +381,7 @@ void Surface::apply(SurfaceState& s) {
         current_.max_width = s.max_width;
         current_.max_height = s.max_height;
     }
-    if (s.committed & SurfaceState::Layer)
+    if (s.committed & (SurfaceState::Layer | SurfaceState::LayerAck))
         current_.layer = s.layer;
     if (s.committed & SurfaceState::Sync)
         current_.sync = std::move(s.sync);

@@ -96,7 +96,7 @@ LayerSurface::LayerSurface(wl_client* client, uint32_t version, uint32_t id, Sur
         popups_.push_back(popup);
         events.new_popup.emit(popup);
     });
-    on_ack_configure([this, pending](ZwlrLayerSurfaceV1*, uint32_t serial) {
+    on_ack_configure([this](ZwlrLayerSurfaceV1*, uint32_t serial) {
         // Closed, it is inert: a configure sent before the close may still be
         // acked after it (wlroots ignores those too).
         if (closed_)
@@ -109,10 +109,14 @@ LayerSurface::LayerSurface(wl_client* client, uint32_t version, uint32_t id, Sur
         const Sent acked = *it;
         sent_.erase(sent_.begin(), it + 1);
         configured_ = true;
-        if (State* p = pending()) {
-            p->configure_serial = acked.serial;
-            p->actual_width = acked.width;
-            p->actual_height = acked.height;
+        // Not a layer change: marked as one, its commit would be arranged
+        // and configured again, which is acked again (a loop at commit rate).
+        if (surface_) {
+            surface_->pending_state().committed |= SurfaceState::LayerAck;
+            State& p = surface_->pending_state().layer;
+            p.configure_serial = acked.serial;
+            p.actual_width = acked.width;
+            p.actual_height = acked.height;
         }
     });
 }

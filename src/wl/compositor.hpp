@@ -74,6 +74,8 @@ struct SurfaceState {
         Timing = 1 << 19,
         Presentation = 1 << 20,
         ColorDescription = 1 << 21,
+        // A layer surface acked a configure: its size, not a change it asked for.
+        LayerAck = 1 << 22,
     };
     uint32_t committed = 0;
 

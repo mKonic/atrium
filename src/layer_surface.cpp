@@ -105,7 +105,9 @@ void LayerSurface::commit() {
     if (st.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP && surface()->wants_frame() && !shown_on_output())
         output->screen->schedule_frame();
 
-    if (!(surface()->current().committed & wl::SurfaceState::Layer) && mapped == surface()->mapped())
+    const uint32_t committed = surface()->current().committed;
+    const bool changed = committed & wl::SurfaceState::Layer;
+    if (!changed && !(committed & wl::SurfaceState::LayerAck) && mapped == surface()->mapped())
         return;
     const bool was_mapped = mapped;
     mapped = surface()->mapped();
@@ -129,7 +131,10 @@ void LayerSurface::commit() {
                                                    ? server.layer(Layer::Top) : parent);
     }
 
-    output->arrange_layers();
+    // Only what it asked for, or its mapping, moves the layers: an ack of
+    // their configure doesn't.
+    if (changed || mapped != was_mapped)
+        output->arrange_layers();
     update_blur();
 
     // The menu bar brought over a fullscreen app (the shell lifts it to the
