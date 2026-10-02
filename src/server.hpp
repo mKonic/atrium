@@ -286,6 +286,7 @@ private:
     void prepare_session_environment();
     void start_clipboard_history();
     void start_clipboard_sync();
+    void start_phone_link();
     void restore_power_and_brightness();
     void apply_power_profile();
     Interface interface() const;
