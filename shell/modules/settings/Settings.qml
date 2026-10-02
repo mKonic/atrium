@@ -301,6 +301,11 @@ FloatingWindow {
                 width: parent.width
             }
 
+            PhonePage {
+                visible: root.query === "" && root.page === "Phone"
+                width: parent.width
+            }
+
             SoundPage {
                 visible: root.query === "" && root.page === "Sound"
                 width: parent.width

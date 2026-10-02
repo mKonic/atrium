@@ -24,6 +24,7 @@ struct PageInfo {
 constexpr PageInfo kPages[] = {
     {"Wi-Fi & Network", "wifi", "#0a84ff"},
     {"Bluetooth", "bluetooth", "#0a84ff"},
+    {"Phone", "smartphone", "#30d158"},
     {"Sound", "volume_up", "#ff375f"},
     {"Appearance", "palette", "#5e5ce6"},
     {"Menu Bar", "toolbar", "#8e8e93"},
@@ -52,7 +53,7 @@ constexpr PageInfo kPages[] = {
 };
 
 // Pages with their own view and no schema settings.
-const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Sound", "Users & Groups", "Language & Region",
+const QStringList kSpecial = {"Apps", "Wi-Fi & Network", "Bluetooth", "Phone", "Sound", "Users & Groups", "Language & Region",
                              "Default Apps", "Login Items", "Printers", "Software Update"};
 
 } // namespace

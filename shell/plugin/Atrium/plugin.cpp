@@ -44,6 +44,7 @@
 #include "printers.hpp"
 #include "clipboard.hpp"
 #include "phone_clipboard.hpp"
+#include "phone_link.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
@@ -134,6 +135,8 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ClipboardHistory; });
         qmlRegisterSingletonType<PhoneClipboard>(uri, 1, 0, "PhoneClipboard",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new PhoneClipboard; });
+        qmlRegisterSingletonType<PhoneLink>(uri, 1, 0, "PhoneLink",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new PhoneLink; });
         // One for the process: each engine asking for its own would write
         // the monitors twice.
         qmlRegisterSingletonType<Brightness>(uri, 1, 0, "Brightness",
