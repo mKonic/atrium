@@ -478,7 +478,7 @@ void Surface::update_texture(bool) {
     if (in_memory)
         buffer_end_data_ptr_access(source);
     if (in_memory && shown_ && shown_->texture && shown_->base.n_locks == shown_->ignore_locks &&
-        shown_->texture->width == uint32_t(source->width) && shown_->texture->height == uint32_t(source->height) &&
+        shown_->texture->width == source->width && shown_->texture->height == source->height &&
         shown_->texture->update_from_buffer(source, current_.buffer_damage.get())) {
         current_.buffer.reset();  // copied: back to the client
         return;

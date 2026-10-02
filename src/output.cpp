@@ -190,7 +190,7 @@ void log_formats(backend::Output* output) {
     if (formats)
         for (const DrmFormat& f : *formats)
             list += format_name(f.format) + " ";
-    alog(Log::Error, "%s: no 10-bit format for HDR; the plane offers: %s", output->name, list.c_str());
+    alog(Log::Error, "%s: no 10-bit format for HDR; the plane offers: %s", output->name.c_str(), list.c_str());
 }
 
 } // namespace

@@ -808,7 +808,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
 
     render::Renderer* renderer = output->renderer;
     if (!renderer) {
-        alog(Log::Error, "%s: not atrium's renderer", output->name);
+        alog(Log::Error, "%s: not atrium's renderer", output->name.c_str());
         return false;
     }
 

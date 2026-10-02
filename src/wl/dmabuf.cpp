@@ -137,9 +137,6 @@ LinuxDmabuf::LinuxDmabuf(wl_display* display, DmabufFeedback feedback, Check che
                 return;
             // The planes gathered so far; they belong to the params until used.
             auto attrs = std::make_shared<DmabufAttributes>();
-            std::memset(attrs.get(), 0, sizeof(*attrs));
-            for (int& fd : attrs->fd)
-                fd = -1;
             auto used = std::make_shared<bool>(false);
             p->on_gone([attrs, used] {
                 if (!*used)
