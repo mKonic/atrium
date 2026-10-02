@@ -25,6 +25,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Windows zoom in as they open and out as they close, and pour into their app's Dock icon when minimized.
 - Updates no longer show in the menu bar; Software Update in Settings has them.
 - atrium draws with its own renderer: a full redraw with blur and Liquid Glass takes about half the time.
+- atrium speaks Wayland to apps itself, and runs X11 windows with its own window manager.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
