@@ -127,3 +127,10 @@ TEST(DesktopEntry, ExecTakesTargets) {
     EXPECT_EQ(exec_argv("foot", {}, {}, {}, one), (std::vector<std::string>{"foot", "https://a"}));
     EXPECT_EQ(exec_argv("firefox %u"), (std::vector<std::string>{"firefox"}));
 }
+
+TEST(DesktopEntry, PrefersTheOtherGpu) {
+    EXPECT_FALSE(parse(kFirefox, "")->prefers_non_default_gpu);
+    auto game = parse("[Desktop Entry]\nType=Application\nName=Game\nExec=game\nPrefersNonDefaultGPU=true\n", "");
+    ASSERT_TRUE(game);
+    EXPECT_TRUE(game->prefers_non_default_gpu);
+}

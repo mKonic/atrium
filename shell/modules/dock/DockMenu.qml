@@ -20,6 +20,8 @@ Rectangle {
             list.push({ icon: "add", text: "New Window", action: "launch" });
         if (item.windowCount > 1)
             list.push({ icon: "select_window", text: "Show All Windows", action: "expose" });
+        if (item.apps.otherGpu !== "")
+            list.push({ icon: "memory", text: `Launch on ${item.apps.otherGpu}`, action: "launch-gpu" });
         list.push(item.pinned ? { icon: "keep_off", text: "Remove from Dock", action: "unpin" }
                               : { icon: "keep", text: "Keep in Dock", action: "pin" });
         if (item.running)
@@ -32,6 +34,8 @@ Rectangle {
         const apps = item.apps;
         if (action === "launch")
             apps.launch(item.appId);
+        else if (action === "launch-gpu")
+            apps.launchOnOtherGpu(item.appId);
         else if (action === "pin" || action === "unpin")
             apps.setPinned(item.appId, action === "pin");
         else if (action === "expose")
@@ -41,7 +45,8 @@ Rectangle {
     }
 
     visible: item !== null
-    width: 200
+    // As wide as its widest row ("Launch on GeForce RTX 5070 Ti"), 200 at least.
+    width: Math.max(200, ...column.children.map(c => c.need ?? 0)) + Theme.padding.small * 2
     height: column.implicitHeight + Theme.padding.small * 2
     radius: Theme.rounding.normal
     color: Theme.material.regular
@@ -74,6 +79,7 @@ Rectangle {
                 id: row
 
                 required property var modelData
+                readonly property real need: content.implicitWidth + Theme.padding.normal * 2
 
                 width: column.width
                 height: 34
@@ -81,6 +87,8 @@ Rectangle {
                 color: hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 Row {
+                    id: content
+
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.padding.normal

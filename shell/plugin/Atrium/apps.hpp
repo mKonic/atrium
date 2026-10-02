@@ -100,6 +100,8 @@ class DockApps : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(QObject* entries READ entries WRITE setEntries NOTIFY entriesChanged)
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    // The GPU apps don't start on by default, for "Launch on …" ("" with one).
+    Q_PROPERTY(QString otherGpu READ otherGpu CONSTANT)
 
 public:
     enum Role { AppIdRole = Qt::UserRole + 1, NameRole, IconRole, PinnedRole, RunningRole, FocusedRole,
@@ -119,6 +121,8 @@ public:
     // True if it was launched.
     Q_INVOKABLE bool activate(const QString& appId);
     Q_INVOKABLE void launch(const QString& appId);
+    Q_INVOKABLE void launchOnOtherGpu(const QString& appId);
+    QString otherGpu() const;
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
     // Pin it (if it isn't) at `index` among the pinned apps.
     Q_INVOKABLE void placePin(const QString& appId, int index);

@@ -4,6 +4,9 @@
 // directory changes (a package installed or removed).
 
 #include "desktop_entry_core.hpp"
+#include "gpus_core.hpp"
+
+#include <optional>
 
 #include <QFileSystemWatcher>
 #include <QHash>
@@ -53,6 +56,8 @@ class DesktopEntry : public QObject {
     Q_PROPERTY(bool noDisplay READ noDisplay CONSTANT)
     Q_PROPERTY(bool runInTerminal READ runInTerminal CONSTANT)
     Q_PROPERTY(QList<QObject*> actions READ actions CONSTANT)
+    // PrefersNonDefaultGPU: started on the other GPU when there is one.
+    Q_PROPERTY(bool prefersOtherGpu READ prefersOtherGpu CONSTANT)
 
 public:
     DesktopEntry(QString id, QString file, desktop_entry::Entry e, bool shown, QObject* parent);
@@ -73,13 +78,18 @@ public:
     bool noDisplay() const { return !shown_; }
     bool runInTerminal() const { return e_.terminal; }
     QList<QObject*> actions() const { return actions_; }
+    bool prefersOtherGpu() const { return e_.prefers_non_default_gpu; }
 
     Q_INVOKABLE void execute() const;
+    // On the GPU it doesn't start on by default (DesktopEntries.otherGpu).
+    Q_INVOKABLE void executeOnOtherGpu() const;
     // Opened with these files or addresses (its Exec's %f %u %F %U).
     Q_INVOKABLE void open(const QStringList& targets) const;
 
     QStringList argv(const std::string& exec, const QStringList& targets = {}) const;
-    void launch(QStringList argv) const;
+    // `gpu`: on the other GPU (true), the default (false), or as the entry
+    // prefers (unset).
+    void launch(QStringList argv, std::optional<bool> other_gpu = std::nullopt) const;
 
 private:
     QString id_;
@@ -117,6 +127,9 @@ class DesktopEntries : public QObject {
     // added; none picks an installed one. xdg-terminal-exec, when installed,
     // is used instead.
     Q_PROPERTY(QString terminal READ terminal WRITE setTerminal NOTIFY terminalChanged)
+    // The GPU apps don't start on by default ("" with one GPU): the menu's
+    // "Launch on …".
+    Q_PROPERTY(QString otherGpu READ otherGpu CONSTANT)
 
 public:
     static DesktopEntries* instance();
@@ -126,6 +139,9 @@ public:
 
     EntryList* applications() { return &list_; }
     QString terminal() const { return terminal_; }
+    QString otherGpu() const;
+    // What an app started on the other GPU gets (empty with one GPU).
+    static const gpus::Env& otherGpuEnv();
     void setTerminal(const QString& t);
 
     Q_INVOKABLE atrium::shell::DesktopEntry* byId(const QString& id) const;

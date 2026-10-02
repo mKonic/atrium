@@ -24,6 +24,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Closing a laptop's lid with another display connected turns the built-in screen off.
 - Displays on a second graphics card: a laptop's discrete GPU, a dock, a DisplayLink adapter.
 - VR headsets go to VR apps (SteamVR, Monado) instead of joining the desktop.
+- "Launch on …" another graphics card in an app's menu in the Dock and the launcher; apps that ask for the discrete GPU get it.
 
 ### Changed
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.

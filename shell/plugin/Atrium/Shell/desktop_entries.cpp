@@ -2,6 +2,10 @@
 #include "terminal.hpp"
 #include <QRandomGenerator>
 
+#include <QDBusArgument>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusMetaType>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -84,11 +88,15 @@ void DesktopEntry::execute() const {
     launch(command());
 }
 
+void DesktopEntry::executeOnOtherGpu() const {
+    launch(command(), true);
+}
+
 void DesktopEntry::open(const QStringList& targets) const {
     launch(argv(e_.exec, targets));
 }
 
-void DesktopEntry::launch(QStringList argv) const {
+void DesktopEntry::launch(QStringList argv, std::optional<bool> other_gpu) const {
     if (argv.isEmpty())
         return;
     if (e_.terminal) {
@@ -110,6 +118,12 @@ void DesktopEntry::launch(QStringList argv) const {
     QProcess p;
     p.setProgram(argv.takeFirst());
     p.setArguments(argv);
+    if (other_gpu.value_or(e_.prefers_non_default_gpu) && !DesktopEntries::otherGpuEnv().empty()) {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        for (const auto& [k, v] : DesktopEntries::otherGpuEnv())
+            env.insert(QString::fromStdString(k), QString::fromStdString(v));
+        p.setProcessEnvironment(env);
+    }
     if (!e_.path.empty())
         p.setWorkingDirectory(QString::fromStdString(e_.path));
     else
@@ -118,6 +132,87 @@ void DesktopEntry::launch(QStringList argv) const {
 }
 
 // --- DesktopEntries ----------------------------------------------------------
+
+namespace {
+
+// switcheroo-control's list when it runs (it knows hybrid laptops best),
+// else the DRM cards in sysfs.
+std::vector<gpus::Gpu> find_gpus() {
+    std::vector<gpus::Gpu> out;
+    QDBusInterface sw("net.hadess.SwitcherooControl", "/net/hadess/SwitcherooControl", "net.hadess.SwitcherooControl",
+                      QDBusConnection::systemBus());
+    if (sw.isValid()) {
+        const QVariant v = sw.property("GPUs");
+        if (v.canConvert<QDBusArgument>()) {
+            const auto arg = v.value<QDBusArgument>();
+            arg.beginArray();
+            while (!arg.atEnd()) {
+                QVariantMap m;
+                arg >> m;
+                gpus::Gpu g;
+                g.name = m.value("Name").toString().toStdString();
+                g.is_default = m.value("Default").toBool();
+                std::vector<std::string> flat;
+                for (const QString& s : m.value("Environment").toStringList())
+                    flat.push_back(s.toStdString());
+                g.env = gpus::pairs(flat);
+                out.push_back(std::move(g));
+            }
+            arg.endArray();
+            if (!out.empty())
+                return out;
+        }
+    }
+    auto read = [](const QString& path) {
+        QFile f(path);
+        return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()).trimmed() : QString();
+    };
+    std::vector<gpus::Card> cards;
+    QSet<QString> seen;
+    for (const QFileInfo& fi : QDir("/sys/class/drm").entryInfoList({"card*"}, QDir::Dirs | QDir::System)) {
+        if (fi.fileName().contains('-'))
+            continue;  // a connector
+        const QString dev = QFileInfo(fi.absoluteFilePath() + "/device").canonicalFilePath();
+        if (dev.isEmpty() || seen.contains(dev))
+            continue;
+        seen.insert(dev);
+        gpus::Card c;
+        c.slot = QFileInfo(dev).fileName().toStdString();
+        c.driver = QFileInfo(QFileInfo(dev + "/driver").canonicalFilePath()).fileName().toStdString();
+        c.vendor = uint16_t(read(dev + "/vendor").toUInt(nullptr, 16));
+        c.device = uint16_t(read(dev + "/device").toUInt(nullptr, 16));
+        c.boot_vga = read(dev + "/boot_vga") == "1";
+        if (c.vendor)
+            cards.push_back(std::move(c));
+    }
+    QByteArray ids;
+    for (const char* p : {"/usr/share/hwdata/pci.ids", "/usr/share/misc/pci.ids"}) {
+        QFile f(p);
+        if (f.open(QIODevice::ReadOnly)) {
+            ids = f.readAll();
+            break;
+        }
+    }
+    return gpus::from_cards(std::move(cards), std::string_view(ids.constData(), size_t(ids.size())));
+}
+
+const std::vector<gpus::Gpu>& all_gpus() {
+    static const std::vector<gpus::Gpu> g = find_gpus();
+    return g;
+}
+
+} // namespace
+
+QString DesktopEntries::otherGpu() const {
+    const gpus::Gpu* g = gpus::other(all_gpus());
+    return g ? QString::fromStdString(g->name) : QString();
+}
+
+const gpus::Env& DesktopEntries::otherGpuEnv() {
+    static const gpus::Env none;
+    const gpus::Gpu* g = gpus::other(all_gpus());
+    return g ? g->env : none;
+}
 
 QStringList DesktopEntries::inTerminal(const QStringList& argv) {
     if (!QStandardPaths::findExecutable("xdg-terminal-exec").isEmpty())

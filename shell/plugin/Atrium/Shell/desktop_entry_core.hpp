@@ -36,6 +36,7 @@ struct Entry {
     bool no_display = false;
     bool hidden = false;
     bool terminal = false;
+    bool prefers_non_default_gpu = false;  // PrefersNonDefaultGPU: a game on a laptop's discrete GPU
     std::vector<Action> actions;
 };
 
