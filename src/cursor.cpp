@@ -5,11 +5,7 @@
 
 #include "render/matrix.hpp"
 #include "render/renderer.hpp"
-#include "wlr.hpp"
-
-extern "C" {
-#include <wlr/render/pass.h>
-}
+#include "common.hpp"
 
 #include <drm_fourcc.h>
 

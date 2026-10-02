@@ -7,7 +7,7 @@
 #include "backend/backend.hpp"
 
 #include "render/renderer.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <drm_fourcc.h>
 
@@ -544,7 +544,6 @@ Multi::~Multi() {
 void Multi::add(std::unique_ptr<Backend> b) {
     Backend* raw = b.get();
     connections_.push_back(raw->events.new_output.connect([this](Output* o) { events.new_output.emit(o); }));
-    connections_.push_back(raw->events.new_input.connect([this](wlr_input_device* d) { events.new_input.emit(d); }));
     connections_.push_back(raw->events.host_motion.connect(
         [this](Output* o, uint32_t t, double fx, double fy) { events.host_motion.emit(o, t, fx, fy); }));
     connections_.push_back(raw->events.host_button.connect(

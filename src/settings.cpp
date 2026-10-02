@@ -167,19 +167,19 @@ const char* action_name(Action action) {
 
 uint32_t modifier_from_name(const std::string& name) {
     const std::string n = lower(name);
-    if (n == "super" || n == "logo" || n == "win" || n == "mod4") return WLR_MODIFIER_LOGO;
-    if (n == "alt" || n == "mod1") return WLR_MODIFIER_ALT;
-    if (n == "ctrl" || n == "control") return WLR_MODIFIER_CTRL;
-    if (n == "shift") return WLR_MODIFIER_SHIFT;
+    if (n == "super" || n == "logo" || n == "win" || n == "mod4") return input::Logo;
+    if (n == "alt" || n == "mod1") return input::Alt;
+    if (n == "ctrl" || n == "control") return input::Ctrl;
+    if (n == "shift") return input::Shift;
     return 0;
 }
 
 const char* modifier_name(uint32_t mod) {
     switch (mod) {
-    case WLR_MODIFIER_LOGO: return "super";
-    case WLR_MODIFIER_ALT: return "alt";
-    case WLR_MODIFIER_CTRL: return "ctrl";
-    case WLR_MODIFIER_SHIFT: return "shift";
+    case input::Logo: return "super";
+    case input::Alt: return "alt";
+    case input::Ctrl: return "ctrl";
+    case input::Shift: return "shift";
     default: return "super";
     }
 }
@@ -776,7 +776,7 @@ std::optional<std::string> Settings::validate(const SettingSchema& s, json& v) c
         break;
     case SettingType::Keybinds: {
         std::vector<std::string> errors;
-        resolve_keybinds(v, WLR_MODIFIER_LOGO, &errors);
+        resolve_keybinds(v, input::Logo, &errors);
         if (!errors.empty())
             return errors.front();
         break;

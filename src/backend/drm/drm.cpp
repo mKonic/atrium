@@ -5,13 +5,11 @@
 #include "listener.hpp"
 #include "render/renderer.hpp"
 #include "util/timeline.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 extern "C" {
 #include <libdisplay-info/cvt.h>
 #include <libdisplay-info/info.h>
-#include <wlr/render/dmabuf.h>
-#include <wlr/render/pass.h>
 }
 
 #include <drm_fourcc.h>

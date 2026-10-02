@@ -1,5 +1,5 @@
 #pragma once
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <functional>
 #include <utility>

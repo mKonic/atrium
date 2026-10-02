@@ -3,7 +3,7 @@
 
 #include "util/format_set.hpp"
 #include "util/timeline.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>

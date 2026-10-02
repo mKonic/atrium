@@ -14,9 +14,9 @@ url='https://github.com/mKonic/atrium'
 license=('GPL-3.0-or-later' 'OFL-1.1')
 depends=(
   # compositor
-  wlroots0.20 wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info
+  wayland libinput seatd systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info lcms2
   libglvnd mesa
-  xcb-util-wm libxcrypt fontconfig xorg-xwayland
+  libxcb xcb-util-wm libxcrypt fontconfig xorg-xwayland
   # shell
   qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse
   # what the shell fronts

@@ -4,7 +4,7 @@
 #include "layer_surface.hpp"
 #include "palette.hpp"
 #include "view.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 #include "server.hpp"
 
 #include "atrium-glass-v1-server.hpp"

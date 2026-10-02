@@ -1,7 +1,7 @@
 #pragma once
 #include "wayland-server.hpp"
 
-#include "wlr.hpp"
+#include "common.hpp"
 
 namespace atrium::wl {
 

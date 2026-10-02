@@ -33,6 +33,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - atrium draws with its own renderer: a full redraw with blur and Liquid Glass takes about half the time.
 - atrium speaks Wayland to apps itself, and runs X11 windows with its own window manager.
 - atrium drives the displays itself, on drivers with or without atomic modesetting.
+- atrium no longer needs wlroots, and runs nested only inside a Wayland session (not X11).
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

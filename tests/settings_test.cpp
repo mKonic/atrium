@@ -10,13 +10,13 @@ TEST(Chord, ParsesModifiersAndKey) {
     auto c = parse_chord("Mod+Shift+E");
     ASSERT_TRUE(c);
     EXPECT_TRUE(c->uses_mod);
-    EXPECT_EQ(c->mods, uint32_t(WLR_MODIFIER_SHIFT));
+    EXPECT_EQ(c->mods, uint32_t(input::Shift));
     EXPECT_EQ(c->sym, xkb_keysym_t(XKB_KEY_e));
 }
 
 TEST(Chord, NamedKeysAndCase) {
     EXPECT_EQ(parse_chord("super+return")->sym, xkb_keysym_t(XKB_KEY_Return));
-    EXPECT_EQ(parse_chord("Ctrl+Alt+F3")->mods, uint32_t(WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT));
+    EXPECT_EQ(parse_chord("Ctrl+Alt+F3")->mods, uint32_t(input::Ctrl | input::Alt));
     EXPECT_EQ(parse_chord("Mod++")->sym, xkb_keysym_t(XKB_KEY_plus));
 }
 
@@ -76,13 +76,13 @@ TEST(Settings, AppliesToTheConfig) {
     EXPECT_EQ(c.corner_radius, 3);
     EXPECT_EQ(c.accel_profile, LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT);
     EXPECT_FLOAT_EQ(c.shadow_color[0], 1.0f);
-    EXPECT_EQ(c.mod, uint32_t(WLR_MODIFIER_ALT));
+    EXPECT_EQ(c.mod, uint32_t(input::Alt));
 }
 
 TEST(Shortcuts, FollowTheModifier) {
-    const auto alt = resolve_keybinds(default_keybinds(), WLR_MODIFIER_ALT);
-    EXPECT_NE(find_keybind(alt, WLR_MODIFIER_ALT, XKB_KEY_q), nullptr);
-    EXPECT_EQ(find_keybind(alt, WLR_MODIFIER_LOGO, XKB_KEY_q), nullptr);
+    const auto alt = resolve_keybinds(default_keybinds(), input::Alt);
+    EXPECT_NE(find_keybind(alt, input::Alt, XKB_KEY_q), nullptr);
+    EXPECT_EQ(find_keybind(alt, input::Logo, XKB_KEY_q), nullptr);
 }
 
 TEST(Shortcuts, ClashesAreTheSameKeysHoweverWritten) {
@@ -91,30 +91,30 @@ TEST(Shortcuts, ClashesAreTheSameKeysHoweverWritten) {
                                            {3, "Shift+Mod+E", "quit", ""},
                                            {4, "Mod+Shift+E", "overview", ""},
                                            {5, "Mod+W", "close", ""}};
-    const auto super = shortcut_clashes(list, WLR_MODIFIER_LOGO);
+    const auto super = shortcut_clashes(list, input::Logo);
     EXPECT_EQ(super.at(1), std::vector<int64_t>{2});
     EXPECT_EQ(super.at(2), std::vector<int64_t>{1});
     EXPECT_EQ(super.at(3), std::vector<int64_t>{4});
     EXPECT_FALSE(super.contains(5));
     // With Alt as Mod, Mod+Q and Super+Q are different keys.
-    EXPECT_FALSE(shortcut_clashes(list, WLR_MODIFIER_ALT).contains(1));
+    EXPECT_FALSE(shortcut_clashes(list, input::Alt).contains(1));
 }
 
 TEST(Shortcuts, DefaultsNeverClash) {
     auto list = shortcuts_from_json(default_keybinds());
     for (size_t i = 0; i < list.size(); ++i)
         list[i].id = int64_t(i + 1);
-    EXPECT_TRUE(shortcut_clashes(list, WLR_MODIFIER_LOGO).empty());
+    EXPECT_TRUE(shortcut_clashes(list, input::Logo).empty());
     // With Alt as Mod, Mod+Tab (spaces) lands on Alt+Tab (windows), and
     // Mod+Alt+X on Mod+X: shown as clashes, and only those.
-    for (const auto& [id, others] : shortcut_clashes(list, WLR_MODIFIER_ALT)) {
+    for (const auto& [id, others] : shortcut_clashes(list, input::Alt)) {
         const std::string& k = list[id - 1].keys;
         const bool alt_pair = k.starts_with("Mod+Alt+") ||
             std::ranges::any_of(others, [&](int64_t o) { return list[o - 1].keys.starts_with("Mod+Alt+"); });
         EXPECT_TRUE(k.ends_with("Tab") || alt_pair) << k;
     }
     list.push_back({999, list.front().keys, "close", ""});
-    EXPECT_TRUE(shortcut_clashes(list, WLR_MODIFIER_LOGO).contains(999));
+    EXPECT_TRUE(shortcut_clashes(list, input::Logo).contains(999));
 }
 
 TEST(Shortcuts, BadOnesAreSkippedWithAReason) {
@@ -122,7 +122,7 @@ TEST(Shortcuts, BadOnesAreSkippedWithAReason) {
     const auto binds = resolve_keybinds(json::array({{{"keys", "Mod+B"}, {"action", "spawn"}, {"arg", "firefox"}},
                                                      {{"keys", "Mod+B"}, {"action", "fly"}},
                                                      {{"keys", "Mod+C"}, {"action", "spawn"}}}),
-                                        WLR_MODIFIER_LOGO, &errors);
+                                        input::Logo, &errors);
     ASSERT_EQ(binds.size(), 1u);
     EXPECT_EQ(binds[0].arg, "firefox");
     EXPECT_EQ(errors.size(), 2u);

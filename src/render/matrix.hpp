@@ -4,7 +4,7 @@
 // (MIT), which no longer exports them.
 
 #include "util/color.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 namespace atrium::render::matrix {
 

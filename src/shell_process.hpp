@@ -1,5 +1,5 @@
 #pragma once
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <string>
 #include <sys/types.h>

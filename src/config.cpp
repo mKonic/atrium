@@ -12,7 +12,7 @@ const Keybind* find_keybind(const std::vector<Keybind>& binds, uint32_t mods, xk
 
 Config Config::defaults(bool nested) {
     Config c;
-    c.mod = nested ? WLR_MODIFIER_ALT : WLR_MODIFIER_LOGO;
+    c.mod = nested ? input::Alt : input::Logo;
     c.keybinds = resolve_keybinds(default_keybinds(), c.mod);
     c.rules = parse_rules(default_rules());
     return c;

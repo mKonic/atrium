@@ -13,7 +13,7 @@
 #include "wl/dmabuf.hpp"
 #include "wl/signal.hpp"
 #include "util/damage_ring.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <optional>
 #include <vector>

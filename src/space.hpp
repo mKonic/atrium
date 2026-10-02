@@ -1,7 +1,7 @@
 #pragma once
 #include "scene/scene.hpp"
 #include "wl/desktop.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <string>
 #include <vector>

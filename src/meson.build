@@ -18,7 +18,6 @@ atrium_sources = files(
   'backend/output.cpp',
   'backend/session.cpp',
   'backend/wayland.cpp',
-  'backend/wlr.cpp',
   'capture.cpp',
   'cursor.cpp',
   'config.cpp',

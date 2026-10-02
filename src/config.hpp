@@ -1,5 +1,6 @@
 #pragma once
-#include "wlr.hpp"
+#include "input/keys.hpp"
+#include "common.hpp"
 
 #include "rules.hpp"
 
@@ -70,7 +71,7 @@ struct Keybind {
 
 // Caps Lock and Num Lock never change which binding a key means.
 constexpr uint32_t clean_mods(uint32_t mods) {
-    return mods & ~uint32_t(WLR_MODIFIER_CAPS | WLR_MODIFIER_MOD2);
+    return mods & ~uint32_t(input::Caps | input::Mod2);
 }
 
 // The binding for `sym` pressed with `mods`, or null.
@@ -162,7 +163,7 @@ struct Config {
     std::vector<WindowRule> rules;
 
     // Bindings
-    uint32_t mod = WLR_MODIFIER_LOGO;
+    uint32_t mod = input::Logo;
     std::string terminal;  // empty: kDefaultTerminal
     bool snippet_expansion = false;  // typed snippet keywords become the snippet
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"

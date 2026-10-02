@@ -12,21 +12,16 @@ project('atrium', 'cpp', 'c',
 
 cpp = meson.get_compiler('cpp')
 add_project_arguments(
-  '-DWLR_USE_UNSTABLE',
   '-D_POSIX_C_SOURCE=200809L',
-  # wlroots headers use C idioms (designated initializers out of order,
-  # anonymous structs in unions) that g++ accepts but warns about.
+  # Overrides and protocol handlers that ignore some of their arguments, and
+  # C structs set up field by field.
   cpp.get_supported_arguments(
     '-Wno-unused-parameter',
     '-Wno-missing-field-initializers',
-    '-Wno-pedantic',
-    '-Wno-c99-designator',
   ),
   language: 'cpp',
 )
 
-# The system's wlroots, else the pinned one (subprojects/wlroots.wrap).
-wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
 wayland_protos = dependency('wayland-protocols')
 wayland_dir = dependency('wayland-scanner', native: true).get_variable(pkgconfig: 'pkgdatadir')
@@ -49,7 +44,7 @@ json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_de
 xwayland = dependency('xwayland', required: get_option('xwayland'))
 use_xwayland = xwayland.found()
 
-deps = [wlroots, wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2]
+deps = [wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm'), dependency('xcb-composite'), dependency('xcb-xfixes'),
            dependency('xcb-res'), dependency('xcb-render'), dependency('xcb-ewmh')]

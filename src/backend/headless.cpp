@@ -1,6 +1,6 @@
 #include "backend/headless.hpp"
 
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <algorithm>
 #include <ctime>

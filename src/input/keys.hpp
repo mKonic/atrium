@@ -11,7 +11,7 @@
 
 namespace atrium::input {
 
-// Modifier bits, as bindings and wlroots spell them (WLR_MODIFIER_*).
+// Modifier bits, in xkb's modifier order (as bindings store them).
 enum Mod : uint32_t {
     Shift = 1 << 0,
     Caps = 1 << 1,

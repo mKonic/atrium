@@ -81,7 +81,7 @@ void Seat::key(input::Device&, uint32_t time_ms, uint32_t keycode, bool pressed)
 }
 
 void Seat::motion(input::Device&, uint32_t time_ms, double dx, double dy, double dx_unaccel, double dy_unaccel) {
-    motion(time_ms, nullptr, dx, dy, dx_unaccel, dy_unaccel);
+    motion(time_ms, dx, dy, dx_unaccel, dy_unaccel);
 }
 
 void Seat::motion_absolute(input::Device& d, uint32_t time_ms, double x, double y) {

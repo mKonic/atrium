@@ -91,11 +91,6 @@ KeyboardGroup::~KeyboardGroup() {
 
 namespace {
 
-AxisEvent axis_of(const wlr_pointer_axis_event* e) {
-    return {e->time_msec, uint32_t(e->orientation), e->delta, e->delta_discrete, uint32_t(e->source),
-            e->relative_direction == WL_POINTER_AXIS_RELATIVE_DIRECTION_INVERTED};
-}
-
 } // namespace
 
 Seat::Seat(Server& srv) : server(srv) {
@@ -137,7 +132,6 @@ Seat::Seat(Server& srv) : server(srv) {
         }
     }));
 
-    new_input_ = server.backend->events.new_input.connect([this](wlr_input_device* d) { new_input(d); });
     // Nested: the host's pointer over one of our windows, and its keyboard.
     // Its keys go through atrium's own state; the host's modifiers (and its
     // layout in them) are not ours.
@@ -223,7 +217,7 @@ void Seat::new_virtual_pointer(wl::VirtualInputs::Pointer* vp) {
     };
     auto source = std::make_shared<uint32_t>(WL_POINTER_AXIS_SOURCE_WHEEL);
     std::vector<wl::Connection> c;
-    c.push_back(vp->motion.connect([this](uint32_t time, double dx, double dy) { motion(time, nullptr, dx, dy, dx, dy); }));
+    c.push_back(vp->motion.connect([this](uint32_t time, double dx, double dy) { motion(time, dx, dy, dx, dy); }));
     c.push_back(vp->motion_absolute.connect([this, layout](uint32_t time, double x, double y) {
         double lx, ly;
         layout(x, y, &lx, &ly);
@@ -338,7 +332,6 @@ void Seat::start_drag(wl::Drag* drag) {
 
 Seat::~Seat() {
     // Off every signal before the objects carrying them go away.
-    new_input_.disconnect();
     host_input_.clear();
     // Its image may be one of our themes' (gone below).
     cursor->unset_image();
@@ -349,7 +342,6 @@ Seat::~Seat() {
     drag_icon_gone_.disconnect();
     virtual_pointers_.clear();
     libinput_.reset();
-    pointers_.clear();
     virtual_keyboards_.clear();
     keyboards_.reset();
     server.animator.cancel_owner(&shake_, false);
@@ -447,37 +439,6 @@ void Seat::set_default_cursor() {
 
 // --- devices -----------------------------------------------------------------
 
-// A nested backend's devices: the host's keyboard and pointer.
-void Seat::new_input(wlr_input_device* device) {
-    switch (device->type) {
-    case WLR_INPUT_DEVICE_KEYBOARD:
-        add_keyboard(wlr_keyboard_from_input_device(device));
-        break;
-    case WLR_INPUT_DEVICE_POINTER:
-        add_pointer(wlr_pointer_from_input_device(device));
-        break;
-    default:
-        break;
-    }
-    update_capabilities();
-}
-
-void Seat::add_keyboard(wlr_keyboard* keyboard) {
-    auto kb = std::make_unique<PhysicalKeyboard>();
-    PhysicalKeyboard* raw = kb.get();
-    raw->wlr = keyboard;
-    // Its keys go through atrium's own state; the host's modifiers (and the
-    // host's layout in them) are not ours.
-    raw->key.connect(&keyboard->events.key, [this](wlr_keyboard_key_event* e) {
-        keyboards_->keys.key(e->time_msec, e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED);
-    });
-    raw->destroy.connect(&keyboard->base.events.destroy, [this, raw](void*) {
-        std::erase_if(physical_, [raw](auto& k) { return k.get() == raw; });
-        update_capabilities();
-    });
-    physical_.push_back(std::move(kb));
-}
-
 uint32_t Seat::layout() const {
     return keyboards_->keys.layout();
 }
@@ -505,47 +466,12 @@ void Seat::set_layout(uint32_t index) {
         server.keyboard_layout_changed();
 }
 
-void Seat::add_pointer(wlr_pointer* pointer) {
-    auto dev = std::make_unique<PointerDevice>(pointer);
-    PointerDevice* raw = dev.get();
-    raw->motion.connect(&pointer->events.motion, [this](wlr_pointer_motion_event* e) {
-        motion(e->time_msec, &e->pointer->base, e->delta_x, e->delta_y, e->unaccel_dx, e->unaccel_dy);
-    });
-    raw->motion_absolute.connect(&pointer->events.motion_absolute, [this](wlr_pointer_motion_absolute_event* e) {
-        // Over the host window of its own screen, where it has one.
-        double lx, ly;
-        Output* on = nullptr;
-        if (e->pointer->output_name)
-            for (Output* o : server.outputs)
-                if (o->enabled() && o->screen->name == e->pointer->output_name)
-                    on = o;
-        if (on) {
-            lx = on->box.x + e->x * on->box.width;
-            ly = on->box.y + e->y * on->box.height;
-        } else {
-            cursor->absolute_to_layout(e->x, e->y, &lx, &ly);
-        }
-        motion_absolute(e->time_msec, lx, ly);
-    });
-    raw->button.connect(&pointer->events.button, [this](wlr_pointer_button_event* e) {
-        button(ButtonEvent{e->time_msec, e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED});
-    });
-    raw->axis.connect(&pointer->events.axis, [this](wlr_pointer_axis_event* e) { axis(axis_of(e)); });
-    raw->frame.connect(&pointer->events.frame, [this](void*) { server.wl->seat->pointer_frame(); });
-    raw->destroy.connect(&pointer->base.events.destroy, [this, raw](void*) {
-        std::erase_if(pointers_, [raw](auto& p) { return p.get() == raw; });
-    });
-    pointers_.push_back(std::move(dev));
-}
-
 std::vector<std::pair<std::string, libinput_device*>> Seat::pointer_devices() const {
     std::vector<std::pair<std::string, libinput_device*>> out;
     if (libinput_)
         for (const auto& d : libinput_->devices())
             if (d->pointer)
                 out.emplace_back(d->name, d->handle);
-    for (const auto& p : pointers_)
-        out.emplace_back(p->wlr->base.name ? p->wlr->base.name : "", nullptr);
     return out;
 }
 
@@ -606,7 +532,7 @@ bool Seat::watch_keyword(KeyboardGroup& g, uint32_t keycode, xkb_keysym_t sym) {
     const uint32_t mods = g.keys.mod_mask();
     if (sym == XKB_KEY_Shift_L || sym == XKB_KEY_Shift_R || sym == XKB_KEY_Caps_Lock || sym == XKB_KEY_ISO_Level3_Shift)
         return false;
-    if (mods & (WLR_MODIFIER_CTRL | WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO)) {
+    if (mods & (input::Ctrl | input::Alt | input::Logo)) {
         server.keywords.reset();
         return false;
     }
@@ -827,7 +753,7 @@ void Seat::reach_edge() {
         server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", at}, {"edge", edge}});
 }
 
-void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
+void Seat::motion(uint32_t time, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
     wl::Surface* focused = server.wl->seat->pointer_focus();
     wl::Drag* drag = server.wl->data->drag();
@@ -1001,11 +927,11 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 void Seat::motion_absolute(uint32_t time, double lx, double ly) {
     if (!time) {  // virtual pointers send time 0 and expect a warp
         cursor->warp_closest(lx, ly);
-        motion(0, nullptr, 0, 0, 0, 0);
+        motion(0, 0, 0, 0, 0);
         return;
     }
     const double dx = lx - cursor->x, dy = ly - cursor->y;
-    motion(time, nullptr, dx, dy, dx, dy);
+    motion(time, dx, dy, dx, dy);
 }
 
 void Seat::pointer_focus(View*, wl::Surface* surface, double sx, double sy, uint32_t time) {
@@ -1237,7 +1163,7 @@ bool Seat::titlebar_button(const ButtonEvent& event, const Hit& hit) {
     // Green is full screen, as on a Mac: the window takes the whole screen,
     // menu bar, title bar and Dock gone. With Alt (Option) it zooms instead.
     case Part::Maximize:
-        if (held_modifiers() & WLR_MODIFIER_ALT) {
+        if (held_modifiers() & input::Alt) {
             if (!v.fullscreen && !v.layout_owned())
                 v.set_maximized(!v.maximized);
         } else {
@@ -1258,7 +1184,7 @@ void Seat::axis(const AxisEvent& event) {
     // touchpad once per stretch of scrolling.
     const uint32_t mods = clean_mods(held_modifiers());
     if (!server.locked && e->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL &&
-        (mods == server.config.mod || mods == (server.config.mod | WLR_MODIFIER_ALT))) {
+        (mods == server.config.mod || mods == (server.config.mod | input::Alt))) {
         const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->value120 != 0;
         space_scroll_ += wheel ? e->value120 / 120.0 : e->delta / 40.0;
         while (std::abs(space_scroll_) >= 1) {
@@ -1266,7 +1192,7 @@ void Seat::axis(const AxisEvent& event) {
             space_scroll_ -= step;
             // Down goes back, as caelestia binds it (mouse_down: workspace -1).
             const bool forward = step < 0;
-            if (mods & WLR_MODIFIER_ALT)
+            if (mods & input::Alt)
                 server.run_action({.mods = 0, .sym = 0, .action = forward ? Action::MoveToSpaceNext : Action::MoveToSpacePrev});
             else
                 server.step_space(forward ? 1 : -1);

@@ -232,12 +232,10 @@ public:
 
     wl_display* display = nullptr;
     wl_event_loop* loop = nullptr;
-    // Where screens come from: wlroots' DRM or nested backend in
-    // `wlr_backend`, and atrium's own headless one for virtual screens.
+    // Where screens come from: the GPUs, windows in the host session when
+    // nested, or memory (headless).
     backend::Multi* backend = nullptr;
-    wlr_backend* wlroots = nullptr;
-    wlr_session* session = nullptr;  // wlroots' (ATRIUM_WLR_DRM=1)
-    // Where libinput opens devices: atrium's session, or wlroots'.
+    // Where libinput opens devices: atrium's session.
     std::unique_ptr<input::Libinput::DeviceSeat> device_seat;
     render::Renderer* renderer = nullptr;
     backend::Allocator* allocator = nullptr;
@@ -374,8 +372,6 @@ private:
     void run_startup();
 
     Listener<> gpu_reset_;
-    Listener<> session_active_;
-    Listener<> backend_destroy_;
     // On the protocols' signals.
     std::vector<wl::Connection> connections_;
 #ifdef ATRIUM_XWAYLAND

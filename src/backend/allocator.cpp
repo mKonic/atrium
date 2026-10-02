@@ -2,11 +2,10 @@
 // render/swapchain.c (MIT).
 #include "backend/allocator.hpp"
 
-#include "wlr.hpp"
+#include "common.hpp"
 
 extern "C" {
 #include <gbm.h>
-#include <wlr/render/dmabuf.h>
 }
 
 #include <drm_fourcc.h>

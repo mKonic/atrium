@@ -5,7 +5,6 @@
 #include "backend/session.hpp"
 #include "backend/wayland.hpp"
 #include "input/libinput.hpp"
-#include "backend/wlr.hpp"
 #include "capture_state.hpp"
 #include "stacking.hpp"
 #include "render/renderer.hpp"
@@ -73,32 +72,6 @@ public:
 
 private:
     backend::Session& s_;
-};
-
-// ...or through wlroots' (ATRIUM_WLR_DRM=1).
-class WlrDeviceSeat final : public input::Libinput::DeviceSeat {
-public:
-    explicit WlrDeviceSeat(wlr_session* s) : s_(s) {}
-    struct udev* udev() override { return s_->udev; }
-    const char* name() override { return s_->seat; }
-    int open(const char* path) override {
-        wlr_device* d = wlr_session_open_file(s_, path);
-        if (!d)
-            return errno ? -errno : -EIO;
-        open_.push_back(d);
-        return d->fd;
-    }
-    void close(int fd) override {
-        auto it = std::ranges::find_if(open_, [fd](wlr_device* d) { return d->fd == fd; });
-        if (it == open_.end())
-            return;
-        wlr_session_close_file(s_, *it);
-        open_.erase(it);
-    }
-
-private:
-    wlr_session* s_;
-    std::vector<wlr_device*> open_;
 };
 
 } // namespace
@@ -254,11 +227,9 @@ void Server::setup() {
     display = wl_display_create();
     loop = wl_display_get_event_loop(display);
 
-    // DRM on a TTY, or a window when WAYLAND_DISPLAY/DISPLAY is set. Input
-    // on a TTY is atrium's own, from libinput (the seat's): wlroots' libinput
-    // backend stays out unless WLR_BACKENDS asks for it.
-    const bool nested_session = getenv("WAYLAND_DISPLAY") || getenv("DISPLAY");
-    if (!getenv("WLR_BACKENDS") && !nested_session)
+    // DRM on a TTY, or a window when WAYLAND_DISPLAY is set (WLR_BACKENDS
+    // picks one: drm, wayland or headless). Input on a TTY is libinput's.
+    if (!getenv("WLR_BACKENDS") && !getenv("WAYLAND_DISPLAY"))
         setenv("WLR_BACKENDS", "drm", 1);
     backend_ = std::make_unique<backend::Multi>(loop);
     backend = backend_.get();
@@ -286,8 +257,7 @@ void Server::setup() {
                 seat->backend_gone();
             wl_display_terminate(display);
         });
-    } else if (const char* b = getenv("WLR_BACKENDS");
-               !getenv("ATRIUM_WLR_DRM") && (!b || std::string_view(b) == "drm")) {
+    } else if (const char* b = getenv("WLR_BACKENDS"); !b || std::string_view(b) == "drm") {
         // Real screens: atrium's own session and KMS.
         own_session_ = backend::Session::create(loop);
         if (!own_session_)
@@ -300,22 +270,7 @@ void Server::setup() {
         gpu_added_ = own_session_->events.add_gpu.connect([this](const std::string& path) { add_gpu(path); });
         device_seat = std::make_unique<SessionDeviceSeat>(*own_session_);
     } else {
-        wlroots = wlr_backend_autocreate(loop, &session);
-        if (!wlroots)
-            die("couldn't create backend");
-        // Nested, the backend dies with the session atrium runs inside. wlroots
-        // insists nothing still listens on it by then, so let go and end.
-        backend_destroy_.connect(&wlroots->events.destroy, [this](void*) {
-            alog(Log::Error, "the backend went away (the host session ended?); quitting");
-            if (seat)
-                seat->backend_gone();
-            backend_destroy_.disconnect();
-            wlroots = nullptr;
-            wl_display_terminate(display);
-        });
-        backend->add(std::make_unique<backend::WlrBackend>(loop, wlroots));
-        if (session)
-            device_seat = std::make_unique<WlrDeviceSeat>(session);
+        die("WLR_BACKENDS is drm, wayland or headless (atrium nests in Wayland sessions only)");
     }
 
     scene = scene::Scene::create();
@@ -365,8 +320,6 @@ void Server::setup() {
     // takes them back on return.
     if (own_session_)
         session_active_conn_ = own_session_->events.active.connect([this](bool on) { seat->session_active(on); });
-    else if (session)
-        session_active_.connect(&session->events.active, [this](void*) { seat->session_active(session->active); });
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
     system_bell = std::make_unique<SystemBell>(*this);
@@ -616,7 +569,6 @@ void Server::disconnect_listeners() {
     new_output_conn_.disconnect();
     layout_change_conn_.disconnect();
     gpu_reset_.disconnect();
-    session_active_.disconnect();
     connections_.clear();
 #ifdef ATRIUM_XWAYLAND
     xwayland_start_.disconnect();
@@ -758,7 +710,6 @@ void Server::teardown() {
 
     // The backend by hand before the display: its outputs go (and tell the
     // protocols so), then the globals, before the display.
-    backend_destroy_.disconnect();
     backend_gone_.disconnect();
     new_output_conn_.disconnect();
     backend = nullptr;
@@ -767,10 +718,9 @@ void Server::teardown() {
     gpu_added_.disconnect();
     gpu_removed_.clear();
     gpu_leases_.clear();  // before the GPUs they lease from
-    backend_.reset();  // takes wlroots' with it, unless the host session ended
+    backend_.reset();
     device_seat.reset();
     own_session_.reset();
-    wlroots = nullptr;
     layout_change_conn_.disconnect();
     scene->draw_cursor = nullptr;
     cursor.reset();
@@ -1479,8 +1429,6 @@ void Server::spawn(const std::string& command) {
 void Server::change_vt(unsigned vt) {
     if (own_session_)
         own_session_->change_vt(vt);
-    else if (session)
-        wlr_session_change_vt(session, vt);
 }
 
 void Server::run_action(const Keybind& b) {
@@ -1530,8 +1478,8 @@ void Server::run_action(const Keybind& b) {
         overview->open_app(app);
         break;
     }
-    case Action::SwitchNext: switcher->step(+1, b.mods & ~uint32_t(WLR_MODIFIER_SHIFT)); break;
-    case Action::SwitchPrev: switcher->step(-1, b.mods & ~uint32_t(WLR_MODIFIER_SHIFT)); break;
+    case Action::SwitchNext: switcher->step(+1, b.mods & ~uint32_t(input::Shift)); break;
+    case Action::SwitchPrev: switcher->step(-1, b.mods & ~uint32_t(input::Shift)); break;
     case Action::CycleSpaceNext: cycle_space(+1); break;
     case Action::CycleSpacePrev: cycle_space(-1); break;
     case Action::RestartShell: if (shell) shell->restart(); break;

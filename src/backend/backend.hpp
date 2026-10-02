@@ -7,7 +7,6 @@
 #include <vector>
 
 struct wl_event_loop;
-struct wlr_input_device;
 
 namespace atrium::backend {
 
@@ -49,7 +48,6 @@ public:
 
     struct {
         wl::Signal<Output*> new_output;
-        wl::Signal<wlr_input_device*> new_input;  // wlroots' input devices (WLR_BACKENDS=libinput)
         // The pointer over `output` at a fraction (0..1) of it.
         wl::Signal<Output*, uint32_t /*time*/, double /*fx*/, double /*fy*/> host_motion;
         wl::Signal<uint32_t /*time*/, uint32_t /*button*/, bool /*pressed*/> host_button;

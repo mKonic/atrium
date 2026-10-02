@@ -12,7 +12,6 @@
 
 struct wl_event_loop;
 struct wl_event_source;
-struct wlr_device;
 struct udev;
 
 namespace atrium::input {

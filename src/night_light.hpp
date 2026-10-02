@@ -7,7 +7,7 @@
 // off until the schedule next changes, as macOS's Night Shift.
 
 #include "night_light_core.hpp"
-#include "wlr.hpp"
+#include "common.hpp"
 
 #include <nlohmann/json.hpp>
 

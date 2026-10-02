@@ -68,7 +68,6 @@ public:
 
     // The backend is being destroyed under us: stop listening to it.
     void backend_gone() {
-        new_input_.disconnect();
         host_input_.clear();
     }
 
@@ -85,7 +84,7 @@ public:
 
     // Re-evaluate what is under the cursor without it having moved
     // (after a window maps, moves, closes or changes stacking).
-    void refresh_pointer() { motion(0, nullptr, 0, 0, 0, 0); }
+    void refresh_pointer() { motion(0, 0, 0, 0, 0); }
 
     void begin_move(View* view);
     void begin_resize(View* view, uint32_t edges);
@@ -130,9 +129,6 @@ private:
     bool shaking_ = false;
     wl_event_source* shake_end_ = nullptr;
 
-    void new_input(wlr_input_device* device);
-    void add_keyboard(wlr_keyboard* keyboard);
-    void add_pointer(wlr_pointer* pointer);
 
     // libinput's devices and events (seat_input.cpp).
     void device_added(input::Device& d) override;
@@ -172,7 +168,7 @@ private:
     const Keybind* find_binding(uint32_t mods, xkb_keysym_t sym) const;
     bool shortcuts_inhibited() const;
 
-    void motion(uint32_t time, wlr_input_device* device, double dx, double dy,
+    void motion(uint32_t time, double dx, double dy,
                 double dx_unaccel, double dy_unaccel);
     void motion_absolute(uint32_t time, double lx, double ly);
     void button(const ButtonEvent& event);
@@ -230,24 +226,6 @@ private:
     View* last_bar_click_view_ = nullptr;
     uint32_t last_bar_click_ms_ = 0;
 
-    // Pointers and keyboards of a nested backend (the host's).
-    // A nested host's pointer (wlroots' Wayland backend).
-    struct PointerDevice {
-        wlr_pointer* wlr;
-        Listener<> destroy;
-        Listener<wlr_pointer_motion_event> motion;
-        Listener<wlr_pointer_motion_absolute_event> motion_absolute;
-        Listener<wlr_pointer_button_event> button;
-        Listener<wlr_pointer_axis_event> axis;
-        Listener<> frame;
-    };
-    std::vector<std::unique_ptr<PointerDevice>> pointers_;
-    struct PhysicalKeyboard {
-        wlr_keyboard* wlr;
-        Listener<wlr_keyboard_key_event> key;
-        Listener<> destroy;
-    };
-    std::vector<std::unique_ptr<PhysicalKeyboard>> physical_;
     uint32_t last_layout_ = 0;
 
     // libinput's, on a real session.
@@ -277,7 +255,6 @@ private:
     wl::Connection drag_ended_;
     std::list<std::vector<wl::Connection>> virtual_pointers_;  // each one's connections
 
-    wl::Connection new_input_;
     std::vector<wl::Connection> host_input_;  // a nested host's pointer and keyboard
     std::vector<wl::Connection> connections_;
 };
