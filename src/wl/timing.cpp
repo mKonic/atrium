@@ -8,9 +8,8 @@
 #include "linux-drm-syncobj-v1-server.hpp"
 #include "presentation-time-server.hpp"
 
-extern "C" {
-#include <wlr/render/drm_syncobj.h>
-}
+#include "util/timeline.hpp"
+
 #include <xf86drm.h>
 
 #include <linux/sync_file.h>
@@ -300,12 +299,12 @@ CommitTiming::~CommitTiming() {
 
 namespace {
 
-using TimelinePtr = std::shared_ptr<wlr_drm_syncobj_timeline>;
+using TimelinePtr = std::shared_ptr<Timeline>;
 
-TimelinePtr adopt(wlr_drm_syncobj_timeline* t) {
-    return TimelinePtr(t, [](wlr_drm_syncobj_timeline* x) {
+TimelinePtr adopt(Timeline* t) {
+    return TimelinePtr(t, [](Timeline* x) {
         if (x)
-            wlr_drm_syncobj_timeline_unref(x);
+            timeline_unref(x);
     });
 }
 
@@ -336,7 +335,7 @@ void merge_sync_file(int* into, int fd) {
 
 // A GPU wait turned into an event-loop callback.
 struct Syncobj::Waiter {
-    wlr_drm_syncobj_timeline_waiter waiter;
+    TimelineWaiter waiter;
     std::function<void()> ready;
     bool fired = false;
 };
@@ -358,12 +357,12 @@ struct Syncobj::Release {
             return;
         bool ok = false;
         if (merged >= 0) {
-            ok = wlr_drm_syncobj_timeline_import_sync_file(timeline.get(), point, merged);
+            ok = timeline_import_sync_file(timeline.get(), point, merged);
             close(merged);
             merged = -1;
         }
         if (!ok)
-            wlr_drm_syncobj_timeline_signal(timeline.get(), point);
+            timeline_signal(timeline.get(), point);
         std::erase(owner->releases_, this);
         delete this;
     }
@@ -382,7 +381,7 @@ Syncobj::Syncobj(wl_display* display, int drm_fd) : drm_fd_(drm_fd), display_(di
         if (!m)
             return;
         m->on_import_timeline([this](WpLinuxDrmSyncobjManagerV1* self, uint32_t id, int fd) {
-            wlr_drm_syncobj_timeline* t = wlr_drm_syncobj_timeline_import(drm_fd_, fd);
+            Timeline* t = timeline_import(drm_fd_, fd);
             close(fd);
             if (!t) {
                 self->post_error(uint32_t(WpLinuxDrmSyncobjManagerV1::Error::InvalidTimeline),
@@ -451,7 +450,7 @@ Syncobj::Syncobj(wl_display* display, int drm_fd) : drm_fd_(drm_fd), display_(di
                 // Hold the state until its acquire point exists (the GPU then
                 // waits for it to signal).
                 bool ready = false;
-                if (wlr_drm_syncobj_timeline_check(sy.acquire.get(), sy.acquire_point,
+                if (timeline_check(sy.acquire.get(), sy.acquire_point,
                                                    DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE, &ready) &&
                     ready)
                     return;
@@ -459,12 +458,12 @@ Syncobj::Syncobj(wl_display* display, int drm_fd) : drm_fd_(drm_fd), display_(di
                 auto w = std::make_unique<Waiter>();
                 Waiter* wp = w.get();
                 wp->ready = [s, st] { s->unlock(st, SurfaceState::LockFence); };
-                if (!wlr_drm_syncobj_timeline_waiter_init(&wp->waiter, sy.acquire.get(), sy.acquire_point, DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE,
+                if (!timeline_waiter_init(&wp->waiter, sy.acquire.get(), sy.acquire_point, DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE,
                                                           wl_display_get_event_loop(display_),
-                                                          [](wlr_drm_syncobj_timeline_waiter* waiter) {
+                                                          [](TimelineWaiter* waiter) {
                                                               auto* wp = reinterpret_cast<Waiter*>(waiter);
                                                               wp->fired = true;
-                                                              wlr_drm_syncobj_timeline_waiter_finish(waiter);
+                                                              timeline_waiter_finish(waiter);
                                                               wp->ready();
                                                           })) {
                     st->locks &= ~SurfaceState::LockFence;  // can't wait: let the GPU do it
@@ -519,7 +518,7 @@ Syncobj::~Syncobj() {
             r->detach();
     for (auto& w : waiters_)
         if (!w->fired)
-            wlr_drm_syncobj_timeline_waiter_finish(&w->waiter);
+            timeline_waiter_finish(&w->waiter);
     // Whatever is still held goes back now, so no client waits forever.
     for (Release* r : std::vector(releases_)) {
         wl_list_remove(&r->release_listener.link);
@@ -530,7 +529,7 @@ Syncobj::~Syncobj() {
     }
 }
 
-void Syncobj::add_release_point(Surface* surface, wlr_drm_syncobj_timeline* timeline, uint64_t point) {
+void Syncobj::add_release_point(Surface* surface, Timeline* timeline, uint64_t point) {
     auto it = surfaces_.find(surface);
     if (it == surfaces_.end() || !it->second->current || !timeline)
         return;
@@ -540,23 +539,23 @@ void Syncobj::add_release_point(Surface* surface, wlr_drm_syncobj_timeline* time
     ++rel->pending;
     auto w = std::make_unique<Waiter>();
     Waiter* wp = w.get();
-    TimelinePtr keep(wlr_drm_syncobj_timeline_ref(timeline), [](wlr_drm_syncobj_timeline* x) {
-        wlr_drm_syncobj_timeline_unref(x);
+    TimelinePtr keep(timeline_ref(timeline), [](Timeline* x) {
+        timeline_unref(x);
     });
     wp->ready = [this, rel, keep, point] {
         if (std::ranges::find(releases_, rel) == releases_.end())
             return;
-        const int fd = wlr_drm_syncobj_timeline_export_sync_file(keep.get(), point);
+        const int fd = timeline_export_sync_file(keep.get(), point);
         if (fd >= 0)
             merge_sync_file(&rel->merged, fd);
         --rel->pending;
         rel->finish_if_done();
     };
-    if (!wlr_drm_syncobj_timeline_waiter_init(&wp->waiter, timeline, point, DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE, wl_display_get_event_loop(display_),
-                                              [](wlr_drm_syncobj_timeline_waiter* waiter) {
+    if (!timeline_waiter_init(&wp->waiter, timeline, point, DRM_SYNCOBJ_WAIT_FLAGS_WAIT_AVAILABLE, wl_display_get_event_loop(display_),
+                                              [](TimelineWaiter* waiter) {
                                                   auto* wp = reinterpret_cast<Waiter*>(waiter);
                                                   wp->fired = true;
-                                                  wlr_drm_syncobj_timeline_waiter_finish(waiter);
+                                                  timeline_waiter_finish(waiter);
                                                   wp->ready();
                                               })) {
         --rel->pending;

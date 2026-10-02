@@ -28,9 +28,9 @@ OutputState::~OutputState() {
     pixman_region32_fini(&damage);
     clear_buffer();
     if (wait_timeline)
-        wlr_drm_syncobj_timeline_unref(wait_timeline);
+        timeline_unref(wait_timeline);
     if (signal_timeline)
-        wlr_drm_syncobj_timeline_unref(signal_timeline);
+        timeline_unref(signal_timeline);
     wlr_color_transform_unref(color_transform);
 }
 
@@ -132,20 +132,20 @@ void OutputState::set_damage(const pixman_region32_t* d) {
     pixman_region32_copy(&damage, d);
 }
 
-void OutputState::set_wait_timeline(wlr_drm_syncobj_timeline* t, uint64_t point) {
+void OutputState::set_wait_timeline(Timeline* t, uint64_t point) {
     committed |= WaitTimeline;
-    wlr_drm_syncobj_timeline* ref = t ? wlr_drm_syncobj_timeline_ref(t) : nullptr;
+    Timeline* ref = t ? timeline_ref(t) : nullptr;
     if (wait_timeline)
-        wlr_drm_syncobj_timeline_unref(wait_timeline);
+        timeline_unref(wait_timeline);
     wait_timeline = ref;
     wait_point = point;
 }
 
-void OutputState::set_signal_timeline(wlr_drm_syncobj_timeline* t, uint64_t point) {
+void OutputState::set_signal_timeline(Timeline* t, uint64_t point) {
     committed |= SignalTimeline;
-    wlr_drm_syncobj_timeline* ref = t ? wlr_drm_syncobj_timeline_ref(t) : nullptr;
+    Timeline* ref = t ? timeline_ref(t) : nullptr;
     if (signal_timeline)
-        wlr_drm_syncobj_timeline_unref(signal_timeline);
+        timeline_unref(signal_timeline);
     signal_timeline = ref;
     signal_point = point;
 }

@@ -41,7 +41,7 @@ struct TextureDraw {
     const wlr_color_primaries* primaries = nullptr;
     float luminance = 1;
 
-    wlr_drm_syncobj_timeline* wait_timeline = nullptr;
+    Timeline* wait_timeline = nullptr;
     uint64_t wait_point = 0;
 
     // Rounded corners over `round_box` (empty: dst).
@@ -213,7 +213,7 @@ private:
     int width_, height_;
     float proj_[9];
     RenderTimer* timer_;
-    wlr_drm_syncobj_timeline* signal_timeline_ = nullptr;
+    Timeline* signal_timeline_ = nullptr;
     uint64_t signal_point_ = 0;
     OutputColor color_;
     bool two_pass_ = false;

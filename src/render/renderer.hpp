@@ -145,7 +145,7 @@ struct PassOptions {
     // its own.
     EffectBuffers* effects = nullptr;
     RenderTimer* timer = nullptr;
-    wlr_drm_syncobj_timeline* signal_timeline = nullptr;
+    Timeline* signal_timeline = nullptr;
     uint64_t signal_point = 0;
     OutputColor color;
 };
@@ -165,7 +165,7 @@ struct RenderTimer {
 struct BufferPassOptions {
     OutputColor color;  // the colour work at the end (an HDR screen's signal)
     RenderTimer* timer = nullptr;
-    wlr_drm_syncobj_timeline* signal_timeline = nullptr;  // signalled when the GPU is done
+    Timeline* signal_timeline = nullptr;  // signalled when the GPU is done
     uint64_t signal_point = 0;
 };
 
@@ -183,7 +183,7 @@ struct TextureOptions {
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
     ScaleFilter filter_mode = SCALE_FILTER_BILINEAR;
     BlendMode blend_mode = BLEND_MODE_PREMULTIPLIED;
-    wlr_drm_syncobj_timeline* wait_timeline = nullptr;
+    Timeline* wait_timeline = nullptr;
     uint64_t wait_point = 0;
     wlr_color_transfer_function transfer_function = wlr_color_transfer_function(0);
     const wlr_color_primaries* primaries = nullptr;

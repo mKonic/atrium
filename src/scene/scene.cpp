@@ -971,7 +971,7 @@ Buffer::~Buffer() {
     set_texture(nullptr);
     pixman_region32_fini(&opaque_region);
     if (wait_timeline_)
-        wlr_drm_syncobj_timeline_unref(wait_timeline_);
+        timeline_unref(wait_timeline_);
     if (mask_of_)
         mask_of_->mask_ = nullptr;
 }
@@ -1058,8 +1058,8 @@ void Buffer::set_buffer(atrium::Buffer* b, const BufferOptions& o) {
     take_buffer(b);
     set_texture(nullptr);
     if (wait_timeline_)
-        wlr_drm_syncobj_timeline_unref(wait_timeline_);
-    wait_timeline_ = o.wait_timeline ? wlr_drm_syncobj_timeline_ref(o.wait_timeline) : nullptr;
+        timeline_unref(wait_timeline_);
+    wait_timeline_ = o.wait_timeline ? timeline_ref(o.wait_timeline) : nullptr;
     wait_point_ = o.wait_timeline ? o.wait_point : 0;
 
     if (changed) {

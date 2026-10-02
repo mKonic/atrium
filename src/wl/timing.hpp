@@ -72,7 +72,7 @@ public:
 
     // The compositor read `surface`'s current buffer in work that finishes
     // at `point` on `timeline`: its release waits for that too.
-    void add_release_point(Surface* surface, wlr_drm_syncobj_timeline* timeline, uint64_t point);
+    void add_release_point(Surface* surface, Timeline* timeline, uint64_t point);
 
 private:
     struct Waiter;

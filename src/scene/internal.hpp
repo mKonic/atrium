@@ -59,9 +59,9 @@ struct Entry {
 
 struct SceneImpl {
     static void render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
-                                  render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
+                                  render::Renderer* renderer, Timeline* in_timeline, uint64_t in_point);
     static void render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
-                             render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point);
+                             render::Renderer* renderer, Timeline* in_timeline, uint64_t in_point);
     static void update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force);
     static void output_update(Node* node, wl_list* outputs, SceneOutput* ignore, SceneOutput* force);
     static void update_region(Scene* scene, const pixman_region32_t* region);

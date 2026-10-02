@@ -151,8 +151,8 @@ SceneOutput* SceneOutput::create(Scene* scene, backend::Output* output) {
     const int drm_fd = output->backend.drm_fd();
     if (drm_fd >= 0 && output->backend.supports_timelines() && output->renderer &&
         output->renderer->features.timeline) {
-        so->in_timeline_ = wlr_drm_syncobj_timeline_create(drm_fd);
-        so->out_timeline_ = wlr_drm_syncobj_timeline_create(drm_fd);
+        so->in_timeline_ = timeline_create(drm_fd);
+        so->out_timeline_ = timeline_create(drm_fd);
     }
     so->index = uint8_t(prev_index + 1);
     assert(so->index < 64);
@@ -242,12 +242,12 @@ void SceneOutput::destroy() {
     pixman_region32_fini(&pending_commit_damage);
     wl_list_remove(&link);
     if (in_timeline_) {
-        wlr_drm_syncobj_timeline_signal(in_timeline_, UINT64_MAX);
-        wlr_drm_syncobj_timeline_unref(in_timeline_);
+        timeline_signal(in_timeline_, UINT64_MAX);
+        timeline_unref(in_timeline_);
     }
     if (out_timeline_) {
-        wlr_drm_syncobj_timeline_signal(out_timeline_, UINT64_MAX);
-        wlr_drm_syncobj_timeline_unref(out_timeline_);
+        timeline_signal(out_timeline_, UINT64_MAX);
+        timeline_unref(out_timeline_);
     }
     wlr_color_transform_unref(gamma_lut_transform_);
     drop_lut_texture();
@@ -453,7 +453,7 @@ namespace {
 // bar) drawn as it is into an offscreen layer, then the layer drawn once
 // through the warp. Only on outputs that aren't rotated.
 void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
-                                  render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
+                                  render::Renderer* renderer, Timeline* in_timeline, uint64_t in_point) {
     const FBox& frame = tree->warp_frame();
     if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || frame.width <= 0 || frame.height <= 0)
         return;
@@ -525,7 +525,7 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
 }
 
 void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
-                             render::Renderer* renderer, wlr_drm_syncobj_timeline* in_timeline, uint64_t in_point) {
+                             render::Renderer* renderer, Timeline* in_timeline, uint64_t in_point) {
     Node* node = e.node;
     const Walk& w = e.walk;
     if (node->type == Type::Tree) {

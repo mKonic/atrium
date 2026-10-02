@@ -7,6 +7,7 @@
 #include "util/buffer.hpp"
 #include "util/box.hpp"
 #include "util/format_set.hpp"
+#include "util/timeline.hpp"
 #include "wl/signal.hpp"
 
 extern "C" {
@@ -23,7 +24,6 @@ extern "C" {
 #include <string>
 #include <vector>
 
-struct wlr_drm_syncobj_timeline;
 
 namespace atrium::backend {
 
@@ -95,9 +95,9 @@ public:
     struct {
         int32_t width = 0, height = 0, refresh = 0;
     } custom_mode;
-    wlr_drm_syncobj_timeline* wait_timeline = nullptr;
+    Timeline* wait_timeline = nullptr;
     uint64_t wait_point = 0;
-    wlr_drm_syncobj_timeline* signal_timeline = nullptr;
+    Timeline* signal_timeline = nullptr;
     uint64_t signal_point = 0;
     wlr_color_transform* color_transform = nullptr;  // referenced
     std::optional<ImageDescription> image_description;
@@ -112,8 +112,8 @@ public:
     void set_subpixel(wl_output_subpixel s);
     void set_buffer(atrium::Buffer* b);
     void set_damage(const pixman_region32_t* d);
-    void set_wait_timeline(wlr_drm_syncobj_timeline* t, uint64_t point);
-    void set_signal_timeline(wlr_drm_syncobj_timeline* t, uint64_t point);
+    void set_wait_timeline(Timeline* t, uint64_t point);
+    void set_signal_timeline(Timeline* t, uint64_t point);
     void set_color_transform(wlr_color_transform* t);
     void set_image_description(const ImageDescription* d);
 

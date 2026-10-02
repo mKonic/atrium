@@ -1,6 +1,11 @@
 #include "backend/wlr.hpp"
 
+extern "C" {
+#include <wlr/render/drm_syncobj.h>
+}
+
 #include <algorithm>
+#include <unistd.h>
 
 namespace atrium::backend {
 
@@ -26,6 +31,16 @@ wlr_output_image_description to_wlr(const ImageDescription& d) {
     out.mastering_luminance.max = d.mastering_luminance.max;
     out.max_cll = d.max_cll;
     out.max_fall = d.max_fall;
+    return out;
+}
+
+// The same syncobj as a wlroots timeline (one reference, the caller's).
+wlr_drm_syncobj_timeline* to_wlr(Timeline* t) {
+    const int fd = timeline_export(t);
+    if (fd < 0)
+        return nullptr;
+    wlr_drm_syncobj_timeline* out = wlr_drm_syncobj_timeline_import(t->drm_fd, fd);
+    close(fd);
     return out;
 }
 
@@ -228,9 +243,15 @@ public:
         if (s.committed & OutputState::Damage)
             wlr_output_state_set_damage(out, &s.damage);
         if ((s.committed & OutputState::WaitTimeline) && s.wait_timeline)
-            wlr_output_state_set_wait_timeline(out, s.wait_timeline, s.wait_point);
+            if (wlr_drm_syncobj_timeline* t = to_wlr(s.wait_timeline)) {
+                wlr_output_state_set_wait_timeline(out, t, s.wait_point);
+                wlr_drm_syncobj_timeline_unref(t);
+            }
         if ((s.committed & OutputState::SignalTimeline) && s.signal_timeline)
-            wlr_output_state_set_signal_timeline(out, s.signal_timeline, s.signal_point);
+            if (wlr_drm_syncobj_timeline* t = to_wlr(s.signal_timeline)) {
+                wlr_output_state_set_signal_timeline(out, t, s.signal_point);
+                wlr_drm_syncobj_timeline_unref(t);
+            }
         if (s.committed & OutputState::ColorTransform)
             wlr_output_state_set_color_transform(out, s.color_transform);
         if (s.committed & OutputState::ImageDescriptionField) {

@@ -303,7 +303,7 @@ struct OutputsUpdateEvent {
 struct OutputSampleEvent {
     SceneOutput* output;
     bool direct_scanout;
-    wlr_drm_syncobj_timeline* release_timeline;
+    Timeline* release_timeline;
     uint64_t release_point;
 };
 
@@ -314,7 +314,7 @@ struct FrameDoneEvent {
 
 struct BufferOptions {
     const pixman_region32_t* damage = nullptr;  // buffer-local; null: all of it
-    wlr_drm_syncobj_timeline* wait_timeline = nullptr;
+    Timeline* wait_timeline = nullptr;
     uint64_t wait_point = 0;
 };
 
@@ -378,7 +378,7 @@ private:
     bool own_buffer_ = false;
     int buffer_width_ = 0, buffer_height_ = 0;
     bool buffer_is_opaque_ = false;
-    wlr_drm_syncobj_timeline* wait_timeline_ = nullptr;
+    Timeline* wait_timeline_ = nullptr;
     uint64_t wait_point_ = 0;
     Listener<> buffer_release_;
     Listener<> renderer_destroy_;
@@ -528,9 +528,9 @@ private:
     wlr_color_primaries sdr_primaries_{};
     bool sdr_primaries_set_ = false;
     bool color_changed_ = false;
-    wlr_drm_syncobj_timeline* in_timeline_ = nullptr;
+    Timeline* in_timeline_ = nullptr;
     uint64_t in_point_ = 0;
-    wlr_drm_syncobj_timeline* out_timeline_ = nullptr;
+    Timeline* out_timeline_ = nullptr;
     uint64_t out_point_ = 0;
     struct Highlight {
         pixman_region32_t region;

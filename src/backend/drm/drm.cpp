@@ -4,13 +4,13 @@
 #include "backend/drm/match.hpp"
 #include "listener.hpp"
 #include "render/renderer.hpp"
+#include "util/timeline.hpp"
 #include "wlr.hpp"
 
 extern "C" {
 #include <libdisplay-info/cvt.h>
 #include <libdisplay-info/info.h>
 #include <wlr/render/dmabuf.h>
-#include <wlr/render/drm_syncobj.h>
 #include <wlr/render/pass.h>
 }
 
@@ -135,9 +135,9 @@ struct Drm::Plane {
     FBox src{};
     Box dst{};
     // Signalled once the buffer stops being shown (explicit sync).
-    wlr_drm_syncobj_timeline* current_release = nullptr;
+    Timeline* current_release = nullptr;
     uint64_t current_point = 0;
-    wlr_drm_syncobj_timeline* queued_release = nullptr;
+    Timeline* queued_release = nullptr;
     uint64_t queued_point = 0;
 
     void clear() {
@@ -148,7 +148,7 @@ struct Drm::Plane {
             }
         for (auto* t : {&current_release, &queued_release})
             if (*t) {
-                wlr_drm_syncobj_timeline_unref(*t);
+                timeline_unref(*t);
                 *t = nullptr;
             }
     }
@@ -216,7 +216,7 @@ struct Drm::ConnState {
     Box dst{};
     Buffer* cursor = nullptr;  // locked
     uint32_t cursor_fb = 0;
-    wlr_drm_syncobj_timeline* wait = nullptr;
+    Timeline* wait = nullptr;
     uint64_t wait_point = 0;
     uint32_t mode_id = 0, gamma_lut = 0, damage_clips = 0, hdr_metadata = 0;
     int in_fence = -1;
@@ -231,7 +231,7 @@ struct Drm::ConnState {
                 *b = nullptr;
             }
         if (wait) {
-            wlr_drm_syncobj_timeline_unref(wait);
+            timeline_unref(wait);
             wait = nullptr;
         }
     }
@@ -410,7 +410,7 @@ Drm::~Drm() {
     }
     fbs_.clear();
     if (mgpu_timeline_)
-        wlr_drm_syncobj_timeline_unref(mgpu_timeline_);
+        timeline_unref(mgpu_timeline_);
     mgpu_formats_.clear();
     mgpu_allocator_.reset();
     mgpu_dumb_.reset();
@@ -1004,9 +1004,9 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
             st.copied = true;
             if (!test_only && (s.committed & OutputState::SignalTimeline) && s.signal_timeline) {
                 if (fence >= 0)
-                    wlr_drm_syncobj_timeline_import_sync_file(s.signal_timeline, s.signal_point, fence);
+                    timeline_import_sync_file(s.signal_timeline, s.signal_point, fence);
                 else
-                    wlr_drm_syncobj_timeline_signal(s.signal_timeline, s.signal_point);  // copied already
+                    timeline_signal(s.signal_timeline, s.signal_point);  // copied already
             }
         } else if (s.committed & OutputState::Buffer) {
             st.primary_fb = fb_for(s.buffer, &primary.formats);
@@ -1016,7 +1016,7 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
             st.src = src_box_of(s);
             st.dst = dst_box_of(s, s.buffer->width, s.buffer->height);
             if (wait) {
-                st.wait = wlr_drm_syncobj_timeline_ref(s.wait_timeline);
+                st.wait = timeline_ref(s.wait_timeline);
                 st.wait_point = s.wait_point;
             }
         } else if (Buffer* b = primary.queued ? primary.queued : primary.current) {
@@ -1085,7 +1085,7 @@ bool Drm::prepare(ConnState& st, bool modeset, bool test_only) {
         pixman_region32_fini(&clipped);
     }
     if (st.wait) {
-        st.in_fence = wlr_drm_syncobj_timeline_export_sync_file(st.wait, st.wait_point);
+        st.in_fence = timeline_export_sync_file(st.wait, st.wait_point);
         if (st.in_fence < 0)
             return false;
     }
@@ -1274,12 +1274,12 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
             }
             if (primary.queued_release) {
                 // Replaced before it was ever shown.
-                wlr_drm_syncobj_timeline_signal(primary.queued_release, primary.queued_point);
-                wlr_drm_syncobj_timeline_unref(primary.queued_release);
+                timeline_signal(primary.queued_release, primary.queued_point);
+                timeline_unref(primary.queued_release);
                 primary.queued_release = nullptr;
             }
             if ((st.base->committed & OutputState::SignalTimeline) && st.base->signal_timeline && !st.copied) {
-                primary.queued_release = wlr_drm_syncobj_timeline_ref(st.base->signal_timeline);
+                primary.queued_release = timeline_ref(st.base->signal_timeline);
                 primary.queued_point = st.base->signal_point;
             }
             if (crtc.cursor) {
@@ -1351,8 +1351,8 @@ void Drm::handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned c
         primary.current = std::exchange(primary.queued, nullptr);
         if (primary.current_release) {
             // No longer on screen: the client may reuse it.
-            wlr_drm_syncobj_timeline_signal(primary.current_release, primary.current_point);
-            wlr_drm_syncobj_timeline_unref(primary.current_release);
+            timeline_signal(primary.current_release, primary.current_point);
+            timeline_unref(primary.current_release);
         }
         primary.current_release = std::exchange(primary.queued_release, nullptr);
         primary.current_point = primary.queued_point;
@@ -1408,19 +1408,19 @@ bool Drm::init_mgpu() {
         return false;
     }
     if (timeline_ && mgpu_renderer_->features.timeline)
-        mgpu_timeline_ = wlr_drm_syncobj_timeline_create(fd_);
+        mgpu_timeline_ = timeline_create(fd_);
     alog(Log::Info, "drm: %s shows frames rendered on %s", name_.c_str(), parent_->name_.c_str());
     return true;
 }
 
 // Through the CPU: `from` (the parent's renderer) reads the frame back into
 // our buffer's mapping. Waits for the frame on the CPU first.
-bool Drm::cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syncobj_timeline* wait,
+bool Drm::cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, Timeline* wait,
                    uint64_t wait_point) {
     if (!from)
         return false;
     if (wait) {
-        const int fd = wlr_drm_syncobj_timeline_export_sync_file(wait, wait_point);
+        const int fd = timeline_export_sync_file(wait, wait_point);
         if (fd >= 0) {
             pollfd p{fd, POLLIN, 0};
             poll(&p, 1, 1000);
@@ -1451,7 +1451,7 @@ bool Drm::cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syn
 }
 
 Buffer* Drm::copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const FormatSet* formats,
-                         render::Renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence) {
+                         render::Renderer* from, Timeline* wait, uint64_t wait_point, int* fence) {
     if (fence)
         *fence = -1;
     DmabufAttributes a;
@@ -1528,7 +1528,7 @@ Buffer* Drm::copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const FormatSe
         return nullptr;
     }
     if (signal)
-        *fence = wlr_drm_syncobj_timeline_export_sync_file(mgpu_timeline_, opts.signal_point);
+        *fence = timeline_export_sync_file(mgpu_timeline_, opts.signal_point);
     return dst;
 }
 

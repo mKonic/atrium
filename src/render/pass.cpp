@@ -186,7 +186,7 @@ RenderPass::RenderPass(Renderer& r, Framebuffer* fb, const PassOptions& o)
         locked_ = buffer_lock(fb->buffer);
     fb->encoded_tf = 0;  // until the colour pass says otherwise
     if (o.signal_timeline) {
-        signal_timeline_ = wlr_drm_syncobj_timeline_ref(o.signal_timeline);
+        signal_timeline_ = timeline_ref(o.signal_timeline);
         signal_point_ = o.signal_point;
     }
     if (timer_)
@@ -225,7 +225,7 @@ RenderPass::RenderPass(Renderer& r, Framebuffer* fb, const PassOptions& o)
 
 RenderPass::~RenderPass() {
     if (signal_timeline_)
-        wlr_drm_syncobj_timeline_unref(signal_timeline_);
+        timeline_unref(signal_timeline_);
     if (locked_)
         buffer_unlock(locked_);
 }
@@ -251,7 +251,7 @@ bool RenderPass::submit() {
             int fd = r_.egl().dup_fence_fd(sync);
             r_.egl().destroy_sync(sync);
             if (fd >= 0) {
-                ok = wlr_drm_syncobj_timeline_import_sync_file(signal_timeline_, signal_point_, fd);
+                ok = timeline_import_sync_file(signal_timeline_, signal_point_, fd);
                 close(fd);
             }
         }
@@ -393,7 +393,7 @@ void RenderPass::add_texture(const TextureDraw& d) {
         return;
 
     if (d.wait_timeline) {
-        int fd = wlr_drm_syncobj_timeline_export_sync_file(d.wait_timeline, d.wait_point);
+        int fd = timeline_export_sync_file(d.wait_timeline, d.wait_point);
         if (fd < 0)
             return;
         EGLSyncKHR sync = r_.egl().create_sync(fd);

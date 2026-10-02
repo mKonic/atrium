@@ -1,4 +1,5 @@
 #pragma once
+#include "util/timeline.hpp"
 #include "wl/buffer.hpp"
 #include "wl/region.hpp"
 #include "wl/signal.hpp"
@@ -117,7 +118,7 @@ struct SurfaceState {
     // wp_linux_drm_syncobj_surface_v1: when the buffer may be read, and the
     // point to signal once it no longer is (this commit's only).
     struct Sync {
-        std::shared_ptr<wlr_drm_syncobj_timeline> acquire, release;
+        std::shared_ptr<Timeline> acquire, release;
         uint64_t acquire_point = 0, release_point = 0;
     } sync;
     float alpha = 1;  // wp_alpha_modifier

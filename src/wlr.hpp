@@ -40,7 +40,6 @@ extern "C" {
 #include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
 #include <wlr/render/allocator.h>
-#include <wlr/render/drm_syncobj.h>
 #include <wlr/render/swapchain.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/render/wlr_texture.h>

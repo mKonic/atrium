@@ -9,6 +9,7 @@
 #include "backend/drm/props.hpp"
 #include "backend/session.hpp"
 #include "util/format_set.hpp"
+#include "util/timeline.hpp"
 
 #include <xf86drmMode.h>
 
@@ -16,7 +17,6 @@
 #include <unordered_map>
 #include <vector>
 
-struct wlr_drm_syncobj_timeline;
 
 namespace atrium::render {
 class Renderer;
@@ -87,8 +87,8 @@ private:
     // `fence` gets a sync_file for the copy's end when timelines work.
     // `from` is the renderer that drew it, for copies through the CPU.
     Buffer* copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const FormatSet* formats,
-                        render::Renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence);
-    bool cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syncobj_timeline* wait,
+                        render::Renderer* from, Timeline* wait, uint64_t wait_point, int* fence);
+    bool cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, Timeline* wait,
                   uint64_t wait_point);
     void handle_page_flip(unsigned seq, unsigned sec, unsigned usec, unsigned crtc_id, PageFlip* flip);
     void session_active(bool active);
@@ -104,7 +104,7 @@ private:
     std::unique_ptr<Allocator> mgpu_allocator_;
     std::unique_ptr<Allocator> mgpu_dumb_;  // copies through the CPU
     FormatSet mgpu_formats_{};
-    wlr_drm_syncobj_timeline* mgpu_timeline_ = nullptr;
+    Timeline* mgpu_timeline_ = nullptr;
     uint64_t mgpu_point_ = 0;
     bool mgpu_cpu_ = false;  // it can't read the parent's buffers
     Session::Device* device_ = nullptr;

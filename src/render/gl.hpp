@@ -2,16 +2,13 @@
 // EGL and GLES 3 with the extension entry points atrium uses.
 
 #include "util/format_set.hpp"
+#include "util/timeline.hpp"
 #include "wlr.hpp"
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl32.h>
 #include <GLES2/gl2ext.h>
-
-extern "C" {
-#include <wlr/render/drm_syncobj.h>
-}
 
 namespace atrium::render {
 
