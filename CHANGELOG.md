@@ -19,6 +19,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Frosted blur behind menus and input-method popups when transparency is on.
 - A screen shader setting: a GLSL file drawn over every screen.
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
+- Touchpad swipes with three or four fingers: sideways to the next space, up for Mission Control, down for the app's windows.
+- Touchscreens and drawing tablets.
+- Closing a laptop's lid with another display connected turns the built-in screen off.
 
 ### Changed
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.
