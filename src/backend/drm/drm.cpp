@@ -27,6 +27,12 @@ namespace atrium::backend::drm {
 
 namespace {
 
+// logind takes DRM master away before the session hears it is switching
+// VTs: a frame in between is refused, and that's fine.
+bool switching_away(int fd, int err) {
+    return err == EACCES && !drmIsMaster(fd);
+}
+
 // wp_presentation_feedback.kind
 constexpr uint32_t kPresentVsync = 0x1, kPresentHwClock = 0x2, kPresentHwCompletion = 0x4;
 
@@ -1229,9 +1235,10 @@ bool Drm::commit_states(std::vector<ConnState>& states, bool modeset, bool nonbl
     if (ok && !atomic_) {
         ok = legacy_commit(states, modeset, test_only, async, flip);
     } else if (ok && drmModeAtomicCommit(fd_, req, flags, flip) != 0) {
-        alog(test_only ? Log::Debug : Log::Error, "drm: atomic commit (%s%s) failed: %s",
+        const int err = errno;
+        alog(test_only || switching_away(fd_, err) ? Log::Debug : Log::Error, "drm: atomic commit (%s%s) failed: %s",
                 states.size() == 1 ? states[0].conn->name.c_str() : "several screens",
-                modeset ? ", modeset" : "", std::strerror(errno));
+                modeset ? ", modeset" : "", std::strerror(err));
         ok = false;
     }
     if (!ok && flip && atomic_)
@@ -1709,7 +1716,9 @@ bool Drm::legacy_commit(std::vector<ConnState>& states, bool modeset, bool test_
         if (flip) {
             const uint32_t f = DRM_MODE_PAGE_FLIP_EVENT | (async ? DRM_MODE_PAGE_FLIP_ASYNC : 0);
             if (drmModePageFlip(fd_, crtc.id, st.primary_fb, f, flip) != 0) {
-                alog(Log::Error, "drm: %s: page flip failed: %s", c.name.c_str(), std::strerror(errno));
+                const int err = errno;
+                alog(switching_away(fd_, err) ? Log::Debug : Log::Error, "drm: %s: page flip failed: %s", c.name.c_str(),
+                     std::strerror(err));
                 ok = false;
                 break;
             }
