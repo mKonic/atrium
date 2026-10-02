@@ -49,7 +49,7 @@ LayerSurface::LayerSurface(Server& srv, wl::LayerSurface* l) : server(srv), ls(l
         initial_ = true;
         if (!output)
             return;
-        const float scale = output->wlr->scale;
+        const float scale = output->screen->scale;
         server.wl->fractional_scales->set_preferred_scale(surface(), scale);
         surface()->set_preferred_scale(int32_t(std::ceil(scale)));
         // The first configure already has the right size.
@@ -103,7 +103,7 @@ void LayerSurface::commit() {
     // commits nothing, until it has one: not even the layer change that
     // would bring it over. A frame for its screen sends it one.
     if (st.layer >= ZWLR_LAYER_SHELL_V1_LAYER_TOP && surface()->wants_frame() && !shown_on_output())
-        wlr_output_schedule_frame(output->wlr);
+        output->screen->schedule_frame();
 
     if (!(surface()->current().committed & wl::SurfaceState::Layer) && mapped == surface()->mapped())
         return;

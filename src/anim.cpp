@@ -120,7 +120,7 @@ bool Animator::tick() {
 void Animator::request_frames() {
     for (Output* o : server_.outputs)
         if (o->enabled())
-            wlr_output_schedule_frame(o->wlr);
+            o->screen->schedule_frame();
 }
 
 } // namespace atrium

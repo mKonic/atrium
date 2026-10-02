@@ -7,6 +7,7 @@
 // (MIT) by way of scenefx (MIT), which added the effect nodes; the node
 // tree follows KWin's item tree and Hyprland's render pass in spirit.
 
+#include "backend/output.hpp"
 #include "listener.hpp"
 #include "render/pass.hpp"
 #include "wl/dmabuf.hpp"
@@ -42,7 +43,6 @@ class Scene;
 class SceneOutput;
 class SurfaceNode;
 class Tree;
-struct OutputAddonAccess;
 
 enum class Type { Tree, Rect, Buffer, Shadow, BlurCache, Blur };
 
@@ -361,7 +361,7 @@ public:
     Radii corners;
     // The dmabuf feedback last sent its surface: for scan-out on that
     // output, or (null) for rendering.
-    std::optional<std::pair<wlr_output*, bool>> feedback_sent;
+    std::optional<std::pair<backend::Output*, bool>> feedback_sent;
 
 private:
     Buffer(Tree* parent, wlr_buffer* buffer);
@@ -396,7 +396,7 @@ private:
 struct Protocols {
     wl::LinuxDmabuf* dmabuf = nullptr;
     // The feedback for a surface on `scanout` (null: rendered only).
-    std::function<wl::DmabufFeedback(wlr_output* scanout)> dmabuf_feedback;
+    std::function<wl::DmabufFeedback(backend::Output* scanout)> dmabuf_feedback;
     wl::FractionalScales* fractional_scales = nullptr;
     wl::ColorManagement* color = nullptr;
     wl::Syncobj* syncobj = nullptr;
@@ -415,7 +415,9 @@ public:
     Protocols protocols;
     void set_gamma_controls(wl::GammaControls* gamma);
 
-    SceneOutput* output_for(wlr_output* output);
+    SceneOutput* output_for(const backend::Output* output);
+    // Draws the pointer into a frame where the screen has no cursor plane.
+    std::function<void(const backend::Output*, wlr_render_pass*, const pixman_region32_t*)> draw_cursor;
     SceneOutput* output_for(const wl::Output* output);
 
     wl_list outputs;  // SceneOutput::link
@@ -450,7 +452,7 @@ struct Timer {
 
 class SceneOutput {
 public:
-    static SceneOutput* create(Scene* scene, wlr_output* output);
+    static SceneOutput* create(Scene* scene, backend::Output* output);
     void destroy();
 
     void set_position(int lx, int ly);
@@ -465,13 +467,13 @@ public:
 
     struct StateOptions {
         Timer* timer = nullptr;
-        wlr_swapchain* swapchain = nullptr;
+        backend::Swapchain* swapchain = nullptr;
     };
     // Everything drawn again next frame.
     void damage_whole();
     bool needs_frame() const;
     bool commit(const StateOptions* options = nullptr);
-    bool build_state(wlr_output_state* state, const StateOptions* options = nullptr);
+    bool build_state(backend::OutputState* state, const StateOptions* options = nullptr);
     void send_frame_done(const timespec* now);
     void for_each_buffer(const std::function<void(Buffer*, int lx, int ly)>& fn);
 
@@ -479,7 +481,7 @@ public:
     // sent when the output says it was presented.
     void presentation_pending(std::vector<std::shared_ptr<void>> feedbacks, bool zero_copy);
 
-    wlr_output* output;
+    backend::Output* output;
     wl::Output* global = nullptr;  // its wl_output (the compositor sets it)
     wl_list link;  // Scene::outputs
     Scene* scene;
@@ -493,14 +495,13 @@ public:
     pixman_region32_t pending_commit_damage;
 
 private:
-    SceneOutput(Scene* scene, wlr_output* output);
+    SceneOutput(Scene* scene, backend::Output* output);
     ~SceneOutput();
     void damage(const pixman_region32_t* damage);
     void update_geometry(bool force);
-    void attempt_gamma(wlr_output_state* state);
-    render::OutputColor output_color(const wlr_output_image_description* desc) const;
+    void attempt_gamma(backend::OutputState* state);
+    render::OutputColor output_color(const backend::ImageDescription* desc) const;
 
-    wlr_addon addon_{};
     render::EffectBuffers fx_;
     std::unique_ptr<render::ColorLut> lut_;
     // Offscreen layers of warped trees, kept while they stay warped.
@@ -535,17 +536,13 @@ private:
         timespec when;
     };
     std::vector<Highlight*> highlights_;
-    Listener<wlr_output_event_commit> commit_;
-    Listener<wlr_output_event_present> present_;
-    Listener<wlr_output_event_damage> damage_;
-    Listener<> needs_frame_;
+    wl::Connection commit_, present_, damage_, needs_frame_, output_destroy_;
     Listener<> renderer_destroy_;
 
     friend class Node;
     friend class Buffer;
     friend class Scene;
     friend struct SceneImpl;
-    friend struct OutputAddonAccess;
 };
 
 // ---- surfaces (ported from wlroots' types/scene helpers) ------------------
@@ -600,7 +597,7 @@ void layer_surface_v1_configure(LayerSurfaceNode* node, const wlr_box* full_area
 // for capturing one window. Goes with the node.
 class CaptureSource {
 public:
-    static CaptureSource* create(Node* node, wl_event_loop* loop, wlr_allocator* allocator, wlr_renderer* renderer);
+    static CaptureSource* create(Node* node, wl_event_loop* loop, backend::Allocator* allocator, wlr_renderer* renderer);
     void destroy();
 
     // Someone watches: frames are drawn (counted, as sessions come and go).

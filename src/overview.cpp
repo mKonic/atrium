@@ -380,7 +380,7 @@ void Overview::render_label(Thumb& t) {
         text = t.view->app_id();
     if (text.empty())
         text = "Window";
-    const float scale = t.screen->output->wlr->scale;
+    const float scale = t.screen->output->screen->scale;
 
     PangoFontDescription* font = pango_font_description_from_string("Sans Semi-Bold 10");
     cairo_surface_t* probe = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1);

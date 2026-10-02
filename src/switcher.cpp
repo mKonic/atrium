@@ -269,7 +269,7 @@ void Switcher::render_title() {
     std::string text = v->title() ? v->title() : "";
     if (text.empty() && v->app_id())
         text = v->app_id();
-    const float scale = server_.focused_output ? server_.focused_output->wlr->scale : 1.0f;
+    const float scale = server_.focused_output ? server_.focused_output->screen->scale : 1.0f;
     const int w = std::max(1, panel_box_.width - 2 * kPad), h = kTitleHeight;
 
     cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, int(std::ceil(w * scale)),

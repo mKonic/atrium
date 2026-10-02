@@ -75,7 +75,7 @@ void Space::sync_handle() {
 std::string Space::id() const {
     if (secret)
         return "secret:" + name;
-    return std::string(output ? output->wlr->name : "?") + ":" + std::to_string(number);
+    return std::string(output ? output->screen->name : "?") + ":" + std::to_string(number);
 }
 
 std::string Space::label() const {

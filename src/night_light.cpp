@@ -206,7 +206,7 @@ void NightLight::set_transform(double kelvin) {
         linear_white_ = {std::pow(wp.r, 2.2), std::pow(wp.g, 2.2), std::pow(wp.b, 2.2)};
     }
     for (Output* o : server_.outputs)
-        wlr_output_schedule_frame(o->wlr);
+        o->screen->schedule_frame();
 }
 
 } // namespace atrium

@@ -56,9 +56,6 @@ struct Entry {
     Walk walk;
 };
 
-struct OutputAddonAccess {
-    static SceneOutput* from(wlr_addon* a);
-};
 
 struct SceneImpl {
     static void render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,

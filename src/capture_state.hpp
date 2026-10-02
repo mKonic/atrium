@@ -15,7 +15,7 @@ struct Server::CaptureState {
     struct PerOutput {
         std::vector<Pending> copies;
         std::vector<wl::Capture::Export> exports;
-        Listener<wlr_output_event_commit> commit;
+        wl::Connection commit;
         PerOutput() = default;
         PerOutput(const PerOutput&) = delete;
         ~PerOutput() {

@@ -328,7 +328,7 @@ json Ipc::window_json(const View& v) {
         {"app_id", v.app_id()},
         {"title", v.title()},
         {"geometry", box_json(v.geom)},
-        {"output", v.output ? v.output->wlr->name : ""},
+        {"output", v.output ? v.output->screen->name : ""},
         {"focused", v.server.focused_view == &v},
         {"minimized", v.minimized},
         {"maximized", v.maximized},
@@ -406,7 +406,7 @@ json Ipc::spaces_json(const Server& server) {
         for (View* v : server.views)
             count += v->space == s.get();
         list.push_back({{"id", s->id()}, {"label", s->label()}, {"number", s->number}, {"secret", s->secret},
-                        {"output", s->output ? s->output->wlr->name : ""}, {"shown", s->shown()},
+                        {"output", s->output ? s->output->screen->name : ""}, {"shown", s->shown()},
                         {"tiled", s->tiled},
                         {"windows", count}});
     }
@@ -631,7 +631,7 @@ json Ipc::handle(Client& c, const json& req) {
                     const wlr_box g = {l->tree ? l->tree->x : 0, l->tree ? l->tree->y : 0,
                                        int(l->ls->current().actual_width), int(l->ls->current().actual_height)};
                     list.push_back({{"namespace", l->ls->name_space()},
-                                    {"layer", kNames[i]}, {"output", o->wlr->name},
+                                    {"layer", kNames[i]}, {"output", o->screen->name},
                                     {"geometry", box_json(g)}, {"mapped", l->mapped}});
                 }
         return ok(list);
@@ -641,29 +641,28 @@ json Ipc::handle(Client& c, const json& req) {
         json list = json::array();
         for (Output* o : server_.outputs) {
             json modes = json::array();
-            wlr_output_mode* mode;
-            wl_list_for_each(mode, &o->wlr->modes, link)
-                modes.push_back({{"width", mode->width}, {"height", mode->height}, {"refresh", mode->refresh},
-                                 {"preferred", mode->preferred}});
+            for (const backend::Mode& mode : o->screen->modes)
+                modes.push_back({{"width", mode.width}, {"height", mode.height}, {"refresh", mode.refresh},
+                                 {"preferred", mode.preferred}});
             list.push_back({
-                {"name", o->wlr->name},
-                {"description", o->wlr->description ? o->wlr->description : ""},
-                {"make", o->wlr->make ? o->wlr->make : ""},
-                {"model", o->wlr->model ? o->wlr->model : ""},
+                {"name", o->screen->name},
+                {"description", o->screen->description},
+                {"make", o->screen->make},
+                {"model", o->screen->model},
                 {"enabled", o->enabled()},
                 {"geometry", box_json(o->box)},
                 {"usable", box_json(o->usable)},
-                {"mode", {{"width", o->wlr->width}, {"height", o->wlr->height}, {"refresh", o->wlr->refresh}}},
+                {"mode", {{"width", o->screen->width}, {"height", o->screen->height}, {"refresh", o->screen->refresh}}},
                 {"modes", modes},
-                {"scale", o->wlr->scale},
-                {"transform", int(o->wlr->transform)},
-                {"refresh", o->wlr->refresh / 1000.0},
+                {"scale", o->screen->scale},
+                {"transform", int(o->screen->transform)},
+                {"refresh", o->screen->refresh / 1000.0},
                 {"focused", o == server_.focused_output},
                 // Variable refresh: whether the screen can, what it's set to, and whether it's on now.
-                {"adaptive_sync_supported", o->wlr->adaptive_sync_supported},
+                {"adaptive_sync_supported", o->screen->adaptive_sync_supported},
                 {"adaptive_sync", o->adaptive_sync},
-                {"adaptive_sync_active", o->wlr->adaptive_sync_supported &&
-                                             o->wlr->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED},
+                {"adaptive_sync_active", o->screen->adaptive_sync_supported &&
+                                             o->screen->adaptive_sync_status == backend::AdaptiveSync::Enabled},
                 // HDR: whether the screen takes it, what it's set to, whether it's on,
                 // and SDR content's brightness (0-100) with the white it gives.
                 {"hdr_supported", o->hdr_supported()},

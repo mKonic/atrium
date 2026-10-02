@@ -1,4 +1,5 @@
 #include "seat.hpp"
+#include "cursor.hpp"
 #include "keyboard_conf.hpp"
 #include "input_method.hpp"
 
@@ -98,29 +99,8 @@ AxisEvent axis_of(const wlr_pointer_axis_event* e) {
 
 Seat::Seat(Server& srv) : server(srv) {
     wl::Seat& ws = *server.wl->seat;
-    cursor = wlr_cursor_create();
-    wlr_cursor_attach_output_layout(cursor, server.output_layout);
+    cursor = server.cursor.get();
     apply_cursor_theme();
-
-    cursor_motion_.connect(&cursor->events.motion, [this](wlr_pointer_motion_event* e) {
-        motion(e->time_msec, &e->pointer->base, e->delta_x, e->delta_y, e->unaccel_dx, e->unaccel_dy);
-    });
-    cursor_motion_absolute_.connect(&cursor->events.motion_absolute,
-        [this](wlr_pointer_motion_absolute_event* e) {
-            // Virtual pointers send time 0 and expect a warp.
-            if (!e->time_msec)
-                wlr_cursor_warp_absolute(cursor, &e->pointer->base, e->x, e->y);
-            double lx, ly;
-            wlr_cursor_absolute_to_layout_coords(cursor, &e->pointer->base, e->x, e->y, &lx, &ly);
-            double dx = lx - cursor->x, dy = ly - cursor->y;
-            motion(e->time_msec, &e->pointer->base, dx, dy, dx, dy);
-        });
-    // A nested backend's pointers (the host's) come through the cursor.
-    cursor_button_.connect(&cursor->events.button, [this](wlr_pointer_button_event* e) {
-        button(ButtonEvent{e->time_msec, e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED});
-    });
-    cursor_axis_.connect(&cursor->events.axis, [this](wlr_pointer_axis_event* e) { axis(axis_of(e)); });
-    cursor_frame_.connect(&cursor->events.frame, [this](void*) { server.wl->seat->pointer_frame(); });
 
     auto& c = connections_;
     c.push_back(ws.events.request_cursor.connect([this](const wl::Seat::CursorRequest& r) {
@@ -137,7 +117,7 @@ Seat::Seat(Server& srv) : server(srv) {
         wl::Surface* focus = server.wl->seat->pointer_focus();
         if (focus && focus->client() == r.client) {
             set_cursor_surface(nullptr, 0, 0);
-            wlr_cursor_set_xcursor(cursor, xcursor, wl::CursorShapes::name_of(r.shape));
+            cursor->set_xcursor(xcursor, wl::CursorShapes::name_of(r.shape));
         }
     }));
     // A drag needs a press it can quote; a selection is granted (the
@@ -156,7 +136,7 @@ Seat::Seat(Server& srv) : server(srv) {
         }
     }));
 
-    new_input_.connect(&server.backend->events.new_input, [this](wlr_input_device* d) { new_input(d); });
+    new_input_ = server.backend->events.new_input.connect([this](wlr_input_device* d) { new_input(d); });
     c.push_back(server.wl->virtual_inputs->new_keyboard.connect(
         [this](wl::VirtualInputs::Keyboard* vk) { new_virtual_keyboard(vk); }));
     c.push_back(server.wl->virtual_inputs->new_pointer.connect(
@@ -278,7 +258,7 @@ void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
     cursor_hot_x_ = hot_x;
     cursor_hot_y_ = hot_y;
     if (!surface) {
-        wlr_cursor_unset_image(cursor);
+        cursor->unset_image();
         return;
     }
     auto show = [this] {
@@ -287,10 +267,10 @@ void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
         cursor_hot_x_ -= s->current().dx;
         cursor_hot_y_ -= s->current().dy;
         if (wlr_buffer* b = s->buffer())
-            wlr_cursor_set_buffer(cursor, b, cursor_hot_x_ * s->current().scale, cursor_hot_y_ * s->current().scale,
+            cursor->set_buffer(b, cursor_hot_x_ * s->current().scale, cursor_hot_y_ * s->current().scale,
                                   float(s->current().scale));
         else
-            wlr_cursor_unset_image(cursor);
+            cursor->unset_image();
         timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
         s->send_frame_done(uint32_t(int64_t(now.tv_sec) * 1000 + now.tv_nsec / 1000000));
@@ -300,13 +280,13 @@ void Seat::set_cursor_surface(wl::Surface* surface, int hot_x, int hot_y) {
         cursor_commit_.disconnect();
         cursor_gone_.disconnect();
         cursor_surface_ = nullptr;
-        wlr_cursor_unset_image(cursor);
+        cursor->unset_image();
     });
     if (wlr_buffer* b = surface->buffer())
-        wlr_cursor_set_buffer(cursor, b, hot_x * surface->current().scale, hot_y * surface->current().scale,
+        cursor->set_buffer(b, hot_x * surface->current().scale, hot_y * surface->current().scale,
                               float(surface->current().scale));
     else
-        wlr_cursor_unset_image(cursor);
+        cursor->unset_image();
 }
 
 void Seat::start_drag(wl::Drag* drag) {
@@ -338,11 +318,8 @@ void Seat::start_drag(wl::Drag* drag) {
 Seat::~Seat() {
     // Off every signal before the objects carrying them go away.
     new_input_.disconnect();
-    cursor_motion_.disconnect();
-    cursor_motion_absolute_.disconnect();
-    cursor_button_.disconnect();
-    cursor_axis_.disconnect();
-    cursor_frame_.disconnect();
+    // Its image may be one of our themes' (gone below).
+    cursor->unset_image();
     connections_.clear();
     cursor_commit_.disconnect();
     cursor_gone_.disconnect();
@@ -360,7 +337,6 @@ Seat::~Seat() {
         if (m)
             wlr_xcursor_manager_destroy(m);
     wlr_xcursor_manager_destroy(xcursor);
-    wlr_cursor_destroy(cursor);
 }
 
 #ifdef ATRIUM_XWAYLAND
@@ -393,6 +369,8 @@ void Seat::apply_keyboard_config() {
 }
 
 void Seat::apply_cursor_theme() {
+    // The image may be one of the old theme's (set again by the caller).
+    cursor->unset_image();
     if (xcursor)
         wlr_xcursor_manager_destroy(xcursor);
     const Config& c = server.config;
@@ -412,7 +390,7 @@ void Seat::apply_cursor_theme() {
 
 void Seat::show_shake_level(int level) {
     shake_level_ = level;
-    wlr_cursor_set_xcursor(cursor, level ? shake_xcursor_[level - 1] : xcursor, "default");
+    cursor->set_xcursor(level ? shake_xcursor_[level - 1] : xcursor, "default");
 }
 
 // The arrow grows while the shaking goes on, and settles once it stops.
@@ -451,7 +429,7 @@ void Seat::shake_settle() {
 }
 
 void Seat::set_default_cursor() {
-    wlr_cursor_set_xcursor(cursor, xcursor, "default");
+    cursor->set_xcursor(xcursor, "default");
 }
 
 // --- devices -----------------------------------------------------------------
@@ -515,9 +493,32 @@ void Seat::set_layout(uint32_t index) {
 }
 
 void Seat::add_pointer(wlr_pointer* pointer) {
-    wlr_cursor_attach_input_device(cursor, &pointer->base);
     auto dev = std::make_unique<PointerDevice>(pointer);
     PointerDevice* raw = dev.get();
+    raw->motion.connect(&pointer->events.motion, [this](wlr_pointer_motion_event* e) {
+        motion(e->time_msec, &e->pointer->base, e->delta_x, e->delta_y, e->unaccel_dx, e->unaccel_dy);
+    });
+    raw->motion_absolute.connect(&pointer->events.motion_absolute, [this](wlr_pointer_motion_absolute_event* e) {
+        // Over the host window of its own screen, where it has one.
+        double lx, ly;
+        Output* on = nullptr;
+        if (e->pointer->output_name)
+            for (Output* o : server.outputs)
+                if (o->enabled() && o->screen->name == e->pointer->output_name)
+                    on = o;
+        if (on) {
+            lx = on->box.x + e->x * on->box.width;
+            ly = on->box.y + e->y * on->box.height;
+        } else {
+            cursor->absolute_to_layout(e->x, e->y, &lx, &ly);
+        }
+        motion_absolute(e->time_msec, lx, ly);
+    });
+    raw->button.connect(&pointer->events.button, [this](wlr_pointer_button_event* e) {
+        button(ButtonEvent{e->time_msec, e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED});
+    });
+    raw->axis.connect(&pointer->events.axis, [this](wlr_pointer_axis_event* e) { axis(axis_of(e)); });
+    raw->frame.connect(&pointer->events.frame, [this](void*) { server.wl->seat->pointer_frame(); });
     raw->destroy.connect(&pointer->base.events.destroy, [this, raw](void*) {
         std::erase_if(pointers_, [raw](auto& p) { return p.get() == raw; });
     });
@@ -800,7 +801,7 @@ void Seat::reach_edge() {
         else if (cursor->y >= o->box.y + o->box.height - 1)
             edge = "bottom";
     }
-    const std::string at = edge ? o->wlr->name : "";
+    const std::string at = edge ? o->screen->name : "";
     if (edge == edge_reached_ && at == edge_output_)
         return;
     // Leaving says so too ("" on the screen it left), so a bar brought over
@@ -839,7 +840,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             }
         }
 
-        wlr_cursor_move(cursor, device, dx, dy);
+        cursor->move(dx, dy);
         server.wl->idle_notifier->activity();
         if (server.config.shake_to_find && mode == Mode::Normal && shake_.feed(time, cursor->x, cursor->y))
             shake_grow();
@@ -940,7 +941,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         if (ResizeZone zone = resize_zone(cursor->x, cursor->y, hit); zone.view) {
             set_titlebar_hover(nullptr, 0);
             server.wl->seat->pointer_clear_focus();
-            wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(zone.edges)));
+            cursor->set_xcursor(xcursor, wlr_xcursor_get_resize_name(wlr_edges(zone.edges)));
             return;
         }
         if (hit.backdrop) {
@@ -986,7 +987,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 // virtual pointer's absolute motion).
 void Seat::motion_absolute(uint32_t time, double lx, double ly) {
     if (!time) {  // virtual pointers send time 0 and expect a warp
-        wlr_cursor_warp_closest(cursor, nullptr, lx, ly);
+        cursor->warp_closest(lx, ly);
         motion(0, nullptr, 0, 0, 0, 0);
         return;
     }
@@ -1281,7 +1282,7 @@ void Seat::begin_move(View* view) {
     edge_carried_ = false;
     mode = Mode::Move;
     server.wl->seat->pointer_clear_focus();
-    wlr_cursor_set_xcursor(cursor, xcursor, "grabbing");
+    cursor->set_xcursor(xcursor, "grabbing");
 }
 
 // Dragging a maximized window restores its size under the cursor, keeping the
@@ -1318,7 +1319,7 @@ void Seat::begin_resize(View* view, uint32_t edges) {
     mode = Mode::Resize;
     view->begin_resize(edges);
     server.wl->seat->pointer_clear_focus();
-    wlr_cursor_set_xcursor(cursor, xcursor, wlr_xcursor_get_resize_name(wlr_edges(edges)));
+    cursor->set_xcursor(xcursor, wlr_xcursor_get_resize_name(wlr_edges(edges)));
 }
 
 void Seat::push_edge(double dx) {
@@ -1326,7 +1327,7 @@ void Seat::push_edge(double dx) {
     // a band a few pixels wide: a hand on a mouse (or vc's pointer) jitters.
     constexpr double kPush = 300, kBand = 4;
     wlr_box all;
-    wlr_output_layout_get_box(server.output_layout, nullptr, &all);
+    all = server.output_layout->extents();
     const int dir = cursor->x < all.x + kBand ? -1 : cursor->x >= all.x + all.width - kBand ? 1 : 0;
     if (!dir) {
         edge_push_ = 0, edge_carried_ = false;
@@ -1400,7 +1401,7 @@ void Seat::warp_to_constraint_hint() {
         return;
     double ox, oy;
     owner.view->surface_origin(ox, oy);
-    wlr_cursor_warp(cursor, nullptr, ox + c->cursor_hint->first, oy + c->cursor_hint->second);
+    cursor->warp(ox + c->cursor_hint->first, oy + c->cursor_hint->second);
 }
 
 } // namespace atrium

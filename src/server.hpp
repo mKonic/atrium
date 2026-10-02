@@ -1,5 +1,8 @@
 #pragma once
 #include "anim.hpp"
+#include "backend/allocator.hpp"
+#include "backend/headless.hpp"
+#include "cursor.hpp"
 #include "config.hpp"
 #include "keyword_watch.hpp"
 #include "listener.hpp"
@@ -188,7 +191,7 @@ public:
 
     // Monitors are remembered by make, model and serial; plugged in again,
     // one comes back as it was set up.
-    std::string display_id(const wlr_output* output) const;
+    std::string display_id(const backend::Output* output) const;
     void remember_displays();
     void restore_display(Output* output);
     // An output change from IPC: { output, width, height, refresh, scale,
@@ -222,10 +225,13 @@ public:
 
     wl_display* display = nullptr;
     wl_event_loop* loop = nullptr;
-    wlr_backend* backend = nullptr;
+    // Where screens come from: wlroots' DRM or nested backend in
+    // `wlr_backend`, and atrium's own headless one for virtual screens.
+    backend::Multi* backend = nullptr;
+    wlr_backend* wlroots = nullptr;
     wlr_session* session = nullptr;
     wlr_renderer* renderer = nullptr;
-    wlr_allocator* allocator = nullptr;
+    backend::Allocator* allocator = nullptr;
     // Every Wayland global (protocols.hpp).
     std::unique_ptr<Protocols> wl;
     scene::Scene* scene = nullptr;
@@ -238,7 +244,9 @@ public:
     void apply_blur_settings();
     void apply_screen_shader();
 
-    wlr_output_layout* output_layout = nullptr;
+    OutputLayout* output_layout = nullptr;
+    // The pointer's place and image.
+    std::unique_ptr<Cursor> cursor;
     wlr_box layout_box{};
 #ifdef ATRIUM_XWAYLAND
     // Xwayland: the X server (its process, wlroots'), and atrium's own
@@ -292,7 +300,7 @@ private:
 #ifdef ATRIUM_XWAYLAND
     void allow_root_x11(const char* display);
 #endif
-    void new_output(wlr_output* wlr);
+    void new_output(backend::Output* wlr);
     void setup_protocols();
     // Output management, power and gamma's protocol side (displays.cpp).
     void setup_outputs_protocols();
@@ -300,7 +308,7 @@ private:
     struct OutputChange {
         Output* output;
         bool enabled;
-        wlr_output_mode* mode = nullptr;      // a mode it has, or...
+        const backend::Mode* mode = nullptr;  // a mode it has, or...
         std::optional<std::array<int, 3>> custom;  // ...width, height, refresh (mHz)
         float scale;
         wl_output_transform transform;
@@ -316,7 +324,7 @@ private:
     void setup_capture();
     struct CaptureState;
     std::unique_ptr<CaptureState> capture_;
-    void capture_output_frame(Output* output, wlr_output_event_commit* event);
+    void capture_output_frame(Output* output, const backend::OutputState& state);
     void capture_view_frame(View* view, wlr_buffer* frame, const timespec& when);
 public:
     // A window's capture scene, or a screen, is going: its captures stop.
@@ -331,8 +339,11 @@ private:
     void setup_window_hints();
 
     scene::Tree* layers_[kLayerCount]{};
-    wlr_backend* headless_ = nullptr;  // made on the first create_output() without a nested backend
-    wl_display* layout_display_ = nullptr;  // the output layout's own (see setup)
+    std::unique_ptr<backend::Multi> backend_;
+    std::unique_ptr<backend::Allocator> allocator_;
+    std::unique_ptr<OutputLayout> output_layout_;
+    backend::Headless* headless_ = nullptr;  // made on the first create_output() without a nested backend
+    wl::Connection new_output_conn_, layout_change_conn_;
     void seed_registry(const std::filesystem::path& dir);
 
     pid_t startup_pid_ = -1;
@@ -343,8 +354,6 @@ private:
     wl_event_source* startup_timer_ = nullptr;
     void run_startup();
 
-    Listener<wlr_output> new_output_;
-    Listener<> layout_change_;
     Listener<> gpu_reset_;
     Listener<> session_active_;
     Listener<> backend_destroy_;

@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "backend/wlr.hpp"
 #include "capture_state.hpp"
 #include "stacking.hpp"
 #include "render/renderer.hpp"
@@ -206,20 +207,34 @@ void Server::setup() {
     const bool nested_session = getenv("WAYLAND_DISPLAY") || getenv("DISPLAY");
     if (!getenv("WLR_BACKENDS") && !nested_session)
         setenv("WLR_BACKENDS", "drm", 1);
-    backend = wlr_backend_autocreate(loop, &session);
-    if (!backend)
-        die("couldn't create backend");
-    // Nested, the backend dies with the session atrium runs inside. wlroots
-    // insists nothing still listens on it by then, so let go and end.
-    backend_destroy_.connect(&backend->events.destroy, [this](void*) {
-        wlr_log(WLR_ERROR, "the backend went away (the host session ended?); quitting");
-        new_output_.disconnect();
-        if (seat)
-            seat->backend_gone();
-        backend_destroy_.disconnect();
-        backend = nullptr;
-        wl_display_terminate(display);
-    });
+    backend_ = std::make_unique<backend::Multi>(loop);
+    backend = backend_.get();
+    if (const char* b = getenv("WLR_BACKENDS"); b && std::string_view(b) == "headless") {
+        // Screens only in memory (tests): atrium's own, as many as
+        // WLR_HEADLESS_OUTPUTS says (one by default), as wlroots had them.
+        auto h = std::make_unique<backend::Headless>(loop);
+        headless_ = h.get();
+        const char* n = getenv("WLR_HEADLESS_OUTPUTS");
+        const long count = n && *n ? std::strtol(n, nullptr, 10) : 1;
+        for (long i = 0; i < count; ++i)
+            headless_->add_output(1280, 720);
+        backend->add(std::move(h));
+    } else {
+        wlroots = wlr_backend_autocreate(loop, &session);
+        if (!wlroots)
+            die("couldn't create backend");
+        // Nested, the backend dies with the session atrium runs inside. wlroots
+        // insists nothing still listens on it by then, so let go and end.
+        backend_destroy_.connect(&wlroots->events.destroy, [this](void*) {
+            wlr_log(WLR_ERROR, "the backend went away (the host session ended?); quitting");
+            if (seat)
+                seat->backend_gone();
+            backend_destroy_.disconnect();
+            wlroots = nullptr;
+            wl_display_terminate(display);
+        });
+        backend->add(std::make_unique<backend::WlrBackend>(loop, wlroots));
+    }
 
     scene = scene::Scene::create();
     root_bg = scene::Rect::create(scene, 0, 0, config.background.data());
@@ -235,7 +250,7 @@ void Server::setup() {
     apply_blur_settings();
 
     // atrium's own GLES 3 renderer: rounded corners, shadows, blur and glass.
-    if (render::Renderer* r = render::Renderer::create(backend))
+    if (render::Renderer* r = render::Renderer::create(*backend))
         renderer = r->wlr();
     if (!renderer)
         die("couldn't create renderer");
@@ -243,16 +258,19 @@ void Server::setup() {
 
     apply_screen_shader();
 
-    allocator = wlr_allocator_autocreate(backend, renderer);
+    allocator_ = backend::Allocator::create(wlr_renderer_get_drm_fd(renderer));
+    allocator = allocator_.get();
     if (!allocator)
         die("couldn't create allocator");
 
-    // wlroots' layout makes a wl_output global for every screen it holds:
-    // on a display of its own nobody connects to, as atrium serves its own.
-    layout_display_ = wl_display_create();
-    output_layout = wlr_output_layout_create(layout_display_);
-    layout_change_.connect(&output_layout->events.change, [this](void*) { update_outputs(); });
-    new_output_.connect(&backend->events.new_output, [this](wlr_output* o) { new_output(o); });
+    output_layout_ = std::make_unique<OutputLayout>();
+    output_layout = output_layout_.get();
+    cursor = std::make_unique<Cursor>(*output_layout, loop);
+    scene->draw_cursor = [this](const backend::Output* o, wlr_render_pass* pass, const pixman_region32_t* damage) {
+        cursor->render(o, pass, damage);
+    };
+    layout_change_conn_ = output_layout->change.connect([this] { update_outputs(); });
+    new_output_conn_ = backend->events.new_output.connect([this](backend::Output* o) { new_output(o); });
 
     locked_bg = scene::Rect::create(layer(Layer::Lock), 0, 0, config.lock_background.data());
     locked_bg->set_enabled(false);
@@ -314,7 +332,7 @@ void Server::setup() {
 
 // What a client should allocate for a surface: for scan-out on `scanout`
 // first (when it could go straight there), then for rendering.
-static wl::DmabufFeedback dmabuf_feedback(wlr_renderer* renderer, wlr_output* scanout) {
+static wl::DmabufFeedback dmabuf_feedback(wlr_renderer* renderer, backend::Output* scanout) {
     wl::DmabufFeedback fb;
     struct stat st{};
     if (int fd = wlr_renderer_get_drm_fd(renderer); fd >= 0 && fstat(fd, &st) == 0)
@@ -324,7 +342,7 @@ static wl::DmabufFeedback dmabuf_feedback(wlr_renderer* renderer, wlr_output* sc
         return set && wlr_drm_format_set_has(set, format, modifier);
     };
     if (scanout) {
-        if (const wlr_drm_format_set* primary = wlr_output_get_primary_formats(scanout, WLR_BUFFER_CAP_DMABUF)) {
+        if (const wlr_drm_format_set* primary = scanout->primary_formats(WLR_BUFFER_CAP_DMABUF)) {
             wl::DmabufFeedback::Tranche t;
             t.target_device = fb.main_device;
             t.scanout = true;
@@ -376,7 +394,7 @@ void Server::setup_protocols() {
         }
     }
     if (int drm_fd = wlr_renderer_get_drm_fd(renderer);
-        drm_fd >= 0 && renderer->features.timeline && backend->features.timeline)
+        drm_fd >= 0 && renderer->features.timeline && backend->supports_timelines())
         p.syncobj = std::make_unique<wl::Syncobj>(display, drm_fd);
     p.compositor = std::make_unique<wl::Compositor>(display, renderer);
     p.viewporter = std::make_unique<wl::Viewporter>(display);
@@ -398,7 +416,7 @@ void Server::setup_protocols() {
 
     scene->protocols = {
         .dmabuf = p.dmabuf.get(),
-        .dmabuf_feedback = [this](wlr_output* scanout) { return dmabuf_feedback(renderer, scanout); },
+        .dmabuf_feedback = [this](backend::Output* scanout) { return dmabuf_feedback(renderer, scanout); },
         .fractional_scales = p.fractional_scales.get(),
         .color = p.color.get(),
         .syncobj = p.syncobj.get(),
@@ -512,8 +530,8 @@ void Server::setup_protocols() {
 // Every listener must be off its signal before the object carrying the signal
 // is freed: a Listener destroyed later would unlink from freed memory.
 void Server::disconnect_listeners() {
-    new_output_.disconnect();
-    layout_change_.disconnect();
+    new_output_conn_.disconnect();
+    layout_change_conn_.disconnect();
     gpu_reset_.disconnect();
     session_active_.disconnect();
     connections_.clear();
@@ -590,11 +608,7 @@ void Server::start_clipboard_sync() {
 // shell's: it talks to them anyway, and two talking at once collide).
 void Server::restore_power_and_brightness() {
     // Only on a real screen: not nested, not headless (a test).
-    bool drm = false;
-    wlr_multi_for_each_backend(backend, [](wlr_backend* b, void* data) {
-        *static_cast<bool*>(data) |= wlr_backend_is_drm(b);
-    }, &drm);
-    if (nested || !drm)
+    if (nested || !backend->is_drm())
         return;
     apply_power_profile();
 }
@@ -662,13 +676,22 @@ void Server::teardown() {
     // The backend by hand before the display: its outputs go (and tell the
     // protocols so), then the globals, before the display.
     backend_destroy_.disconnect();
-    if (backend)  // gone already if the host session ended
-        wlr_backend_destroy(backend);
+    new_output_conn_.disconnect();
+    backend = nullptr;
+    headless_ = nullptr;
+    backend_.reset();  // takes wlroots' with it, unless the host session ended
+    wlroots = nullptr;
+    layout_change_conn_.disconnect();
+    scene->draw_cursor = nullptr;
+    cursor.reset();
+    output_layout = nullptr;
+    output_layout_.reset();
     scene->protocols = {};
     scene->set_gamma_controls(nullptr);
     wl.reset();
     wl_display_destroy(display);
-    wl_display_destroy(layout_display_);
+    allocator = nullptr;
+    allocator_.reset();
     // Only after the display: outputs are gone and no scene output is left.
     (scene)->destroy();
 }
@@ -745,7 +768,7 @@ void Server::run(const char* startup_cmd) {
     if (!config.greeter)
         night_light = std::make_unique<NightLight>(*this);
 
-    if (!wlr_backend_start(backend))
+    if (!backend->start())
         die("couldn't start backend");
 
     shell = std::make_unique<ShellProcess>(*this);
@@ -774,9 +797,9 @@ void Server::run(const char* startup_cmd) {
             run_startup();
     }
 
-    focused_output = output_at(seat->cursor->x, seat->cursor->y);
+    focused_output = output_at(cursor->x, cursor->y);
     // Put the cursor image where the cursor actually is.
-    wlr_cursor_warp_closest(seat->cursor, nullptr, seat->cursor->x, seat->cursor->y);
+    cursor->warp_closest(cursor->x, cursor->y);
     seat->set_default_cursor();
 
     wlr_log(WLR_INFO, "running on WAYLAND_DISPLAY=%s", socket);
@@ -818,8 +841,8 @@ void Server::quit() {
 
 // --- outputs -----------------------------------------------------------------
 
-void Server::new_output(wlr_output* wlr) {
-    if (!wlr_output_init_render(wlr, allocator, renderer))
+void Server::new_output(backend::Output* wlr) {
+    if (!wlr->init_render(allocator, renderer))
         return;
     auto* output = new Output(*this, wlr);
     outputs.push_back(output);
@@ -833,7 +856,7 @@ void Server::new_output(wlr_output* wlr) {
 }
 
 Output* Server::output_at(double lx, double ly) const {
-    wlr_output* o = wlr_output_layout_output_at(output_layout, lx, ly);
+    backend::Output* o = output_layout->output_at(lx, ly);
     return o ? static_cast<Output*>(o->data) : nullptr;
 }
 
@@ -849,15 +872,15 @@ void Server::update_outputs() {
             continue;
         if (o->asleep)
             continue;
-        wlr_output_layout_remove(output_layout, o->wlr);
+        output_layout->remove(o->screen);
         o->box = o->usable = {};
     }
     for (Output* o : outputs) {
-        if (o->enabled() && !o->dying && !wlr_output_layout_get(output_layout, o->wlr))
-            wlr_output_layout_add_auto(output_layout, o->wlr);
+        if (o->enabled() && !o->dying && !output_layout->contains(o->screen))
+            output_layout->add_auto(o->screen);
     }
 
-    wlr_output_layout_get_box(output_layout, nullptr, &layout_box);
+    layout_box = output_layout->extents();
     background_blur->set_position(layout_box.x, layout_box.y);
     background_blur->set_size(layout_box.width, layout_box.height);
     background_blur->mark_dirty();
@@ -869,7 +892,7 @@ void Server::update_outputs() {
     for (Output* o : outputs) {
         if (!o->enabled() || o->dying)
             continue;
-        wlr_output_layout_get_box(output_layout, o->wlr, &o->box);
+        o->box = output_layout->box(o->screen);
         o->usable = o->box;
         if (o->scene_output)
             o->scene_output->set_position(o->box.x, o->box.y);
@@ -908,7 +931,7 @@ void Server::update_outputs() {
     }
 
     // The cursor image can end up at 0,0 after outputs come back; re-place it.
-    wlr_cursor_move(seat->cursor, nullptr, 0, 0);
+    cursor->move(0, 0);
 
     publish_outputs();
     if (ipc)
@@ -917,13 +940,14 @@ void Server::update_outputs() {
 
 void Server::gpu_reset() {
     wlr_renderer* old_renderer = renderer;
-    wlr_allocator* old_allocator = allocator;
+    std::unique_ptr<backend::Allocator> old_allocator = std::move(allocator_);
 
-    render::Renderer* r = render::Renderer::create(backend);
+    render::Renderer* r = render::Renderer::create(*backend);
     renderer = r ? r->wlr() : nullptr;
     if (!renderer)
         die("couldn't recreate renderer");
-    allocator = wlr_allocator_autocreate(backend, renderer);
+    allocator_ = backend::Allocator::create(wlr_renderer_get_drm_fd(renderer));
+    allocator = allocator_.get();
     if (!allocator)
         die("couldn't recreate allocator");
 
@@ -931,9 +955,10 @@ void Server::gpu_reset() {
     wl->compositor->set_renderer(renderer);
     apply_screen_shader();
     for (Output* o : outputs)
-        wlr_output_init_render(o->wlr, allocator, renderer);
+        o->screen->init_render(allocator, renderer);
+    cursor->reset_render();  // its textures and plane buffers were the old ones'
 
-    wlr_allocator_destroy(old_allocator);
+    old_allocator.reset();
     wlr_renderer_destroy(old_renderer);
 }
 
@@ -1062,7 +1087,7 @@ Placement Server::placement_of(const View* view) const {
     const bool away = view->maximized || view->snapped || view->fullscreen;
     const wlr_box b = away ? view->restore : view->geom;
     const wlr_box o = view->output ? view->output->box : wlr_box{};
-    return Placement{view->output ? view->output->wlr->name : "", b.x - o.x, b.y - o.y, b.width, b.height,
+    return Placement{view->output ? view->output->screen->name : "", b.x - o.x, b.y - o.y, b.width, b.height,
                      view->maximized, view->snapped};
 }
 
@@ -1186,7 +1211,7 @@ void Server::keyboard_layout_changed() {
 std::optional<wlr_box> Server::dock_icon_of(const View& view) const {
     if (!view.output)
         return std::nullopt;
-    auto it = dock_icons.find(view.output->wlr->name);
+    auto it = dock_icons.find(view.output->screen->name);
     if (it == dock_icons.end())
         return std::nullopt;
     // The Dock's own surface, where its icons were measured.
@@ -1532,7 +1557,7 @@ void Server::show_window_menu(const View* view, double lx, double ly) {
         return;
     ipc->broadcast("windows", {{"event", "window.menu"},
                                {"window", Ipc::window_json(*view)},
-                               {"output", o->wlr->name},
+                               {"output", o->screen->name},
                                {"x", int(lx) - o->box.x},
                                {"y", int(ly) - o->box.y}});
 }

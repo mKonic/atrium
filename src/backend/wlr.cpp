@@ -45,6 +45,8 @@ public:
         adaptive_sync_supported = o->adaptive_sync_supported;
         supported_primaries = o->supported_primaries;
         supported_transfer_functions = o->supported_transfer_functions;
+        if (o->default_primaries)
+            default_primaries = *o->default_primaries;
         sync_modes();
         sync_fields();
 
@@ -107,6 +109,7 @@ public:
             out->buffer_dst_box = s.buffer_dst_box;
             out->tearing_page_flip = s.tearing_page_flip;
         }
+        out->allow_reconfiguration = s.allow_reconfiguration;
         if (s.committed & OutputState::Damage)
             wlr_output_state_set_damage(out, &s.damage);
         if ((s.committed & OutputState::WaitTimeline) && s.wait_timeline)
@@ -253,13 +256,23 @@ WlrBackend::WlrBackend(wl_event_loop* loop, wlr_backend* w) : Backend(loop), wlr
         events.new_output.emit(out);
     });
     new_input_.connect(&w->events.new_input, [this](wlr_input_device* d) { events.new_input.emit(d); });
+    // Nested, wlroots destroys it when the host session ends (its outputs
+    // went first).
+    wlr_destroy_.connect(&w->events.destroy, [this](void*) {
+        new_output_.disconnect();
+        new_input_.disconnect();
+        wlr_destroy_.disconnect();
+        wlr_ = nullptr;
+    });
 }
 
 WlrBackend::~WlrBackend() {
     new_output_.disconnect();
     new_input_.disconnect();
+    wlr_destroy_.disconnect();
     // Destroying the backend destroys its outputs, and with them ours.
-    wlr_backend_destroy(wlr_);
+    if (wlr_)
+        wlr_backend_destroy(wlr_);
     for (WlrOutput* o : std::vector(outputs_))
         forget(o);
     events.destroy.emit();

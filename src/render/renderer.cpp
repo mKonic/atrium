@@ -1,5 +1,7 @@
 #include "render/renderer.hpp"
 
+#include "backend/backend.hpp"
+
 #include "render/matrix.hpp"
 #include "render/pass.hpp"
 #include "render/shaders.hpp"
@@ -516,7 +518,7 @@ struct RendererImpl {
 
 // ---- Renderer ----------------------------------------------------------
 
-Renderer* Renderer::create(wlr_backend* backend) {
+Renderer* Renderer::create(const backend::Backend& backend) {
     int drm_fd = -1;
     bool own_fd = false;
     if (const char* name = std::getenv("WLR_RENDER_DRM_DEVICE")) {
@@ -526,8 +528,8 @@ Renderer* Renderer::create(wlr_backend* backend) {
             wlr_log_errno(WLR_ERROR, "Couldn't open %s", name);
     }
     if (drm_fd < 0)
-        drm_fd = wlr_backend_get_drm_fd(backend);
-    if (drm_fd < 0 && (backend->buffer_caps & WLR_BUFFER_CAP_DMABUF)) {
+        drm_fd = backend.drm_fd();
+    if (drm_fd < 0 && (backend.buffer_caps() & WLR_BUFFER_CAP_DMABUF)) {
         drm_fd = open_any_render_node();
         own_fd = drm_fd >= 0;
     }

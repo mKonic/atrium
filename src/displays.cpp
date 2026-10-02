@@ -10,10 +10,10 @@ namespace atrium {
 std::vector<Server::OutputChange> Server::current_outputs() const {
     std::vector<OutputChange> out;
     for (Output* o : outputs) {
-        OutputChange c{o, o->wlr->enabled, o->wlr->current_mode, std::nullopt, o->wlr->scale, o->wlr->transform,
+        OutputChange c{o, o->screen->enabled, o->screen->current_mode, std::nullopt, o->screen->scale, o->screen->transform,
                        o->box.x, o->box.y, std::nullopt};
-        if (!o->wlr->current_mode)
-            c.custom = std::array{o->wlr->width, o->wlr->height, o->wlr->refresh};
+        if (!o->screen->current_mode)
+            c.custom = std::array{o->screen->width, o->screen->height, o->screen->refresh};
         out.push_back(c);
     }
     return out;
@@ -22,51 +22,34 @@ std::vector<Server::OutputChange> Server::current_outputs() const {
 // Both ways an output changes (an output-management client, the Settings
 // app through IPC) go through here: test or commit a whole configuration.
 bool Server::commit_output_config(const std::vector<OutputChange>& changes, bool test) {
-    std::vector<wlr_backend_output_state> states(changes.size());
-    for (size_t i = 0; i < changes.size(); ++i) {
-        const OutputChange& c = changes[i];
-        wlr_backend_output_state& st = states[i];
-        st.output = c.output->wlr;
-        wlr_output_state_init(&st.base);
-        wlr_output_state_set_enabled(&st.base, c.enabled);
-        if (!c.enabled)
-            continue;
-        if (c.mode)
-            wlr_output_state_set_mode(&st.base, c.mode);
-        else if (c.custom)
-            wlr_output_state_set_custom_mode(&st.base, (*c.custom)[0], (*c.custom)[1], (*c.custom)[2]);
-        wlr_output_state_set_scale(&st.base, c.scale);
-        wlr_output_state_set_transform(&st.base, c.transform);
-        if (c.adaptive_sync)
-            wlr_output_state_set_adaptive_sync_enabled(&st.base, *c.adaptive_sync);
+    std::vector<std::pair<backend::Output*, backend::OutputState>> states;
+    for (const OutputChange& c : changes) {
+        backend::OutputState st;
+        st.set_enabled(c.enabled);
+        if (c.enabled) {
+            if (c.mode)
+                st.set_mode(c.mode);
+            else if (c.custom)
+                st.set_custom_mode((*c.custom)[0], (*c.custom)[1], (*c.custom)[2]);
+            st.set_scale(c.scale);
+            st.set_transform(c.transform);
+            if (c.adaptive_sync)
+                st.set_adaptive_sync_enabled(*c.adaptive_sync);
+        }
+        states.emplace_back(c.output->screen, std::move(st));
     }
-
-    wlr_output_swapchain_manager swapchains;
-    wlr_output_swapchain_manager_init(&swapchains, backend);
-    bool ok = wlr_output_swapchain_manager_prepare(&swapchains, states.data(), states.size());
+    // All at once: a real screen that lights up gets its first frame with it.
+    const bool ok = backend->commit(states, test);
     if (ok && !test) {
-        for (auto& st : states) {
-            wlr_swapchain* sc = wlr_output_swapchain_manager_get_swapchain(&swapchains, st.output);
-            if (sc && !st.output->enabled)
-                wlr_output_state_set_buffer(&st.base, wlr_swapchain_acquire(sc));
-        }
-        ok = wlr_backend_commit(backend, states.data(), states.size());
-        if (ok) {
-            wlr_output_swapchain_manager_apply(&swapchains);
-            for (const OutputChange& c : changes) {
-                Output* o = c.output;
-                o->asleep = false;
-                // Re-adding at the same position would mark the output as
-                // manually placed, so only move it when it actually moved.
-                if (c.enabled &&
-                    (o->box.x != c.x || o->box.y != c.y || !wlr_output_layout_get(output_layout, o->wlr)))
-                    wlr_output_layout_add(output_layout, o->wlr, c.x, c.y);
-            }
+        for (const OutputChange& c : changes) {
+            Output* o = c.output;
+            o->asleep = false;
+            // Re-adding at the same position would mark the output as
+            // manually placed, so only move it when it actually moved.
+            if (c.enabled && (o->box.x != c.x || o->box.y != c.y || !output_layout->contains(o->screen)))
+                output_layout->add(o->screen, c.x, c.y);
         }
     }
-    wlr_output_swapchain_manager_finish(&swapchains);
-    for (auto& st : states)
-        wlr_output_state_finish(&st.base);
     return ok;
 }
 
@@ -75,20 +58,19 @@ void Server::publish_outputs() {
     for (Output* o : outputs) {
         if (o->dying)
             continue;
-        wlr_output* w = o->wlr;
+        backend::Output* w = o->screen;
         wl::OutputManagement::Head h;
         h.name = w->name;
-        h.description = w->description ? w->description : "";
-        h.make = w->make ? w->make : "";
-        h.model = w->model ? w->model : "";
-        h.serial = w->serial ? w->serial : "";
+        h.description = w->description;
+        h.make = w->make;
+        h.model = w->model;
+        h.serial = w->serial;
         h.physical_width = w->phys_width;
         h.physical_height = w->phys_height;
-        wlr_output_mode* mode;
         int i = 0;
-        wl_list_for_each(mode, &w->modes, link) {
-            h.modes.push_back({mode->width, mode->height, mode->refresh, mode->preferred});
-            if (mode == w->current_mode)
+        for (const backend::Mode& mode : w->modes) {
+            h.modes.push_back({mode.width, mode.height, mode.refresh, mode.preferred});
+            if (&mode == w->current_mode)
                 h.current_mode = i;
             ++i;
         }
@@ -98,7 +80,7 @@ void Server::publish_outputs() {
         h.y = o->box.y;
         h.transform = int32_t(w->transform);
         h.scale = w->scale;
-        h.adaptive_sync = w->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED;
+        h.adaptive_sync = w->adaptive_sync_status == backend::AdaptiveSync::Enabled;
         heads.push_back(std::move(h));
     }
     wl->output_management->set_heads(std::move(heads));
@@ -108,7 +90,7 @@ void Server::setup_outputs_protocols() {
     connections_.push_back(wl->output_management->apply.connect([this](wl::OutputManagement::Configuration& cfg) {
         std::vector<OutputChange> changes = current_outputs();
         for (const auto& hc : cfg.heads) {
-            auto it = std::ranges::find_if(changes, [&](const OutputChange& c) { return hc.name == c.output->wlr->name; });
+            auto it = std::ranges::find_if(changes, [&](const OutputChange& c) { return hc.name == c.output->screen->name; });
             if (it == changes.end())
                 continue;
             it->enabled = hc.enabled;
@@ -117,10 +99,9 @@ void Server::setup_outputs_protocols() {
             if (hc.mode) {
                 it->mode = nullptr;
                 it->custom.reset();
-                wlr_output_mode* m;
-                wl_list_for_each(m, &it->output->wlr->modes, link)
-                    if (m->width == hc.mode->width && m->height == hc.mode->height && m->refresh == hc.mode->refresh)
-                        it->mode = m;
+                for (const backend::Mode& m : it->output->screen->modes)
+                    if (m.width == hc.mode->width && m.height == hc.mode->height && m.refresh == hc.mode->refresh)
+                        it->mode = &m;
                 if (!it->mode)
                     it->custom = std::array{hc.mode->width, hc.mode->height, hc.mode->refresh};
             }
@@ -142,39 +123,37 @@ void Server::setup_outputs_protocols() {
         auto* o = g ? static_cast<Output*>(g->data) : nullptr;
         if (!o)
             return;
-        wlr_output_state state;
-        wlr_output_state_init(&state);
-        wlr_output_state_set_enabled(&state, on);
-        wlr_output_commit_state(o->wlr, &state);
-        wlr_output_state_finish(&state);
+        backend::OutputState state;
+        state.set_enabled(on);
+        o->screen->commit_state(state);
         o->asleep = !on;
         wl->output_power->set_mode(g, on);
         update_outputs();
     }));
 }
 
-std::string Server::display_id(const wlr_output* o) const {
+std::string Server::display_id(const backend::Output* o) const {
     std::string id;
-    for (const char* part : {o->make, o->model, o->serial})
-        if (part && *part)
-            id += (id.empty() ? "" : " ") + std::string(part);
-    return id.empty() || !o->serial || !*o->serial ? (id.empty() ? "" : id + " ") + o->name : id;
+    for (const std::string* part : {&o->make, &o->model, &o->serial})
+        if (!part->empty())
+            id += (id.empty() ? "" : " ") + *part;
+    return id.empty() || o->serial.empty() ? (id.empty() ? "" : id + " ") + o->name : id;
 }
 
 void Server::remember_displays() {
     for (Output* o : outputs) {
-        DisplayRecord d{.id = display_id(o->wlr), .enabled = o->wlr->enabled};
+        DisplayRecord d{.id = display_id(o->screen), .enabled = o->screen->enabled};
         d.adaptive_sync = o->adaptive_sync;
         d.hdr = o->hdr;
         d.sdr_brightness = o->sdr_brightness;
         d.sdr_color = o->sdr_color;
         d.icc = o->icc;
-        if (o->wlr->enabled) {
-            d.width = o->wlr->width;
-            d.height = o->wlr->height;
-            d.refresh = o->wlr->refresh;
-            d.scale = o->wlr->scale;
-            d.transform = int(o->wlr->transform);
+        if (o->screen->enabled) {
+            d.width = o->screen->width;
+            d.height = o->screen->height;
+            d.refresh = o->screen->refresh;
+            d.scale = o->screen->scale;
+            d.transform = int(o->screen->transform);
             d.x = o->box.x;
             d.y = o->box.y;
         } else if (auto old = registry->display(d.id)) {
@@ -191,7 +170,7 @@ void Server::remember_displays() {
 }
 
 void Server::restore_display(Output* output) {
-    const auto d = registry->display(display_id(output->wlr));
+    const auto d = registry->display(display_id(output->screen));
     if (!d)
         return;
     output->adaptive_sync = d->adaptive_sync;
@@ -200,32 +179,29 @@ void Server::restore_display(Output* output) {
     output->sdr_color = d->sdr_color;
     output->icc = d->icc;
     output->apply_icc();
-    wlr_output* w = output->wlr;
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, d->enabled);
+    backend::Output* w = output->screen;
+    backend::OutputState state;
+    state.set_enabled(d->enabled);
     if (d->enabled) {
         if (d->width > 0 && d->height > 0) {
             // The closest mode it has; a custom one where it has none (nested).
-            wlr_output_mode* best = nullptr;
-            wlr_output_mode* mode;
-            wl_list_for_each(mode, &w->modes, link)
-                if (mode->width == d->width && mode->height == d->height &&
-                    (!best || std::abs(mode->refresh - d->refresh) < std::abs(best->refresh - d->refresh)))
-                    best = mode;
+            const backend::Mode* best = nullptr;
+            for (const backend::Mode& mode : w->modes)
+                if (mode.width == d->width && mode.height == d->height &&
+                    (!best || std::abs(mode.refresh - d->refresh) < std::abs(best->refresh - d->refresh)))
+                    best = &mode;
             if (best)
-                wlr_output_state_set_mode(&state, best);
-            else if (wl_list_empty(&w->modes))
-                wlr_output_state_set_custom_mode(&state, d->width, d->height, d->refresh);
+                state.set_mode(best);
+            else if (w->modes.empty())
+                state.set_custom_mode(d->width, d->height, d->refresh);
         }
-        wlr_output_state_set_scale(&state, float(d->scale));
-        wlr_output_state_set_transform(&state, wl_output_transform(d->transform));
+        state.set_scale(float(d->scale));
+        state.set_transform(wl_output_transform(d->transform));
     }
-    if (!wlr_output_commit_state(w, &state))
-        wlr_log(WLR_ERROR, "displays: couldn't restore %s as it was", w->name);
-    wlr_output_state_finish(&state);
+    if (!w->commit_state(state))
+        wlr_log(WLR_ERROR, "displays: couldn't restore %s as it was", w->name.c_str());
     if (d->enabled && d->x && d->y)
-        wlr_output_layout_add(output_layout, w, *d->x, *d->y);
+        output_layout->add(w, *d->x, *d->y);
     if (d->enabled)
         output->apply_hdr();
     update_outputs();
@@ -236,7 +212,7 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         return "output.set needs an \"output\" (its name)";
     Output* target = nullptr;
     for (Output* o : outputs)
-        if (req["output"] == o->wlr->name)
+        if (req["output"] == o->screen->name)
             target = o;
     if (!target)
         return "no output called " + req["output"].get<std::string>();
@@ -245,7 +221,7 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         if (!v.is_string() || (v != "off" && v != "games" && v != "on"))
             return "adaptive_sync is off, games or on";
         target->adaptive_sync = v;
-        wlr_output_schedule_frame(target->wlr);
+        target->screen->schedule_frame();
     }
     if (req.contains("sdr_brightness")) {
         const auto& v = req["sdr_brightness"];
@@ -275,7 +251,7 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         if (!req["hdr"].is_boolean())
             return "hdr is true or false";
         if (req["hdr"] == true && !target->hdr_supported())
-            return std::string(target->wlr->name) + " doesn't take HDR";
+            return std::string(target->screen->name) + " doesn't take HDR";
         target->hdr = req["hdr"];
     }
     if ((req.contains("hdr") || req.contains("sdr_brightness") || req.contains("sdr_color")) && target->enabled() &&
@@ -283,13 +259,13 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         target->hdr = false;
         target->apply_hdr();
         remember_displays();
-        return std::string(target->wlr->name) + " didn't take the HDR signal";
+        return std::string(target->screen->name) + " didn't take the HDR signal";
     }
 
     // Brightness, HDR and adaptive sync need no new mode for the screens.
     static constexpr const char* kLayout[] = {"enabled", "width", "height", "refresh", "scale", "transform", "x", "y"};
     if (std::ranges::none_of(kLayout, [&](const char* k) { return req.contains(k); })) {
-        wlr_output_schedule_frame(target->wlr);
+        target->screen->schedule_frame();
         remember_displays();
         update_outputs();
         return std::nullopt;
@@ -304,20 +280,19 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             c.enabled = req["enabled"];
         if (req.contains("width") && req.contains("height")) {
             const int w = req.value("width", 0), h = req.value("height", 0), r = req.value("refresh", 0);
-            wlr_output_mode* best = nullptr;
-            wlr_output_mode* mode;
-            wl_list_for_each(mode, &o->wlr->modes, link)
-                if (mode->width == w && mode->height == h &&
-                    (!best || std::abs(mode->refresh - r) < std::abs(best->refresh - r)))
-                    best = mode;
+            const backend::Mode* best = nullptr;
+            for (const backend::Mode& mode : o->screen->modes)
+                if (mode.width == w && mode.height == h &&
+                    (!best || std::abs(mode.refresh - r) < std::abs(best->refresh - r)))
+                    best = &mode;
             if (best) {
                 c.mode = best;
                 c.custom.reset();
-            } else if (wl_list_empty(&o->wlr->modes)) {
+            } else if (o->screen->modes.empty()) {
                 c.mode = nullptr;
                 c.custom = std::array{w, h, r};
             } else {
-                return std::to_string(w) + "×" + std::to_string(h) + " isn't a mode " + o->wlr->name + " has";
+                return std::to_string(w) + "×" + std::to_string(h) + " isn't a mode " + o->screen->name + " has";
             }
         }
         if (req.contains("scale") && req["scale"].is_number()) {
@@ -347,35 +322,29 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
 // --- virtual screens ---------------------------------------------------------------
 
 std::optional<std::string> Server::create_output() {
-    wlr_backend* nested = nullptr;
-    wlr_multi_for_each_backend(backend, [](wlr_backend* b, void* data) {
-        if (wlr_backend_is_wl(b))
-            *static_cast<wlr_backend**>(data) = b;
-    }, &nested);
-    wlr_output* o = nullptr;
-    if (nested) {
-        o = wlr_wl_output_create(nested);
-    } else {
+    // Nested: another window on the host; else a headless screen of ours.
+    backend::Output* o = backend->create_output();
+    if (!o) {
         if (!headless_) {
-            headless_ = wlr_headless_backend_create(loop);
-            if (!headless_ || !wlr_multi_backend_add(backend, headless_) || !wlr_backend_start(headless_))
-                return std::nullopt;
+            auto h = std::make_unique<backend::Headless>(loop);
+            headless_ = h.get();
+            backend->add(std::move(h));
         }
-        o = wlr_headless_add_output(headless_, 1920, 1080);
+        o = headless_->add_output(1920, 1080);
     }
     if (!o)
         return std::nullopt;
-    return std::string(o->name);
+    return o->name;
 }
 
 std::optional<std::string> Server::remove_output(const std::string& name) {
     for (Output* o : outputs)
-        if (name == o->wlr->name) {
-            if (!wlr_output_is_wl(o->wlr) && !wlr_output_is_headless(o->wlr))
+        if (name == o->screen->name) {
+            if (!backend->is_virtual(o->screen))
                 return "only virtual screens can be removed; " + name + " is a real one";
             if (outputs.size() == 1)
                 return "that is the only screen left";
-            wlr_output_destroy(o->wlr);
+            backend->destroy_output(o->screen);
             return std::nullopt;
         }
     return "no output " + name;

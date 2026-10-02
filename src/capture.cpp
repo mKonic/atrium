@@ -67,13 +67,13 @@ View* view_of(const wl::Capture::Target& t) {
 // A part of the screen (layout coordinates) in its buffer's pixels.
 wlr_box buffer_box(const Output& o, const std::optional<wl::Box>& region) {
     int w = 0, h = 0;
-    wlr_output_transformed_resolution(o.wlr, &w, &h);
+    o.screen->transformed_resolution(&w, &h);
     if (!region)
-        return {0, 0, o.wlr->width, o.wlr->height};
-    const double s = o.wlr->scale;
+        return {0, 0, o.screen->width, o.screen->height};
+    const double s = o.screen->scale;
     wlr_box b{int(std::lround((region->x - o.box.x) * s)), int(std::lround((region->y - o.box.y) * s)),
               int(std::lround(region->width * s)), int(std::lround(region->height * s))};
-    wlr_box_transform(&b, &b, wlr_output_transform_invert(o.wlr->transform), w, h);
+    wlr_box_transform(&b, &b, wlr_output_transform_invert(o.screen->transform), w, h);
     return b;
 }
 
@@ -92,8 +92,8 @@ void Server::setup_capture() {
             const wlr_box b = buffer_box(*o, t.region);
             w = b.width;
             h = b.height;
-            if (o->wlr->render_format)
-                format = o->wlr->render_format;
+            if (o->screen->render_format)
+                format = o->screen->render_format;
         } else if (View* v = view_of(t)) {
             auto it = capture_->views.find(v);
             if (it != capture_->views.end() && it->second.source && it->second.source->width() > 0) {
@@ -130,12 +130,12 @@ void Server::setup_capture() {
             wlr_buffer_lock(copy.buffer);
             per.copies.push_back({copy, buffer_box(*o, copy.target.region)});
             if (!per.commit.connected())
-                per.commit.connect(&o->wlr->events.commit,
-                                   [this, o](wlr_output_event_commit* e) { capture_output_frame(o, e); });
+                per.commit = o->screen->events.commit.connect(
+                    [this, o](const backend::OutputState& st) { capture_output_frame(o, st); });
             // A copy that needn't wait for change: the screen is drawn anew.
             if (!copy.wait_for_damage && o->scene_output)
                 o->scene_output->damage_whole();
-            wlr_output_schedule_frame(o->wlr);
+            o->screen->schedule_frame();
             return;
         }
         View* v = view_of(copy.target);
@@ -179,27 +179,28 @@ void Server::setup_capture() {
         auto& per = capture_->outputs[o];
         per.exports.push_back(e);
         if (!per.commit.connected())
-            per.commit.connect(&o->wlr->events.commit,
-                               [this, o](wlr_output_event_commit* ev) { capture_output_frame(o, ev); });
-        wlr_output_schedule_frame(o->wlr);
+            per.commit = o->screen->events.commit.connect(
+                [this, o](const backend::OutputState& st) { capture_output_frame(o, st); });
+        o->screen->schedule_frame();
     }));
 }
 
 // A screen showed a frame: what waited for one gets it.
-void Server::capture_output_frame(Output* o, wlr_output_event_commit* e) {
-    if (!(e->state->committed & WLR_OUTPUT_STATE_BUFFER) || !e->state->buffer)
+void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
+    if (!(st.committed & backend::OutputState::Buffer) || !st.buffer)
         return;
     auto it = capture_->outputs.find(o);
     if (it == capture_->outputs.end())
         return;
     auto& per = it->second;
-    wlr_buffer* frame = e->state->buffer;
-    const timespec when = e->when;
+    wlr_buffer* frame = st.buffer;
+    timespec when;
+    clock_gettime(CLOCK_MONOTONIC, &when);
     for (auto& p : std::exchange(per.copies, {})) {
         wl::Capture::Result r;
         r.ok = copy_into(renderer, frame, p.box, p.copy.buffer);
         r.when = when;
-        r.transform = uint32_t(o->wlr->transform);
+        r.transform = uint32_t(o->screen->transform);
         r.fail_reason = r.ok ? 0 : 1;
         wlr_buffer_unlock(p.copy.buffer);
         p.copy.done(r);

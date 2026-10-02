@@ -43,6 +43,8 @@ public:
     // Draws it into a frame of `output` where it has no cursor plane
     // (`damage` in the frame's buffer pixels).
     void render(const backend::Output* output, wlr_render_pass* pass, const pixman_region32_t* damage);
+    // The renderer or allocator changed (GPU reset): everything made again.
+    void reset_render();
     // Whether `output` shows it in its cursor plane.
     bool in_plane(const backend::Output* output) const;
 

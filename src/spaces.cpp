@@ -473,7 +473,7 @@ RuleResult Server::assign_space(View* view) {
         // that screen is still here.
         if (auto p = placement_for(view); p && !r.space)
             for (Output* out : outputs)
-                if (out->enabled() && p->output == out->wlr->name)
+                if (out->enabled() && p->output == out->screen->name)
                     o = out;
         if (!o) {
             for (Output* out : outputs)

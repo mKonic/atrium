@@ -53,6 +53,7 @@ OutputState& OutputState::operator=(const OutputState& o) {
     buffer_src_box = o.buffer_src_box;
     buffer_dst_box = o.buffer_dst_box;
     tearing_page_flip = o.tearing_page_flip;
+    allow_reconfiguration = o.allow_reconfiguration;
     mode_type = o.mode_type;
     mode = o.mode;
     custom_mode = o.custom_mode;
@@ -598,6 +599,11 @@ bool Multi::is_virtual(const Output* o) const {
 
 bool Multi::destroy_output(Output* o) {
     return std::ranges::any_of(backends_, [o](const auto& b) { return b->destroy_output(o); });
+}
+
+bool Multi::supports_timelines() const {
+    return !backends_.empty() &&
+           std::ranges::all_of(backends_, [](const auto& b) { return b->supports_timelines(); });
 }
 
 bool Multi::is_drm() const {

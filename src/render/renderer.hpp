@@ -12,6 +12,10 @@
 #include <unordered_set>
 #include <vector>
 
+namespace atrium::backend {
+class Backend;
+}
+
 namespace atrium::render {
 
 class Renderer;
@@ -133,7 +137,7 @@ struct RenderTimer {
 class Renderer {
 public:
     // A renderer on the backend's GPU, or null.
-    static Renderer* create(wlr_backend* backend);
+    static Renderer* create(const backend::Backend& backend);
     // Ours, or null if `r` is some other wlr_renderer.
     static Renderer* from(wlr_renderer* r);
     static Texture* texture(wlr_texture* t);

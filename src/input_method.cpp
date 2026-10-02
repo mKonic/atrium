@@ -278,7 +278,7 @@ void InputMethodRelay::place(Popup& popup) {
     }
 
     double cx = 0, cy = 0;
-    wlr_output_layout_closest_point(server_.output_layout, nullptr, cursor.x, cursor.y, &cx, &cy);
+    server_.output_layout->closest_point(nullptr, cursor.x, cursor.y, &cx, &cy);
     Output* output = server_.output_at(cx, cy);
     if (!output || !output->enabled())
         return;

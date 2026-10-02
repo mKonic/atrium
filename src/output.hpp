@@ -19,7 +19,7 @@ class Space;
 
 class Output {
 public:
-    Output(Server& server, wlr_output* wlr);
+    Output(Server& server, backend::Output* screen);
     ~Output();
     Output(const Output&) = delete;
     Output& operator=(const Output&) = delete;
@@ -31,13 +31,13 @@ public:
     // Fit maximized/fullscreen views to the current boxes.
     void refit_views();
 
-    bool enabled() const { return wlr->enabled; }
+    bool enabled() const { return screen->enabled; }
     // Being destroyed: out of the layout, and nothing is placed on it or
-    // told it is on it any more (that would hook the dying wlr_output again).
+    // told it is on it any more (that would hook the dying backend::Output again).
     bool dying = false;
 
     Server& server;
-    wlr_output* const wlr;
+    backend::Output* const screen;  // the backend's
     scene::SceneOutput* scene_output = nullptr;
     scene::Rect* fullscreen_bg = nullptr;  // hides what is behind a translucent fullscreen view
 
@@ -108,10 +108,7 @@ private:
 
     std::optional<bool> vrr_refused_;  // a switch the screen wouldn't take, not tried again
 
-    Listener<wlr_output_event_present> present_;
-    Listener<> frame_;
-    Listener<wlr_output_event_request_state> request_state_;
-    Listener<> destroy_;
+    wl::Connection present_, frame_, request_state_, destroy_;
 };
 
 } // namespace atrium

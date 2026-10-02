@@ -618,8 +618,8 @@ void View::set_output(Output* o) {
     output = o;
     sync_handle();
     if (wl::Surface* s = surface()) {
-        server.wl->fractional_scales->set_preferred_scale(s, o->wlr->scale);
-        s->set_preferred_scale(int32_t(std::ceil(o->wlr->scale)));
+        server.wl->fractional_scales->set_preferred_scale(s, o->screen->scale);
+        s->set_preferred_scale(int32_t(std::ceil(o->screen->scale)));
     }
 }
 

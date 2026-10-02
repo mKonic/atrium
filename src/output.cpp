@@ -21,17 +21,16 @@
 
 namespace atrium {
 
-Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
-    wlr->data = this;
+Output::Output(Server& srv, backend::Output* output) : server(srv), screen(output) {
+    screen->data = this;
 
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_mode(&state, wlr_output_preferred_mode(wlr));
-    wlr_output_state_set_enabled(&state, true);
-    wlr_output_commit_state(wlr, &state);
-    wlr_output_state_finish(&state);
+    backend::OutputState state;
+    if (const backend::Mode* m = screen->preferred_mode())
+        state.set_mode(m);
+    state.set_enabled(true);
+    screen->commit_state(state);
 
-    frame_.connect(&wlr->events.frame, [this](void*) { frame(); });
+    frame_ = screen->events.frame.connect([this] { frame(); });
     // Compositing waits for this timer: just before the screen's next vblank.
     render_timer_fd_ = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (render_timer_fd_ >= 0)
@@ -42,16 +41,16 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
                     static_cast<Output*>(data)->render();
                 return 0;
             }, this);
-    request_state_.connect(&wlr->events.request_state, [this](wlr_output_event_request_state* e) {
+    request_state_ = screen->events.request_state.connect([this](const backend::OutputState& st) {
         // The nested backend asks for this when its host window is resized.
-        wlr_output_commit_state(e->output, e->state);
+        screen->commit_state(st);
         server.update_outputs();
     });
-    destroy_.connect(&wlr->events.destroy, [this](void*) { delete this; });
-    present_.connect(&wlr->events.present, [this](wlr_output_event_present* e) {
-        if (!e->presented)
+    destroy_ = screen->events.destroy.connect([this] { delete this; });
+    present_ = screen->events.present.connect([this](const backend::Present& e) {
+        if (!e.presented)
             return;
-        presented(e->when.tv_sec * 1000000000LL + e->when.tv_nsec, e->refresh);
+        presented(e.when.tv_sec * 1000000000LL + e.when.tv_nsec, e.refresh);
     });
 
     // xdg-shell: nothing outside a fullscreen surface's own tree may show
@@ -63,22 +62,22 @@ Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
     global = std::make_unique<wl::Output>(server.display, wl::OutputInfo{});
     global->data = this;
     sync_global();
-    scene_output = scene::SceneOutput::create(server.scene, wlr);
+    scene_output = scene::SceneOutput::create(server.scene, screen);
     scene_output->global = global.get();
-    server.wl->gamma->set_size(global.get(), uint32_t(wlr_output_get_gamma_size(wlr)));
-    if (!wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr))
-        hdr_caps = hdr_caps_from_edid(connector_edid(wlr->name));
+    server.wl->gamma->set_size(global.get(), uint32_t(screen->gamma_size()));
+    if (screen->backend.is_drm() && !server.backend->is_virtual(screen))
+        hdr_caps = hdr_caps_from_edid(connector_edid(screen->name));
     // Adding to the layout fires layout.change, which runs update_outputs().
-    wlr_output_layout_add_auto(server.output_layout, wlr);
+    server.output_layout->add_auto(screen);
 }
 
 Output::~Output() {
     // Out of the layout and the scene before anything moves off it: a window
     // passing over it would otherwise be told it entered this output, which
-    // hooks the wlr_output again while it is being destroyed (wlroots then
+    // hooks the backend::Output again while it is being destroyed (wlroots then
     // asserts on the leftover bind listener).
     dying = true;
-    wlr_output_layout_remove(server.output_layout, wlr);
+    server.output_layout->remove(screen);
     scene_output->destroy();
     scene_output = nullptr;
     server.animator.cancel_owner(this, true);
@@ -122,7 +121,7 @@ Output::~Output() {
             }
     }
 
-    wlr->data = nullptr;
+    screen->data = nullptr;
     global->data = nullptr;
     global.reset();
     fullscreen_bg->destroy();
@@ -136,22 +135,22 @@ void Output::sync_global() {
     if (!global)
         return;
     wl::OutputInfo i;
-    i.name = wlr->name;
-    i.description = wlr->description ? wlr->description : "";
-    i.make = wlr->make ? wlr->make : "";
-    i.model = wlr->model ? wlr->model : "";
-    i.physical_width = wlr->phys_width;
-    i.physical_height = wlr->phys_height;
-    i.subpixel = int32_t(wlr->subpixel);
-    i.transform = int32_t(wlr->transform);
-    i.scale = wlr->scale;
-    i.mode_width = wlr->width;
-    i.mode_height = wlr->height;
-    i.refresh = wlr->refresh;
+    i.name = screen->name;
+    i.description = screen->description;
+    i.make = screen->make;
+    i.model = screen->model;
+    i.physical_width = screen->phys_width;
+    i.physical_height = screen->phys_height;
+    i.subpixel = int32_t(screen->subpixel);
+    i.transform = int32_t(screen->transform);
+    i.scale = screen->scale;
+    i.mode_width = screen->width;
+    i.mode_height = screen->height;
+    i.refresh = screen->refresh;
     i.x = box.x;
     i.y = box.y;
     int w = 0, h = 0;
-    wlr_output_effective_resolution(wlr, &w, &h);
+    screen->effective_resolution(&w, &h);
     i.logical_width = w;
     i.logical_height = h;
     global->update(i);
@@ -163,12 +162,12 @@ void Output::sync_global() {
 }
 
 bool Output::hdr_supported() const {
-    return (wlr->supported_transfer_functions & WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ) &&
-           (wlr->supported_primaries & WLR_COLOR_NAMED_PRIMARIES_BT2020);
+    return (screen->supported_transfer_functions & WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ) &&
+           (screen->supported_primaries & WLR_COLOR_NAMED_PRIMARIES_BT2020);
 }
 
 bool Output::hdr_active() const {
-    return wlr->image_description && wlr->image_description->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+    return screen->image_description && screen->image_description->transfer_function == WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
 }
 
 namespace {
@@ -181,8 +180,8 @@ std::string format_name(uint32_t format) {
 }
 
 // Why no 10-bit format was taken: what the screen's plane offers.
-void log_formats(wlr_output* output) {
-    const wlr_drm_format_set* formats = wlr_output_get_primary_formats(output, WLR_BUFFER_CAP_DMABUF);
+void log_formats(backend::Output* output) {
+    const wlr_drm_format_set* formats = output->primary_formats(WLR_BUFFER_CAP_DMABUF);
     std::string list;
     for (size_t i = 0; formats && i < formats->len; ++i)
         list += format_name(formats->formats[i].format) + " ";
@@ -195,17 +194,16 @@ bool Output::apply_hdr() {
     const bool want = hdr && hdr_supported();
     bool ok = true;
     if (want != hdr_active()) {
-        wlr_output_state state;
-        wlr_output_state_init(&state);
+        backend::OutputState state;
         state.allow_reconfiguration = true;
         if (want) {
             // The metadata describes the screen (what Windows sends from the
             // EDID): its primaries and the luminances it says it can show.
-            wlr_output_image_description desc{};
+            backend::ImageDescription desc{};
             desc.primaries = WLR_COLOR_NAMED_PRIMARIES_BT2020;
             desc.transfer_function = WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
-            if (wlr->default_primaries)
-                desc.mastering_display_primaries = *wlr->default_primaries;
+            if (screen->default_primaries)
+                desc.mastering_display_primaries = *screen->default_primaries;
             else
                 wlr_color_primaries_from_named(&desc.mastering_display_primaries, WLR_COLOR_NAMED_PRIMARIES_BT2020);
             const double max = hdr_caps && hdr_caps->max_nits > 0 ? hdr_caps->max_nits : 1000.0;
@@ -213,56 +211,56 @@ bool Output::apply_hdr() {
             desc.mastering_luminance.max = max;
             desc.max_cll = max;
             desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? hdr_caps->max_frame_avg_nits : max;
-            wlr_output_state_set_image_description(&state, &desc);
+            state.set_image_description(&desc);
             // Night light moves from the gamma table into the renderer.
-            if (wlr_output_get_gamma_size(wlr) > 0)
-                wlr_output_state_set_color_transform(&state, nullptr);
+            if (screen->gamma_size() > 0)
+                state.set_color_transform(nullptr);
             // At least 10 bits a channel, in whichever layout this screen's
             // plane and the renderer share (NVIDIA's may not be XRGB).
             ok = false;
             for (uint32_t format : {DRM_FORMAT_XRGB2101010, DRM_FORMAT_XBGR2101010, DRM_FORMAT_ARGB2101010,
                                     DRM_FORMAT_ABGR2101010, DRM_FORMAT_XBGR16161616F, DRM_FORMAT_ABGR16161616F}) {
                 // Only the plane's own (testing any other logs an error).
-                if (!wlr_drm_format_set_get(wlr_output_get_primary_formats(wlr, wlr->allocator->buffer_caps), format))
+                const wlr_drm_format_set* plane = screen->primary_formats(WLR_BUFFER_CAP_DMABUF);
+                if (plane && !wlr_drm_format_set_get(plane, format))
                     continue;
-                wlr_output_state_set_render_format(&state, format);
-                if (wlr_output_test_state(wlr, &state)) {
-                    wlr_log(WLR_INFO, "%s: HDR in %s", wlr->name, format_name(format).c_str());
+                state.set_render_format(format);
+                if (screen->test_state(state)) {
+                    wlr_log(WLR_INFO, "%s: HDR in %s", screen->name.c_str(), format_name(format).c_str());
                     ok = true;
                     break;
                 }
             }
             if (!ok)
-                log_formats(wlr);
+                log_formats(screen);
         } else {
-            wlr_output_state_set_image_description(&state, nullptr);
-            wlr_output_state_set_render_format(&state, DRM_FORMAT_XRGB8888);
-            ok = wlr_output_test_state(wlr, &state);
+            state.set_image_description(nullptr);
+            state.set_render_format(DRM_FORMAT_XRGB8888);
+            ok = screen->test_state(state);
         }
-        ok = ok && wlr_output_commit_state(wlr, &state);
+        ok = ok && screen->commit_state(state);
         if (!ok)
-            wlr_log(WLR_ERROR, "%s: refused %s HDR", wlr->name, want ? "turning on" : "turning off");
-        wlr_output_state_finish(&state);
+            wlr_log(WLR_ERROR, "%s: refused %s HDR", screen->name.c_str(), want ? "turning on" : "turning off");
     }
     scene_output->set_sdr_white_nits(hdr_active() ? float(sdr_white_nits()) : 0.0f);
     // Out of HDR the screen spreads sRGB over its whole gamut; in HDR atrium
     // does, as far as SDR color intensity says.
-    if (hdr_active() && wlr->default_primaries && sdr_color > 0) {
+    if (hdr_active() && screen->default_primaries && sdr_color > 0) {
         wlr_color_primaries srgb{}, spread{};
         wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
         const float t = float(sdr_color) / 100.0f;
         const auto mix = [t](wlr_color_cie1931_xy a, wlr_color_cie1931_xy b) {
             return wlr_color_cie1931_xy{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t};
         };
-        spread.red = mix(srgb.red, wlr->default_primaries->red);
-        spread.green = mix(srgb.green, wlr->default_primaries->green);
-        spread.blue = mix(srgb.blue, wlr->default_primaries->blue);
+        spread.red = mix(srgb.red, screen->default_primaries->red);
+        spread.green = mix(srgb.green, screen->default_primaries->green);
+        spread.blue = mix(srgb.blue, screen->default_primaries->blue);
         spread.white = srgb.white;  // the same white: greys stay grey
         scene_output->set_sdr_primaries(&spread);
     } else {
         scene_output->set_sdr_primaries(nullptr);
     }
-    wlr_output_schedule_frame(wlr);
+    screen->schedule_frame();
     return ok;
 }
 
@@ -276,7 +274,7 @@ bool Output::apply_icc(std::string* error) {
     std::string why;
     auto table = icc::load(icc, &why);
     if (!table) {
-        wlr_log(WLR_ERROR, "%s: colour profile: %s", wlr->name, why.c_str());
+        wlr_log(WLR_ERROR, "%s: colour profile: %s", screen->name.c_str(), why.c_str());
         if (error)
             *error = why;
         scene_output->set_color_lut(nullptr);
@@ -286,7 +284,7 @@ bool Output::apply_icc(std::string* error) {
     lut->size = table->size;
     lut->rgb = std::move(table->rgb);
     scene_output->set_color_lut(std::move(lut));
-    wlr_log(WLR_INFO, "%s: colour profile %s", wlr->name, table->description.c_str());
+    wlr_log(WLR_INFO, "%s: colour profile %s", screen->name.c_str(), table->description.c_str());
     return true;
 }
 
@@ -308,8 +306,8 @@ int64_t now_ns() {
 // from frames that missed their vblank. Variable refresh and tearing show
 // a frame the moment it's committed, so they don't wait.
 void Output::frame() {
-    if (render_timer_ && vblank_ns_ && period_ns_ && !wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr) &&
-        wlr->adaptive_sync_status != WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED && !tearing_view(server, *this)) {
+    if (render_timer_ && vblank_ns_ && period_ns_ && screen->backend.is_drm() &&
+        screen->adaptive_sync_status != backend::AdaptiveSync::Enabled && !tearing_view(server, *this)) {
         const int64_t now = now_ns();
         const int64_t next = vblank_ns_ + ((now - vblank_ns_) / period_ns_ + 1) * period_ns_;
         const int64_t start = next - margin_ns_;
@@ -338,8 +336,8 @@ void Output::frame() {
 void Output::presented(int64_t when, int refresh) {
     if (refresh > 0)
         period_ns_ = refresh;
-    else if (wlr->refresh > 0)
-        period_ns_ = 1000000000000LL / wlr->refresh;
+    else if (screen->refresh > 0)
+        period_ns_ = 1000000000000LL / screen->refresh;
     vblank_ns_ = when;
     if (!aimed_ns_ || !period_ns_)
         return;
@@ -355,7 +353,7 @@ void Output::presented(int64_t when, int refresh) {
 
 void Output::render() {
     // A flip still pending: the frame event after it renders again.
-    if (wlr->frame_pending)
+    if (screen->frame_pending)
         return;
     server.animator.tick();
     // Night light, in linear light by the renderer, on SDR screens only
@@ -366,12 +364,12 @@ void Output::render() {
     const night::Rgb w = night && (hdr_active() || !own_gamma) ? night->linear_white() : night::Rgb{1, 1, 1};
     scene_output->set_tint(float(w.r), float(w.g), float(w.b));
     // Variable refresh, as set: always, or while a fullscreen game is in front.
-    const bool vrr = wlr->adaptive_sync_supported &&
+    const bool vrr = screen->adaptive_sync_supported &&
                      (adaptive_sync == "on" || (adaptive_sync == "games" && game_view(server, *this)));
     if (vrr_refused_ && *vrr_refused_ != vrr)
         vrr_refused_.reset();
-    const bool switch_vrr = wlr->adaptive_sync_supported &&
-                            vrr != (wlr->adaptive_sync_status == WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED) &&
+    const bool switch_vrr = screen->adaptive_sync_supported &&
+                            vrr != (screen->adaptive_sync_status == backend::AdaptiveSync::Enabled) &&
                             vrr_refused_ != vrr;
     // Frame callbacks go out even when nothing changed: a client that asked
     // for one without new damage (Qt between animation steps) would
@@ -380,31 +378,29 @@ void Output::render() {
         send_frame_done();
         return;
     }
-    wlr_output_state state;
-    wlr_output_state_init(&state);
+    backend::OutputState state;
     if (scene_output->build_state(&state)) {
         if (switch_vrr)
-            wlr_output_state_set_adaptive_sync_enabled(&state, vrr);
+            state.set_adaptive_sync_enabled(vrr);
         if (tearing_view(server, *this)) {
             // Show the frame the moment it is ready, torn if need be; fall
             // back to waiting for vblank when the hardware won't.
             state.tearing_page_flip = true;
-            if (!wlr_output_test_state(wlr, &state))
+            if (!screen->test_state(state))
                 state.tearing_page_flip = false;
         }
-        const bool committed = wlr_output_commit_state(wlr, &state);
+        const bool committed = screen->commit_state(state);
         if (!committed && switch_vrr) {
             // The screen wouldn't take the switch: the frame without it, and
             // it's not tried again.
-            wlr_log(WLR_ERROR, "%s: refused variable refresh", wlr->name);
-            state.committed &= ~WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED;
-            wlr_output_commit_state(wlr, &state);
+            wlr_log(WLR_ERROR, "%s: refused variable refresh", screen->name.c_str());
+            state.committed &= ~backend::OutputState::AdaptiveSyncEnabled;
+            screen->commit_state(state);
             vrr_refused_ = vrr;
         }
         if (committed && switch_vrr && server.ipc)
             server.ipc->broadcast("outputs", {{"event", "outputs.changed"}});
     }
-    wlr_output_state_finish(&state);
     send_frame_done();
 }
 

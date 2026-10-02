@@ -19,6 +19,8 @@
 
 namespace atrium {
 
+class Cursor;
+
 class Server;
 class Titlebar;
 class View;
@@ -108,7 +110,7 @@ public:
     void use_keyboard(KeyboardGroup* kb, bool force = false);
 
     Server& server;
-    wlr_cursor* cursor = nullptr;
+    Cursor* cursor = nullptr;  // the server's
     wlr_xcursor_manager* xcursor = nullptr;
     Mode mode = Mode::Normal;
 
@@ -225,9 +227,15 @@ private:
     uint32_t last_bar_click_ms_ = 0;
 
     // Pointers and keyboards of a nested backend (the host's).
+    // A nested host's pointer (wlroots' Wayland backend).
     struct PointerDevice {
         wlr_pointer* wlr;
         Listener<> destroy;
+        Listener<wlr_pointer_motion_event> motion;
+        Listener<wlr_pointer_motion_absolute_event> motion_absolute;
+        Listener<wlr_pointer_button_event> button;
+        Listener<wlr_pointer_axis_event> axis;
+        Listener<> frame;
     };
     std::vector<std::unique_ptr<PointerDevice>> pointers_;
     struct PhysicalKeyboard {
@@ -265,12 +273,7 @@ private:
     wl::Connection drag_ended_;
     std::list<std::vector<wl::Connection>> virtual_pointers_;  // each one's connections
 
-    Listener<wlr_input_device> new_input_;
-    Listener<wlr_pointer_motion_event> cursor_motion_;
-    Listener<wlr_pointer_motion_absolute_event> cursor_motion_absolute_;
-    Listener<wlr_pointer_button_event> cursor_button_;
-    Listener<wlr_pointer_axis_event> cursor_axis_;
-    Listener<> cursor_frame_;
+    wl::Connection new_input_;
     std::vector<wl::Connection> connections_;
 };
 

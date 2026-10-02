@@ -4,6 +4,7 @@
 #include "backend/backend.hpp"
 
 #include "listener.hpp"
+#include "wlr.hpp"
 
 #include <memory>
 #include <vector>
@@ -27,6 +28,7 @@ public:
     bool is_virtual(const Output* o) const override;
     bool destroy_output(Output* o) override;
     bool is_drm() const override;
+    bool supports_timelines() const override { return wlr_->features.timeline; }
 
     wlr_backend* wlr() const { return wlr_; }
     // The wrapper of a wlroots output of this backend.
@@ -38,6 +40,7 @@ private:
     wlr_backend* wlr_;
     Listener<wlr_output> new_output_;
     Listener<wlr_input_device> new_input_;
+    Listener<> wlr_destroy_;
     std::vector<WlrOutput*> outputs_;
 };
 

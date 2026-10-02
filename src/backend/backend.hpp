@@ -30,6 +30,8 @@ public:
     virtual bool is_virtual(const Output*) const { return false; }
     // Removes a virtual screen it made (events.destroy, then gone).
     virtual bool destroy_output(Output*) { return false; }
+    // Whether its outputs take wait and signal timelines (explicit sync).
+    virtual bool supports_timelines() const { return false; }
     // Whether it is a real display (DRM).
     virtual bool is_drm() const { return false; }
 
@@ -63,6 +65,7 @@ public:
     bool is_virtual(const Output* o) const override;
     bool destroy_output(Output* o) override;
     bool is_drm() const override;
+    bool supports_timelines() const override;
     const std::vector<std::unique_ptr<Backend>>& backends() const { return backends_; }
 
 private:

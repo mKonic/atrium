@@ -106,7 +106,7 @@ void Titlebar::set_pressed(Part part) {
 }
 
 void Titlebar::update() {
-    const float scale = view_.output ? view_.output->wlr->scale : 1.0f;
+    const float scale = view_.output ? view_.output->screen->scale : 1.0f;
     Drawn want;
     want.width = view_.geom.width;
     want.height = kHeight;

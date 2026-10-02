@@ -88,8 +88,8 @@ void XdgView::initial_commit() {
     toplevel->set_wm_capabilities(2 | 4 | 8);  // maximize, fullscreen, minimize
     wl::Surface* s = surface();
     if (Output* o = server.focused_output) {
-        server.wl->fractional_scales->set_preferred_scale(s, o->wlr->scale);
-        s->set_preferred_scale(int32_t(std::ceil(o->wlr->scale)));
+        server.wl->fractional_scales->set_preferred_scale(s, o->screen->scale);
+        s->set_preferred_scale(int32_t(std::ceil(o->screen->scale)));
         // Tell the client how much room there is before it picks a size.
         toplevel->set_bounds(o->usable.width, o->usable.height - (wants_ssd() ? Titlebar::kHeight : 0));
     }

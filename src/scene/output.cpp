@@ -2,6 +2,8 @@
 // it needs, from wlroots/scenefx).
 
 #include "scene/internal.hpp"
+#include "backend/allocator.hpp"
+#include "backend/backend.hpp"
 
 #include "wl/compositor.hpp"
 #include "wl/desktop.hpp"
@@ -75,15 +77,15 @@ float luminance_multiplier(const wlr_color_luminances& src, const wlr_color_lumi
     return (dst.reference / src.reference) * (src.max / dst.max);
 }
 
-const wlr_output_image_description* pending_image_description(wlr_output* o, const wlr_output_state* s) {
-    if (s->committed & WLR_OUTPUT_STATE_IMAGE_DESCRIPTION)
-        return s->image_description;
-    return o->image_description;
+const backend::ImageDescription* pending_image_description(backend::Output* o, const backend::OutputState* s) {
+    const auto& d = (s->committed & backend::OutputState::ImageDescriptionField) ? s->image_description
+                                                                                  : o->image_description;
+    return d ? &*d : nullptr;
 }
 
-void pending_resolution(wlr_output* o, const wlr_output_state* s, int* w, int* h) {
-    if (s->committed & WLR_OUTPUT_STATE_MODE) {
-        if (s->mode_type == WLR_OUTPUT_STATE_MODE_FIXED) {
+void pending_resolution(backend::Output* o, const backend::OutputState* s, int* w, int* h) {
+    if (s->committed & backend::OutputState::ModeField) {
+        if (s->mode_type == backend::OutputState::ModeType::Fixed) {
             *w = s->mode->width;
             *h = s->mode->height;
         } else {
@@ -111,11 +113,11 @@ int tf_index(wlr_color_transfer_function tf) {
 
 // Tells a surface which buffers suit where it is shown: `scanout` when it
 // could go straight to that screen, else rendered.
-void send_dmabuf_feedback(Scene* scene, Buffer* b, wlr_output* scanout) {
+void send_dmabuf_feedback(Scene* scene, Buffer* b, backend::Output* scanout) {
     const Protocols& p = scene->protocols;
     if (!p.dmabuf || !p.dmabuf_feedback || !b->surface())
         return;
-    const std::pair<wlr_output*, bool> key{scanout, true};
+    const std::pair<backend::Output*, bool> key{scanout, true};
     if (b->feedback_sent == key)
         return;
     b->feedback_sent = key;
@@ -123,7 +125,7 @@ void send_dmabuf_feedback(Scene* scene, Buffer* b, wlr_output* scanout) {
     p.dmabuf->set_surface_feedback(b->surface()->surface, p.dmabuf_feedback(scanout));
 }
 
-bool scanout_colour_allowed(const wlr_output_image_description* desc, const Buffer* b) {
+bool scanout_colour_allowed(const backend::ImageDescription* desc, const Buffer* b) {
     if (b->transfer_function == 0 && b->primaries == 0)
         return desc == nullptr;
     if (desc)
@@ -136,16 +138,7 @@ bool scanout_colour_allowed(const wlr_output_image_description* desc, const Buff
 
 // ---- lifetime -----------------------------------------------------------
 
-namespace {
-
-void output_addon_destroy(wlr_addon* addon);
-const wlr_addon_interface kOutputAddon = {.name = "atrium_scene_output", .destroy = output_addon_destroy};
-
-} // namespace
-
-
-SceneOutput::SceneOutput(Scene* s, wlr_output* o) : output(o), scene(s) {
-    wlr_addon_init(&addon_, &o->addons, s, &kOutputAddon);
+SceneOutput::SceneOutput(Scene* s, backend::Output* o) : output(o), scene(s) {
     wlr_damage_ring_init(&damage_ring);
     pixman_region32_init(&pending_commit_damage);
     wl_signal_init(&events.destroy);
@@ -154,7 +147,7 @@ SceneOutput::SceneOutput(Scene* s, wlr_output* o) : output(o), scene(s) {
 
 SceneOutput::~SceneOutput() = default;
 
-SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
+SceneOutput* SceneOutput::create(Scene* scene, backend::Output* output) {
     auto* so = new SceneOutput(scene, output);
 
     // The lowest free index.
@@ -167,8 +160,8 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
         prev_index = cur->index;
         prev_link = &cur->link;
     }
-    const int drm_fd = wlr_backend_get_drm_fd(output->backend);
-    if (drm_fd >= 0 && output->backend->features.timeline && output->renderer &&
+    const int drm_fd = output->backend.drm_fd();
+    if (drm_fd >= 0 && output->backend.supports_timelines() && output->renderer &&
         output->renderer->features.timeline) {
         so->in_timeline_ = wlr_drm_syncobj_timeline_create(drm_fd);
         so->out_timeline_ = wlr_drm_syncobj_timeline_create(drm_fd);
@@ -178,32 +171,35 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
     wl_list_remove(&so->link);
     wl_list_insert(prev_link, &so->link);
 
-    so->commit_.connect(&output->events.commit, [so](wlr_output_event_commit* e) {
-        const wlr_output_state* st = e->state;
+    // Gone with the screen.
+    so->output_destroy_ = output->events.destroy.connect([so] { so->destroy(); });
+    so->commit_ = output->events.commit.connect([so](const backend::OutputState& state) {
+        const backend::OutputState* st = &state;
         // Damage the backend took is done with.
-        if (st->committed & WLR_OUTPUT_STATE_BUFFER) {
-            if (st->committed & WLR_OUTPUT_STATE_DAMAGE)
+        if (st->committed & backend::OutputState::Buffer) {
+            if (st->committed & backend::OutputState::Damage)
                 pixman_region32_subtract(&so->pending_commit_damage, &so->pending_commit_damage, &st->damage);
             else
                 pixman_region32_clear(&so->pending_commit_damage);
         }
-        const bool force = st->committed & (WLR_OUTPUT_STATE_TRANSFORM | WLR_OUTPUT_STATE_SCALE |
-                                            WLR_OUTPUT_STATE_SUBPIXEL);
-        if (force || (st->committed & (WLR_OUTPUT_STATE_MODE | WLR_OUTPUT_STATE_ENABLED)))
+        const bool force = st->committed & (backend::OutputState::Transform | backend::OutputState::Scale |
+                                            backend::OutputState::Subpixel);
+        if (force || (st->committed & (backend::OutputState::ModeField | backend::OutputState::Enabled)))
             so->update_geometry(force);
         if (so->scene->debug_damage == Scene::DebugDamage::Highlight && !so->highlights_.empty())
-            wlr_output_schedule_frame(so->output);
+            so->output->schedule_frame();
         // Enabled again: the gamma table is sent again.
-        if (so->scene->gamma_ && (st->committed & WLR_OUTPUT_STATE_ENABLED) && !so->output->enabled)
+        if (so->scene->gamma_ && (st->committed & backend::OutputState::Enabled) && !so->output->enabled)
             so->gamma_lut_changed_ = true;
         // What was shown with this frame waits to hear when.
-        if (st->committed & WLR_OUTPUT_STATE_BUFFER) {
+        if (st->committed & backend::OutputState::Buffer) {
             for (Feedbacks& f : so->sampled_)
                 so->committed_.push_back({so->output->commit_seq, std::move(f)});
             so->sampled_.clear();
         }
     });
-    so->present_.connect(&output->events.present, [so](wlr_output_event_present* e) {
+    so->present_ = output->events.present.connect([so](const backend::Present& p) {
+        const backend::Present* e = &p;
         std::vector<Committed> due;
         std::erase_if(so->committed_, [&](Committed& c) {
             if (int32_t(c.seq - e->commit_seq) > 0)
@@ -217,17 +213,17 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
             wl::Presentation::presented(std::move(c.feedbacks.list), so->global, e->when, uint32_t(e->refresh),
                                         e->seq, e->flags | (c.feedbacks.zero_copy ? uint32_t(wl::Presentation::ZeroCopy) : 0u));
     });
-    so->damage_.connect(&output->events.damage, [so](wlr_output_event_damage* e) {
+    so->damage_ = output->events.damage.connect([so](const pixman_region32_t* damage) {
         int w, h;
-        wlr_output_transformed_resolution(so->output, &w, &h);
+        so->output->transformed_resolution(&w, &h);
         pixman_region32_t d;
         pixman_region32_init(&d);
-        pixman_region32_copy(&d, e->damage);
+        pixman_region32_copy(&d, damage);
         wlr_region_transform(&d, &d, wlr_output_transform_invert(so->output->transform), w, h);
         so->damage(&d);
         pixman_region32_fini(&d);
     });
-    so->needs_frame_.connect(&output->events.needs_frame, [so](void*) { wlr_output_schedule_frame(so->output); });
+    so->needs_frame_ = output->events.needs_frame.connect([so] { so->output->schedule_frame(); });
     if (output->renderer) {
         // The effects buffers are the renderer's: gone before it is.
         so->renderer_destroy_.connect(&output->renderer->events.destroy, [so](void*) {
@@ -242,15 +238,6 @@ SceneOutput* SceneOutput::create(Scene* scene, wlr_output* output) {
     return so;
 }
 
-namespace {
-
-void output_addon_destroy(wlr_addon* addon) {
-    SceneOutput* so = OutputAddonAccess::from(addon);
-    so->destroy();
-}
-
-} // namespace
-
 void SceneOutput::destroy() {
     wl_signal_emit_mutable(&events.destroy, nullptr);
     SceneImpl::output_update(scene, &scene->outputs, this, nullptr);
@@ -258,7 +245,11 @@ void SceneOutput::destroy() {
         pixman_region32_fini(&h->region);
         delete h;
     }
-    wlr_addon_finish(&addon_);
+    commit_.disconnect();
+    present_.disconnect();
+    damage_.disconnect();
+    needs_frame_.disconnect();
+    output_destroy_.disconnect();
     wlr_damage_ring_finish(&damage_ring);
     pixman_region32_fini(&pending_commit_damage);
     wl_list_remove(&link);
@@ -305,16 +296,10 @@ void SceneOutput::presentation_pending(std::vector<std::shared_ptr<void>> feedba
         sampled_.push_back({std::move(feedbacks), zero_copy});
 }
 
-SceneOutput* Scene::output_for(wlr_output* o) {
-    wlr_addon* a = wlr_addon_find(&o->addons, this, &kOutputAddon);
-    return a ? OutputAddonAccess::from(a) : nullptr;
-}
-
-SceneOutput* OutputAddonAccess::from(wlr_addon* a) {
-    auto* scene = static_cast<Scene*>(const_cast<void*>(a->WLR_PRIVATE.owner));
+SceneOutput* Scene::output_for(const backend::Output* o) {
     SceneOutput* so;
-    wl_list_for_each(so, &scene->outputs, link)
-        if (&so->addon_ == a)
+    wl_list_for_each(so, &outputs, link)
+        if (so->output == o)
             return so;
     return nullptr;
 }
@@ -326,7 +311,7 @@ void SceneOutput::damage(const pixman_region32_t* d) {
     pixman_region32_init(&clipped);
     pixman_region32_intersect_rect(&clipped, d, 0, 0, unsigned(output->width), unsigned(output->height));
     if (pixman_region32_not_empty(&clipped)) {
-        wlr_output_schedule_frame(output);
+        output->schedule_frame();
         wlr_damage_ring_add(&damage_ring, &clipped);
         pixman_region32_union(&pending_commit_damage, &pending_commit_damage, &clipped);
     }
@@ -391,7 +376,7 @@ void SceneOutput::send_frame_done(const timespec* now) {
 
 void SceneOutput::for_each_buffer(const std::function<void(Buffer*, int, int)>& fn) {
     wlr_box box{x, y, 0, 0};
-    wlr_output_effective_resolution(output, &box.width, &box.height);
+    output->effective_resolution(&box.width, &box.height);
     nodes_in_box(scene, box, [&](Node* n, const Walk& w) {
         if (n->type == Type::Buffer)
             fn(static_cast<Buffer*>(n), int(std::lround(w.x)), int(std::lround(w.y)));
@@ -401,7 +386,7 @@ void SceneOutput::for_each_buffer(const std::function<void(Buffer*, int, int)>& 
 
 // The colour work at the end of the frame: into the screen's primaries at
 // its luminance for HDR, the night light's tint either way.
-render::OutputColor SceneOutput::output_color(const wlr_output_image_description* desc) const {
+render::OutputColor SceneOutput::output_color(const backend::ImageDescription* desc) const {
     render::OutputColor c;
     float m[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     if (desc) {
@@ -431,33 +416,27 @@ render::OutputColor SceneOutput::output_color(const wlr_output_image_description
     return c;
 }
 
-void SceneOutput::attempt_gamma(wlr_output_state* state) {
+void SceneOutput::attempt_gamma(backend::OutputState* state) {
     if (!gamma_lut_changed_)
         return;
-    wlr_output_state pending{};
-    if (!wlr_output_state_copy(&pending, state))
-        return;
-    wlr_output_state_set_color_transform(&pending, gamma_lut_transform_);
+    backend::OutputState pending = *state;
+    pending.set_color_transform(gamma_lut_transform_);
     gamma_lut_changed_ = false;
-    if (!wlr_output_test_state(output, &pending)) {
+    if (!output->test_state(pending)) {
         if (scene->gamma_ && global)
             scene->gamma_->fail(global);
         wlr_color_transform_unref(gamma_lut_transform_);
         gamma_lut_transform_ = nullptr;
-        wlr_output_state_finish(&pending);
         return;
     }
-    wlr_output_state_copy(state, &pending);
-    wlr_output_state_finish(&pending);
+    *state = pending;
 }
 
 bool SceneOutput::commit(const StateOptions* options) {
     if (!needs_frame())
         return true;
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    bool ok = build_state(&state, options) && wlr_output_commit_state(output, &state);
-    wlr_output_state_finish(&state);
+    backend::OutputState state;
+    bool ok = build_state(&state, options) && output->commit_state(state);
     return ok;
 }
 
@@ -784,7 +763,7 @@ bool blur_extends_damage(Node* node, render::BlurParams* params, bool* has_blur)
     return params->enabled();
 }
 
-bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData& d, wlr_output_state* state,
+bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData& d, backend::OutputState* state,
                        const pixman_region32_t* original, pixman_region32_t* padding) {
     const int reach = params.reach();
     pixman_region32_t visible;
@@ -810,7 +789,7 @@ bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData&
                 pixman_region32_copy(&isect, &visible);
         }
         pixman_region32_union(&d.damage, &d.damage, &isect);
-        state->committed |= WLR_OUTPUT_STATE_DAMAGE;
+        state->committed |= backend::OutputState::Damage;
         pixman_region32_union(&state->damage, &state->damage, &isect);
         // Once more, for the padding round it where the artifacts are.
         wlr_region_expand(&isect, &isect, reach);
@@ -825,7 +804,7 @@ bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData&
 
 } // namespace
 
-bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* options) {
+bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* options) {
     const StateOptions none;
     if (!options)
         options = &none;
@@ -836,7 +815,7 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
         timer->finish();
         *timer = Timer{};
     }
-    if ((state->committed & WLR_OUTPUT_STATE_ENABLED) && !state->enabled)
+    if ((state->committed & backend::OutputState::Enabled) && !state->enabled)
         return true;
 
     render::Renderer* renderer = render::Renderer::from(output->renderer);
@@ -852,11 +831,11 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
     d.output = this;
     int res_w, res_h;
     pending_resolution(output, state, &res_w, &res_h);
-    if ((state->committed & WLR_OUTPUT_STATE_TRANSFORM) && d.transform != state->transform) {
+    if ((state->committed & backend::OutputState::Transform) && d.transform != state->transform) {
         damage_whole();
         d.transform = state->transform;
     }
-    if ((state->committed & WLR_OUTPUT_STATE_SCALE) && d.scale != state->scale) {
+    if ((state->committed & backend::OutputState::Scale) && d.scale != state->scale) {
         damage_whole();
         d.scale = state->scale;
     }
@@ -933,9 +912,9 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
         pixman_region32_fini(&acc);
     }
 
-    wlr_output_state_set_damage(state, &pending_commit_damage);
+    state->set_damage(&pending_commit_damage);
 
-    const wlr_output_image_description* desc = pending_image_description(output, state);
+    const backend::ImageDescription* desc = pending_image_description(output, state);
     const render::OutputColor color = output_color(desc);
 
     // Straight to the display: one buffer, nothing to adjust on the way
@@ -945,16 +924,15 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
                          (renderer && renderer->shaders().has_screen_shader());
     if (list.size() == 1 && !adjusts && scene->debug_damage != Scene::DebugDamage::Highlight &&
         scene->direct_scanout && list[0].node->type == Type::Buffer && list[0].walk.identity() &&
-        !(state->committed & (WLR_OUTPUT_STATE_MODE | WLR_OUTPUT_STATE_ENABLED | WLR_OUTPUT_STATE_RENDER_FORMAT)) &&
-        wlr_output_is_direct_scanout_allowed(output)) {
+        !(state->committed & (backend::OutputState::ModeField | backend::OutputState::Enabled | backend::OutputState::RenderFormat)) &&
+        output->direct_scanout_allowed()) {
         Buffer* b = static_cast<Buffer*>(list[0].node);
         if (b->buffer && b->transform == d.transform && scanout_colour_allowed(desc, b)) {
             scanout = Candidate;
             if (dmabuf_feedback_debounce_ >= kDmabufFeedbackDebounce && b->primary_output == this)
                 send_dmabuf_feedback(scene, b, output);
-            wlr_output_state pending;
-            wlr_output_state_init(&pending);
-            if (wlr_output_state_copy(&pending, state)) {
+            backend::OutputState pending = *state;
+            {
                 int dw = b->buffer->width, dh = b->buffer->height;
                 wlr_output_transform_coords(b->transform, &dw, &dh);
                 const wlr_fbox whole{0, 0, double(dw), double(dh)};
@@ -969,21 +947,20 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
                 wl::SurfaceBuffer* sb = wl::SurfaceBuffer::from(wb);
                 if (sb && sb->source.get() && sb->source.get()->n_locks > 0)
                     wb = sb->source.get();
-                wlr_output_state_set_buffer(&pending, wb);
+                pending.set_buffer(wb);
                 if (b->wait_timeline_)
-                    wlr_output_state_set_wait_timeline(&pending, b->wait_timeline_, b->wait_point_);
+                    pending.set_wait_timeline(b->wait_timeline_, b->wait_point_);
                 if (out_timeline_) {
                     ++out_point_;
-                    wlr_output_state_set_signal_timeline(&pending, out_timeline_, out_point_);
+                    pending.set_signal_timeline(out_timeline_, out_point_);
                 }
-                if (wlr_output_test_state(output, &pending)) {
-                    wlr_output_state_copy(state, &pending);
+                if (output->test_state(pending)) {
+                    *state = pending;
                     scanout = Success;
                     OutputSampleEvent ev{this, true, out_timeline_, out_point_};
                     wl_signal_emit_mutable(&b->events.output_sample, &ev);
                 }
             }
-            wlr_output_state_finish(&pending);
         }
     }
     if (scanout == Ineligible) {
@@ -1006,13 +983,13 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
         return true;
     }
 
-    wlr_swapchain* swapchain = options->swapchain;
+    backend::Swapchain* swapchain = options->swapchain;
     if (!swapchain) {
-        if (!wlr_output_configure_primary_swapchain(output, state, &output->swapchain))
+        if (!output->configure_primary_swapchain(state, output->swapchain))
             return false;
-        swapchain = output->swapchain;
+        swapchain = output->swapchain.get();
     }
-    wlr_buffer* buffer = wlr_swapchain_acquire(swapchain);
+    wlr_buffer* buffer = swapchain->acquire();
     if (!buffer)
         return false;
     assert(buffer->width == res_w && buffer->height == res_h);
@@ -1022,11 +999,11 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
         clock_gettime(CLOCK_MONOTONIC, &end);
         timer->pre_render_duration = ns_of(end) - ns_of(start);
     }
-    if (color_changed_ || (state->committed & WLR_OUTPUT_STATE_IMAGE_DESCRIPTION)) {
+    if (color_changed_ || (state->committed & backend::OutputState::ImageDescriptionField)) {
         // A frame through the blend buffer starts afresh: all of it.
         color_changed_ = false;
         damage_whole();
-        wlr_output_state_set_damage(state, &pending_commit_damage);
+        state->set_damage(&pending_commit_damage);
     }
 
     render::Framebuffer* fb = renderer->framebuffer_for(buffer);
@@ -1141,7 +1118,8 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
     }
 
     pass->apply_screen_shader(&d.damage);
-    wlr_output_add_software_cursors_to_render_pass(output, pass->wlr(), &d.damage);
+    if (scene->draw_cursor)
+        scene->draw_cursor(output, pass->wlr(), &d.damage);
     if (compensate)
         pass->copy(&padding, pass->target(), pass->effects()->saved.get());
     pixman_region32_fini(&padding);
@@ -1153,12 +1131,12 @@ bool SceneOutput::build_state(wlr_output_state* state, const StateOptions* optio
         wlr_damage_ring_add_whole(&damage_ring);
         return false;
     }
-    wlr_output_state_set_buffer(state, buffer);
+    state->set_buffer(buffer);
     wlr_buffer_unlock(buffer);
     if (in_timeline_) {
-        wlr_output_state_set_wait_timeline(state, in_timeline_, in_point_);
+        state->set_wait_timeline(in_timeline_, in_point_);
         ++out_point_;
-        wlr_output_state_set_signal_timeline(state, out_timeline_, out_point_);
+        state->set_signal_timeline(out_timeline_, out_point_);
     }
     attempt_gamma(state);
 

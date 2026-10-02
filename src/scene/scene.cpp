@@ -306,7 +306,7 @@ void SceneImpl::update_outputs(Node* node, wl_list* outputs, SceneOutput* ignore
             if (o == ignore || !o->output->enabled)
                 continue;
             wlr_box box{o->x, o->y, 0, 0};
-            wlr_output_effective_resolution(o->output, &box.width, &box.height);
+            o->output->effective_resolution(&box.width, &box.height);
             pixman_region32_t isect;
             pixman_region32_init(&isect);
             pixman_region32_intersect_rect(&isect, &node->visible, box.x, box.y, unsigned(box.width),
@@ -382,7 +382,7 @@ void SceneImpl::damage_outputs(Scene* scene, const pixman_region32_t* damage) {
         pixman_region32_translate(&d, -o->x, -o->y);
         scale_region(&d, o->output->scale, true);
         int w, h;
-        wlr_output_transformed_resolution(o->output, &w, &h);
+        o->output->transformed_resolution(&w, &h);
         wlr_region_transform(&d, &d, wlr_output_transform_invert(o->output->transform), w, h);
         o->damage(&d);
         pixman_region32_fini(&d);
@@ -1122,7 +1122,7 @@ void Buffer::set_buffer(wlr_buffer* b, const BufferOptions& o) {
         pixman_region32_translate(&od, int(std::lround((place.x - o2->x) * os)),
                                   int(std::lround((place.y - o2->y) * os)));
         int w, h;
-        wlr_output_transformed_resolution(o2->output, &w, &h);
+        o2->output->transformed_resolution(&w, &h);
         wlr_region_transform(&od, &od, wlr_output_transform_invert(o2->output->transform), w, h);
         o2->damage(&od);
         pixman_region32_fini(&od);
@@ -1256,7 +1256,7 @@ void Scene::set_gamma_controls(wl::GammaControls* g) {
             o->gamma_lut_transform_ =
                 wlr_color_transform_init_lut_3x1d(n, table.data(), table.data() + n, table.data() + 2 * n);
         }
-        wlr_output_schedule_frame(o->output);
+        o->output->schedule_frame();
     });
 }
 

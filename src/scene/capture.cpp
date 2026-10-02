@@ -4,42 +4,87 @@
 
 #include "scene/internal.hpp"
 
+#include "backend/backend.hpp"
+
 #include <climits>
 #include <cstdio>
 #include <unordered_map>
 
-extern "C" {
-#include <wlr/interfaces/wlr_output.h>
-#include <wlr/backend/interface.h>
-}
-
 namespace atrium::scene {
-
 
 namespace {
 
 struct Source;
 
-// wlroots' embedded output, with a way back to the source.
-struct OutputHook {
-    wlr_output base;
-    Source* self;
+// Takes whatever buffer it is given; nothing is shown anywhere.
+class CaptureBackend final : public backend::Backend {
+public:
+    explicit CaptureBackend(wl_event_loop* loop) : Backend(loop) {}
+    bool start() override { return true; }
+    uint32_t buffer_caps() const override { return WLR_BUFFER_CAP_DMABUF | WLR_BUFFER_CAP_SHM; }
+};
+
+class CaptureOutput final : public backend::Output {
+public:
+    CaptureOutput(backend::Backend& b, Source* s) : Output(b), self(s) {}
+    Source* const self;
+
+protected:
+    bool test(const backend::OutputState& st) override;
+    bool commit(const backend::OutputState& st) override;
 };
 
 struct Source {
-    CaptureSource* pub;
-    OutputHook output{};
-    wlr_backend backend{};
+    explicit Source(wl_event_loop* loop) : backend(loop), output(backend, this) {}
+    CaptureSource* pub = nullptr;
+    CaptureBackend backend;
+    CaptureOutput output;
     Node* node = nullptr;
     SceneOutput* scene_output = nullptr;
     size_t started = 0;
-    Listener<> node_destroy, scene_output_destroy, output_frame;
+    Listener<> node_destroy, scene_output_destroy;
+    wl::Connection output_frame;
 
     void render();
     void destroy();
 };
 
 size_t g_last_output = 0;
+
+bool CaptureOutput::test(const backend::OutputState& st) {
+    constexpr uint32_t kSupported = backend::OutputState::Buffer | backend::OutputState::Damage |
+                                    backend::OutputState::Enabled | backend::OutputState::ModeField |
+                                    backend::OutputState::RenderFormat;
+    if (st.committed & ~kSupported)
+        return false;
+    if (st.committed & backend::OutputState::Buffer) {
+        int w, h;
+        pending_resolution(st, &w, &h);
+        if (st.buffer->width != w || st.buffer->height != h)
+            return false;
+        const wlr_fbox& src = st.buffer_src_box;
+        if (!(src.width == 0 && src.height == 0) &&
+            (src.x != 0 || src.y != 0 || src.width != st.buffer->width || src.height != st.buffer->height))
+            return false;
+    }
+    return true;
+}
+
+bool CaptureOutput::commit(const backend::OutputState& st) {
+    if ((st.committed & backend::OutputState::Enabled) && !st.enabled)
+        return true;
+    if (!(st.committed & backend::OutputState::Buffer))
+        return !(st.committed & backend::OutputState::ModeField) || configure_primary_swapchain(&st, swapchain);
+    wlr_buffer* buffer = st.buffer;
+    pixman_region32_t full;
+    pixman_region32_init_rect(&full, 0, 0, unsigned(buffer->width), unsigned(buffer->height));
+    timespec when;
+    clock_gettime(CLOCK_MONOTONIC, &when);
+    if (self->pub->on_frame)
+        self->pub->on_frame(buffer, (st.committed & backend::OutputState::Damage) ? &st.damage : &full, when);
+    pixman_region32_fini(&full);
+    return true;
+}
 
 void extents(Node* node, const Walk& w, int* x1, int* y1, int* x2, int* y2) {
     if (node->type == Type::Tree) {
@@ -63,12 +108,10 @@ void Source::render() {
     if (x2 <= x1 || y2 <= y1)
         return;
     scene_output->set_position(x1, y1);
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, true);
-    wlr_output_state_set_custom_mode(&state, x2 - x1, y2 - y1, 0);
-    scene_output->build_state(&state) && wlr_output_commit_state(&output.base, &state);
-    wlr_output_state_finish(&state);
+    backend::OutputState state;
+    state.set_enabled(true);
+    state.set_custom_mode(x2 - x1, y2 - y1, 0);
+    scene_output->build_state(&state) && output.commit_state(state);
 }
 
 std::unordered_map<const CaptureSource*, Source*>& sources() {
@@ -82,86 +125,30 @@ void Source::destroy() {
     output_frame.disconnect();
     if (scene_output)
         scene_output->destroy();
-    wlr_output_finish(&output.base);
-    wlr_backend_finish(&backend);
+    output.events.destroy.emit();
     sources().erase(pub);
     delete pub;
     delete this;
 }
 
-Source* of(wlr_output* o) { return reinterpret_cast<OutputHook*>(o)->self; }
-
-const wlr_backend_impl kBackendImpl = {};
-
-bool output_test(wlr_output* o, const wlr_output_state* st) {
-    const uint32_t supported = WLR_OUTPUT_STATE_BACKEND_OPTIONAL | WLR_OUTPUT_STATE_BUFFER |
-                               WLR_OUTPUT_STATE_ENABLED | WLR_OUTPUT_STATE_MODE;
-    if (st->committed & ~supported)
-        return false;
-    if (st->committed & WLR_OUTPUT_STATE_BUFFER) {
-        int w = o->width, h = o->height;
-        if (st->committed & WLR_OUTPUT_STATE_MODE) {
-            w = st->custom_mode.width;
-            h = st->custom_mode.height;
-        }
-        if (st->buffer->width != w || st->buffer->height != h)
-            return false;
-        const wlr_fbox& src = st->buffer_src_box;
-        if (!(src.width == 0 && src.height == 0) &&
-            (src.x != 0 || src.y != 0 || src.width != st->buffer->width || src.height != st->buffer->height))
-            return false;
-    }
-    return true;
-}
-
-bool output_commit(wlr_output* o, const wlr_output_state* st) {
-    Source* s = of(o);
-    if ((st->committed & WLR_OUTPUT_STATE_ENABLED) && !st->enabled)
-        return true;
-    if (st->committed & WLR_OUTPUT_STATE_MODE)
-        wlr_output_configure_primary_swapchain(o, st, &o->swapchain);
-    if (!(st->committed & WLR_OUTPUT_STATE_BUFFER))
-        return false;
-    wlr_buffer* buffer = st->buffer;
-    pixman_region32_t full;
-    pixman_region32_init_rect(&full, 0, 0, unsigned(buffer->width), unsigned(buffer->height));
-    timespec when;
-    clock_gettime(CLOCK_MONOTONIC, &when);
-    if (s->pub->on_frame)
-        s->pub->on_frame(buffer, (st->committed & WLR_OUTPUT_STATE_DAMAGE) ? &st->damage : &full, when);
-    pixman_region32_fini(&full);
-    return true;
-}
-
-const wlr_output_impl kOutputImpl = {
-    .test = output_test,
-    .commit = output_commit,
-};
-
 } // namespace
 
-CaptureSource* CaptureSource::create(Node* node, wl_event_loop* loop, wlr_allocator* allocator,
+CaptureSource* CaptureSource::create(Node* node, wl_event_loop* loop, backend::Allocator* allocator,
                                      wlr_renderer* renderer) {
-    auto* s = new Source();
+    auto* s = new Source(loop);
     s->pub = new CaptureSource();
     sources()[s->pub] = s;
     s->node = node;
-    s->output.self = s;
-    wlr_backend_init(&s->backend, &kBackendImpl);
-    s->backend.buffer_caps = WLR_BUFFER_CAP_DMABUF | WLR_BUFFER_CAP_SHM;
-    wlr_output_init(&s->output.base, &s->backend, &kOutputImpl, loop, nullptr);
-    char name[64];
-    std::snprintf(name, sizeof(name), "CAPTURE-%zu", ++g_last_output);
-    wlr_output_set_name(&s->output.base, name);
-    wlr_output_init_render(&s->output.base, allocator, renderer);
-    s->scene_output = SceneOutput::create(node->root(), &s->output.base);
+    s->output.name = "CAPTURE-" + std::to_string(++g_last_output);
+    s->output.init_render(allocator, renderer);
+    s->scene_output = SceneOutput::create(node->root(), &s->output);
 
     s->node_destroy.connect(&node->events.destroy, [s](void*) { s->destroy(); });
     s->scene_output_destroy.connect(&s->scene_output->events.destroy, [s](void*) {
         s->scene_output = nullptr;
         s->scene_output_destroy.disconnect();
     });
-    s->output_frame.connect(&s->output.base.events.frame, [s](void*) {
+    s->output_frame = s->output.events.frame.connect([s] {
         if (!s->scene_output || !s->scene_output->needs_frame())
             return;
         // Frames go out only with damage.
@@ -193,11 +180,9 @@ void CaptureSource::stop() {
     Source* s = sources().at(this);
     if (s->started == 0 || --s->started > 0)
         return;
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, false);
-    wlr_output_commit_state(&s->output.base, &state);
-    wlr_output_state_finish(&state);
+    backend::OutputState state;
+    state.set_enabled(false);
+    s->output.commit_state(state);
 }
 
 void CaptureSource::request_frame(bool force) {
@@ -208,17 +193,17 @@ void CaptureSource::request_frame(bool force) {
         s->render();
         return;
     }
-    if (s->output.base.frame_pending)
-        wlr_output_send_frame(&s->output.base);
-    wlr_output_update_needs_frame(&s->output.base);
+    if (s->output.frame_pending)
+        s->output.send_frame();
+    s->output.update_needs_frame();
 }
 
 int CaptureSource::width() const {
-    return sources().at(this)->output.base.width;
+    return sources().at(this)->output.width;
 }
 
 int CaptureSource::height() const {
-    return sources().at(this)->output.base.height;
+    return sources().at(this)->output.height;
 }
 
 } // namespace atrium::scene

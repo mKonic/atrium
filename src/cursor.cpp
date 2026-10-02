@@ -373,6 +373,16 @@ void Cursor::schedule_animation() {
     wl_event_source_timer_update(animation_, int(delay));
 }
 
+void Cursor::reset_render() {
+    for (auto& s : screens_) {
+        if (s->front)
+            wlr_buffer_unlock(s->front);
+        s->front = nullptr;
+        s->swapchain.reset();
+        refresh(*s);
+    }
+}
+
 bool Cursor::in_plane(const backend::Output* o) const {
     const Screen* s = screen_of(o);
     return s && s->plane;

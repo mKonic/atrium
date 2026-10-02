@@ -6,6 +6,7 @@
 #include "wl/signal.hpp"
 
 extern "C" {
+#include <drm_fourcc.h>
 #include <pixman.h>
 #include <wayland-server-core.h>
 #define static
@@ -87,6 +88,8 @@ public:
     wlr_fbox buffer_src_box{};     // all zero: the whole buffer
     wlr_box buffer_dst_box{};      // zero size: at its own size
     bool tearing_page_flip = false;
+    // A real screen may go through a modeset for it (a flicker).
+    bool allow_reconfiguration = false;
     ModeType mode_type = ModeType::Fixed;
     const Mode* mode = nullptr;
     struct {
@@ -145,8 +148,9 @@ public:
     wl_output_transform transform = WL_OUTPUT_TRANSFORM_NORMAL;
     AdaptiveSync adaptive_sync_status = AdaptiveSync::Disabled;
     bool adaptive_sync_supported = false;
-    uint32_t render_format = 0;
+    uint32_t render_format = DRM_FORMAT_XRGB8888;
     std::optional<ImageDescription> image_description;
+    std::optional<wlr_color_primaries> default_primaries;  // the screen's own (EDID)
     uint32_t supported_primaries = 0;          // wlr_color_named_primaries bits
     uint32_t supported_transfer_functions = 0; // wlr_color_transfer_function bits
     bool non_desktop = false;

@@ -107,12 +107,12 @@ void Seat::to_layout(const input::Device& d, double x, double y, double* lx, dou
     wlr_box b = server.layout_box;
     const std::string name = d.output_name();
     for (const Output* o : server.outputs)
-        if (o->enabled() && (name.empty() ? server.outputs.size() == 1 : name == o->wlr->name))
+        if (o->enabled() && (name.empty() ? server.outputs.size() == 1 : name == o->screen->name))
             b = o->box;
     // A touchscreen udev doesn't name, with several screens: the built-in one.
     if (name.empty() && server.outputs.size() > 1 && (d.touch || d.tablet))
         for (const Output* o : server.outputs)
-            if (o->enabled() && internal_panel(o->wlr->name))
+            if (o->enabled() && internal_panel(o->screen->name))
                 b = o->box;
     *lx = b.x + x * b.width;
     *ly = b.y + y * b.height;
@@ -321,7 +321,7 @@ void Seat::tablet_tool(input::Device& d, libinput_event_tablet_tool* e, libinput
         server.wl->seat->pointer_frame();
         return;
     }
-    wlr_cursor_warp_closest(cursor, nullptr, lx, ly);
+    cursor->warp_closest(lx, ly);
     if (tablets.focus(tool) != at.surface)
         tablets.proximity_in(tool, tablet, at.surface, at.sx, at.sy);
     else
@@ -414,16 +414,14 @@ void Seat::toggle(input::Device&, libinput_switch which, bool on) {
         return;
     lid_closed_ = on;
     const bool other = std::ranges::any_of(server.outputs, [](const Output* o) {
-        return o->enabled() && !internal_panel(o->wlr->name);
+        return o->enabled() && !internal_panel(o->screen->name);
     });
     for (Output* o : server.outputs) {
-        if (!internal_panel(o->wlr->name) || (on && !other))
+        if (!internal_panel(o->screen->name) || (on && !other))
             continue;
-        wlr_output_state state;
-        wlr_output_state_init(&state);
-        wlr_output_state_set_enabled(&state, !on);
-        wlr_output_commit_state(o->wlr, &state);
-        wlr_output_state_finish(&state);
+        backend::OutputState state;
+        state.set_enabled(!on);
+        o->screen->commit_state(state);
         o->asleep = on;
     }
     server.update_outputs();

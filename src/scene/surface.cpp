@@ -123,7 +123,7 @@ void SurfaceNode::outputs_changed(SceneOutput** active, size_t n) {
     bool wide = false;
     for (SceneOutput* o : on_) {
         scale = std::max(scale, double(o->output->scale));
-        if (const wlr_output_image_description* d = o->output->image_description) {
+        if (const auto& d = o->output->image_description) {
             if (tf_preference(tf) < tf_preference(d->transfer_function))
                 tf = d->transfer_function;
             wide = wide || d->primaries == WLR_COLOR_NAMED_PRIMARIES_BT2020;
@@ -170,7 +170,7 @@ SurfaceNode* SurfaceNode::create(Tree* parent, wl::Surface* surface) {
         const bool on = sn->buffer->coords(&lx, &ly);
         SceneOutput* out = sn->pacing_output();
         if (sn->surface->wants_frame() && out && on)
-            wlr_output_schedule_frame(out->output);
+            out->output->schedule_frame();
     });
     sn->reconfigure();
     return sn;
