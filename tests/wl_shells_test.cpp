@@ -143,9 +143,16 @@ TEST(WlLayer, ConfigureAckMap) {
     EXPECT_EQ(made->current().exclusive_zone, 50);
     EXPECT_EQ(made->current().desired_height, 30u);
 
+    // Its screen went with a configure in flight: the client acks it after
+    // the close (a race it can't avoid), and isn't killed for it.
+    made->configure(1024, 30);
     made->close();
     d.pump();
     EXPECT_EQ(log.closed, 1);
+    zwlr_layer_surface_v1_ack_configure(ls, log.serial);
+    wl_surface_commit(s);
+    d.pump();
+    EXPECT_EQ(d.error(), 0);
     zwlr_layer_surface_v1_destroy(ls);
     wl_surface_destroy(s);
     zwlr_layer_shell_v1_destroy(shell);

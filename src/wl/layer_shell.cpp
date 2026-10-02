@@ -97,6 +97,10 @@ LayerSurface::LayerSurface(wl_client* client, uint32_t version, uint32_t id, Sur
         events.new_popup.emit(popup);
     });
     on_ack_configure([this, pending](ZwlrLayerSurfaceV1*, uint32_t serial) {
+        // Closed, it is inert: a configure sent before the close may still be
+        // acked after it (wlroots ignores those too).
+        if (closed_)
+            return;
         auto it = std::ranges::find_if(sent_, [serial](const Sent& s) { return s.serial == serial; });
         if (it == sent_.end()) {
             post_error(uint32_t(Error::InvalidSurfaceState), "no configure with that serial");
