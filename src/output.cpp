@@ -122,6 +122,9 @@ Output::~Output() {
     }
 
     screen->data = nullptr;
+    // Nothing may name the wl_output past here.
+    server.wl->toplevels->remove_output(global.get());
+    server.wl->workspaces->remove_output(global.get());
     global->data = nullptr;
     global.reset();
     fullscreen_bg->destroy();

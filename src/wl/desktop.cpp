@@ -127,6 +127,15 @@ void ForeignToplevels::announce_wlr(Resource* manager_res, Handle* h) {
     send_wlr(r, *h, nullptr);
 }
 
+void ForeignToplevels::remove_output(Output* output) {
+    for (auto& h : handles_)
+        if (std::ranges::find(h->info_.outputs, output) != h->info_.outputs.end()) {
+            Info i = h->info_;
+            std::erase(i.outputs, output);
+            h->update(i);
+        }
+}
+
 // Sends what differs from `old` (everything when null), then done.
 void ForeignToplevels::send_wlr(Resource* res, const Handle& h, const Info* old) {
     auto* r = static_cast<ZwlrForeignToplevelHandleV1*>(res);
@@ -390,6 +399,15 @@ void Workspaces::remove_group(Group* g) {
         }
     std::erase_if(groups_, [g](const auto& x) { return x.get() == g; });
     schedule_done();
+}
+
+void Workspaces::remove_output(Output* output) {
+    for (auto& g : groups_)
+        if (std::ranges::find(g->outputs, output) != g->outputs.end()) {
+            std::vector<Output*> rest = g->outputs;
+            std::erase(rest, output);
+            set_group_outputs(g.get(), std::move(rest));
+        }
 }
 
 void Workspaces::set_group_outputs(Group* g, std::vector<Output*> outputs) {

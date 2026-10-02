@@ -57,6 +57,8 @@ public:
     void destroy(Handle* handle);
     // The window list's handle a wlr/ext handle object refers to.
     Handle* from(wl_resource* resource) const;
+    // A screen going away: windows leave it while its wl_outputs still exist.
+    void remove_output(Output* output);
 
 private:
     void announce_ext(Resource* list, Handle* h);
@@ -96,6 +98,8 @@ public:
     Group* add_group(uint32_t capabilities);
     void remove_group(Group* group);
     void set_group_outputs(Group* group, std::vector<Output*> outputs);
+    // A screen going away: groups leave it while its wl_outputs still exist.
+    void remove_output(Output* output);
     Workspace* add_workspace(Group* group, const std::string& id, const std::string& name);
     void remove_workspace(Workspace* workspace);
     void update(Workspace* workspace, const std::string& name, uint32_t state, std::vector<uint32_t> coordinates,

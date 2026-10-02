@@ -479,3 +479,79 @@ TEST(WlDesktop, SecurityContextTagsItsClients) {
     rmdir(dir);
     EXPECT_EQ(d.error(), 0);
 }
+
+// A screen going away: windows and workspace groups leave it (clients hear
+// output_leave while its wl_output still exists) and keep no pointer to it.
+TEST(WlDesktop, RemovedOutputLeavesHandlesAndGroups) {
+    Desk d;
+    wl::ForeignToplevels ft(d.server);
+    wl::Workspaces ws(d.server);
+    wl::ForeignToplevels::Handle* h = ft.create({.title = "Mail", .outputs = {&d.output}});
+    wl::Workspaces::Group* g = ws.add_group(0);
+    ws.set_group_outputs(g, {&d.output});
+
+    struct Log {
+        int left = 0, group_left = 0;
+        zwlr_foreign_toplevel_handle_v1* wlr = nullptr;
+        ext_workspace_group_handle_v1* group = nullptr;
+    } log;
+    static const zwlr_foreign_toplevel_handle_v1_listener wh = {
+        .title = [](void*, zwlr_foreign_toplevel_handle_v1*, const char*) {},
+        .app_id = [](void*, zwlr_foreign_toplevel_handle_v1*, const char*) {},
+        .output_enter = [](void*, zwlr_foreign_toplevel_handle_v1*, wl_output*) {},
+        .output_leave = [](void* p, zwlr_foreign_toplevel_handle_v1*, wl_output*) { ++static_cast<Log*>(p)->left; },
+        .state = [](void*, zwlr_foreign_toplevel_handle_v1*, wl_array*) {},
+        .done = [](void*, zwlr_foreign_toplevel_handle_v1*) {},
+        .closed = [](void*, zwlr_foreign_toplevel_handle_v1*) {},
+        .parent = [](void*, zwlr_foreign_toplevel_handle_v1*, zwlr_foreign_toplevel_handle_v1*) {},
+    };
+    static const zwlr_foreign_toplevel_manager_v1_listener wl = {
+        .toplevel =
+            [](void* p, zwlr_foreign_toplevel_manager_v1*, zwlr_foreign_toplevel_handle_v1* h) {
+                static_cast<Log*>(p)->wlr = h;
+                zwlr_foreign_toplevel_handle_v1_add_listener(h, &wh, p);
+            },
+        .finished = [](void*, zwlr_foreign_toplevel_manager_v1*) {},
+    };
+    static const ext_workspace_group_handle_v1_listener gl = {
+        .capabilities = [](void*, ext_workspace_group_handle_v1*, uint32_t) {},
+        .output_enter = [](void*, ext_workspace_group_handle_v1*, wl_output*) {},
+        .output_leave = [](void* p, ext_workspace_group_handle_v1*,
+                           wl_output*) { ++static_cast<Log*>(p)->group_left; },
+        .workspace_enter = [](void*, ext_workspace_group_handle_v1*, ext_workspace_handle_v1*) {},
+        .workspace_leave = [](void*, ext_workspace_group_handle_v1*, ext_workspace_handle_v1*) {},
+        .removed = [](void*, ext_workspace_group_handle_v1*) {},
+    };
+    static const ext_workspace_manager_v1_listener ml = {
+        .workspace_group =
+            [](void* p, ext_workspace_manager_v1*, ext_workspace_group_handle_v1* g) {
+                static_cast<Log*>(p)->group = g;
+                ext_workspace_group_handle_v1_add_listener(g, &gl, p);
+            },
+        .workspace = [](void*, ext_workspace_manager_v1*, ext_workspace_handle_v1*) {},
+        .done = [](void*, ext_workspace_manager_v1*) {},
+        .finished = [](void*, ext_workspace_manager_v1*) {},
+    };
+    auto* mgr = d.bind<zwlr_foreign_toplevel_manager_v1>(&zwlr_foreign_toplevel_manager_v1_interface, 3);
+    zwlr_foreign_toplevel_manager_v1_add_listener(mgr, &wl, &log);
+    auto* wm = d.bind<ext_workspace_manager_v1>(&ext_workspace_manager_v1_interface, 1);
+    ext_workspace_manager_v1_add_listener(wm, &ml, &log);
+    d.pump();
+    ASSERT_NE(log.wlr, nullptr);
+    ASSERT_NE(log.group, nullptr);
+
+    ft.remove_output(&d.output);
+    ws.remove_output(&d.output);
+    d.pump();
+    EXPECT_TRUE(h->info().outputs.empty());
+    EXPECT_TRUE(g->outputs.empty());
+    EXPECT_EQ(log.left, 1);
+    EXPECT_EQ(log.group_left, 1);
+
+    zwlr_foreign_toplevel_handle_v1_destroy(log.wlr);
+    ext_workspace_group_handle_v1_destroy(log.group);
+    zwlr_foreign_toplevel_manager_v1_destroy(mgr);
+    ext_workspace_manager_v1_destroy(wm);
+    d.pump();
+    EXPECT_EQ(d.error(), 0);
+}
