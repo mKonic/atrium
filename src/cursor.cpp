@@ -40,7 +40,6 @@ struct Cursor::Screen {
     bool plane = false;
     std::unique_ptr<backend::Swapchain> swapchain;
     Buffer* front = nullptr;  // in the plane now
-    wlr_color_transform* color = nullptr;
     Box drawn{};  // drawn in software here last (transformed pixels)
 
     ~Screen() {
@@ -48,31 +47,27 @@ struct Cursor::Screen {
             texture->destroy();
         if (front)
             buffer_unlock(front);
-        wlr_color_transform_unref(color);
     }
 };
 
 namespace {
 
 // sRGB into an HDR screen's signal, for the plane (the scene's frames do
-// their own conversion). wlroots does the same for its output cursors.
-wlr_color_transform* color_for(const std::optional<backend::ImageDescription>& d) {
+// their own conversion): its primaries, SDR white at the reference
+// luminance, then its transfer function. As wlroots does for its cursors.
+render::OutputColor color_for(const std::optional<backend::ImageDescription>& d) {
+    render::OutputColor c;
     if (!d)
-        return nullptr;
+        return c;
     wlr_color_primaries srgb, target;
     wlr_color_primaries_from_named(&srgb, WLR_COLOR_NAMED_PRIMARIES_SRGB);
     wlr_color_primaries_from_named(&target, d->primaries);
-    float matrix[9];
-    wlr_color_primaries_transform_absolute_colorimetric(&srgb, &target, matrix);
+    wlr_color_primaries_transform_absolute_colorimetric(&srgb, &target, c.matrix);
     const wlr_color_luminances lum = render::default_luminance(d->transfer_function);
-    for (float& m : matrix)
+    for (float& m : c.matrix)
         m *= float(lum.reference / lum.max);
-    wlr_color_transform* steps[] = {wlr_color_transform_init_matrix(matrix),
-                                    wlr_color_transform_init_linear_to_inverse_eotf(d->transfer_function)};
-    wlr_color_transform* out = steps[0] && steps[1] ? wlr_color_transform_init_pipeline(steps, 2) : nullptr;
-    wlr_color_transform_unref(steps[0]);
-    wlr_color_transform_unref(steps[1]);
-    return out;
+    c.tf = render::output_tf(d->transfer_function);
+    return c;
 }
 
 // ARGB8888 with the modifiers both the plane and the renderer take.
@@ -224,12 +219,11 @@ bool Cursor::try_plane(Screen& s) {
     Buffer* buf = s.swapchain->acquire();
     if (!buf)
         return false;
-    wlr_color_transform_unref(s.color);
-    s.color = color_for(o.image_description);
 
     Box dst{0, 0, s.width, s.height};
     box_transform(&dst, &dst, output_transform_invert(o.transform), buf->width, buf->height);
     render::BufferPassOptions opts{};
+    opts.color = color_for(o.image_description);
     render::RenderPass* pass = o.renderer->begin_buffer_pass(buf, &opts);
     if (!pass) {
         buffer_unlock(buf);

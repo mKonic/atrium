@@ -99,19 +99,6 @@ void pending_resolution(backend::Output* o, const backend::OutputState* s, int* 
     *h = o->height;
 }
 
-int tf_index(wlr_color_transfer_function tf) {
-    switch (tf) {
-    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ:
-        return 1;
-    case WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR:
-        return 2;
-    case WLR_COLOR_TRANSFER_FUNCTION_SRGB:
-        return 3;
-    default:
-        return 0;
-    }
-}
-
 // Tells a surface which buffers suit where it is shown: `scanout` when it
 // could go straight to that screen, else rendered.
 void send_dmabuf_feedback(Scene* scene, Buffer* b, backend::Output* scanout) {
@@ -403,7 +390,7 @@ render::OutputColor SceneOutput::output_color(const backend::ImageDescription* d
             lum = sdr_white_nits_ / dst_lum.max;
         for (float& v : m)
             v *= lum;
-        c.tf = tf_index(desc->transfer_function);
+        c.tf = render::output_tf(desc->transfer_function);
     }
     // The display's profile, on SDR: the table expects gamma 2.2 in.
     if (lut_ && lut_->size > 1 && (!desc || c.tf == 0 || c.tf == 3)) {

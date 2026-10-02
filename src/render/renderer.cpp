@@ -19,6 +19,19 @@
 
 namespace atrium::render {
 
+int output_tf(wlr_color_transfer_function tf) {
+    switch (tf) {
+    case WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ:
+        return 1;
+    case WLR_COLOR_TRANSFER_FUNCTION_EXT_LINEAR:
+        return 2;
+    case WLR_COLOR_TRANSFER_FUNCTION_SRGB:
+        return 3;
+    default:
+        return 0;
+    }
+}
+
 bool OutputColor::plain() const {
     return matrix::is_identity(matrix) && (tf == 0 || tf == 3) && !lut;
 }
@@ -474,6 +487,7 @@ RenderPass* Renderer::begin_buffer_pass(Buffer* b, const BufferPassOptions* o) {
         return nullptr;
     PassOptions po;
     if (o) {
+        po.color = o->color;
         po.timer = o->timer;
         po.signal_timeline = o->signal_timeline;
         po.signal_point = o->signal_point;

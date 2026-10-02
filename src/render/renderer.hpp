@@ -132,6 +132,8 @@ struct OutputColor {
     ColorLut* lut = nullptr;  // SDR only
     bool plain() const;
 };
+// A screen's transfer function as OutputColor::tf.
+int output_tf(wlr_color_transfer_function tf);
 
 struct EffectBuffers;
 
@@ -161,6 +163,7 @@ struct RenderTimer {
 
 // A pass into a buffer (begin_buffer_pass), wlroots' options.
 struct BufferPassOptions {
+    OutputColor color;  // the colour work at the end (an HDR screen's signal)
     RenderTimer* timer = nullptr;
     wlr_drm_syncobj_timeline* signal_timeline = nullptr;  // signalled when the GPU is done
     uint64_t signal_point = 0;
