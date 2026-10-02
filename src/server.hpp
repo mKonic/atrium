@@ -2,6 +2,8 @@
 #include "anim.hpp"
 #include "backend/allocator.hpp"
 #include "backend/headless.hpp"
+#include "backend/session.hpp"
+#include "input/libinput.hpp"
 #include "cursor.hpp"
 #include "config.hpp"
 #include "keyword_watch.hpp"
@@ -229,7 +231,9 @@ public:
     // `wlr_backend`, and atrium's own headless one for virtual screens.
     backend::Multi* backend = nullptr;
     wlr_backend* wlroots = nullptr;
-    wlr_session* session = nullptr;
+    wlr_session* session = nullptr;  // wlroots' (ATRIUM_WLR_DRM=1)
+    // Where libinput opens devices: atrium's session, or wlroots'.
+    std::unique_ptr<input::Libinput::DeviceSeat> device_seat;
     wlr_renderer* renderer = nullptr;
     backend::Allocator* allocator = nullptr;
     // Every Wayland global (protocols.hpp).
@@ -339,11 +343,12 @@ private:
     void setup_window_hints();
 
     scene::Tree* layers_[kLayerCount]{};
+    std::unique_ptr<backend::Session> own_session_;
     std::unique_ptr<backend::Multi> backend_;
     std::unique_ptr<backend::Allocator> allocator_;
     std::unique_ptr<OutputLayout> output_layout_;
     backend::Headless* headless_ = nullptr;  // made on the first create_output() without a nested backend
-    wl::Connection new_output_conn_, layout_change_conn_, backend_gone_;
+    wl::Connection new_output_conn_, layout_change_conn_, backend_gone_, session_active_conn_;
     void seed_registry(const std::filesystem::path& dir);
 
     pid_t startup_pid_ = -1;

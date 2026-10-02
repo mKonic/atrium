@@ -4,7 +4,6 @@
 extern "C" {
 #include <libudev.h>
 #include <wayland-server-core.h>
-#include <wlr/backend/session.h>
 #include <wlr/util/log.h>
 }
 
@@ -28,34 +27,22 @@ std::string Device::output_name() const {
     return n ? n : "";
 }
 
-std::unique_ptr<Libinput> Libinput::create(wlr_session* session, wl_event_loop* loop, Handler& handler) {
-    if (!session || !session->udev)
+std::unique_ptr<Libinput> Libinput::create(DeviceSeat* seat, wl_event_loop* loop, Handler& handler) {
+    if (!seat || !seat->udev())
         return nullptr;
-    std::unique_ptr<Libinput> self(new Libinput(session, handler));
+    std::unique_ptr<Libinput> self(new Libinput(seat, handler));
     static const libinput_interface kInterface = {
         .open_restricted = [](const char* path, int, void* data) -> int {
-            auto* l = static_cast<Libinput*>(data);
-            wlr_device* dev = wlr_session_open_file(l->session_, path);
-            if (!dev)
-                return -errno ? -errno : -EIO;
-            l->open_.push_back(std::make_unique<Open>(Open{dev->fd, dev}));
-            return dev->fd;
+            return static_cast<Libinput*>(data)->seat_->open(path);
         },
-        .close_restricted = [](int fd, void* data) {
-            auto* l = static_cast<Libinput*>(data);
-            auto it = std::ranges::find_if(l->open_, [fd](const auto& o) { return o->fd == fd; });
-            if (it == l->open_.end())
-                return;
-            wlr_session_close_file(l->session_, (*it)->device);
-            l->open_.erase(it);
-        },
+        .close_restricted = [](int fd, void* data) { static_cast<Libinput*>(data)->seat_->close(fd); },
     };
-    self->li_ = libinput_udev_create_context(&kInterface, self.get(), session->udev);
+    self->li_ = libinput_udev_create_context(&kInterface, self.get(), seat->udev());
     if (!self->li_)
         return nullptr;
     libinput_log_set_priority(self->li_, LIBINPUT_LOG_PRIORITY_ERROR);
-    if (libinput_udev_assign_seat(self->li_, session->seat) != 0) {
-        wlr_log(WLR_ERROR, "libinput: couldn't take seat %s", session->seat);
+    if (libinput_udev_assign_seat(self->li_, seat->name()) != 0) {
+        wlr_log(WLR_ERROR, "libinput: couldn't take seat %s", seat->name());
         return nullptr;
     }
     self->source_ = wl_event_loop_add_fd(loop, libinput_get_fd(self->li_), WL_EVENT_READABLE, dispatch, self.get());

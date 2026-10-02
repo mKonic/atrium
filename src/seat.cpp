@@ -165,7 +165,7 @@ Seat::Seat(Server& srv) : server(srv) {
     keyboards_ = std::make_unique<KeyboardGroup>(*this, false);
     use_keyboard(physical_keyboard(), true);
     // On a real session, input straight from libinput.
-    libinput_ = input::Libinput::create(server.session, server.loop, *this);
+    libinput_ = input::Libinput::create(server.device_seat.get(), server.loop, *this);
     update_capabilities();
 }
 

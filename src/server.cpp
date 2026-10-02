@@ -1,5 +1,8 @@
 #include "server.hpp"
+#include "backend/drm/drm.hpp"
+#include "backend/session.hpp"
 #include "backend/wayland.hpp"
+#include "input/libinput.hpp"
 #include "backend/wlr.hpp"
 #include "capture_state.hpp"
 #include "stacking.hpp"
@@ -50,6 +53,52 @@
 #include <unistd.h>
 
 namespace atrium {
+
+namespace {
+
+// Input devices opened through atrium's own session.
+class SessionDeviceSeat final : public input::Libinput::DeviceSeat {
+public:
+    explicit SessionDeviceSeat(backend::Session& s) : s_(s) {}
+    struct udev* udev() override { return s_.udev(); }
+    const char* name() override { return s_.seat().c_str(); }
+    int open(const char* path) override {
+        backend::Session::Device* d = s_.open(path);
+        return d ? d->fd : (errno ? -errno : -EIO);
+    }
+    void close(int fd) override { s_.close(s_.device_for_fd(fd)); }
+
+private:
+    backend::Session& s_;
+};
+
+// ...or through wlroots' (ATRIUM_WLR_DRM=1).
+class WlrDeviceSeat final : public input::Libinput::DeviceSeat {
+public:
+    explicit WlrDeviceSeat(wlr_session* s) : s_(s) {}
+    struct udev* udev() override { return s_->udev; }
+    const char* name() override { return s_->seat; }
+    int open(const char* path) override {
+        wlr_device* d = wlr_session_open_file(s_, path);
+        if (!d)
+            return errno ? -errno : -EIO;
+        open_.push_back(d);
+        return d->fd;
+    }
+    void close(int fd) override {
+        auto it = std::ranges::find_if(open_, [fd](wlr_device* d) { return d->fd == fd; });
+        if (it == open_.end())
+            return;
+        wlr_session_close_file(s_, *it);
+        open_.erase(it);
+    }
+
+private:
+    wlr_session* s_;
+    std::vector<wlr_device*> open_;
+};
+
+} // namespace
 
 void report_child_exit(pid_t pid, int status);  // shell_process.cpp
 
@@ -234,6 +283,21 @@ void Server::setup() {
                 seat->backend_gone();
             wl_display_terminate(display);
         });
+    } else if (const char* b = getenv("WLR_BACKENDS");
+               !getenv("ATRIUM_WLR_DRM") && (!b || std::string_view(b) == "drm")) {
+        // Real screens: atrium's own session and KMS.
+        own_session_ = backend::Session::create(loop);
+        if (!own_session_)
+            die("couldn't take a seat (is logind or seatd running?)");
+        for (const std::string& gpu : own_session_->find_gpus()) {
+            if (auto d = backend::drm::Drm::create(loop, *own_session_, gpu)) {
+                backend->add(std::move(d));
+                break;  // the boot GPU's screens (others: PLAN, multi-GPU)
+            }
+        }
+        if (!backend->is_drm())
+            die("no GPU with screens to drive");
+        device_seat = std::make_unique<SessionDeviceSeat>(*own_session_);
     } else {
         wlroots = wlr_backend_autocreate(loop, &session);
         if (!wlroots)
@@ -249,6 +313,8 @@ void Server::setup() {
             wl_display_terminate(display);
         });
         backend->add(std::make_unique<backend::WlrBackend>(loop, wlroots));
+        if (session)
+            device_seat = std::make_unique<WlrDeviceSeat>(session);
     }
 
     scene = scene::Scene::create();
@@ -296,7 +362,9 @@ void Server::setup() {
     seat = std::make_unique<Seat>(*this);
     // Another VT took the session: libinput lets go of the devices, and
     // takes them back on return.
-    if (session)
+    if (own_session_)
+        session_active_conn_ = own_session_->events.active.connect([this](bool on) { seat->session_active(on); });
+    else if (session)
         session_active_.connect(&session->events.active, [this](void*) { seat->session_active(session->active); });
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
@@ -695,7 +763,10 @@ void Server::teardown() {
     new_output_conn_.disconnect();
     backend = nullptr;
     headless_ = nullptr;
+    session_active_conn_.disconnect();
     backend_.reset();  // takes wlroots' with it, unless the host session ended
+    device_seat.reset();
+    own_session_.reset();
     wlroots = nullptr;
     layout_change_conn_.disconnect();
     scene->draw_cursor = nullptr;
@@ -1341,7 +1412,9 @@ void Server::spawn(const std::string& command) {
 }
 
 void Server::change_vt(unsigned vt) {
-    if (session)
+    if (own_session_)
+        own_session_->change_vt(vt);
+    else if (session)
         wlr_session_change_vt(session, vt);
 }
 

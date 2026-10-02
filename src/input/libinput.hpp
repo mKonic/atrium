@@ -13,7 +13,7 @@
 struct wl_event_loop;
 struct wl_event_source;
 struct wlr_device;
-struct wlr_session;
+struct udev;
 
 namespace atrium::input {
 
@@ -63,8 +63,17 @@ public:
         virtual void toggle(Device& d, libinput_switch which, bool on) = 0;
     };
 
-    // Null when it can't start (no session, no udev).
-    static std::unique_ptr<Libinput> create(wlr_session* session, wl_event_loop* loop, Handler& handler);
+    // Where devices are opened: the session's seat.
+    struct DeviceSeat {
+        virtual ~DeviceSeat() = default;
+        virtual struct udev* udev() = 0;
+        virtual const char* name() = 0;
+        virtual int open(const char* path) = 0;  // a fd, or -errno
+        virtual void close(int fd) = 0;
+    };
+
+    // Null when it can't start (no seat, no udev).
+    static std::unique_ptr<Libinput> create(DeviceSeat* seat, wl_event_loop* loop, Handler& handler);
     ~Libinput();
     Libinput(const Libinput&) = delete;
     Libinput& operator=(const Libinput&) = delete;
@@ -74,21 +83,16 @@ public:
     void set_active(bool active);
 
 private:
-    Libinput(wlr_session* session, Handler& handler) : session_(session), handler_(handler) {}
+    Libinput(DeviceSeat* seat, Handler& handler) : seat_(seat), handler_(handler) {}
     static int dispatch(int fd, uint32_t mask, void* data);
     void handle(libinput_event* e);
     Device* device_of(libinput_device* d) const;
 
-    wlr_session* session_;
+    DeviceSeat* seat_;
     Handler& handler_;
     libinput* li_ = nullptr;
     wl_event_source* source_ = nullptr;
     std::vector<std::unique_ptr<Device>> devices_;
-    struct Open {
-        int fd;
-        wlr_device* device;
-    };
-    std::vector<std::unique_ptr<Open>> open_;  // files opened through the session
 };
 
 } // namespace atrium::input

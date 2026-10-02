@@ -75,17 +75,20 @@ void OutputState::clear_buffer() {
 
 void OutputState::set_enabled(bool on) {
     committed |= Enabled;
+    allow_reconfiguration = true;  // as wlroots: these may need a modeset
     enabled = on;
 }
 
 void OutputState::set_mode(const Mode* m) {
     committed |= ModeField;
+    allow_reconfiguration = true;  // as wlroots: these may need a modeset
     mode_type = ModeType::Fixed;
     mode = m;
 }
 
 void OutputState::set_custom_mode(int32_t w, int32_t h, int32_t refresh) {
     committed |= ModeField;
+    allow_reconfiguration = true;  // as wlroots: these may need a modeset
     mode_type = ModeType::Custom;
     mode = nullptr;
     custom_mode = {w, h, refresh};
@@ -343,7 +346,7 @@ bool Output::ensure_buffer(OutputState& s, bool* added) {
     const bool on = (s.committed & OutputState::Enabled) ? s.enabled : enabled;
     const bool needs = ((s.committed & OutputState::Enabled) && s.enabled) ||
                        (s.committed & (OutputState::ModeField | OutputState::RenderFormat)) ||
-                       (commit_seq == 0 && on);
+                       (s.allow_reconfiguration && commit_seq == 0 && on);
     if (!needs)
         return true;
     if (!configure_primary_swapchain(&s, swapchain))
