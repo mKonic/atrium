@@ -72,18 +72,18 @@ render::OutputColor color_for(const std::optional<backend::ImageDescription>& d)
 
 // ARGB8888 with the modifiers both the plane and the renderer take.
 bool cursor_format(const backend::Output& o, std::vector<uint64_t>* mods) {
-    const wlr_drm_format_set* render = o.renderer->egl().render_formats();
-    const wlr_drm_format* rf = render ? wlr_drm_format_set_get(render, DRM_FORMAT_ARGB8888) : nullptr;
+    const FormatSet* render = o.renderer->egl().render_formats();
+    const DrmFormat* rf = render ? render->get(DRM_FORMAT_ARGB8888) : nullptr;
     if (!rf)
         return false;
-    const wlr_drm_format_set* plane = o.cursor_formats(BUFFER_CAP_DMABUF);
-    const wlr_drm_format* pf = plane ? wlr_drm_format_set_get(plane, DRM_FORMAT_ARGB8888) : nullptr;
+    const FormatSet* plane = o.cursor_formats(BUFFER_CAP_DMABUF);
+    const DrmFormat* pf = plane ? plane->get(DRM_FORMAT_ARGB8888) : nullptr;
     if (plane && !pf)
         return false;
     mods->clear();
-    for (size_t i = 0; i < rf->len; ++i)
-        if (!pf || std::find(pf->modifiers, pf->modifiers + pf->len, rf->modifiers[i]) != pf->modifiers + pf->len)
-            mods->push_back(rf->modifiers[i]);
+    for (uint64_t m : rf->modifiers)
+        if (!pf || pf->has(m))
+            mods->push_back(m);
     return !mods->empty();
 }
 

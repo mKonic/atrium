@@ -461,7 +461,7 @@ void RenderTimer::destroy() {
 
 // ---- Renderer -------------------------------------------------------------
 
-const wlr_drm_format_set* Renderer::texture_formats(uint32_t caps) {
+const FormatSet* Renderer::texture_formats(uint32_t caps) {
     if (caps & BUFFER_CAP_DMABUF)
         return egl_->texture_formats();
     if (caps & BUFFER_CAP_DATA_PTR)
@@ -469,7 +469,7 @@ const wlr_drm_format_set* Renderer::texture_formats(uint32_t caps) {
     return nullptr;
 }
 
-const wlr_drm_format_set* Renderer::render_formats() {
+const FormatSet* Renderer::render_formats() {
     return egl_->render_formats();
 }
 
@@ -648,7 +648,6 @@ Renderer::~Renderer() {
         procs.glDebugMessageCallbackKHR(nullptr, nullptr);
     }
     egl_->unset_current();
-    wlr_drm_format_set_finish(&shm_formats_);
     if (drm_fd_ >= 0)
         close(drm_fd_);
 }

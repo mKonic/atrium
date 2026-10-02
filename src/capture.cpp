@@ -114,10 +114,10 @@ void Server::setup_capture() {
         c.height = h;
         c.shm_format = format;
         c.shm_stride = uint32_t(w) * 4;
-        if (const wlr_drm_format_set* set = renderer->texture_formats(BUFFER_CAP_DMABUF)) {
-            if (const wlr_drm_format* f = wlr_drm_format_set_get(set, format)) {
+        if (const FormatSet* set = renderer->texture_formats(BUFFER_CAP_DMABUF)) {
+            if (const DrmFormat* f = set->get(format)) {
                 c.dmabuf_format = format;
-                c.dmabuf_modifiers.assign(f->modifiers, f->modifiers + f->len);
+                c.dmabuf_modifiers = f->modifiers;
                 c.dmabuf_device = render_device(renderer);
             }
         }

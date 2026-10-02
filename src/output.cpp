@@ -185,10 +185,11 @@ std::string format_name(uint32_t format) {
 
 // Why no 10-bit format was taken: what the screen's plane offers.
 void log_formats(backend::Output* output) {
-    const wlr_drm_format_set* formats = output->primary_formats(BUFFER_CAP_DMABUF);
+    const FormatSet* formats = output->primary_formats(BUFFER_CAP_DMABUF);
     std::string list;
-    for (size_t i = 0; formats && i < formats->len; ++i)
-        list += format_name(formats->formats[i].format) + " ";
+    if (formats)
+        for (const DrmFormat& f : *formats)
+            list += format_name(f.format) + " ";
     alog(Log::Error, "%s: no 10-bit format for HDR; the plane offers: %s", output->name, list.c_str());
 }
 
@@ -225,8 +226,8 @@ bool Output::apply_hdr() {
             for (uint32_t format : {DRM_FORMAT_XRGB2101010, DRM_FORMAT_XBGR2101010, DRM_FORMAT_ARGB2101010,
                                     DRM_FORMAT_ABGR2101010, DRM_FORMAT_XBGR16161616F, DRM_FORMAT_ABGR16161616F}) {
                 // Only the plane's own (testing any other logs an error).
-                const wlr_drm_format_set* plane = screen->primary_formats(BUFFER_CAP_DMABUF);
-                if (plane && !wlr_drm_format_set_get(plane, format))
+                const FormatSet* plane = screen->primary_formats(BUFFER_CAP_DMABUF);
+                if (plane && !plane->get(format))
                     continue;
                 state.set_render_format(format);
                 if (screen->test_state(state)) {

@@ -420,19 +420,19 @@ static wl::DmabufFeedback dmabuf_feedback(render::Renderer* renderer, backend::O
     struct stat st{};
     if (int fd = renderer->drm_fd(); fd >= 0 && fstat(fd, &st) == 0)
         fb.main_device = st.st_rdev;
-    const wlr_drm_format_set* texture = renderer->texture_formats(BUFFER_CAP_DMABUF);
-    auto has = [](const wlr_drm_format_set* set, uint32_t format, uint64_t modifier) {
-        return set && wlr_drm_format_set_has(set, format, modifier);
+    const FormatSet* texture = renderer->texture_formats(BUFFER_CAP_DMABUF);
+    auto has = [](const FormatSet* set, uint32_t format, uint64_t modifier) {
+        return set && set->has(format, modifier);
     };
     if (scanout) {
-        if (const wlr_drm_format_set* primary = scanout->primary_formats(BUFFER_CAP_DMABUF)) {
+        if (const FormatSet* primary = scanout->primary_formats(BUFFER_CAP_DMABUF)) {
             wl::DmabufFeedback::Tranche t;
             t.target_device = fb.main_device;
             t.scanout = true;
-            for (size_t i = 0; i < primary->len; ++i)
-                for (size_t j = 0; j < primary->formats[i].len; ++j)
-                    if (has(texture, primary->formats[i].format, primary->formats[i].modifiers[j]))
-                        t.formats.emplace_back(primary->formats[i].format, primary->formats[i].modifiers[j]);
+            for (const DrmFormat& f : *primary)
+                for (uint64_t m : f.modifiers)
+                    if (has(texture, f.format, m))
+                        t.formats.emplace_back(f.format, m);
             if (!t.formats.empty())
                 fb.tranches.push_back(std::move(t));
         }
@@ -440,9 +440,9 @@ static wl::DmabufFeedback dmabuf_feedback(render::Renderer* renderer, backend::O
     wl::DmabufFeedback::Tranche render;
     render.target_device = fb.main_device;
     if (texture)
-        for (size_t i = 0; i < texture->len; ++i)
-            for (size_t j = 0; j < texture->formats[i].len; ++j)
-                render.formats.emplace_back(texture->formats[i].format, texture->formats[i].modifiers[j]);
+        for (const DrmFormat& f : *texture)
+            for (uint64_t m : f.modifiers)
+                render.formats.emplace_back(f.format, m);
     fb.tranches.push_back(std::move(render));
     return fb;
 }
@@ -454,9 +454,9 @@ void Server::setup_protocols() {
 
     // Buffers and surfaces.
     std::vector<uint32_t> shm_formats;
-    if (const wlr_drm_format_set* f = renderer->texture_formats(BUFFER_CAP_DATA_PTR))
-        for (size_t i = 0; i < f->len; ++i)
-            shm_formats.push_back(f->formats[i].format);
+    if (const FormatSet* f = renderer->texture_formats(BUFFER_CAP_DATA_PTR))
+        for (const DrmFormat& d : *f)
+            shm_formats.push_back(d.format);
     p.shm = std::make_unique<wl::Shm>(display, shm_formats);
     if (renderer->texture_formats(BUFFER_CAP_DMABUF)) {
         // A dmabuf the renderer can't import is refused as it is made.
@@ -468,9 +468,9 @@ void Server::setup_protocols() {
         };
         p.dmabuf = std::make_unique<wl::LinuxDmabuf>(display, dmabuf_feedback(renderer, nullptr), check);
         std::vector<uint32_t> formats;
-        const wlr_drm_format_set* f = renderer->texture_formats(BUFFER_CAP_DMABUF);
-        for (size_t i = 0; i < f->len; ++i)
-            formats.push_back(f->formats[i].format);
+        const FormatSet* f = renderer->texture_formats(BUFFER_CAP_DMABUF);
+        for (const DrmFormat& d : *f)
+            formats.push_back(d.format);
         if (char* node = drmGetRenderDeviceNameFromFd(renderer->drm_fd())) {
             p.drm = std::make_unique<wl::LegacyDrm>(display, node, formats, check);
             free(node);

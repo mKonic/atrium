@@ -41,8 +41,8 @@ public:
     bool wait_sync(EGLSyncKHR sync);
     bool has_fences() const { return procs.eglDupNativeFenceFDANDROID && procs.eglWaitSyncKHR; }
 
-    const wlr_drm_format_set* texture_formats() const { return &texture_formats_; }
-    const wlr_drm_format_set* render_formats() const { return &render_formats_; }
+    const FormatSet* texture_formats() const { return &texture_formats_; }
+    const FormatSet* render_formats() const { return &render_formats_; }
 
     EGLDisplay display = EGL_NO_DISPLAY;
     EGLContext context = EGL_NO_CONTEXT;
@@ -89,8 +89,8 @@ private:
     void init_dmabuf_formats();
 
     bool has_modifiers_ = false;
-    wlr_drm_format_set texture_formats_{};
-    wlr_drm_format_set render_formats_{};
+    FormatSet texture_formats_{};
+    FormatSet render_formats_{};
 };
 
 } // namespace atrium::render

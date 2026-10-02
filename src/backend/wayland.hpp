@@ -67,7 +67,7 @@ private:
     wl_keyboard* keyboard_ = nullptr;
     wl_event_source* source_ = nullptr;
     int drm_fd_ = -1;
-    wlr_drm_format_set formats_{};  // what the host takes as dmabufs
+    FormatSet formats_{};  // what the host takes as dmabufs
     bool started_ = false;
     bool gone_ = false;
 

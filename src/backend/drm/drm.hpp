@@ -8,10 +8,7 @@
 #include "backend/backend.hpp"
 #include "backend/drm/props.hpp"
 #include "backend/session.hpp"
-
-extern "C" {
-#include <wlr/render/drm_format_set.h>
-}
+#include "util/format_set.hpp"
 
 #include <xf86drmMode.h>
 
@@ -78,7 +75,7 @@ private:
     bool alloc_crtc(Connector& c);
 
     // A KMS framebuffer for `buffer` (cached with it); 0 if KMS won't take it.
-    uint32_t fb_for(Buffer* buffer, const wlr_drm_format_set* formats);
+    uint32_t fb_for(Buffer* buffer, const FormatSet* formats);
 
     bool commit_connector(Connector& c, const OutputState& state, bool test_only);
     bool commit_states(std::vector<ConnState>& states, bool modeset, bool nonblock, bool test_only, bool async);
@@ -89,7 +86,7 @@ private:
     // `src` (the parent GPU's) drawn into a buffer of ours from `sc`, locked;
     // `fence` gets a sync_file for the copy's end when timelines work.
     // `from` is the renderer that drew it, for copies through the CPU.
-    Buffer* copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
+    Buffer* copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const FormatSet* formats,
                         render::Renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence);
     bool cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syncobj_timeline* wait,
                   uint64_t wait_point);
@@ -106,7 +103,7 @@ private:
     render::Renderer* mgpu_renderer_ = nullptr;
     std::unique_ptr<Allocator> mgpu_allocator_;
     std::unique_ptr<Allocator> mgpu_dumb_;  // copies through the CPU
-    wlr_drm_format_set mgpu_formats_{};
+    FormatSet mgpu_formats_{};
     wlr_drm_syncobj_timeline* mgpu_timeline_ = nullptr;
     uint64_t mgpu_point_ = 0;
     bool mgpu_cpu_ = false;  // it can't read the parent's buffers

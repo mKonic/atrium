@@ -228,8 +228,8 @@ public:
     int drm_fd();
     // What it can sample from buffers with `caps` (BUFFER_CAP_DMABUF: dmabufs;
     // BUFFER_CAP_DATA_PTR: uploads), and draw into.
-    const wlr_drm_format_set* texture_formats(uint32_t caps);
-    const wlr_drm_format_set* render_formats();
+    const FormatSet* texture_formats(uint32_t caps);
+    const FormatSet* render_formats();
 
     struct {
         bool timeline = false;  // signal and wait timelines work (explicit sync)
@@ -268,7 +268,7 @@ private:
     std::unique_ptr<Egl> egl_;
     std::unique_ptr<ShaderLibrary> shaders_;
     GlCaps caps_;
-    wlr_drm_format_set shm_formats_{};
+    FormatSet shm_formats_{};
     int drm_fd_ = -1;
 };
 

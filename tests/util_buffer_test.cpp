@@ -1,5 +1,6 @@
 #include "util/buffer.hpp"
 #include "util/damage_ring.hpp"
+#include "util/format_set.hpp"
 
 #include <drm_fourcc.h>
 #include <gtest/gtest.h>
@@ -109,3 +110,20 @@ TEST(UtilDamageRing, EachBufferGetsWhatItMissed) {
     damage_ring_finish(&ring);
     buffer_drop(&b->base);
 }
+
+TEST(FormatSet, KeepsEachModifierOnceInOrder) {
+    FormatSet s;
+    EXPECT_TRUE(s.add(DRM_FORMAT_ARGB8888, DRM_FORMAT_MOD_LINEAR));
+    EXPECT_TRUE(s.add(DRM_FORMAT_XRGB8888, DRM_FORMAT_MOD_INVALID));
+    EXPECT_TRUE(s.add(DRM_FORMAT_ARGB8888, DRM_FORMAT_MOD_INVALID));
+    EXPECT_FALSE(s.add(DRM_FORMAT_ARGB8888, DRM_FORMAT_MOD_LINEAR));
+    ASSERT_EQ(s.size(), 2u);
+    EXPECT_EQ(s.begin()->format, DRM_FORMAT_ARGB8888);
+    EXPECT_EQ(s.get(DRM_FORMAT_ARGB8888)->modifiers,
+              (std::vector<uint64_t>{DRM_FORMAT_MOD_LINEAR, DRM_FORMAT_MOD_INVALID}));
+    EXPECT_TRUE(s.has(DRM_FORMAT_XRGB8888, DRM_FORMAT_MOD_INVALID));
+    EXPECT_FALSE(s.has(DRM_FORMAT_XRGB8888, DRM_FORMAT_MOD_LINEAR));
+    EXPECT_FALSE(s.has(DRM_FORMAT_ABGR8888, DRM_FORMAT_MOD_LINEAR));
+    EXPECT_EQ(s.get(DRM_FORMAT_ABGR8888), nullptr);
+}
+

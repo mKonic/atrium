@@ -75,12 +75,12 @@ bool format_supported(const GlCaps& caps, const PixelFormat& f) {
     return true;
 }
 
-void shm_formats(const GlCaps& caps, wlr_drm_format_set* out) {
+void shm_formats(const GlCaps& caps, FormatSet* out) {
     for (const PixelFormat& f : kFormats) {
         if (!format_supported(caps, f))
             continue;
-        wlr_drm_format_set_add(out, f.drm, DRM_FORMAT_MOD_INVALID);
-        wlr_drm_format_set_add(out, f.drm, DRM_FORMAT_MOD_LINEAR);
+        out->add(f.drm, DRM_FORMAT_MOD_INVALID);
+        out->add(f.drm, DRM_FORMAT_MOD_LINEAR);
     }
 }
 

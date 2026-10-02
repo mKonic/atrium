@@ -22,7 +22,7 @@ struct GlCaps;
 // Whether GL here can sample it (the extension its type needs).
 bool format_supported(const GlCaps& caps, const PixelFormat& f);
 // Every shm format this GL takes, with the implicit and linear modifiers.
-void shm_formats(const GlCaps& caps, wlr_drm_format_set* out);
+void shm_formats(const GlCaps& caps, FormatSet* out);
 
 // What this GL context offers beyond GLES 3.0 core.
 struct GlCaps {

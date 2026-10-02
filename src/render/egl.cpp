@@ -119,8 +119,6 @@ std::unique_ptr<Egl> Egl::create(int drm_fd, bool software_ok) {
 }
 
 Egl::~Egl() {
-    wlr_drm_format_set_finish(&render_formats_);
-    wlr_drm_format_set_finish(&texture_formats_);
     if (display != EGL_NO_DISPLAY) {
         eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (context != EGL_NO_CONTEXT)
@@ -349,19 +347,19 @@ void Egl::init_dmabuf_formats() {
         has_modifiers_ = has_modifiers_ || !modifiers.empty();
         bool all_external = true;
         for (size_t i = 0; i < modifiers.size(); ++i) {
-            wlr_drm_format_set_add(&texture_formats_, fmt, modifiers[i]);
+            texture_formats_.add(fmt, modifiers[i]);
             if (!external[i]) {
-                wlr_drm_format_set_add(&render_formats_, fmt, modifiers[i]);
+                render_formats_.add(fmt, modifiers[i]);
                 all_external = false;
             }
         }
         // Implicit modifiers always work; renderable if anything is.
-        wlr_drm_format_set_add(&texture_formats_, fmt, DRM_FORMAT_MOD_INVALID);
+        texture_formats_.add(fmt, DRM_FORMAT_MOD_INVALID);
         if (modifiers.empty() || !all_external)
-            wlr_drm_format_set_add(&render_formats_, fmt, DRM_FORMAT_MOD_INVALID);
+            render_formats_.add(fmt, DRM_FORMAT_MOD_INVALID);
         if (modifiers.empty()) {
-            wlr_drm_format_set_add(&texture_formats_, fmt, DRM_FORMAT_MOD_LINEAR);
-            wlr_drm_format_set_add(&render_formats_, fmt, DRM_FORMAT_MOD_LINEAR);
+            texture_formats_.add(fmt, DRM_FORMAT_MOD_LINEAR);
+            render_formats_.add(fmt, DRM_FORMAT_MOD_LINEAR);
         }
     }
 }
@@ -415,7 +413,7 @@ EGLImageKHR Egl::import_dmabuf(const DmabufAttributes& a, bool* external_only) {
                 (unsigned long long)a.modifier);
         return EGL_NO_IMAGE_KHR;
     }
-    *external_only = !wlr_drm_format_set_has(&render_formats_, a.format, a.modifier);
+    *external_only = !render_formats_.has(a.format, a.modifier);
     return image;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 // EGL and GLES 3 with the extension entry points atrium uses.
 
+#include "util/format_set.hpp"
 #include "wlr.hpp"
 
 #include <EGL/egl.h>
@@ -9,7 +10,6 @@
 #include <GLES2/gl2ext.h>
 
 extern "C" {
-#include <wlr/render/drm_format_set.h>
 #include <wlr/render/drm_syncobj.h>
 }
 

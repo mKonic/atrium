@@ -101,8 +101,8 @@ public:
     }
 
     bool has_cursor_plane() const override { return true; }
-    const wlr_drm_format_set* cursor_formats(uint32_t) const override { return &owner.formats_; }
-    const wlr_drm_format_set* primary_formats(uint32_t) const override { return &owner.formats_; }
+    const FormatSet* cursor_formats(uint32_t) const override { return &owner.formats_; }
+    const FormatSet* primary_formats(uint32_t) const override { return &owner.formats_; }
     bool direct_scanout_allowed() const override { return false; }
 
     bool set_cursor(Buffer* buffer, int hx, int hy) override {
@@ -150,7 +150,7 @@ protected:
             return false;
         if (s.committed & OutputState::Buffer) {
             DmabufAttributes a;
-            if (!buffer_get_dmabuf(s.buffer, &a) || !wlr_drm_format_set_has(&owner.formats_, a.format, a.modifier))
+            if (!buffer_get_dmabuf(s.buffer, &a) || !owner.formats_.has(a.format, a.modifier))
                 return false;
         }
         return true;
@@ -339,7 +339,7 @@ struct FormatTableEntry {
 struct FeedbackState {
     Wayland* backend;
     int* drm_fd;
-    wlr_drm_format_set* formats;
+    FormatSet* formats;
     const FormatTableEntry* table = nullptr;
     size_t table_len = 0;
     bool done = false;
@@ -371,7 +371,7 @@ const zwp_linux_dmabuf_feedback_v1_listener kDmabufFeedback = {
             const auto* idx = static_cast<const uint16_t*>(indices->data);
             for (size_t i = 0; st->table && i < indices->size / sizeof(uint16_t); ++i)
                 if (idx[i] < st->table_len)
-                    wlr_drm_format_set_add(st->formats, st->table[idx[i]].format, st->table[idx[i]].modifier);
+                    st->formats->add(st->table[idx[i]].format, st->table[idx[i]].modifier);
         },
     .tranche_flags = [](void*, zwp_linux_dmabuf_feedback_v1*, uint32_t) {},
 };
@@ -380,7 +380,7 @@ const zwp_linux_dmabuf_v1_listener kDmabuf = {
     .format = [](void*, zwp_linux_dmabuf_v1*, uint32_t) {},
     .modifier =
         [](void* data, zwp_linux_dmabuf_v1*, uint32_t format, uint32_t hi, uint32_t lo) {
-            wlr_drm_format_set_add(static_cast<wlr_drm_format_set*>(data), format, (uint64_t(hi) << 32) | lo);
+            static_cast<FormatSet*>(data)->add(format, (uint64_t(hi) << 32) | lo);
         },
 };
 
@@ -575,7 +575,7 @@ bool Wayland::connect() {
     } else {
         wl_display_roundtrip(remote_);
     }
-    if (formats_.len == 0) {
+    if (formats_.empty()) {
         alog(Log::Error, "nested: the host takes no dmabuf formats");
         return false;
     }
@@ -656,7 +656,6 @@ Wayland::~Wayland() {
         wl_display_flush(remote_);
         wl_display_disconnect(remote_);
     }
-    wlr_drm_format_set_finish(&formats_);
     if (drm_fd_ >= 0)
         close(drm_fd_);
     events.destroy.emit();

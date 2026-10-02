@@ -6,6 +6,7 @@
 #include "render/fwd.hpp"
 #include "util/buffer.hpp"
 #include "util/box.hpp"
+#include "util/format_set.hpp"
 #include "wl/signal.hpp"
 
 extern "C" {
@@ -15,7 +16,6 @@ extern "C" {
 #define static
 #include <wlr/render/color.h>
 #undef static
-#include <wlr/render/drm_format_set.h>
 }
 
 #include <memory>
@@ -199,7 +199,7 @@ public:
     void effective_resolution(int* w, int* h) const;
     virtual size_t gamma_size() const { return 0; }
     // What the primary plane takes (null: anything the renderer makes).
-    virtual const wlr_drm_format_set* primary_formats(uint32_t buffer_caps) const;
+    virtual const FormatSet* primary_formats(uint32_t buffer_caps) const;
     // Only a buffer clients made can go straight to the screen.
     virtual bool direct_scanout_allowed() const { return true; }
 
@@ -216,7 +216,7 @@ public:
     // the cursor instead).
     virtual bool has_cursor_plane() const { return false; }
     virtual std::vector<std::pair<int, int>> cursor_sizes() const { return {}; }
-    virtual const wlr_drm_format_set* cursor_formats(uint32_t /*buffer_caps*/) const { return nullptr; }
+    virtual const FormatSet* cursor_formats(uint32_t /*buffer_caps*/) const { return nullptr; }
     virtual bool set_cursor(Buffer* /*buffer*/, int /*hotspot_x*/, int /*hotspot_y*/) { return false; }
     virtual bool move_cursor(int /*x*/, int /*y*/) { return false; }
 

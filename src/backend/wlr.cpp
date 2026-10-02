@@ -29,6 +29,17 @@ wlr_output_image_description to_wlr(const ImageDescription& d) {
     return out;
 }
 
+// wlroots' formats copied into `out` (null stays null).
+const FormatSet* own(const wlr_drm_format_set* set, FormatSet& out) {
+    if (!set)
+        return nullptr;
+    out.clear();
+    for (size_t i = 0; i < set->len; ++i)
+        for (size_t k = 0; k < set->formats[i].len; ++k)
+            out.add(set->formats[i].format, set->formats[i].modifiers[k]);
+    return &out;
+}
+
 // atrium's buffers as wlroots' (its DRM backend scans them out): one
 // wlr_buffer per buffer, kept on it so wlroots' framebuffer cache holds. It
 // locks ours while wlroots holds it.
@@ -267,8 +278,9 @@ public:
     }
 
     size_t gamma_size() const override { return wlr_output_get_gamma_size(wlr); }
-    const wlr_drm_format_set* primary_formats(uint32_t caps) const override {
-        return wlr->impl->get_primary_formats ? wlr->impl->get_primary_formats(wlr, caps) : nullptr;
+    const FormatSet* primary_formats(uint32_t caps) const override {
+        return wlr->impl->get_primary_formats ? own(wlr->impl->get_primary_formats(wlr, caps), primary_formats_)
+                                              : nullptr;
     }
     bool direct_scanout_allowed() const override { return wlr_output_is_direct_scanout_allowed(wlr); }
 
@@ -283,8 +295,9 @@ public:
         }
         return out;
     }
-    const wlr_drm_format_set* cursor_formats(uint32_t caps) const override {
-        return wlr->impl->get_cursor_formats ? wlr->impl->get_cursor_formats(wlr, caps) : nullptr;
+    const FormatSet* cursor_formats(uint32_t caps) const override {
+        return wlr->impl->get_cursor_formats ? own(wlr->impl->get_cursor_formats(wlr, caps), cursor_formats_)
+                                             : nullptr;
     }
     bool set_cursor(Buffer* b, int hx, int hy) override {
         if (!wlr->impl->set_cursor)
@@ -297,6 +310,9 @@ public:
     bool move_cursor(int x, int y) override { return wlr->impl->move_cursor && wlr->impl->move_cursor(wlr, x, y); }
 
     wlr_output* const wlr;
+
+private:
+    mutable FormatSet primary_formats_, cursor_formats_;
 
 protected:
     bool test(const OutputState& s) override {

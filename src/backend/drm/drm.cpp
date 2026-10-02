@@ -127,7 +127,7 @@ struct Drm::Plane {
     uint32_t id = 0;
     uint64_t type = 0;
     PlaneProps props;
-    wlr_drm_format_set formats{};
+    FormatSet formats{};
     std::vector<std::pair<int, int>> cursor_sizes;
     // Locked while KMS may show them: the one on screen, and the next.
     Buffer* current = nullptr;
@@ -152,10 +152,7 @@ struct Drm::Plane {
                 *t = nullptr;
             }
     }
-    ~Plane() {
-        clear();
-        wlr_drm_format_set_finish(&formats);
-    }
+    ~Plane() { clear(); }
 };
 
 struct Drm::Crtc {
@@ -255,7 +252,7 @@ public:
         return size_t(conn.crtc->legacy_gamma_size);
     }
     // On a secondary GPU: what it can copy from (the parent renders).
-    const wlr_drm_format_set* primary_formats(uint32_t) const override {
+    const FormatSet* primary_formats(uint32_t) const override {
         if (!drm.alloc_crtc(conn))
             return nullptr;
         return drm.parent_ ? &drm.mgpu_formats_ : &conn.crtc->primary->formats;
@@ -266,7 +263,7 @@ public:
     std::vector<std::pair<int, int>> cursor_sizes() const override {
         return has_cursor_plane() ? conn.crtc->cursor->cursor_sizes : std::vector<std::pair<int, int>>{};
     }
-    const wlr_drm_format_set* cursor_formats(uint32_t) const override {
+    const FormatSet* cursor_formats(uint32_t) const override {
         if (!has_cursor_plane())
             return nullptr;
         return drm.parent_ ? &drm.mgpu_formats_ : &conn.crtc->cursor->formats;
@@ -414,7 +411,7 @@ Drm::~Drm() {
     fbs_.clear();
     if (mgpu_timeline_)
         wlr_drm_syncobj_timeline_unref(mgpu_timeline_);
-    wlr_drm_format_set_finish(&mgpu_formats_);
+    mgpu_formats_.clear();
     mgpu_allocator_.reset();
     mgpu_dumb_.reset();
     if (mgpu_renderer_)
@@ -493,16 +490,16 @@ bool Drm::init_resources() {
         get_prop(fd_, p->id, p->props.type, &p->type);
         for (uint32_t f = 0; f < info->count_formats; ++f) {
             // Without modifiers the cursor takes linear buffers only.
-            wlr_drm_format_set_add(&p->formats, info->formats[f], DRM_FORMAT_MOD_LINEAR);
+            p->formats.add(info->formats[f], DRM_FORMAT_MOD_LINEAR);
             if (p->type != DRM_PLANE_TYPE_CURSOR)
-                wlr_drm_format_set_add(&p->formats, info->formats[f], DRM_FORMAT_MOD_INVALID);
+                p->formats.add(info->formats[f], DRM_FORMAT_MOD_INVALID);
         }
         uint64_t blob_id = 0;
         if (p->props.in_formats && addfb2_modifiers_ && get_prop(fd_, p->id, p->props.in_formats, &blob_id) && blob_id) {
             if (drmModePropertyBlobRes* blob = drmModeGetPropertyBlob(fd_, uint32_t(blob_id))) {
                 drmModeFormatModifierIterator it{};
                 while (drmModeFormatModifierBlobIterNext(blob, &it))
-                    wlr_drm_format_set_add(&p->formats, it.fmt, it.mod);
+                    p->formats.add(it.fmt, it.mod);
                 drmModeFreePropertyBlob(blob);
             }
         }
@@ -819,13 +816,13 @@ bool Drm::alloc_crtc(Connector& c) {
 
 // ---- framebuffers -------------------------------------------------------------------
 
-uint32_t Drm::fb_for(Buffer* buffer, const wlr_drm_format_set* formats) {
+uint32_t Drm::fb_for(Buffer* buffer, const FormatSet* formats) {
     if (auto it = fbs_.find(buffer); it != fbs_.end())
         return it->second->poisoned ? 0 : it->second->id;
     DmabufAttributes a;
     if (!buffer_get_dmabuf(buffer, &a))
         return 0;
-    if (formats && !wlr_drm_format_set_has(formats, a.format, a.modifier))
+    if (formats && !formats->has(a.format, a.modifier))
         return 0;  // not this plane's (another may take it)
     auto fb = std::make_unique<Fb>();
     uint32_t handles[4] = {};
@@ -1400,12 +1397,13 @@ bool Drm::init_mgpu() {
     }
     // What it reads of another GPU's buffers. Implicit modifiers mean
     // something different on each GPU, so only explicit ones.
-    const wlr_drm_format_set* tex = mgpu_renderer_->texture_formats(BUFFER_CAP_DMABUF);
-    for (size_t i = 0; tex && i < tex->len; ++i)
-        for (size_t k = 0; k < tex->formats[i].len; ++k)
-            if (tex->formats[i].modifiers[k] != DRM_FORMAT_MOD_INVALID)
-                wlr_drm_format_set_add(&mgpu_formats_, tex->formats[i].format, tex->formats[i].modifiers[k]);
-    if (mgpu_formats_.len == 0) {
+    const FormatSet* tex = mgpu_renderer_->texture_formats(BUFFER_CAP_DMABUF);
+    if (tex)
+        for (const DrmFormat& f : *tex)
+            for (uint64_t m : f.modifiers)
+                if (m != DRM_FORMAT_MOD_INVALID)
+                    mgpu_formats_.add(f.format, m);
+    if (mgpu_formats_.empty()) {
         alog(Log::Error, "drm: %s can't read other GPUs' buffers", name_.c_str());
         return false;
     }
@@ -1452,7 +1450,7 @@ bool Drm::cpu_copy(Buffer* src, Buffer* dst, render::Renderer* from, wlr_drm_syn
     return ok;
 }
 
-Buffer* Drm::copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_format_set* formats,
+Buffer* Drm::copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const FormatSet* formats,
                          render::Renderer* from, wlr_drm_syncobj_timeline* wait, uint64_t wait_point, int* fence) {
     if (fence)
         *fence = -1;
@@ -1478,14 +1476,13 @@ Buffer* Drm::copy_in(Buffer* src, std::unique_ptr<Swapchain>& sc, const wlr_drm_
     if (!sc || sc->width != src->width || sc->height != src->height || sc->format != a.format) {
         sc.reset();
         // What the plane shows and this GPU draws into (a CPU writes linear).
-        const wlr_drm_format* shown = wlr_drm_format_set_get(formats, a.format);
-        const wlr_drm_format* drawn = wlr_drm_format_set_get(mgpu_renderer_->egl().render_formats(), a.format);
+        const DrmFormat* shown = formats->get(a.format);
+        const DrmFormat* drawn = mgpu_renderer_->egl().render_formats()->get(a.format);
         std::vector<uint64_t> mods;
-        for (size_t i = 0; shown && i < shown->len; ++i)
-            if (mgpu_cpu_ ? shown->modifiers[i] == DRM_FORMAT_MOD_LINEAR
-                          : drawn && std::find(drawn->modifiers, drawn->modifiers + drawn->len, shown->modifiers[i]) !=
-                                         drawn->modifiers + drawn->len)
-                mods.push_back(shown->modifiers[i]);
+        if (shown)
+            for (uint64_t m : shown->modifiers)
+                if (mgpu_cpu_ ? m == DRM_FORMAT_MOD_LINEAR : drawn && drawn->has(m))
+                    mods.push_back(m);
         if (mods.empty()) {
             alog(Log::Error, "drm: %s: no buffer for copies of 0x%08x", name_.c_str(), a.format);
             if (tex)

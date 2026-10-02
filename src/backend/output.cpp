@@ -277,20 +277,18 @@ bool Output::basic_test(const OutputState& s) const {
 bool Output::pick_format(uint32_t fmt, std::vector<uint64_t>* modifiers) const {
     if (!renderer || !allocator)
         return false;
-    const wlr_drm_format_set* render = renderer->egl().render_formats();
-    const wlr_drm_format* rf = render ? wlr_drm_format_set_get(render, fmt) : nullptr;
+    const FormatSet* render = renderer->egl().render_formats();
+    const DrmFormat* rf = render ? render->get(fmt) : nullptr;
     if (!rf)
         return false;
-    const wlr_drm_format_set* display = primary_formats(BUFFER_CAP_DMABUF);
-    const wlr_drm_format* df = display ? wlr_drm_format_set_get(display, fmt) : nullptr;
+    const FormatSet* display = primary_formats(BUFFER_CAP_DMABUF);
+    const DrmFormat* df = display ? display->get(fmt) : nullptr;
     if (display && !df)
         return false;
     modifiers->clear();
-    for (size_t i = 0; i < rf->len; ++i) {
-        const uint64_t m = rf->modifiers[i];
-        if (!df || std::find(df->modifiers, df->modifiers + df->len, m) != df->modifiers + df->len)
+    for (uint64_t m : rf->modifiers)
+        if (!df || df->has(m))
             modifiers->push_back(m);
-    }
     return !modifiers->empty();
 }
 
@@ -516,7 +514,7 @@ void Output::effective_resolution(int* w, int* h) const {
     *h = int(std::round(*h / scale));
 }
 
-const wlr_drm_format_set* Output::primary_formats(uint32_t) const {
+const FormatSet* Output::primary_formats(uint32_t) const {
     return nullptr;
 }
 

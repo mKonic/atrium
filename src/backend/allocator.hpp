@@ -9,7 +9,6 @@
 
 extern "C" {
 #include <wayland-server-core.h>
-#include <wlr/render/drm_format_set.h>
 }
 
 struct gbm_device;
