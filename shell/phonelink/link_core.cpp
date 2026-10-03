@@ -211,7 +211,7 @@ void Link::handle(Type type, std::string_view body, std::vector<Event>& out) {
             return;
         }
         if (type == Type::Unknown) {
-            close("the other end doesn't know us", out);
+            close(std::string(kNotKnown), out);
             return;
         }
         if (type == Type::Auth && body.size() == kNonceSize) {

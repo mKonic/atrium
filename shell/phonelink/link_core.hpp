@@ -75,6 +75,8 @@ namespace atrium::phonelink {
 
 inline constexpr std::string_view kServiceType = "_atrium-link._tcp";
 inline constexpr std::uint16_t kVersion = 1;
+// Why a link closes when the phone no longer has this PC paired.
+inline constexpr std::string_view kNotKnown = "the other end doesn't know us";
 inline constexpr std::size_t kIdSize = 16;
 inline constexpr std::uint32_t kMaxFrame = 16u << 20;
 inline constexpr std::uint32_t kRate = 48000;

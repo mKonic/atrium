@@ -30,6 +30,8 @@ namespace {
 const QString kSetting = QStringLiteral("phone.audio");
 constexpr qint64 kPairWindowMs = 120'000;
 constexpr qint64 kRetryMs = 3000;
+// A phone that forgot this PC is asked again only this rarely.
+constexpr qint64 kForgottenRetryMs = 60'000;
 
 QString hex(std::string_view b) { return QString::fromLatin1(QByteArray(b.data(), qsizetype(b.size())).toHex()); }
 
@@ -298,11 +300,14 @@ void Daemon::apply(Conn* c, std::vector<Event> events) {
             code_.clear();
             pairUntil_ = 0;
             pairTimer_.stop();
+            forgottenBy_.clear();
             qCInfo(lc) << "paired with" << paired_[id].name;
             break;
         }
         case Event::Kind::Ready: {
             c->name = QString::fromStdString(c->link->peer().name);
+            if (c->name == forgottenBy_)
+                forgottenBy_.clear();
             auto it = paired_.find(c->id);
             if (it != paired_.end() && it->name != c->name) {
                 it->name = c->name;
@@ -365,7 +370,12 @@ void Daemon::drop(Conn* c, const QString& why) {
     if (c->closed)
         return;
     c->closed = true;
-    if (!why.isEmpty()) {
+    if (why == QLatin1String(kNotKnown.data(), qsizetype(kNotKnown.size()))) {
+        // Forgotten on the phone: it stays forgotten until paired again.
+        qCInfo(lc) << c->name << "forgot this PC";
+        forgottenBy_ = c->name;
+        nextTry_[c->id] = now() + kForgottenRetryMs;
+    } else if (!why.isEmpty()) {
         qCInfo(lc) << "closed" << c->name << ":" << why;
         lastError_ = why;
         // The phone may have moved (a restart, a new address).
@@ -440,6 +450,7 @@ void Daemon::forget(const QString& id) {
     if (!paired_.remove(id.toLower()))
         return;
     savePaired();
+    forgottenBy_.clear();
     if (Conn* c = conns_.value(id.toLower()))
         drop(c, {});
     updateStatus();
@@ -481,6 +492,10 @@ void Daemon::updateStatus() {
     } else if (confirming_) {
         state = QStringLiteral("confirm");
         phone = confirming_->name;
+    } else if (pairingOpen()) {
+        // Before a connected phone's state: Pair was pressed for another.
+        state = QStringLiteral("pairing");
+        error = lastError_;
     } else if (best && best->link->ready()) {
         phone = best->name;
         if (!best->failed.isEmpty()) {
@@ -489,12 +504,13 @@ void Daemon::updateStatus() {
         } else {
             state = best->streaming ? QStringLiteral("streaming") : QStringLiteral("connected");
         }
-    } else if (pairingOpen()) {
-        state = QStringLiteral("pairing");
-        error = lastError_;
     } else if (best) {
         state = QStringLiteral("connecting");
         phone = best->name;
+    } else if (!forgottenBy_.isEmpty()) {
+        state = QStringLiteral("failed");
+        phone = forgottenBy_;
+        error = QStringLiteral("it forgot this PC. Forget it here too, then pair again");
     } else {
         state = QStringLiteral("searching");
         error = lastError_;

@@ -135,6 +135,7 @@ private:
     Conn* confirming_ = nullptr;
     QString code_;
     QString lastError_;
+    QString forgottenBy_;  // a phone that turned this PC away as unknown
     qint64 pairUntil_ = 0;
     bool enabled_ = false;
     std::uint32_t target_;
