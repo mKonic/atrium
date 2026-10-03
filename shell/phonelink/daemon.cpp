@@ -261,7 +261,7 @@ void Daemon::txtEvent(AvahiRecordBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBro
     readTxt(*it, txt);
     avahi_string_list_free(txt);
     // The phone's user asked this PC to connect.
-    if (it->call != call && it->call == hex(d->me_.id) && d->paired_.contains(id)) {
+    if (it->call != call && it->call.section('-', 0, 0) == hex(d->me_.id) && d->paired_.contains(id)) {
         qCInfo(lc) << it->name << "asks to connect";
         d->manual_[id] = true;
         d->forgotBy_.remove(id);
