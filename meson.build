@@ -125,4 +125,5 @@ subdir('shell/clipsync')
 subdir('shell/phonelink')
 
 subdir('src')
+subdir('keyring')
 subdir('tests')

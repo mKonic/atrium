@@ -8,6 +8,13 @@ namespace atrium {
 
 class Server;
 
+// atrium's own shell's QML directory (the source tree's when atrium runs
+// from its build directory), and atrium-shell, which runs it.
+std::string builtin_dir();
+std::string shell_binary();
+// `s` in single quotes for /bin/sh.
+std::string quoted(const std::string& s);
+
 // The desktop shell (bar, dock, launcher...) as a child atrium keeps
 // running: started with the session, restarted when it dies, backing off
 // if it keeps dying right away.

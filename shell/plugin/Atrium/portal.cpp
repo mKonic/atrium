@@ -1,4 +1,5 @@
 #include "portal.hpp"
+#include "portal_secret.hpp"
 
 #include "compositor.hpp"
 #include "paths.hpp"
@@ -137,6 +138,7 @@ PortalBackend::PortalBackend() {
     new AccessAdaptor(this);
     new ScreenshotAdaptor(this);
     new InhibitAdaptor(this);
+    new SecretAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 

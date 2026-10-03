@@ -27,6 +27,8 @@ double now_ms() {
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
 }
 
+} // namespace
+
 std::string quoted(const std::string& s) {
     std::string out = "'";
     for (char c : s)
@@ -64,7 +66,6 @@ std::string shell_binary() {
     return fs::path(ATRIUM_BINDIR) / "atrium-shell";
 }
 
-} // namespace
 
 // Called from Server's SIGCHLD handler for every reaped child.
 void report_child_exit(pid_t pid, int status) {
