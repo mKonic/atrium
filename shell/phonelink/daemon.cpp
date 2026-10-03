@@ -53,7 +53,9 @@ void Status::Forget(const QString& id) { d_.forget(id); }
 
 // --- Daemon ------------------------------------------------------------------
 
-Daemon::Daemon(QObject* parent) : QObject(parent), status_(new Status(*this)) {
+Daemon::Daemon(QObject* parent)
+    : QObject(parent), status_(new Status(*this)),
+      mpris_(new Mpris(qEnvironmentVariable("XDG_RUNTIME_DIR", QDir::tempPath()) + "/atrium-phonelink", this)) {
     QString state = qEnvironmentVariable("XDG_STATE_HOME");
     if (state.isEmpty())
         state = QDir::homePath() + "/.local/state";
@@ -343,6 +345,13 @@ void Daemon::apply(Conn* c, std::vector<Event> events) {
 }
 
 void Daemon::message(Conn* c, Type type, const std::string& body) {
+    if (type == Type::Media) {
+        if (std::optional<Media> m = unpackMedia(body)) {
+            c->media = std::move(*m);
+            updateMedia();
+        }
+        return;
+    }
     if (type != Type::AudioState || body.empty())
         return;
     const auto state = AudioState(std::uint8_t(body[0]));
@@ -364,15 +373,36 @@ void Daemon::drop(Conn* c, const QString& why) {
             resolve(*it);
     }
     if (confirming_ == c) {
+        // A code that was shown and didn't pair (rejected on either end,
+        // cancelled, cut off) ends the pairing: no retrying into a new code.
         confirming_ = nullptr;
         code_.clear();
+        pairUntil_ = 0;
+        pairTimer_.stop();
     }
     conns_.remove(c->id);
+    updateMedia();
     c->socket->disconnect(this);
     c->socket->abort();
     // Not from inside the socket's own signal.
     QTimer::singleShot(0, this, [c] { delete c; });
     updateStatus();
+}
+
+// The phone whose sound plays here, else any with a media session.
+void Daemon::updateMedia() {
+    Conn* best = nullptr;
+    for (Conn* c : std::as_const(conns_))
+        if (c->link->ready() && c->media.status != MediaStatus::None && (!best || (c->streaming && !best->streaming)))
+            best = c;
+    if (!best) {
+        mpris_->clear();
+        return;
+    }
+    mpris_->set(best->name, best->media, [this, id = best->id](MediaCommand cmd, std::uint32_t position) {
+        if (Conn* c = conns_.value(id); c && c->link->ready())
+            apply(c, c->link->message(Type::MediaCommand, packMediaCommand(cmd, position)));
+    });
 }
 
 // --- pairing -----------------------------------------------------------------

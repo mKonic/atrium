@@ -333,6 +333,23 @@ TEST(PhonelinkDatagram, AudioRoundTrip) {
     EXPECT_FALSE(unpackAudio(key, d.substr(0, d.size() - 1)));
 }
 
+TEST(PhonelinkMedia, RoundTrips) {
+    Media m{MediaStatus::Playing, CanPause | CanNext | CanSeek, 215000, 61000, "Title", "Artist", "Album", "app",
+            std::string("\xff\xd8jpeg", 6)};
+    const std::string b = packMedia(m);
+    // Golden; the module pins the same bytes.
+    EXPECT_EQ(hex(packMedia({MediaStatus::Paused, CanPlay, 1, 2, "t", "", "al", "x", "ART"})),
+              "0201000000010000000200017400000002616c000178415254");
+    EXPECT_EQ(unpackMedia(b), m);
+    EXPECT_FALSE(unpackMedia(b.substr(0, 12)));  // cut inside a string
+    EXPECT_FALSE(unpackMedia(std::string(1, '\x09') + b.substr(1)));
+    EXPECT_EQ(hex(packMediaCommand(MediaCommand::Seek, 70000)), "0700011170");
+    EXPECT_EQ(unpackMediaCommand(packMediaCommand(MediaCommand::Seek, 70000)),
+              (std::pair{MediaCommand::Seek, std::uint32_t(70000)}));
+    EXPECT_FALSE(unpackMediaCommand(std::string("\x08\0\0\0\0", 5)));
+    EXPECT_FALSE(unpackMediaCommand("\x01"));
+}
+
 TEST(PhonelinkDatagram, NackRoundTrip) {
     const std::string key(32, 'a');
     std::uint32_t counter = 0;
