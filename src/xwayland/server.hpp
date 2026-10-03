@@ -53,6 +53,7 @@ private:
     wl_listener client_destroy_{};
     // Kept across restarts.
     int display_ = -1;
+    bool held_ = false;  // the crash-recovery wrapper's display: its to unlink
     std::string display_name_;
     int x_fd_[2] = {-1, -1};
     wl_event_source* idle_ = nullptr;

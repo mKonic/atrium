@@ -162,7 +162,18 @@ Server::Server(wl_display* display) : wl_display_(display) {
         alog(Log::Error, "xwayland: no Xwayland at %s", ATRIUM_XWAYLAND_PATH);
         return;
     }
-    display_ = open_display_sockets(x_fd_);
+    // The wrapper's (wrapper.hpp): the same DISPLAY across compositor restarts.
+    if (const char* held = getenv("ATRIUM_X11_DISPLAY"), *fds = getenv("ATRIUM_X11_FDS"); held && fds &&
+        sscanf(fds, "%d,%d", &x_fd_[0], &x_fd_[1]) == 2) {
+        display_ = atoi(held);
+        held_ = true;
+        set_cloexec(x_fd_[0], true);
+        set_cloexec(x_fd_[1], true);
+    } else {
+        display_ = open_display_sockets(x_fd_);
+    }
+    unsetenv("ATRIUM_X11_DISPLAY");
+    unsetenv("ATRIUM_X11_FDS");
     if (display_ < 0)
         return;
     display_name_ = ":" + std::to_string(display_);
@@ -327,7 +338,8 @@ void Server::finish_display() {
         return;
     safe_close(x_fd_[0]);
     safe_close(x_fd_[1]);
-    unlink_display_sockets(display_);
+    if (!held_)
+        unlink_display_sockets(display_);
     display_ = -1;
     display_name_.clear();
 }

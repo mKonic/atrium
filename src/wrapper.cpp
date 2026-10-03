@@ -1,6 +1,9 @@
 #include "wrapper.hpp"
 
 #include "util/log.hpp"
+#ifdef ATRIUM_XWAYLAND
+#include "xwayland/server.hpp"
+#endif
 
 #include <cerrno>
 #include <chrono>
@@ -107,7 +110,13 @@ int run_wrapper(char** argv) {
         alog(Log::Error, "wrapper: no Wayland socket; running without crash recovery");
         return -1;
     }
-    alog(Log::Info, "wrapper: holding %s", s.name.c_str());
+    // Xwayland's display too: X apps started after a crash find the same DISPLAY.
+    int x_display = -1, x_fds[2] = {-1, -1};
+#ifdef ATRIUM_XWAYLAND
+    x_display = xwayland::open_display_sockets(x_fds);
+#endif
+    alog(Log::Info, "wrapper: holding %s%s%s", s.name.c_str(), x_display >= 0 ? " and :" : "",
+         x_display >= 0 ? std::to_string(x_display).c_str() : "");
     struct sigaction sa{};
     sa.sa_handler = forward;
     sigemptyset(&sa.sa_mask);
@@ -131,6 +140,11 @@ int run_wrapper(char** argv) {
             setenv("ATRIUM_WAYLAND_SOCKET_NAME", s.name.c_str(), 1);
             if (!crashes.empty())
                 setenv("ATRIUM_RESTARTED", "1", 1);
+            if (x_display >= 0) {
+                const std::string fds = std::to_string(dup(x_fds[0])) + "," + std::to_string(dup(x_fds[1]));
+                setenv("ATRIUM_X11_DISPLAY", std::to_string(x_display).c_str(), 1);
+                setenv("ATRIUM_X11_FDS", fds.c_str(), 1);
+            }
             // By its path, so it's "atrium" to ps and coredumps (an updated
             // binary is the one started).
             char self[4096];
@@ -159,6 +173,13 @@ int run_wrapper(char** argv) {
             break;
         }
         alog(Log::Error, "wrapper: the compositor crashed (signal %d); starting it again", WTERMSIG(st));
+    }
+    if (x_display >= 0) {
+        close(x_fds[0]);
+        close(x_fds[1]);
+#ifdef ATRIUM_XWAYLAND
+        xwayland::unlink_display_sockets(x_display);
+#endif
     }
     close(s.fd);
     unlink(s.path.c_str());
