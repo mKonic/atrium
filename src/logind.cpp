@@ -7,6 +7,7 @@
 #include <systemd/sd-bus.h>
 #endif
 
+#include <cstdlib>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -33,6 +34,7 @@ struct Logind::Impl {
     wl_event_source* source = nullptr;
     wl_event_source* sleep_wait = nullptr;
     int inhibitor = -1;  // a sleep delay: held, sleep waits for the lock
+    int power_key = -1;  // handle-power-key, blocked: the button is atrium's
     int sleep_tries = 0;
     bool sleeping = false;
 
@@ -46,6 +48,8 @@ struct Logind::Impl {
         for (sd_bus_slot* s : slots)
             sd_bus_slot_unref(s);
         release();
+        if (power_key >= 0)
+            close(power_key);
         if (bus)
             sd_bus_flush_close_unref(bus);
     }
@@ -112,21 +116,27 @@ struct Logind::Impl {
         wl_event_loop_add_idle(server.loop, [](void* d) { static_cast<Impl*>(d)->process(); }, this);
     }
 
-    void take() {
-        if (inhibitor >= 0 || !server.config.lock_before_sleep || !server.lock_screen)
-            return;
+    // The fd of a logind inhibitor, or -1.
+    int inhibit(const char* what, const char* why, const char* mode) {
         sd_bus_error err = SD_BUS_ERROR_NULL;
         sd_bus_message* reply = nullptr;
-        int fd = -1;
-        if (sd_bus_call_method(bus, kLogind, kManagerPath, kManager, "Inhibit", &err, &reply, "ssss", "sleep",
-                               "atrium", "Locking the screen first", "delay") >= 0 &&
+        int fd = -1, out = -1;
+        if (sd_bus_call_method(bus, kLogind, kManagerPath, kManager, "Inhibit", &err, &reply, "ssss", what, "atrium",
+                               why, mode) >= 0 &&
             sd_bus_message_read(reply, "h", &fd) >= 0 && fd >= 0)
-            inhibitor = fcntl(fd, F_DUPFD_CLOEXEC, 3);
+            out = fcntl(fd, F_DUPFD_CLOEXEC, 3);
         else
-            alog(Log::Error, "logind: no sleep inhibitor: %s", err.message ? err.message : "?");
+            alog(Log::Error, "logind: no %s inhibitor: %s", what, err.message ? err.message : "?");
         sd_bus_message_unref(reply);
         sd_bus_error_free(&err);
         process_soon();
+        return out;
+    }
+
+    void take() {
+        if (inhibitor >= 0 || !server.config.lock_before_sleep || !server.lock_screen)
+            return;
+        inhibitor = inhibit("sleep", "Locking the screen first", "delay");
     }
 
     void release() {
@@ -164,10 +174,24 @@ struct Logind::Impl {
 };
 
 Logind::Logind(Server& server) : impl_(std::make_unique<Impl>(server)) {
-    if (!impl_->open())
+    if (!impl_->open()) {
         impl_.reset();
-    else
-        impl_->take();
+        return;
+    }
+    impl_->take();
+    impl_->power_key = impl_->inhibit("handle-power-key", "Asks before shutting down", "block");
+}
+
+bool Logind::holds_power_key() const {
+    return impl_ && impl_->power_key >= 0;
+}
+
+void Logind::power_off() {
+    if (!impl_)
+        return;
+    sd_bus_call_method_async(impl_->bus, nullptr, kLogind, kManagerPath, kManager, "PowerOff", nullptr, nullptr, "b",
+                             0);
+    sd_bus_flush(impl_->bus);
 }
 
 Logind::~Logind() = default;
@@ -177,6 +201,40 @@ void Logind::set_locked_hint(bool locked) {
         return;
     sd_bus_call_method_async(impl_->bus, nullptr, kLogind, impl_->path.c_str(), kSession, "SetLockedHint", nullptr,
                              nullptr, "b", int(locked));
+    sd_bus_flush(impl_->bus);
+}
+
+void Logind::set_idle_hint(bool idle) {
+    if (!impl_)
+        return;
+    sd_bus_call_method_async(impl_->bus, nullptr, kLogind, impl_->path.c_str(), kSession, "SetIdleHint", nullptr,
+                             nullptr, "b", int(idle));
+    sd_bus_flush(impl_->bus);
+}
+
+bool Logind::idle_blocked() {
+    if (!impl_)
+        return false;
+    char* what = nullptr;
+    sd_bus_error err = SD_BUS_ERROR_NULL;
+    bool blocked = false;
+    if (sd_bus_get_property_string(impl_->bus, kLogind, kManagerPath, kManager, "BlockInhibited", &err, &what) >= 0 &&
+        what) {
+        // A colon-separated list: "idle" among "sleep:shutdown:idle:...".
+        const std::string list = std::string(":") + what + ":";
+        blocked = list.find(":idle:") != std::string::npos;
+    }
+    free(what);
+    sd_bus_error_free(&err);
+    impl_->process_soon();
+    return blocked;
+}
+
+void Logind::suspend() {
+    if (!impl_)
+        return;
+    sd_bus_call_method_async(impl_->bus, nullptr, kLogind, kManagerPath, kManager, "Suspend", nullptr, nullptr, "b",
+                             0);
     sd_bus_flush(impl_->bus);
 }
 
@@ -196,6 +254,11 @@ Logind::Logind(Server&) {}
 Logind::~Logind() = default;
 void Logind::set_locked_hint(bool) {}
 void Logind::reconfigure() {}
+void Logind::set_idle_hint(bool) {}
+bool Logind::idle_blocked() { return false; }
+void Logind::suspend() {}
+void Logind::power_off() {}
+bool Logind::holds_power_key() const { return false; }
 
 #endif
 

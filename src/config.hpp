@@ -171,7 +171,10 @@ struct Config {
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
-    bool lock_before_sleep = true;  // the lock screen is up before the machine sleeps
+    bool lock_before_sleep = true;
+    std::string power_button = "ask";  // ask, sleep, shut-down, nothing  // the lock screen is up before the machine sleeps
+    // After this long without input ("never", "5-minutes", "1-hour"...): idle.hpp.
+    std::string dim_after = "never", screen_off_after = "never", lock_after = "never", sleep_after = "never";
     bool allow_tearing = false;  // fullscreen games that ask may skip vblank
     int brightness = 100;           // external monitors (DDC/CI), restored at login
     std::string night_light = "off";  // off, sunset (to sunrise), custom (from/to), always

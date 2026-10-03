@@ -153,7 +153,7 @@ void Seat::swipe(input::Device&, libinput_event_gesture* e, libinput_event_type 
     swipe_.ours = false;
     if (cancelled)
         return;
-    server.wl->idle_notifier->activity();
+    server.note_activity();
     const double dx = swipe_.dx, dy = swipe_.dy;
     if (std::abs(dx) >= std::abs(dy) && std::abs(dx) >= kSwipeDistance) {
         // The content follows the fingers: a swipe left shows the space on the right.
@@ -195,7 +195,7 @@ void Seat::hold(input::Device&, libinput_event_gesture* e, libinput_event_type t
 void Seat::touch(input::Device& d, libinput_event_touch* e, libinput_event_type type) {
     wl::Seat& ws = *server.wl->seat;
     const uint32_t time = libinput_event_touch_get_time(e);
-    server.wl->idle_notifier->activity();
+    server.note_activity();
     switch (type) {
     case LIBINPUT_EVENT_TOUCH_DOWN: {
         const int32_t id = libinput_event_touch_get_seat_slot(e);
@@ -295,7 +295,7 @@ void Seat::tablet_tool(input::Device& d, libinput_event_tablet_tool* e, libinput
         tool = tablets.add_tool(info);
     }
     const uint32_t time = uint32_t(libinput_event_tablet_tool_get_time(e));
-    server.wl->idle_notifier->activity();
+    server.note_activity();
     double lx, ly;
     to_layout(d, libinput_event_tablet_tool_get_x_transformed(e, 1), libinput_event_tablet_tool_get_y_transformed(e, 1),
               &lx, &ly);
@@ -401,6 +401,10 @@ void Seat::tablet_pad(input::Device& d, libinput_event_tablet_pad* e, libinput_e
 }
 
 // ---- switches ------------------------------------------------------------------------------
+
+bool Seat::lid_keeps_off(const Output* o) const {
+    return lid_closed_ && internal_panel(o->screen->name);
+}
 
 // The lid closed with another screen on: the built-in one goes dark (and
 // comes back when the lid opens). Tablet mode is the shell's to show.

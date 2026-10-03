@@ -31,6 +31,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
 - The login screen remembers each person's desktop.
 - Unlock with a fingerprint, next to the password (fprintd).
+- Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
+- The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
 - Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone). The phone needs the atrium module (rooted, KernelSU).
 - The phone's music shows in atrium's media controls (play, pause, skip, seek, cover art), and the media keys drive it.
 

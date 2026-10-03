@@ -121,16 +121,18 @@ void Server::setup_outputs_protocols() {
         update_outputs();
     }));
     connections_.push_back(wl->output_power->request_mode.connect([this](wl::Output* g, bool on) {
-        auto* o = g ? static_cast<Output*>(g->data) : nullptr;
-        if (!o)
-            return;
-        backend::OutputState state;
-        state.set_enabled(on);
-        o->screen->commit_state(state);
-        o->asleep = !on;
-        wl->output_power->set_mode(g, on);
-        update_outputs();
+        if (auto* o = g ? static_cast<Output*>(g->data) : nullptr)
+            set_screen_power(o, on);
     }));
+}
+
+void Server::set_screen_power(Output* o, bool on) {
+    backend::OutputState state;
+    state.set_enabled(on);
+    o->screen->commit_state(state);
+    o->asleep = !on;
+    wl->output_power->set_mode(o->global.get(), on);
+    update_outputs();
 }
 
 std::string Server::display_id(const backend::Output* o) const {

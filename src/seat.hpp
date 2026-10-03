@@ -66,6 +66,9 @@ public:
     Seat(const Seat&) = delete;
     Seat& operator=(const Seat&) = delete;
 
+    // The lid is closed over this screen (it stays off whatever else wakes).
+    bool lid_keeps_off(const class Output* output) const;
+
     // The backend is being destroyed under us: stop listening to it.
     void backend_gone() {
         host_input_.clear();

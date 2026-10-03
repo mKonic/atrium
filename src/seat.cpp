@@ -1,4 +1,6 @@
 #include "seat.hpp"
+
+#include <linux/input-event-codes.h>
 #include "util/log.hpp"
 #include "cursor.hpp"
 #include "keyboard_conf.hpp"
@@ -604,7 +606,13 @@ void Seat::key(KeyboardGroup& g, uint32_t time_ms, uint32_t code, bool pressed) 
         g.syms[level] = g.keys.sym_at(code, xkb_level_index_t(level));
     g.mods = g.keys.mod_mask();
 
-    server.wl->idle_notifier->activity();
+    server.note_activity();
+
+    // The power button, atrium's to handle while it holds logind's say on it.
+    if (code == KEY_POWER && (consumed_[code] || (pressed && server.power_button()))) {
+        consumed_[code] = pressed;
+        return;
+    }
 
     const Keybind* bind = nullptr;
     if (pressed)
@@ -780,7 +788,7 @@ void Seat::motion(uint32_t time, double dx, double dy,
         }
 
         cursor->move(dx, dy);
-        server.wl->idle_notifier->activity();
+        server.note_activity();
         if (server.config.shake_to_find && mode == Mode::Normal && shake_.feed(time, cursor->x, cursor->y))
             shake_grow();
         if (mode == Mode::Move && grab_view_)
@@ -957,7 +965,7 @@ void Seat::button(const ButtonEvent& event) {
     const ButtonEvent* e = &event;
     if (e->pressed)
         server.keywords.reset();  // a click moves the caret
-    server.wl->idle_notifier->activity();
+    server.note_activity();
 
     // A drag and drop ends with the button: dropped where it is.
     if (wl::Drag* drag = server.wl->data->drag()) {
@@ -1178,7 +1186,7 @@ bool Seat::titlebar_button(const ButtonEvent& event, const Hit& hit) {
 
 void Seat::axis(const AxisEvent& event) {
     const AxisEvent* e = &event;
-    server.wl->idle_notifier->activity();
+    server.note_activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a
     // touchpad once per stretch of scrolling.

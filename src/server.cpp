@@ -43,6 +43,7 @@
 #include "child_watch.hpp"
 #include "lock_screen.hpp"
 #include "logind.hpp"
+#include "idle.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -699,6 +700,7 @@ void Server::teardown() {
     xwayland.reset();
 #endif
     shell.reset();  // stops it
+    idle.reset();
     logind.reset();
     lock_screen.reset();
     if (startup_timer_) {
@@ -837,6 +839,7 @@ void Server::run(const char* startup_cmd) {
         lock_screen = std::make_unique<LockScreen>(*this);
         if (!nested)
             logind = std::make_unique<Logind>(*this);
+        idle = std::make_unique<Idle>(*this);
     }
     shell->start();
     if (!config.greeter) {
@@ -1431,6 +1434,30 @@ void Server::check_idle_inhibitors() {
         }
     }
     wl->idle_notifier->set_inhibited(inhibited);
+    if (idle)
+        idle->inhibited_changed(inhibited);
+}
+
+// macOS's: it asks before shutting down; on the lock screen it sleeps.
+bool Server::power_button() {
+    if (!logind || !logind->holds_power_key())
+        return false;
+    const std::string& what = config.power_button;
+    if (what == "nothing")
+        return true;
+    if (what == "sleep" || (what == "ask" && locked))
+        logind->suspend();
+    else if (what == "shut-down")
+        logind->power_off();
+    else
+        run_action({.action = Action::Shell, .arg = "session:shutdown"});
+    return true;
+}
+
+void Server::note_activity() {
+    wl->idle_notifier->activity();
+    if (idle)
+        idle->activity();
 }
 
 // --- processes -------------------------------------------------------------------
@@ -1625,6 +1652,8 @@ void Server::setting_changed(const std::string& key) {
         apply_power_profile();
     if (key == "power.lock_before_sleep" && logind)
         logind->reconfigure();
+    if (key.starts_with("power.") && key.ends_with("_after") && idle)
+        idle->reconfigure();
     if (key.starts_with("displays.night_light") && night_light) {
         if (key == "displays.night_light_warmth")
             night_light->update();
