@@ -35,6 +35,10 @@
 // MEDIA_COMMAND (PC) u8 command (MediaCommand), u32 position ms (Seek's)
 // DISCONNECT   (phone) nothing: its user disconnected this PC, which stays
 //              away until asked back (by its own user, or by call=)
+// WANT         (PC, first once ready) u8 1 when its user asked for this
+//              connection (Connect, or the phone's call=), 0 when it came by
+//              itself: a phone not taking this PC automatically answers 0
+//              with DISCONNECT
 //
 // Both send HELLO. Then the PC goes on with what it knows:
 // - It has a key for the phone's id: AUTH. The phone answers AUTH and PROOF
@@ -107,6 +111,7 @@ enum class Type : std::uint8_t {
     Media = 19,
     MediaCommand = 20,
     Disconnect = 21,
+    Want = 22,
 };
 
 enum class AudioState : std::uint8_t { Stopped = 0, Streaming = 1, Failed = 2 };
