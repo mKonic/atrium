@@ -42,6 +42,7 @@
 #ifdef ATRIUM_XWAYLAND
 #include "child_watch.hpp"
 #include "lock_screen.hpp"
+#include "logind.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -698,6 +699,7 @@ void Server::teardown() {
     xwayland.reset();
 #endif
     shell.reset();  // stops it
+    logind.reset();
     lock_screen.reset();
     if (startup_timer_) {
         wl_event_source_remove(startup_timer_);
@@ -831,8 +833,11 @@ void Server::run(const char* startup_cmd) {
         die("couldn't start backend");
 
     shell = std::make_unique<ShellProcess>(*this);
-    if (!config.greeter)
+    if (!config.greeter) {
         lock_screen = std::make_unique<LockScreen>(*this);
+        if (!nested)
+            logind = std::make_unique<Logind>(*this);
+    }
     shell->start();
     if (!config.greeter) {
         start_clipboard_history();
@@ -1470,6 +1475,10 @@ void Server::run_action(const Keybind& b) {
         if (lock_screen)
             lock_screen->lock();
         break;
+    case Action::SwitchUser:
+        if (lock_screen)
+            lock_screen->switch_user();
+        break;
     case Action::SnapLeft: if (v) v->snap(EDGE_LEFT); break;
     case Action::SnapRight: if (v) v->snap(EDGE_RIGHT); break;
     case Action::Restore:
@@ -1614,6 +1623,8 @@ void Server::setting_changed(const std::string& key) {
     }
     if (key == "power.profile")
         apply_power_profile();
+    if (key == "power.lock_before_sleep" && logind)
+        logind->reconfigure();
     if (key.starts_with("displays.night_light") && night_light) {
         if (key == "displays.night_light_warmth")
             night_light->update();

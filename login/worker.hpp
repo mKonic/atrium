@@ -8,7 +8,7 @@
 //                    {"t":"answer","text"?}   {"t":"start","cmd","env","profile"}
 //                    {"t":"stop"}             (or closing the socket)
 //   worker → daemon  {"t":"ask","kind","text"}   {"t":"auth","ok","error"?}
-//                    {"t":"started","pid"}      {"t":"done"}
+//                    {"t":"started","pid","session"}   {"t":"done"}
 #include <nlohmann/json.hpp>
 
 #include <optional>

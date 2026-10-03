@@ -21,10 +21,15 @@ PanelWindow {
     property int chosen: Math.max(0, people.findIndex(p => p.userName === last.user))
     readonly property var person: people[chosen] ?? null
     readonly property var sessions: Session.waylandSessions()
-    property int sessionIndex: Math.max(0, sessions.findIndex(s => s.id === last.session))
+    // The desktop this person used last, unless another was picked here.
+    property string pickedSession: ""
+    readonly property string sessionId: pickedSession || Session.sessionFor(userName())
+    readonly property int sessionIndex: Math.max(0, sessions.findIndex(s => s.id === sessionId))
     readonly property var session: sessions[sessionIndex] ?? null
     readonly property string message: Greeter.message
     readonly property bool busy: Greeter.busy
+
+    onChosenChanged: pickedSession = ""
 
     function userName(): string {
         return person ? person.userName : nameField.text.trim();
@@ -197,7 +202,13 @@ PanelWindow {
                 enabled: !root.busy
                 focus: root.primary && (root.person !== null || nameField.text.length > 0)
                 onAccepted: root.submit()
-                Keys.onEscapePressed: text = ""
+                // Empty, beside a running session: back to it.
+                Keys.onEscapePressed: {
+                    if (text.length > 0)
+                        text = "";
+                    else
+                        Greeter.goBack();
+                }
                 // Left and right pick someone else, before anything is typed.
                 Keys.onLeftPressed: event => {
                     if (text.length > 0 || root.people.length < 2)
@@ -286,11 +297,11 @@ PanelWindow {
         spacing: 36
 
         Repeater {
-            model: [
+            model: (Greeter.canGoBack ? [{ icon: "arrow_back", text: "Back", action: "back" }] : []).concat([
                 { icon: "bedtime", text: "Sleep", action: "sleep" },
                 { icon: "restart_alt", text: "Restart", action: "restart" },
                 { icon: "power_settings_new", text: "Shut Down", action: "shutdown" }
-            ]
+            ])
 
             Column {
                 id: button
@@ -319,7 +330,7 @@ PanelWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Session.now(button.modelData.action)
+                        onClicked: button.modelData.action === "back" ? Greeter.goBack() : Session.now(button.modelData.action)
                     }
                 }
 
@@ -346,7 +357,7 @@ PanelWindow {
             anchors.fill: parent
             anchors.margins: -6
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.sessionIndex = (root.sessionIndex + 1) % root.sessions.length
+            onClicked: root.pickedSession = root.sessions[(root.sessionIndex + 1) % root.sessions.length].id
         }
     }
 }

@@ -7,12 +7,17 @@
 #include "shell_process.hpp"
 
 #include <algorithm>
+#include <cstring>
+#include <string>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <utility>
 
 namespace atrium {
 
@@ -60,6 +65,8 @@ LockScreen::~LockScreen() {
         kill(-pid_, SIGTERM);
     if (retry_)
         wl_event_source_remove(retry_);
+    if (switch_wait_)
+        wl_event_source_remove(switch_wait_);
     if (pipe_source_)
         wl_event_source_remove(pipe_source_);
     for (int fd : pipe_)
@@ -68,11 +75,88 @@ LockScreen::~LockScreen() {
 }
 
 void LockScreen::lock() {
+    // Ours is on its way out (unlocked from outside): a new one once it's gone.
+    if (pid_ > 0 && stopping_) {
+        relock_ = true;
+        return;
+    }
     // Locked by another locker that is still alive, or ours is coming up.
     if (pid_ > 0 || (server_.locked && server_.lock))
         return;
     failures_ = 0;
     start();
+}
+
+namespace {
+
+constexpr int kSwitchPoll = 50;     // ms between looks at the lock
+constexpr int kSwitchTries = 200;   // 10 s for the lock screen to take the lock
+
+// "switch-to-greeter" on atrium-login's control socket; its answer.
+bool ask_for_greeter() {
+    const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (fd < 0)
+        return false;
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, "/run/atrium-login/control.sock", sizeof addr.sun_path - 1);
+    timeval tv{2, 0};
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    std::string answer;
+    if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0 &&
+        send(fd, "switch-to-greeter\n", 18, MSG_NOSIGNAL) == 18) {
+        char buf[128];
+        const ssize_t n = recv(fd, buf, sizeof buf, 0);
+        if (n > 0)
+            answer.assign(buf, size_t(n));
+    }
+    close(fd);
+    if (answer.starts_with("ok"))
+        return true;
+    alog(Log::Error, "lock: atrium-login won't show a greeter: %s",
+         answer.empty() ? "it isn't running" : answer.c_str());
+    return false;
+}
+
+} // namespace
+
+void LockScreen::unlock() {
+    if (!server_.locked)
+        return;
+    if (server_.lock && pid_ <= 0)
+        return;
+    if (server_.lock)
+        server_.lock->unlock();
+    else
+        SessionLock::ended(server_, true);
+    if (pid_ > 0) {
+        stopping_ = true;
+        relock_ = false;
+        kill(-pid_, SIGTERM);  // a lock screen with nothing to lock
+    }
+}
+
+void LockScreen::switch_user() {
+    if (switch_tries_ > 0)
+        return;  // already on its way
+    if (!switch_wait_)
+        switch_wait_ = wl_event_loop_add_timer(server_.loop, [](void* data) {
+            auto* self = static_cast<LockScreen*>(data);
+            // Locked, and the lock screen up to say so.
+            if (self->server_.locked && self->server_.lock) {
+                self->switch_tries_ = 0;
+                ask_for_greeter();
+            } else if (++self->switch_tries_ >= kSwitchTries) {
+                self->switch_tries_ = 0;
+                alog(Log::Error, "lock: the session didn't lock; not switching user");
+            } else {
+                wl_event_source_timer_update(self->switch_wait_, kSwitchPoll);
+            }
+            return 0;
+        }, this);
+    lock();
+    switch_tries_ = 1;
+    wl_event_source_timer_update(switch_wait_, kSwitchPoll);
 }
 
 void LockScreen::start() {
@@ -119,9 +203,14 @@ void LockScreen::start() {
 
 void LockScreen::exited(int status) {
     pid_ = -1;
+    stopping_ = false;
     child_watch_set(watch_, -1);
     if (server_.shutting_down)
         return;
+    if (std::exchange(relock_, false)) {
+        lock();
+        return;
+    }
     // Unlocked: the password was right.
     if (!server_.locked)
         return;

@@ -126,11 +126,25 @@ QVariantMap Session::lastLogin() const {
     return {{"user", state.value("Last/User").toString()}, {"session", state.value("Last/Session").toString()}};
 }
 
+bool Session::canSwitchUser() const {
+    return QFileInfo::exists("/run/atrium-login/control.sock");
+}
+
+QString Session::sessionFor(const QString& user) const {
+    if (user.isEmpty())
+        return {};
+    QSettings state(login_state_file(), QSettings::IniFormat);
+    // Before there was one a person, only the last login's.
+    const QString fallback = state.value("Last/User").toString() == user ? state.value("Last/Session").toString() : QString();
+    return state.value("Sessions/" + user, fallback).toString();
+}
+
 void Session::rememberLogin(const QString& user, const QString& session) {
     QDir().mkpath(QFileInfo(login_state_file()).path());
     QSettings state(login_state_file(), QSettings::IniFormat);
     state.setValue("Last/User", user);
     state.setValue("Last/Session", session);
+    state.setValue("Sessions/" + user, session);
     state.sync();
 }
 

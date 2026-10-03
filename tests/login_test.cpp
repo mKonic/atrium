@@ -89,4 +89,20 @@ TEST(LoginSession, EnvironmentKeepsWhatTheGreeterMayNotSet) {
     EXPECT_FALSE(has("HOME=/tmp"));
 }
 
+TEST(LoginSeats, GreeterTakesTheConfiguredVtWhileItsFree) {
+    EXPECT_EQ(greeter_vt(1, {}, 2), 1);
+    EXPECT_EQ(greeter_vt(1, {2}, 3), 1);
+    // Someone's on it: the first free one, never a session's.
+    EXPECT_EQ(greeter_vt(1, {1}, 2), 2);
+    EXPECT_EQ(greeter_vt(1, {1, 2}, 2), 0);
+    EXPECT_EQ(greeter_vt(1, {1}, 0), 0);
+}
+
+TEST(LoginSeats, ParsesControlLines) {
+    EXPECT_EQ(parse_control("switch-to-greeter"), Control::SwitchToGreeter);
+    EXPECT_EQ(parse_control("switch-to-greeter\r\n"), Control::SwitchToGreeter);
+    EXPECT_FALSE(parse_control("switch-to-greeter now"));
+    EXPECT_FALSE(parse_control(""));
+}
+
 } // namespace

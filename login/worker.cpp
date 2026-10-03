@@ -245,7 +245,9 @@ void run_worker(int fd) {
         exec_session(copy, vt, cls, argv, env);
     }
     if (child > 0) {
-        send_message(fd, {{"t", "started"}, {"pid", child}});
+        // logind's id for it, for the daemon to switch back to it.
+        const char* id = pam_getenv(pamh, "XDG_SESSION_ID");
+        send_message(fd, {{"t", "started"}, {"pid", child}, {"session", id ? id : ""}});
         const int pidfd = int(syscall(SYS_pidfd_open, child, 0));
         bool stopping = false;
         int status = 0;

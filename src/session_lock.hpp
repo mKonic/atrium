@@ -21,6 +21,12 @@ public:
     wl::Lock* const lock;
     scene::Tree* tree = nullptr;
 
+    // Unlocked from outside the locker (logind's Unlock).
+    void unlock() { finish(true); }
+    // The session after a lock ends; with no lock (its locker died), also
+    // the way out of the locked state.
+    static void ended(Server& server, bool unlocked);
+
 private:
     void new_surface(wl::LockSurface* surface);
     void finish(bool unlocked);

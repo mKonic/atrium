@@ -27,6 +27,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - "Launch on …" another graphics card in an app's menu in the Dock and the launcher; apps that ask for the discrete GPU get it.
 - atrium-login, atrium's own login manager: the login screen, autologin, and back to the login screen after logging out (in place of SDDM or greetd).
 - A lock screen (Super+L), which stays locked if it crashes and comes back.
+- Lock Screen and Switch User in the system menu: someone else logs in while your session stays open (locked); logging in as you again goes straight back to it.
+- The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
+- The login screen remembers each person's desktop.
 - Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone). The phone needs the atrium module (rooted, KernelSU).
 
 ### Changed

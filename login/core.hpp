@@ -64,4 +64,16 @@ struct Account {
 std::vector<std::string> session_env(const std::vector<std::string>& pam_env, const Account& account,
                                      const std::vector<std::string>& requested);
 
+// --- several sessions, one VT each ---
+
+// The VT a new greeter takes: the configured one while no session is on it,
+// else `free_vt` (the kernel's first unused one), else none (0).
+int greeter_vt(int configured, const std::vector<int>& session_vts, int free_vt);
+
+// What a logged-in session may ask of the daemon on its control socket, a
+// line each: "switch-to-greeter" (a greeter on a VT of its own, the asking
+// session left running).
+enum class Control { SwitchToGreeter };
+std::optional<Control> parse_control(std::string_view line);
+
 } // namespace atrium::login

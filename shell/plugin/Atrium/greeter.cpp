@@ -10,7 +10,9 @@
 
 namespace atrium {
 
-Greeter::Greeter(QObject* parent) : QObject(parent), path_(qEnvironmentVariable("GREETD_SOCK")) {
+Greeter::Greeter(QObject* parent)
+    : QObject(parent), path_(qEnvironmentVariable("GREETD_SOCK")),
+      canGoBack_(qEnvironmentVariable("ATRIUM_GREETER_SWITCH") == QLatin1String("1")) {
     connect(&socket_, &QLocalSocket::readyRead, this, &Greeter::read);
     connect(&socket_, &QLocalSocket::errorOccurred, this, [this] {
         if (busy_)
@@ -23,6 +25,11 @@ void Greeter::clearMessage() {
         return;
     message_.clear();
     emit changed();
+}
+
+void Greeter::goBack() {
+    if (canGoBack_ && !busy_)
+        QCoreApplication::exit(0);
 }
 
 void Greeter::login(const QString& user, const QString& password, const QVariantMap& session) {

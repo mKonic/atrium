@@ -35,6 +35,10 @@ public:
     // in last and into which desktop (a session id), kept in the greeter
     // user's state directory.
     Q_INVOKABLE QVariantMap lastLogin() const;
+    // The desktop `user` logged into last ("" when they never have).
+    Q_INVOKABLE QString sessionFor(const QString& user) const;
+    // atrium-login runs (its control socket is there): Switch User works.
+    Q_INVOKABLE bool canSwitchUser() const;
     Q_INVOKABLE static void rememberLogin(const QString& user, const QString& session);
 
 signals:

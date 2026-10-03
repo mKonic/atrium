@@ -18,6 +18,8 @@ class Greeter : public QObject {
     Q_PROPERTY(bool available READ available CONSTANT)
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
     Q_PROPERTY(QString message READ message NOTIFY changed)  // what went wrong, or ""
+    // Up beside running sessions (Switch User): it can go back to them.
+    Q_PROPERTY(bool canGoBack READ canGoBack CONSTANT)
 
 public:
     explicit Greeter(QObject* parent = nullptr);
@@ -25,10 +27,14 @@ public:
     bool available() const { return !path_.isEmpty(); }
     bool busy() const { return busy_; }
     QString message() const { return message_; }
+    bool canGoBack() const { return canGoBack_; }
 
     // `session` is one of Session.waylandSessions(): { id, argv, ... }.
     Q_INVOKABLE void login(const QString& user, const QString& password, const QVariantMap& session);
     Q_INVOKABLE void clearMessage();
+    // Close without logging in: atrium-login returns to the session that
+    // asked for this greeter (its lock screen still up).
+    Q_INVOKABLE void goBack();
 
 signals:
     void changed();
@@ -49,6 +55,7 @@ private:
     Step step_ = Step::Idle;
     int cancels_ = 0;  // cancel_session replies still to come
     bool busy_ = false;
+    bool canGoBack_ = false;
     QString message_, user_, password_, sessionId_;
     QStringList argv_;
 };

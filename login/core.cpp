@@ -178,4 +178,20 @@ std::vector<std::string> session_env(const std::vector<std::string>& pam_env, co
     return out;
 }
 
+int greeter_vt(int configured, const std::vector<int>& session_vts, int free_vt) {
+    if (std::ranges::find(session_vts, configured) == session_vts.end())
+        return configured;
+    if (free_vt > 0 && std::ranges::find(session_vts, free_vt) == session_vts.end())
+        return free_vt;
+    return 0;
+}
+
+std::optional<Control> parse_control(std::string_view line) {
+    while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' '))
+        line.remove_suffix(1);
+    if (line == "switch-to-greeter")
+        return Control::SwitchToGreeter;
+    return std::nullopt;
+}
+
 } // namespace atrium::login

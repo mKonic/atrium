@@ -40,8 +40,12 @@ PanelWindow {
             { icon: "restart_alt", text: "Restart…", run: () => Session.request("restart") },
             { icon: "power_settings_new", text: "Shut Down…", run: () => Session.request("shutdown") },
             "-",
+            { icon: "lock", text: "Lock Screen", run: () => Atrium.action("lock") }
+        ].concat(Session.canSwitchUser() ? [
+            { icon: "switch_account", text: "Switch User…", run: () => Atrium.action("switch-user") }
+        ] : []).concat([
             { icon: "logout", text: `Log Out ${SystemInfo.user}…`, run: () => Session.request("logout") }
-        ]
+        ])
         onPicked: if (Panels.open === "system") Panels.open = ""
     }
 }

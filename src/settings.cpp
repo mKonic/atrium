@@ -91,6 +91,7 @@ constexpr ActionName kActions[] = {
     {Action::TogglePin, "toggle-pin"},
     {Action::Place, "place"},
     {Action::Lock, "lock"},
+    {Action::SwitchUser, "switch-user"},
 };
 
 } // namespace
@@ -579,6 +580,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("power.hidden_windows_keep_awake", "Power", "Hidden windows keep the screen on",
         "A video playing in a window you can't see still stops the screen from sleeping.",
         &Config::idle_inhibit_ignore_visibility, d));
+    s.push_back(boolean("power.lock_before_sleep", "Power", "Lock the screen before sleep",
+        "Waking up asks for your password.", &Config::lock_before_sleep, d));
 
     // Session
     s.push_back(text("session.shell", "Session", "Desktop shell",
