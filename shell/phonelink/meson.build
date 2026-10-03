@@ -1,5 +1,5 @@
 # atrium-phonelink: a phone's audio over the network (see daemon.hpp). The
-# phone's side is the atrium-clipsync-ksu module.
+# phone's side is the Atrium Link module (atrium-link).
 phonelink_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'DBus', 'Network'])
 phonelink_moc = qt6.compile_moc(headers: ['daemon.hpp', 'mpris.hpp', '../plugin/Atrium/compositor.hpp'], dependencies: phonelink_qt)
 

@@ -19,7 +19,7 @@ Column {
 
     Group {
         title: "Phone Audio"
-        subtitle: "Play your phone's sound here, over the network, instead of on the phone. Both need to be on the same network; the phone needs the atrium module."
+        subtitle: "Play your phone's sound here, over the network, instead of on the phone. Both need to be on the same network; the phone needs Atrium Link."
         headerActions: [
             Switch {
                 checked: root.on
@@ -135,12 +135,12 @@ Column {
     Group {
         visible: root.on && root.state !== ""
         title: "Nearby"
-        subtitle: "On the phone, open KernelSU › Modules › atrium clipboard sync and press Pair, then pair it here."
+        subtitle: "On the phone, open Atrium Link and press Pair, then pair it here."
 
         StyledText {
             visible: PhoneLink.nearby.length === 0
             padding: 10
-            text: "No other phone with the atrium module on this network."
+            text: "No other phone with Atrium Link on this network."
             color: Theme.palette.secondaryLabel
         }
 
@@ -168,12 +168,12 @@ Column {
     }
 
     Group {
-        title: "Phone Module"
+        title: "Atrium Link"
 
         DeviceRow {
             glyph: "download"
-            name: "atrium module for rooted phones"
-            note: "Install it with KernelSU, then pair."
+            name: "Atrium Link for Android"
+            note: "For rooted phones: install the module with KernelSU, then pair in the Atrium Link app."
 
             PillButton {
                 text: "Download"

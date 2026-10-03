@@ -1,6 +1,6 @@
 // atrium-phonelink: plays a paired phone's audio, sent over the network (see
 // daemon.hpp). atrium starts it with the session; it idles while phone.audio
-// is off. The phone's side is the atrium-clipsync-ksu module.
+// is off. The phone's side is the Atrium Link module (atrium-link).
 
 #include "daemon.hpp"
 

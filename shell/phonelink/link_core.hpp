@@ -1,7 +1,7 @@
 #pragma once
 // The link between atrium and a phone on the same network, without Qt: the
 // wire format, pairing, authentication and the audio datagrams. The phone's
-// module (atrium-clipsync-ksu, Link.java) implements the same thing in Java;
+// module (atrium-link, Link.java) implements the same thing in Java;
 // change one, change both. Both test suites pin the same golden bytes.
 //
 // The phone listens on TCP and announces itself as _atrium-link._tcp over
