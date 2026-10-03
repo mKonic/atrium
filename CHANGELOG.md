@@ -36,7 +36,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - When atrium crashes it starts again by itself, and Qt apps (System Settings, KDE apps) stay open through it.
 - Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
 - The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
-- Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone). The phone needs the atrium module (rooted, KernelSU).
+- Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone), paired from the phones nearby, with Connect, Disconnect, Forget and connect automatically like Bluetooth. The phone needs the atrium module (rooted, KernelSU).
 - The phone's music shows in atrium's media controls (play, pause, skip, seek, cover art), and the media keys drive it.
 
 ### Changed

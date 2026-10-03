@@ -1,5 +1,6 @@
 #include "phone_link.hpp"
 
+#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
@@ -14,6 +15,22 @@ namespace {
 const QString kService = QStringLiteral("org.atrium.PhoneLink");
 const QString kPath = QStringLiteral("/org/atrium/PhoneLink");
 const QString kInterface = QStringLiteral("org.atrium.PhoneLink1");
+
+// aa{sv} comes as a QDBusArgument.
+QVariantList maps(const QVariant& v) {
+    QVariantList out;
+    if (!v.canConvert<QDBusArgument>())
+        return out;
+    const QDBusArgument arg = v.value<QDBusArgument>();
+    arg.beginArray();
+    while (!arg.atEnd()) {
+        QVariantMap m;
+        arg >> m;
+        out.push_back(m);
+    }
+    arg.endArray();
+    return out;
+}
 
 } // namespace
 
@@ -44,12 +61,8 @@ void PhoneLink::load() {
         state_ = p.value(QStringLiteral("State")).toString();
         phone_ = p.value(QStringLiteral("Phone")).toString();
         code_ = p.value(QStringLiteral("Code")).toString();
-        error_ = p.value(QStringLiteral("Error")).toString();
-        const QStringList ids = p.value(QStringLiteral("PhoneIds")).toStringList();
-        const QStringList names = p.value(QStringLiteral("Phones")).toStringList();
-        phones_.clear();
-        for (qsizetype i = 0; i < ids.size() && i < names.size(); ++i)
-            phones_.push_back(QVariantMap{{QStringLiteral("id"), ids[i]}, {QStringLiteral("name"), names[i]}});
+        phones_ = maps(p.value(QStringLiteral("Phones")));
+        nearby_ = maps(p.value(QStringLiteral("Nearby")));
         emit changed();
     });
 }
@@ -58,15 +71,14 @@ void PhoneLink::clear() {
     state_.clear();
     phone_.clear();
     code_.clear();
-    error_.clear();
     phones_.clear();
+    nearby_.clear();
     emit changed();
 }
 
-void PhoneLink::call(const QString& method, const QString& arg) {
+void PhoneLink::call(const QString& method, const QVariantList& args) {
     QDBusMessage m = QDBusMessage::createMethodCall(kService, kPath, kInterface, method);
-    if (!arg.isNull())
-        m << arg;
+    m.setArguments(args);
     QDBusConnection::sessionBus().asyncCall(m);
 }
 

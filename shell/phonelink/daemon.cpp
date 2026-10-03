@@ -4,11 +4,13 @@
 #include "compositor.hpp"
 #include "crypto.hpp"
 
+#include <avahi-common/domain.h>
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
 
 #include <QDateTime>
 #include <QDBusConnection>
+#include <QDBusMetaType>
 #include <QDir>
 #include <QFile>
 #include <QLoggingCategory>
@@ -28,10 +30,7 @@ namespace atrium::phonelink {
 namespace {
 
 const QString kSetting = QStringLiteral("phone.audio");
-constexpr qint64 kPairWindowMs = 120'000;
 constexpr qint64 kRetryMs = 3000;
-// A phone that forgot this PC is asked again only this rarely.
-constexpr qint64 kForgottenRetryMs = 60'000;
 
 QString hex(std::string_view b) { return QString::fromLatin1(QByteArray(b.data(), qsizetype(b.size())).toHex()); }
 
@@ -47,11 +46,14 @@ qint64 now() { return QDateTime::currentMSecsSinceEpoch(); }
 
 Status::Status(Daemon& d) : QObject(&d), d_(d) {}
 
-void Status::Pair() { d_.pair(); }
+void Status::PairWith(const QString& id) { d_.pairWith(id.toLower()); }
 void Status::CancelPairing() { d_.cancelPairing(); }
 void Status::Accept() { d_.answer(true); }
 void Status::Reject() { d_.answer(false); }
-void Status::Forget(const QString& id) { d_.forget(id); }
+void Status::Connect(const QString& id) { d_.connectPhone(id.toLower()); }
+void Status::Disconnect(const QString& id) { d_.disconnectPhone(id.toLower()); }
+void Status::SetAutoConnect(const QString& id, bool on) { d_.setAutoConnect(id.toLower(), on); }
+void Status::Forget(const QString& id) { d_.forget(id.toLower()); }
 
 // --- Daemon ------------------------------------------------------------------
 
@@ -83,17 +85,13 @@ Daemon::Daemon(QObject* parent)
     const int ms = qEnvironmentVariableIntValue("ATRIUM_PHONELINK_TARGET_MS");
     target_ = std::uint32_t(kRate / 1000 * (ms > 0 ? ms : 40));
 
+    qDBusRegisterMetaType<QList<QVariantMap>>();
     QDBusConnection::sessionBus().registerObject(QStringLiteral("/org/atrium/PhoneLink"), status_,
                                                  QDBusConnection::ExportAllProperties | QDBusConnection::ExportAllSignals |
                                                      QDBusConnection::ExportAllSlots);
 
     retry_.setInterval(1000);
     connect(&retry_, &QTimer::timeout, this, &Daemon::reconcile);
-    pairTimer_.setSingleShot(true);
-    connect(&pairTimer_, &QTimer::timeout, this, [this] {
-        pairUntil_ = 0;
-        updateStatus();
-    });
 
     Compositor* compositor = Compositor::instance();
     // ATRIUM_PHONELINK=on: on whatever the setting says (a session that
@@ -123,17 +121,15 @@ void Daemon::setEnabled(bool on) {
         retry_.start();
     } else {
         retry_.stop();
-        pairUntil_ = 0;
+        pairingWith_.clear();
         // Closing gives the phone its sound back.
         for (Conn* c : conns_.values())
             drop(c, {});
+        forgetServices();
         if (avahi_) {
             avahi_client_free(avahi_);
             avahi_ = nullptr;
-            browser_ = nullptr;
         }
-        services_.clear();
-        serviceIds_.clear();
     }
     updateStatus();
 }
@@ -159,13 +155,21 @@ void Daemon::clientEvent(AvahiClient* c, AvahiClientState state, void* self) {
         if (!d->browser_)
             qCWarning(lc) << "avahi browse:" << avahi_strerror(avahi_client_errno(c));
     } else if (state == AVAHI_CLIENT_FAILURE || state == AVAHI_CLIENT_CONNECTING) {
-        // The daemon went away; its browser with it.
-        if (d->browser_)
-            avahi_service_browser_free(d->browser_);
-        d->browser_ = nullptr;
-        d->services_.clear();
-        d->serviceIds_.clear();
+        // The daemon went away; its browsers with it.
+        d->forgetServices();
+        d->updateStatus();
     }
+}
+
+void Daemon::forgetServices() {
+    for (Service& s : services_)
+        if (s.txt)
+            avahi_record_browser_free(s.txt);
+    if (browser_)
+        avahi_service_browser_free(browser_);
+    browser_ = nullptr;
+    services_.clear();
+    serviceIds_.clear();
 }
 
 void Daemon::browseEvent(AvahiServiceBrowser* b, AvahiIfIndex iface, AvahiProtocol proto, AvahiBrowserEvent event,
@@ -179,7 +183,9 @@ void Daemon::browseEvent(AvahiServiceBrowser* b, AvahiIfIndex iface, AvahiProtoc
         const QString id = d->serviceIds_.take(QString::fromUtf8(name));
         if (!id.isEmpty()) {
             qCInfo(lc) << "gone:" << name;
-            d->services_.remove(id);
+            const Service s = d->services_.take(id);
+            if (s.txt)
+                avahi_record_browser_free(s.txt);
             d->updateStatus();
         }
     }
@@ -202,15 +208,83 @@ void Daemon::resolveEvent(AvahiServiceResolver* r, AvahiIfIndex iface, AvahiProt
         avahi_address_snprint(text, sizeof text, a);
         if (id.size() == int(kIdSize * 2)) {
             Service s{QString::fromUtf8(name), QHostAddress(QString::fromLatin1(text)), port, iface, proto, domain};
-            qCInfo(lc) << "found:" << s.name << "at" << s.address.toString() << port;
+            readTxt(s, txt);
+            auto old = d->services_.constFind(id);
+            const bool moved = old == d->services_.cend() || old->address != s.address || old->port != s.port;
+            if (old != d->services_.cend()) {
+                s.txt = old->txt;
+            } else {
+                // The TXT record changes as the phone's user pairs or calls.
+                char full[AVAHI_DOMAIN_NAME_MAX];
+                const std::string type(kServiceType);
+                if (avahi_service_name_join(full, sizeof full, name, type.c_str(), domain) == 0)
+                    s.txt = avahi_record_browser_new(avahi_service_resolver_get_client(r), iface, proto, full,
+                                                     AVAHI_DNS_CLASS_IN, AVAHI_DNS_TYPE_TXT, AvahiLookupFlags(0),
+                                                     &Daemon::txtEvent, d);
+            }
+            if (moved)
+                qCInfo(lc) << "found:" << s.name << "at" << s.address.toString() << port;
             d->services_[id] = s;
             d->serviceIds_[s.name] = id;
-            d->nextTry_.remove(id);  // new: try now
+            if (moved)
+                d->nextTry_.remove(id);  // somewhere new: try now
             d->reconcile();
             d->updateStatus();
         }
     }
     avahi_service_resolver_free(r);
+}
+
+void Daemon::txtEvent(AvahiRecordBrowser*, AvahiIfIndex, AvahiProtocol, AvahiBrowserEvent event, const char* name,
+                      uint16_t, uint16_t, const void* rdata, size_t size, AvahiLookupResultFlags, void* self) {
+    // The new record comes before the old one's removal: only NEW counts.
+    if (event != AVAHI_BROWSER_NEW)
+        return;
+    auto* d = static_cast<Daemon*>(self);
+    // "<instance>.<type>.<domain>": the instance is the browsed name.
+    QString id;
+    for (auto it = d->serviceIds_.cbegin(); it != d->serviceIds_.cend(); ++it) {
+        char full[AVAHI_DOMAIN_NAME_MAX];
+        const std::string type(kServiceType);
+        const auto s = d->services_.constFind(it.value());
+        if (s != d->services_.cend() &&
+            avahi_service_name_join(full, sizeof full, it.key().toUtf8().constData(), type.c_str(),
+                                    s->domain.constData()) == 0 &&
+            avahi_domain_equal(full, name))
+            id = it.value();
+    }
+    auto it = d->services_.find(id);
+    AvahiStringList* txt = nullptr;
+    if (it == d->services_.end() || avahi_string_list_parse(rdata, size, &txt) < 0)
+        return;
+    const QString call = it->call;
+    readTxt(*it, txt);
+    avahi_string_list_free(txt);
+    // The phone's user asked this PC to connect.
+    if (it->call != call && it->call == hex(d->me_.id) && d->paired_.contains(id)) {
+        qCInfo(lc) << it->name << "asks to connect";
+        d->manual_[id] = true;
+        d->forgotBy_.remove(id);
+        d->nextTry_.remove(id);
+        d->reconcile();
+    }
+    d->updateStatus();
+}
+
+void Daemon::readTxt(Service& s, AvahiStringList* txt) {
+    const auto value = [txt](const char* key) {
+        QString v;
+        if (AvahiStringList* l = avahi_string_list_find(txt, key)) {
+            char *k = nullptr, *value = nullptr;
+            if (avahi_string_list_get_pair(l, &k, &value, nullptr) == 0 && value)
+                v = QString::fromLatin1(value).toLower();
+            avahi_free(k);
+            avahi_free(value);
+        }
+        return v;
+    };
+    s.pairing = value("pair") == QLatin1String("1");
+    s.call = value("call");
 }
 
 void Daemon::resolve(const Service& s) {
@@ -224,7 +298,11 @@ void Daemon::resolve(const Service& s) {
 
 // --- connections -------------------------------------------------------------
 
-bool Daemon::pairingOpen() const { return pairUntil_ > now(); }
+// A paired phone this PC should be connected to whenever it's around.
+bool Daemon::wants(const QString& id) const {
+    auto it = paired_.constFind(id);
+    return it != paired_.cend() && !forgotBy_.contains(id) && manual_.value(id, it->autoConnect);
+}
 
 void Daemon::reconcile() {
     if (!enabled_)
@@ -233,7 +311,7 @@ void Daemon::reconcile() {
         const QString& id = it.key();
         if (conns_.contains(id) || nextTry_.value(id) > now())
             continue;
-        if (paired_.contains(id) || pairingOpen())
+        if (wants(id) || id == pairingWith_)
             connectTo(id, it.value());
     }
 }
@@ -253,7 +331,7 @@ void Daemon::connectTo(const QString& id, const Service& s) {
             return it->key;
         },
         [](std::size_t n) { return random(n); });
-    c->link->setPairing(!paired_.contains(id) && pairingOpen());
+    c->link->setPairing(id == pairingWith_);
     conns_[id] = c;
     QTcpSocket* sock = c->socket.get();
     connect(sock, &QTcpSocket::connected, this, [this, c, sock] {
@@ -298,16 +376,15 @@ void Daemon::apply(Conn* c, std::vector<Event> events) {
             savePaired();
             confirming_ = nullptr;
             code_.clear();
-            pairUntil_ = 0;
-            pairTimer_.stop();
-            forgottenBy_.clear();
+            pairingWith_.clear();
+            pairFailed_.clear();
+            manual_.remove(id);
+            forgotBy_.remove(id);
             qCInfo(lc) << "paired with" << paired_[id].name;
             break;
         }
         case Event::Kind::Ready: {
             c->name = QString::fromStdString(c->link->peer().name);
-            if (c->name == forgottenBy_)
-                forgottenBy_.clear();
             auto it = paired_.find(c->id);
             if (it != paired_.end() && it->name != c->name) {
                 it->name = c->name;
@@ -350,6 +427,13 @@ void Daemon::apply(Conn* c, std::vector<Event> events) {
 }
 
 void Daemon::message(Conn* c, Type type, const std::string& body) {
+    if (type == Type::Disconnect) {
+        // Its user's: not back until asked.
+        qCInfo(lc) << c->name << "disconnected this PC";
+        manual_[c->id] = false;
+        drop(c, {});
+        return;
+    }
     if (type == Type::Media) {
         if (std::optional<Media> m = unpackMedia(body)) {
             c->media = std::move(*m);
@@ -371,24 +455,28 @@ void Daemon::drop(Conn* c, const QString& why) {
         return;
     c->closed = true;
     if (why == QLatin1String(kNotKnown.data(), qsizetype(kNotKnown.size()))) {
-        // Forgotten on the phone: it stays forgotten until paired again.
+        // Forgotten on the phone: no use trying again until paired again.
         qCInfo(lc) << c->name << "forgot this PC";
-        forgottenBy_ = c->name;
-        nextTry_[c->id] = now() + kForgottenRetryMs;
+        forgotBy_.insert(c->id);
     } else if (!why.isEmpty()) {
         qCInfo(lc) << "closed" << c->name << ":" << why;
-        lastError_ = why;
         // The phone may have moved (a restart, a new address).
         if (auto it = services_.constFind(c->id); it != services_.cend() && enabled_)
             resolve(*it);
     }
+    if (c->id == pairingWith_) {
+        // Paired or not, this try is over: no retrying into a new code.
+        pairingWith_.clear();
+        if (!paired_.contains(c->id) && !why.isEmpty()) {
+            pairFailed_ = c->id;
+            pairError_ = why == QLatin1String("the phone isn't pairing now")
+                             ? QStringLiteral("Press Pair on the phone first, then here")
+                             : why;
+        }
+    }
     if (confirming_ == c) {
-        // A code that was shown and didn't pair (rejected on either end,
-        // cancelled, cut off) ends the pairing: no retrying into a new code.
         confirming_ = nullptr;
         code_.clear();
-        pairUntil_ = 0;
-        pairTimer_.stop();
     }
     conns_.remove(c->id);
     updateMedia();
@@ -417,25 +505,24 @@ void Daemon::updateMedia() {
 
 // --- pairing -----------------------------------------------------------------
 
-void Daemon::pair() {
-    if (!enabled_)
+void Daemon::pairWith(const QString& id) {
+    if (!enabled_ || paired_.contains(id) || !services_.contains(id) || confirming_)
         return;
-    pairUntil_ = now() + kPairWindowMs;
-    pairTimer_.start(int(kPairWindowMs));
-    lastError_.clear();
-    // Phones that refused before may be pairing now.
-    for (auto it = services_.cbegin(); it != services_.cend(); ++it)
-        if (!paired_.contains(it.key()))
-            nextTry_.remove(it.key());
+    if (Conn* c = conns_.value(pairingWith_))
+        drop(c, {});
+    pairingWith_ = id;
+    pairFailed_.clear();
+    nextTry_.remove(id);
     reconcile();
     updateStatus();
 }
 
 void Daemon::cancelPairing() {
-    pairUntil_ = 0;
-    pairTimer_.stop();
     if (confirming_)
         apply(confirming_, confirming_->link->reject());
+    if (Conn* c = conns_.value(pairingWith_))
+        drop(c, {});
+    pairingWith_.clear();
     updateStatus();
 }
 
@@ -446,17 +533,54 @@ void Daemon::answer(bool accept) {
     apply(c, accept ? c->link->accept() : c->link->reject());
 }
 
+void Daemon::connectPhone(const QString& id) {
+    if (!paired_.contains(id))
+        return;
+    manual_[id] = true;
+    forgotBy_.remove(id);
+    nextTry_.remove(id);
+    reconcile();
+    updateStatus();
+}
+
+void Daemon::disconnectPhone(const QString& id) {
+    if (!paired_.contains(id))
+        return;
+    manual_[id] = false;
+    if (Conn* c = conns_.value(id))
+        drop(c, {});  // the phone takes its sound back
+    updateStatus();
+}
+
+void Daemon::setAutoConnect(const QString& id, bool on) {
+    auto it = paired_.find(id);
+    if (it == paired_.end())
+        return;
+    it->autoConnect = on;
+    // The switch is the newest word: it ends a Connect or Disconnect.
+    // Turning it off leaves a connection there as it is.
+    if (on || !conns_.contains(id))
+        manual_.remove(id);
+    else
+        manual_[id] = true;
+    savePaired();
+    reconcile();
+    updateStatus();
+}
+
 void Daemon::forget(const QString& id) {
-    if (!paired_.remove(id.toLower()))
+    if (!paired_.remove(id))
         return;
     savePaired();
-    forgottenBy_.clear();
-    if (Conn* c = conns_.value(id.toLower()))
+    manual_.remove(id);
+    forgotBy_.remove(id);
+    if (Conn* c = conns_.value(id))
         drop(c, {});
     updateStatus();
 }
 
-// One line each: hex id, hex key, name.
+// One line each: hex id, hex key, name. The ones that don't connect by
+// themselves are listed in `manual`, one id a line.
 void Daemon::loadPaired() {
     QFile f(dir_ + "/paired");
     if (!f.open(QIODevice::ReadOnly))
@@ -467,70 +591,77 @@ void Daemon::loadPaired() {
         if (p.size() >= 2 && p[0].size() == int(kIdSize * 2))
             paired_[p[0]] = {unhex(p[1]), line.section(' ', 2)};
     }
+    QFile m(dir_ + "/manual");
+    if (m.open(QIODevice::ReadOnly))
+        while (!m.atEnd())
+            if (auto it = paired_.find(QString::fromLatin1(m.readLine()).trimmed()); it != paired_.end())
+                it->autoConnect = false;
 }
 
 void Daemon::savePaired() {
-    QSaveFile f(dir_ + "/paired");
-    if (!f.open(QIODevice::WriteOnly))
+    QSaveFile f(dir_ + "/paired"), m(dir_ + "/manual");
+    if (!f.open(QIODevice::WriteOnly) || !m.open(QIODevice::WriteOnly))
         return;
     f.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
-    for (auto it = paired_.cbegin(); it != paired_.cend(); ++it)
+    for (auto it = paired_.cbegin(); it != paired_.cend(); ++it) {
         f.write((it.key() + ' ' + hex(it->key) + ' ' + it->name + '\n').toUtf8());
+        if (!it->autoConnect)
+            m.write((it.key() + '\n').toLatin1());
+    }
     f.commit();
+    m.commit();
 }
 
 // --- status ------------------------------------------------------------------
 
 void Daemon::updateStatus() {
-    QString state, phone, error;
-    Conn* best = nullptr;
-    for (Conn* c : std::as_const(conns_))
-        if (!best || (c->streaming && !best->streaming) || (c->link->ready() && !best->link->ready()))
-            best = c;
-    if (!enabled_) {
-        state = QStringLiteral("off");
-    } else if (confirming_) {
-        state = QStringLiteral("confirm");
-        phone = confirming_->name;
-    } else if (pairingOpen()) {
-        // Before a connected phone's state: Pair was pressed for another.
-        state = QStringLiteral("pairing");
-        error = lastError_;
-    } else if (best && best->link->ready()) {
-        phone = best->name;
-        if (!best->failed.isEmpty()) {
-            state = QStringLiteral("failed");
-            error = best->failed;
-        } else {
-            state = best->streaming ? QStringLiteral("streaming") : QStringLiteral("connected");
-        }
-    } else if (best) {
-        state = QStringLiteral("connecting");
-        phone = best->name;
-    } else if (!forgottenBy_.isEmpty()) {
-        state = QStringLiteral("failed");
-        phone = forgottenBy_;
-        error = QStringLiteral("it forgot this PC. Forget it here too, then pair again");
-    } else {
-        state = QStringLiteral("searching");
-        error = lastError_;
-    }
-    QStringList phones, ids;
+    QList<QVariantMap> phones, nearby;
     for (auto it = paired_.cbegin(); it != paired_.cend(); ++it) {
-        ids << it.key();
-        phones << it->name;
+        const QString& id = it.key();
+        QString state, error;
+        if (Conn* c = conns_.value(id); c && c->link->ready()) {
+            error = c->failed;
+            state = !c->failed.isEmpty() ? QStringLiteral("failed")
+                    : c->streaming       ? QStringLiteral("streaming")
+                                         : QStringLiteral("connected");
+        } else if (conns_.contains(id)) {
+            state = QStringLiteral("connecting");
+        } else if (forgotBy_.contains(id)) {
+            state = QStringLiteral("forgot");
+        } else if (!services_.contains(id)) {
+            state = QStringLiteral("away");
+        } else if (!wants(id)) {
+            state = QStringLiteral("disconnected");
+        } else {
+            state = QStringLiteral("connecting");  // between tries
+        }
+        phones.push_back({{QStringLiteral("id"), id},
+                          {QStringLiteral("name"), it->name},
+                          {QStringLiteral("auto"), it->autoConnect},
+                          {QStringLiteral("state"), state},
+                          {QStringLiteral("error"), error}});
     }
-    Status& s = *status_;
+    for (auto it = services_.cbegin(); it != services_.cend(); ++it) {
+        const QString& id = it.key();
+        if (paired_.contains(id))
+            continue;
+        nearby.push_back({{QStringLiteral("id"), id},
+                          {QStringLiteral("name"), it->name},
+                          {QStringLiteral("ready"), it->pairing},
+                          {QStringLiteral("state"), id == pairingWith_ ? QStringLiteral("pairing") : QString()},
+                          {QStringLiteral("error"), id == pairFailed_ ? pairError_ : QString()}});
+    }
+    const QString state = !enabled_ ? QStringLiteral("off") : confirming_ ? QStringLiteral("confirm") : QStringLiteral("on");
+    const QString phone = confirming_ ? confirming_->name : QString();
     const QString code = confirming_ ? code_ : QString();
-    if (s.state == state && s.phone == phone && s.code == code && s.error == error && s.phones == phones &&
-        s.phoneIds == ids)
+    Status& s = *status_;
+    if (s.state == state && s.phone == phone && s.code == code && s.phones == phones && s.nearby == nearby)
         return;
     s.state = state;
     s.phone = phone;
     s.code = code;
-    s.error = error;
     s.phones = phones;
-    s.phoneIds = ids;
+    s.nearby = nearby;
     emit s.StatusChanged();
 }
 
