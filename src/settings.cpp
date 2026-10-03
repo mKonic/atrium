@@ -669,7 +669,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("session.clipboard_history", "Session", "Clipboard history",
         "Remember what you copy (text and pictures) so Super+V can bring it back.",
         &Config::clipboard_history, d));
-    s.back().needs = "cliphist";
     // Read by atrium-clipsync; the Bluetooth page draws it.
     s.push_back(make("bluetooth.phone_clipboard", SettingType::Bool, "Bluetooth", "Phone clipboard",
         "Share the clipboard with a paired phone while it is connected: the last few copies when it connects, then "

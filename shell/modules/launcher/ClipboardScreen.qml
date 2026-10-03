@@ -207,7 +207,7 @@ Item {
 
             StyledText {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: !Clipboard.available ? "Clipboard history needs cliphist"
+                text: !Clipboard.available ? "Clipboard history isn't kept here"
                     : screen.launcherModel.query.length > 0 ? "No Results" : "Nothing copied yet"
                 color: Theme.palette.secondaryLabel
             }

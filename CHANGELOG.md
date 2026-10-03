@@ -38,6 +38,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
 - Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone), paired from the phones nearby, with Connect, Disconnect, Forget and connect automatically like Bluetooth. The phone needs the atrium module (rooted, KernelSU).
 - The phone's music shows in atrium's media controls (play, pause, skip, seek, cover art), and the media keys drive it.
+- What you copied stays on the clipboard after the app it came from quits.
 
 ### Changed
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.
@@ -47,6 +48,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - atrium speaks Wayland to apps itself, and runs X11 windows with its own window manager.
 - atrium drives the displays itself, on drivers with or without atomic modesetting.
 - atrium no longer needs wlroots, and runs nested only inside a Wayland session (not X11).
+- Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, and never records a password manager's copies.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

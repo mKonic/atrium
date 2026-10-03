@@ -218,7 +218,7 @@ void DesktopFiles::trash(const QString& path) {
 }
 
 void DesktopFiles::copyPath(const QString& path) {
-    run("wl-copy", {"--", path});
+    Compositor::instance()->clipboard("set", {{"text", path}});
 }
 
 bool DesktopFiles::moveIn(const QList<QUrl>& urls) {

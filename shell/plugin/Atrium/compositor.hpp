@@ -87,6 +87,12 @@ public:
     // atrium couldn't make one), for an app to raise its own window with.
     void activationToken(std::function<void(const QString&)> done);
     Q_INVOKABLE void closeWindow(int id);
+    // Clipboard history, kept by atrium: the entries, newest first ({id,
+    // mime, time, size, preview, file}); not ok when atrium keeps none.
+    void clipboardHistory(std::function<void(bool ok, const QVariantList&)> done);
+    // "copy"/"delete" ({entry: id}), "clear", "set" ({text} or {mime, path}: onto
+    // the clipboard), "add" (the same, into the list only).
+    void clipboard(const QString& command, const QVariantMap& fields = {}, std::function<void(bool ok)> done = {});
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.
     Q_INVOKABLE void insertText(const QString& text);
@@ -145,6 +151,7 @@ signals:
     void shortcutsChanged();
     void devicesChanged();
     void recordsChanged(const QString& table);
+    void clipboardChanged();
     // A registry change was refused: why, for the Settings app to say.
     void refused(const QString& why);
     void connectedChanged();

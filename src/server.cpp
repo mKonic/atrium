@@ -46,6 +46,7 @@
 #include "idle.hpp"
 #include "logout.hpp"
 #include "wrapper.hpp"
+#include "clipboard_history.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -609,22 +610,23 @@ void Server::allow_root_x11(const char* display) {
 }
 #endif
 
-// The watchers that feed cliphist, the store the Super+V picker reads. A
-// nested atrium leaves them to the host session (they would record into
-// the same history) unless pointed at another one.
+// Clipboard history (clipboard_history.hpp), in the state directory. A
+// nested atrium leaves it to the host session's (both would write the same
+// store) unless given its own (ATRIUM_CLIPBOARD_DIR).
 void Server::start_clipboard_history() {
     namespace fs = std::filesystem;
-    if (!config.clipboard_history)
-        return;
-    if (nested && !std::getenv("CLIPHIST_DB_PATH"))
-        return;
-    for (const char* tool : {"/usr/bin/cliphist", "/usr/bin/wl-paste"})
-        if (!fs::exists(tool)) {
-            alog(Log::Info, "clipboard history: %s not installed", tool);
-            return;
-        }
-    spawn("exec wl-paste --type text --watch cliphist store");
-    spawn("exec wl-paste --type image --watch cliphist store");
+    fs::path dir;
+    if (const char* own = std::getenv("ATRIUM_CLIPBOARD_DIR"); own && *own)
+        dir = own;
+    else if (!nested) {
+        const char* state = std::getenv("XDG_STATE_HOME");
+        const char* home = std::getenv("HOME");
+        dir = state && *state ? fs::path(state) / "atrium/clipboard"
+            : home            ? fs::path(home) / ".local/state/atrium/clipboard"
+                              : fs::path();
+    }
+    if (!dir.empty())
+        clipboard_history = std::make_unique<ClipboardHistory>(*this, dir);
 }
 
 // atrium-clipsync, the clipboard shared with a phone: always started, it
@@ -703,6 +705,7 @@ void Server::teardown() {
 #endif
     shell.reset();  // stops it
     logout.reset();
+    clipboard_history.reset();
     idle.reset();
     logind.reset();
     lock_screen.reset();

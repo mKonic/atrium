@@ -1,10 +1,11 @@
 #include "markup.hpp"
 
+#include "compositor.hpp"
+
 #include <QFile>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QProcess>
 
 #include <algorithm>
 #include <cmath>
@@ -203,10 +204,7 @@ bool MarkupCanvas::save() {
         return true;
     if (!rendered().save(source_, "PNG"))
         return false;
-    auto* copy = new QProcess;
-    QObject::connect(copy, &QProcess::finished, copy, &QObject::deleteLater);
-    copy->setStandardInputFile(source_);
-    copy->start("wl-copy", {"--type", "image/png"});
+    Compositor::instance()->clipboard("set", {{"mime", "image/png"}, {"path", source_}});
     return true;
 }
 

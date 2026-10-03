@@ -169,7 +169,7 @@ struct Config {
     std::string terminal;  // empty: kDefaultTerminal
     bool snippet_expansion = false;  // typed snippet keywords become the snippet
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
-    bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
+    bool clipboard_history = true;  // keep copies for the Super+V picker (clipboard_history.hpp)
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
     bool lock_before_sleep = true;
     bool reopen_windows = true;  // apps open at logout open again at the next login

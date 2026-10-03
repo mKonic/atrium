@@ -1,11 +1,12 @@
 #include "history.hpp"
 
+#include "clipboard_core.hpp"
+#include "compositor.hpp"
+
 #include <QDir>
 #include <QFile>
-#include <QProcess>
-#include <QRegularExpression>
 #include <QSaveFile>
-#include <QStandardPaths>
+#include <QTemporaryFile>
 
 namespace atrium::clipsync {
 
@@ -15,8 +16,15 @@ namespace {
 // it one of its places.
 constexpr std::size_t kKept = 2 * kHistory;
 
-// "[[ binary data 16 KiB png 804x147 ]]"
-const QRegularExpression kBinary(R"(^\[\[ binary data \S+ \S+ (\w+) \d+x\d+ \]\]$)");
+// Where atrium keeps the clipboard's history (Server::start_clipboard_history).
+QString historyDir() {
+    if (const QString own = qEnvironmentVariable("ATRIUM_CLIPBOARD_DIR"); !own.isEmpty())
+        return own;
+    QString state = qEnvironmentVariable("XDG_STATE_HOME");
+    if (state.isEmpty())
+        state = QDir::homePath() + "/.local/state";
+    return state + "/atrium/clipboard";
+}
 
 } // namespace
 
@@ -26,7 +34,6 @@ RecentClips::RecentClips() {
         state = QDir::homePath() + "/.local/state";
     QDir().mkpath(state + "/atrium/clipsync");
     file_ = state + "/atrium/clipsync/history";
-    cliphist_ = QStandardPaths::findExecutable("cliphist");
 
     QFile f(file_);
     if (!f.open(QIODevice::ReadOnly)) {
@@ -41,27 +48,21 @@ RecentClips::RecentClips() {
 }
 
 void RecentClips::seed() {
-    if (cliphist_.isEmpty())
+    const QString dir = historyDir();
+    QFile index(dir + "/index.json");
+    if (!index.open(QIODevice::ReadOnly))
         return;
-    QProcess list;
-    list.start(cliphist_, {"list"});
-    if (!list.waitForFinished(5000))
-        return;
-    for (const QByteArray& line : list.readAllStandardOutput().split('\n')) {
+    const ClipboardIndex entries = ClipboardIndex::from_json(index.readAll().toStdString());
+    for (const ClipboardEntry& e : entries.entries()) {
         if (clips_.size() == std::size_t(kHistory))
             break;
-        const qsizetype tab = line.indexOf('\t');
-        if (tab <= 0)
+        if (e.size == 0 || e.size > kMaxClip)
             continue;
-        QProcess decode;
-        decode.start(cliphist_, {"decode", QString::fromUtf8(line.left(tab))});
-        if (!decode.waitForFinished(5000))
+        QFile f(dir + "/" + QString::fromStdString(e.id));
+        if (!f.open(QIODevice::ReadOnly))
             continue;
-        const QByteArray data = decode.readAllStandardOutput();
-        if (data.isEmpty() || std::size_t(data.size()) > kMaxClip)
-            continue;
-        const auto m = kBinary.match(QString::fromUtf8(line.mid(tab + 1)));
-        const std::string mime = m.hasMatch() ? "image/" + m.captured(1).toStdString() : std::string(kText);
+        const QByteArray data = f.readAll();
+        const std::string mime = clipboard_is_text(e.mime) ? std::string(kText) : e.mime;
         clips_.push_back({mime, data.toStdString(), 0});
     }
     save();
@@ -100,14 +101,21 @@ void RecentClips::older(const Clip& c) {
     save();
 }
 
-void RecentClips::toCliphist(const Clip& c) const {
-    if (cliphist_.isEmpty())
+void RecentClips::toHistory(const Clip& c) const {
+    Compositor* atrium = Compositor::instance();
+    if (clipboard_is_text(c.mime)) {
+        atrium->clipboard("add", {{"text", QString::fromUtf8(c.data.data(), qsizetype(c.data.size()))}});
         return;
-    auto* p = new QProcess;
-    QObject::connect(p, &QProcess::finished, p, &QObject::deleteLater);
-    p->start(cliphist_, {"store"});
-    p->write(c.data.data(), qint64(c.data.size()));
-    p->closeWriteChannel();
+    }
+    // A picture goes by a file, gone once atrium has read it.
+    auto* file = new QTemporaryFile(QDir::tempPath() + "/atrium-clipsync-XXXXXX");
+    if (!file->open() || file->write(c.data.data(), qint64(c.data.size())) != qint64(c.data.size())) {
+        delete file;
+        return;
+    }
+    file->close();
+    atrium->clipboard("add", {{"mime", QString::fromStdString(c.mime)}, {"path", file->fileName()}},
+                      [file](bool) { delete file; });
 }
 
 void RecentClips::save() const {

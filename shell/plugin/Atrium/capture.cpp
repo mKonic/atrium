@@ -239,10 +239,7 @@ void Capture::deliver(const QImage& image) {
     if (forPortal())
         return answer(QUrl::fromLocalFile(file).toString(QUrl::FullyEncoded));
     // And on the clipboard, as a picture.
-    auto* copy = new QProcess(this);
-    connect(copy, &QProcess::finished, copy, &QObject::deleteLater);
-    copy->setStandardInputFile(file);
-    copy->start("wl-copy", {"--type", "image/png"});
+    Compositor::instance()->clipboard("set", {{"mime", "image/png"}, {"path", file}});
     emit taken();
 }
 

@@ -22,7 +22,7 @@ depends=(
   # what the shell fronts
   pipewire-pulse wireplumber polkit networkmanager bluez bluez-libs power-profiles-daemon udisks2
   xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
-  cliphist wl-clipboard grim
+  grim
   # the shell's icons and monospace font (Rubik comes with it)
   ttf-material-symbols-variable ttf-cascadia-code-nerd
   # apps looking at home

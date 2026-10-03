@@ -16,7 +16,7 @@ Item {
     readonly property var value: Atrium.settings[key] ?? setting.default
     readonly property bool changed: JSON.stringify(value) !== JSON.stringify(setting.default)
     readonly property bool wide: type === "list"
-    // Why it can't work here ("cliphist isn't installed."), if it can't.
+    // Why it can't work here ("ddcutil isn't installed."), if it can't.
     readonly property string missing: Requirements.missing[setting.needs ?? ""] ?? ""
 
     function set(v: var): void {

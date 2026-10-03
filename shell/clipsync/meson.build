@@ -13,7 +13,7 @@ clipsync_protocol = [
 ]
 
 executable('atrium-clipsync', 'main.cpp', 'sync.cpp', 'rfcomm.cpp', 'history.cpp', 'wayland_clipboard.cpp', 'clipsync_core.cpp',
-  '../plugin/Atrium/bluetooth.cpp', '../plugin/Atrium/compositor.cpp', '../../src/accent.cpp', '../../src/palette.cpp', '../../src/records.cpp',
+  '../plugin/Atrium/bluetooth.cpp', '../plugin/Atrium/compositor.cpp', '../../src/accent.cpp', '../../src/palette.cpp', '../../src/records.cpp', '../../src/clipboard_core.cpp',
   clipsync_moc, clipsync_protocol,
   dependencies: [clipsync_qt, atrium_runtime_dep, json, dependency('wayland-client'), dependency('bluez')],
   include_directories: include_directories('../plugin/Atrium', '../../src', '../..'),

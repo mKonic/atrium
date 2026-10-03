@@ -287,7 +287,7 @@ void Sync::setClipboard(Link* from, const Clip& c) {
 
 void Sync::addHistory(const Clip& c) {
     history_->older(c);
-    history_->toCliphist(c);
+    history_->toHistory(c);
     addedHistory_ = true;
 }
 
@@ -295,7 +295,7 @@ void Sync::merged(bool tookClipboard) {
     // What the phone added went on top of the picker's list; the clipboard
     // is still the newest.
     if (std::exchange(addedHistory_, false) && !tookClipboard && !history_->recent().empty())
-        history_->toCliphist(history_->recent().front());
+        history_->toHistory(history_->recent().front());
     updateStatus();
 }
 
