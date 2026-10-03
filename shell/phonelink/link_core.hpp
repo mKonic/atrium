@@ -6,7 +6,8 @@
 //
 // The phone listens on TCP and announces itself as _atrium-link._tcp over
 // mDNS; atrium connects. Its TXT record: id=<hex id>, pair=1 while its user
-// is pairing, call=<hex PC id> while its user asks that PC to connect.
+// is pairing, call=<hex PC id>-<n> while its user asks that PC to connect
+// (n new each time).
 // Every message is a frame:
 //   u32 length (big endian, of what follows), u8 type, body
 // Once both ends are authenticated, a frame is
