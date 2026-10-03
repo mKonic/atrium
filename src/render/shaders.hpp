@@ -59,6 +59,7 @@ enum class Shader {
     Glass,
     GlassField,
     Motion,      // a moving window's layer, blurred along its way
+    Material,    // blur through frost or haze (appearance.blur_material)
     Output,      // the HDR/colour output pass
     Screen,      // the user's screen shader over the whole output
     Count,

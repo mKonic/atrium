@@ -141,6 +141,7 @@ ShaderLibrary::ShaderLibrary(bool external_textures) : dir_(shader_directory()),
     set(Shader::Glass, "glass.frag", {""});
     set(Shader::GlassField, "glass_field.frag", {""});
     set(Shader::Motion, "motion.frag", {""});
+    set(Shader::Material, "material.frag", {""});
     set(Shader::Output, "output.frag", {""});
     set(Shader::Screen, nullptr, {});
 

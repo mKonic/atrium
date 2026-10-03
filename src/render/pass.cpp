@@ -670,10 +670,47 @@ void RenderPass::add_blur(const BlurDraw& d) {
         t.corners = d.corners;
         t.round_box = d.box;
         t.cut = d.cut;
-        add_texture(t);
+        if (blur_params->material)
+            add_material(t, blur_params->material);
+        else
+            add_texture(t);
     }
     if (stencil)
         stencil_end();
+}
+
+void RenderPass::add_material(const TextureDraw& d, int material) {
+    Program& p = r_.shaders().get(Shader::Material);
+    if (!p.id) {
+        add_texture(d);
+        return;
+    }
+    pixman_region32_t clip;
+    if (d.clip) {
+        pixman_region32_init(&clip);
+        pixman_region32_copy(&clip, d.clip);
+    } else {
+        clip = region_of(d.dst);
+    }
+    cut_from_clip(&clip, d.cut);
+    glEnable(GL_BLEND);
+    glUseProgram(p.id);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(d.tex.target, d.tex.tex);
+    filter(d.tex.target, SCALE_FILTER_BILINEAR);
+    p.set("tex", 0);
+    p.set("alpha", d.alpha);
+    p.set("material", material);
+    const FBox& rb = d.round_box.empty() ? d.dst : d.round_box;
+    p.set("size", float(rb.width), float(rb.height));
+    p.set("position", float(rb.x), float(rb.y));
+    set_corners(p, "radius_top_left", "radius_top_right", "radius_bottom_left", "radius_bottom_right", d.corners);
+    set_cut(p, d.cut);
+    set_proj(p, d.dst);
+    set_tex_matrix(p, d.transform, FBox{0, 0, 1, 1});
+    draw(p, d.dst, &clip);
+    pixman_region32_fini(&clip);
+    glBindTexture(d.tex.target, 0);
 }
 
 void RenderPass::add_motion_blur(const TexRef& layer, const FBox& box, double back_x, double back_y, int samples,

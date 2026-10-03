@@ -104,6 +104,7 @@ struct Config {
     std::string screen_shader;           // appearance.screen_shader: a GLSL file over every screen
     bool liquid_glass = false;           // appearance.liquid_glass: glass panels
     bool glass_tinted = false;           // appearance.glass_style: clear (false) or tinted
+    int blur_material = 0;               // appearance.blur_material: plain (0), frost (1), haze (2)
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;
     std::vector<std::string> blurred_panels{"atrium-*"};  // layer namespaces frosted behind (with transparency)

@@ -77,6 +77,7 @@ struct BlurParams {
     float brightness = 0.9f;
     float contrast = 0.9f;
     float saturation = 1.1f;
+    int material = 0;  // drawn plain (0), through frost (1), with haze (2)
 
     bool enabled() const { return passes > 0 && radius > 0; }
     bool has_effects() const { return noise > 0 || brightness != 1 || contrast != 1 || saturation != 1; }
@@ -200,6 +201,8 @@ private:
     ~RenderPass();
     friend class Renderer;
 
+    // `d` (the blurred backdrop) through a material (BlurParams::material).
+    void add_material(const TextureDraw& d, int material);
     Framebuffer* blur_into(const BlurParams& params, Framebuffer* source, const pixman_region32_t* region);
     void render_glass(Framebuffer* blurred, const BlurDraw& d);
     Framebuffer* glass_field(const BlurDraw& d, const TexRef* mask, const float mask_norm[4], float sigma);

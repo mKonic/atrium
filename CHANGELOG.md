@@ -14,6 +14,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Added
 - Wobbly windows, off by default (Windows: Wobbly windows).
 - Motion blur for moving windows, off by default (Windows: Motion blur).
+- Blur materials: frost (crackled ice) and haze (a pearly sheen), in Appearance: Blur material.
 - The Genie minimize effect, as on a Mac (Windows: Minimize effect; Scale is the other).
 - A color profile (ICC) per display, in Displays.
 - An HDR calibration per display, in Displays: an ICC profile with an MHC2 tag, as Windows HDR Calibration and DisplayCAL make, with its measured peak brightness.

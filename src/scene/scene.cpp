@@ -1241,7 +1241,8 @@ Scene* Scene::create() { return new Scene(); }
 
 void Scene::set_blur(const render::BlurParams& p) {
     if (p.passes == blur_.passes && p.radius == blur_.radius && p.noise == blur_.noise &&
-        p.brightness == blur_.brightness && p.contrast == blur_.contrast && p.saturation == blur_.saturation)
+        p.brightness == blur_.brightness && p.contrast == blur_.contrast && p.saturation == blur_.saturation &&
+        p.material == blur_.material)
         return;
     blur_ = p;
     SceneImpl::mark_cache_dirty(this);

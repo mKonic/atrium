@@ -423,6 +423,13 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));
+    s.push_back(choice("appearance.blur_material", "Appearance", "Blur material",
+        "What the blur behind windows looks like: plain, through frosted ice, or with a pearly haze.",
+        {"plain", "frost", "haze"}, d.blur_material == 1 ? "frost" : d.blur_material == 2 ? "haze" : "plain",
+        [](Config& c, const json& v) {
+            const std::string m = v.get<std::string>();
+            c.blur_material = m == "frost" ? 1 : m == "haze" ? 2 : 0;
+        }));
     s.push_back(make("appearance.blurred_panels", SettingType::StringList, "Appearance", "Frosted panels",
         "Panels (by layer namespace; a trailing * matches the rest) that get blur behind them when transparency is on.",
         json(d.blurred_panels), [](Config& c, const json& v) { c.blurred_panels = v.get<std::vector<std::string>>(); }));

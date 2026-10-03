@@ -1802,6 +1802,7 @@ void Server::apply_blur_settings() {
     p.brightness *= config.blur_brightness;
     p.contrast *= config.blur_contrast;
     p.saturation *= config.blur_saturation;
+    p.material = config.blur_material;
     scene->set_blur(p);
     background_blur->set_enabled(config.blur);
     for (View* v : views)
