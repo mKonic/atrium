@@ -20,7 +20,7 @@ void cups(const QString& program, const QStringList& args, std::function<void(co
     else if (program == "lpstat" && args == QStringList{"-d"})
         done("system default destination: Labels\n");
     else if (program == "lpoptions" && args.value(1) == "Office")
-        done("PageSize/Media Size: Letter *A4 A5\nDuplex/2-Sided Printing: *None DuplexNoTumble DuplexTumble\n"
+        done("PageSize/Media Size: Custom.WIDTHxHEIGHT Letter *A4 A5\nDuplex/2-Sided Printing: *None DuplexNoTumble DuplexTumble\n"
              "ColorModel/Color Mode: Gray *RGB\n");
     else if (program == "lpoptions")
         done("PageSize/Media Size: *4x6\n");
@@ -42,6 +42,7 @@ TEST(PrintPrompt, StartsWhereTheAppLeftOff) {
     EXPECT_EQ(p.printer(), "Office");
     EXPECT_EQ(p.copies(), 3);
     EXPECT_EQ(p.paper(), "A5");
+    EXPECT_EQ(p.papers().size(), 3);  // not the custom size's placeholder
     EXPECT_EQ(p.duplex(), "DuplexNoTumble");
     EXPECT_EQ(p.color(), "Gray");
     EXPECT_TRUE(p.landscape());
