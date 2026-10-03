@@ -109,7 +109,7 @@ LockWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: password.text.length === 0
-                    text: "Enter Password"
+                    text: Unlock.fingerprint ? "Fingerprint or Password" : "Enter Password"
                     color: Theme.dark.secondaryLabel
                 }
             }
