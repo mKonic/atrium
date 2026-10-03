@@ -1,6 +1,7 @@
 // The seat's side of libinput: devices coming and going, and what they send
 // (keys, pointer, gestures, touch, tablets, switches).
 #include "seat.hpp"
+#include "geometry.hpp"
 
 #include "ipc.hpp"
 #include "layer_surface.hpp"
@@ -19,10 +20,6 @@ namespace {
 // How far three fingers travel (libinput's pointer units) to switch a space
 // or open the overview.
 constexpr double kSwipeDistance = 120;
-
-bool internal_panel(const std::string& name) {
-    return name.starts_with("eDP") || name.starts_with("LVDS") || name.starts_with("DSI");
-}
 
 } // namespace
 
@@ -112,7 +109,7 @@ void Seat::to_layout(const input::Device& d, double x, double y, double* lx, dou
     // A touchscreen udev doesn't name, with several screens: the built-in one.
     if (name.empty() && server.outputs.size() > 1 && (d.touch || d.tablet))
         for (const Output* o : server.outputs)
-            if (o->enabled() && internal_panel(o->screen->name))
+            if (o->enabled() && geometry::internal_panel(o->screen->name))
                 b = o->box;
     *lx = b.x + x * b.width;
     *ly = b.y + y * b.height;
@@ -412,7 +409,7 @@ void Seat::tablet_pad(input::Device& d, libinput_event_tablet_pad* e, libinput_e
 // ---- switches ------------------------------------------------------------------------------
 
 bool Seat::lid_keeps_off(const Output* o) const {
-    return lid_closed_ && internal_panel(o->screen->name);
+    return lid_closed_ && geometry::internal_panel(o->screen->name);
 }
 
 // The lid closed with another screen on: the built-in one goes dark (and
@@ -427,10 +424,10 @@ void Seat::toggle(input::Device&, libinput_switch which, bool on) {
         return;
     lid_closed_ = on;
     const bool other = std::ranges::any_of(server.outputs, [](const Output* o) {
-        return o->enabled() && !internal_panel(o->screen->name);
+        return o->enabled() && !geometry::internal_panel(o->screen->name);
     });
     for (Output* o : server.outputs) {
-        if (!internal_panel(o->screen->name) || (on && !other))
+        if (!geometry::internal_panel(o->screen->name) || (on && !other))
             continue;
         backend::OutputState state;
         state.set_enabled(!on);

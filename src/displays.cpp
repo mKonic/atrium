@@ -2,6 +2,7 @@
 #include "util/log.hpp"
 #include "registry.hpp"
 #include "server.hpp"
+#include "geometry.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -174,8 +175,24 @@ void Server::remember_displays() {
 
 void Server::restore_display(Output* output) {
     const auto d = registry->display(display_id(output->screen));
-    if (!d)
+    if (!d) {
+        // Never set up here (or the greeter, which keeps nothing): a scale
+        // for its density, so a HiDPI screen isn't tiny.
+        backend::Output* w = output->screen;
+        const backend::Mode* m = w->current_mode;
+        const double scale = m ? geometry::default_scale(m->width, m->height, w->phys_width, w->phys_height,
+                                                         geometry::internal_panel(w->name))
+                               : 1.0;
+        if (scale != 1.0 && std::abs(scale - w->scale) > 0.01) {
+            backend::OutputState state;
+            state.set_scale(float(scale));
+            if (w->commit_state(state)) {
+                alog(Log::Info, "displays: %s starts at scale %.2f", w->name.c_str(), scale);
+                update_outputs();
+            }
+        }
         return;
+    }
     output->adaptive_sync = d->adaptive_sync;
     output->hdr = d->hdr;
     output->sdr_brightness = d->sdr_brightness;

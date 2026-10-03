@@ -96,4 +96,14 @@ int neighbor(const Box& from, std::span<const Box> others, uint32_t direction);
 std::vector<Box> overview_layout(std::span<const Box> windows, const Box& area,
                                      int gap, int label);
 
+// A laptop's own panel, by its connector's name (eDP-1, LVDS-1, DSI-1).
+bool internal_panel(std::string_view connector);
+
+// The scale a screen starts at when nothing was set for it: the quarter
+// step that brings it nearest a comfortable density (a laptop's panel is
+// seen closer, so denser: 135 dpi; a monitor 110), from 1 to 3. 1 when its
+// size is unknown or not believable (a projector, an EDID with only its
+// aspect ratio).
+double default_scale(int width_px, int height_px, int width_mm, int height_mm, bool built_in);
+
 } // namespace atrium::geometry
