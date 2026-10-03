@@ -494,7 +494,7 @@ FloatingWindow {
             }
 
             StyledText {
-                visible: editor.text.length === 0
+                visible: editor.text.length === 0 && editor.preeditText.length === 0
                 text: "Start writing. # for a heading, - for a list, **bold**, *italic*, `code`."
                 font.pointSize: Theme.font.size.larger
                 color: Theme.palette.tertiaryLabel
