@@ -37,6 +37,7 @@ optdepends=(
   'ddcutil: brightness of external monitors'
   'cups: printing'
   'fcitx5: input methods'
+  'noto-fonts-cjk: Chinese, Japanese and Korean text (and input method candidates)'
   'xdg-terminal-exec: terminal apps started in your terminal'
   'packagekit: software updates in Settings'
   'pacman-contrib: counting available updates (checkupdates)'
