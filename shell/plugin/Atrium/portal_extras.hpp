@@ -1,7 +1,7 @@
 #pragma once
 // The rest of what xdg-desktop-portal-gtk did for atrium: GNOME's settings
-// (from GSettings) for the Settings portal, Email, Account, DynamicLauncher
-// and Notification (on atrium's notification server). Lockdown needs no
+// (from GSettings) for the Settings portal, Email, Account, DynamicLauncher,
+// AppChooser and Notification (on atrium's notification server). Lockdown needs no
 // backend: without one the portal locks nothing down.
 
 #include "portal.hpp"
@@ -9,6 +9,8 @@
 #include <QDBusAbstractAdaptor>
 #include <QDBusVariant>
 #include <QHash>
+#include <QPointer>
+#include <QProcess>
 #include <QStringList>
 #include <QVariantMap>
 
@@ -72,6 +74,26 @@ public slots:
                         const QString& name, const QDBusVariant& icon, const QVariantMap& options,
                         QVariantMap& results);
     uint RequestInstallToken(const QString& app, const QVariantMap& options);
+};
+
+// AppChooser: "Open With", the apps the portal offers for a file or link
+// (openwith.qml); a new list reaches it while it's open.
+class AppChooserAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.AppChooser")
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit AppChooserAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {}
+    uint version() const { return 2; }
+
+public slots:
+    uint ChooseApplication(const QDBusObjectPath& handle, const QString& app, const QString& window,
+                           const QStringList& choices, const QVariantMap& options, QVariantMap& results);
+    void UpdateChoices(const QDBusObjectPath& handle, const QStringList& choices);
+
+private:
+    QHash<QString, QPointer<QProcess>> open_;  // the dialogs, by request
 };
 
 // Notification: a sandboxed app's notifications, shown by atrium's

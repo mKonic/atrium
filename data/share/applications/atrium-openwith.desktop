@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Open With
+Comment=Choose the app that opens a file or link
+Icon=document-open
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-openwith
+OnlyShowIn=atrium;

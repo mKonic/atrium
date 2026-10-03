@@ -14,6 +14,7 @@
 #include <QDBusUnixFileDescriptor>
 #include <QHash>
 #include <QObject>
+#include <QProcess>
 #include <QVariantMap>
 
 #include <functional>
@@ -65,9 +66,10 @@ QString shellProgram();
 using Answer = std::function<QVariantList(const std::optional<QByteArray>& out)>;
 // Runs a shell file (a dialog) for the call being answered, with `input` on
 // its stdin and `mode` in ATRIUM_CAPTURE_MODE, until it exits or the portal
-// closes the request.
-void askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
-              Answer answer);
+// closes the request. `keepInput`: stdin stays open for more (the process
+// returned, while it runs).
+QProcess* askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
+                   Answer answer, bool keepInput = false);
 
 // A session the portal made for an app: its object, closed by either side.
 class PortalSession : public QObject {

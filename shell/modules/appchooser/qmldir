@@ -1,0 +1,2 @@
+module shell.modules.appchooser
+AppChooserWindow 1.0 AppChooserWindow.qml
