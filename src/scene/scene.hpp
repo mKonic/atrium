@@ -475,6 +475,10 @@ public:
     bool needs_frame() const;
     bool commit(const StateOptions* options = nullptr);
     bool build_state(backend::OutputState* state, const StateOptions* options = nullptr);
+    // The last build_state's compositing, done when the GPU is: a sync_file
+    // (the caller's to close), -1 if it didn't composite (scanned a buffer
+    // out, or nothing changed) or can't tell.
+    int render_fence() const;
     void send_frame_done(const timespec* now);
     void for_each_buffer(const std::function<void(Buffer*, int lx, int ly)>& fn);
 
@@ -530,6 +534,7 @@ private:
     bool color_changed_ = false;
     Timeline* in_timeline_ = nullptr;
     uint64_t in_point_ = 0;
+    uint64_t composited_point_ = 0;  // in_point_ of the last build_state that composited
     Timeline* out_timeline_ = nullptr;
     uint64_t out_point_ = 0;
     struct Highlight {

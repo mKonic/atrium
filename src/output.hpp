@@ -1,5 +1,6 @@
 #pragma once
 #include "edid.hpp"
+#include "frame_timing.hpp"
 #include "listener.hpp"
 #include "scene/scene.hpp"
 #include "wl/desktop.hpp"
@@ -87,6 +88,9 @@ public:
     Space* active = nullptr;  // the numbered space shown here
     wl::Workspaces::Group* workspace_group = nullptr;
 
+    int64_t render_estimate_ns() const { return journal_.estimate(); }
+    int64_t render_margin_ns() const { return margin_ns_; }
+
 private:
     void frame();
     void render();
@@ -96,13 +100,20 @@ private:
     // Render scheduling (see frame()).
     static constexpr int64_t kMinDelayNs = 300'000;     // not worth a timer below this
     static constexpr int64_t kMinMarginNs = 1'000'000;
-    static constexpr int64_t kMarginStepNs = 250'000;
-    static constexpr int kOnTimeToNarrow = 600;          // frames on time before the margin narrows
+    static constexpr int64_t kMinSlackNs = 500'000;
+    static constexpr int64_t kSlackStepNs = 250'000;
+    static constexpr int kOnTimeToNarrow = 600;          // frames on time before the slack narrows
     int render_timer_fd_ = -1;
     wl_event_source* render_timer_ = nullptr;
     int64_t vblank_ns_ = 0;               // the last vblank a frame was shown at
     int64_t period_ns_ = 0;               // between vblanks
     int64_t margin_ns_ = 2'000'000;       // before the vblank compositing starts
+    // The margin is what compositing takes, measured, plus a slack learnt
+    // from frames that missed their vblank anyway.
+    frame_timing::RenderJournal journal_;
+    int64_t slack_ns_ = 1'500'000;
+    int render_fence_ = -1;               // the last composited frame's, until it's shown
+    int64_t render_started_ns_ = 0;
     int64_t aimed_ns_ = 0;                // the vblank the waiting frame is aimed at
     int on_time_ = 0;
 

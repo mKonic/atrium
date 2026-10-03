@@ -76,6 +76,7 @@ if gtest.found()
 
   unit = executable('unit',
     'geometry_test.cpp',
+    'frame_timing_test.cpp',
     'config_test.cpp',
     'settings_test.cpp',
     'rules_test.cpp',

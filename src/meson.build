@@ -37,6 +37,7 @@ atrium_sources = files(
   'capture.cpp',
   'cursor.cpp',
   'config.cpp',
+  'frame_timing.cpp',
   'geometry.cpp',
   'input_method.cpp',
   'input/keys.cpp',

@@ -106,6 +106,8 @@ Output::~Output() {
         wl_event_source_remove(render_timer_);
     if (render_timer_fd_ >= 0)
         close(render_timer_fd_);
+    if (render_fence_ >= 0)
+        close(render_fence_);
     request_state_.disconnect();
     destroy_.disconnect();
 
@@ -335,31 +337,40 @@ void Output::frame() {
     render();
 }
 
-// Where the screen's vblanks fall, and whether the last frame made the one
-// it was aimed at: a miss widens the margin at once, a long run of hits
-// narrows it again.
+// Where the screen's vblanks fall, what the last frame took to composite,
+// and whether it made the vblank it was aimed at: a miss widens the slack
+// at once, a long run of hits narrows it again.
 void Output::presented(int64_t when, int refresh) {
     if (refresh > 0)
         period_ns_ = refresh;
     else if (screen->refresh > 0)
         period_ns_ = 1000000000000LL / screen->refresh;
     vblank_ns_ = when;
-    if (!aimed_ns_ || !period_ns_)
-        return;
-    if (when > aimed_ns_ + period_ns_ / 2) {
-        margin_ns_ = std::min(margin_ns_ + kMarginStepNs * 4, period_ns_ / 2);
-        on_time_ = 0;
-    } else if (++on_time_ >= kOnTimeToNarrow) {
-        margin_ns_ = std::max(margin_ns_ - kMarginStepNs, kMinMarginNs);
-        on_time_ = 0;
+    if (render_fence_ >= 0) {
+        // (A fence stamped before the frame began isn't the GPU's: ignored.)
+        if (const int64_t done = frame_timing::fence_signalled_ns(render_fence_))
+            journal_.add(done - render_started_ns_);
+        close(render_fence_);
+        render_fence_ = -1;
+    }
+    if (aimed_ns_ && period_ns_) {
+        if (when > aimed_ns_ + period_ns_ / 2) {
+            slack_ns_ = std::min(slack_ns_ + kSlackStepNs * 4, period_ns_ / 2);
+            on_time_ = 0;
+        } else if (++on_time_ >= kOnTimeToNarrow) {
+            slack_ns_ = std::max(slack_ns_ - kSlackStepNs, kMinSlackNs);
+            on_time_ = 0;
+        }
     }
     aimed_ns_ = 0;
+    margin_ns_ = frame_timing::margin(journal_.estimate(), slack_ns_, kMinMarginNs, period_ns_);
 }
 
 void Output::render() {
     // A flip still pending: the frame event after it renders again.
     if (screen->frame_pending)
         return;
+    const int64_t started = now_ns();
     server.animator.tick();
     // Night light, in linear light by the renderer, on SDR screens only
     // while no app sets the screen's gamma itself; screens without one
@@ -396,6 +407,13 @@ void Output::render() {
                 state.tearing_page_flip = false;
         }
         const bool committed = screen->commit_state(state);
+        // Timed on screens whose frames wait for a vblank (frame()).
+        if (committed && screen->backend.is_drm()) {
+            if (render_fence_ >= 0)
+                close(render_fence_);
+            render_fence_ = scene_output->render_fence();
+            render_started_ns_ = started;
+        }
         if (!committed && switch_vrr) {
             // The screen wouldn't take the switch: the frame without it, and
             // it's not tried again.

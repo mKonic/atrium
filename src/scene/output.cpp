@@ -792,7 +792,12 @@ bool apply_blur_region(Node* node, const render::BlurParams& params, RenderData&
 
 } // namespace
 
+int SceneOutput::render_fence() const {
+    return in_timeline_ && composited_point_ ? timeline_export_sync_file(in_timeline_, composited_point_) : -1;
+}
+
 bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* options) {
+    composited_point_ = 0;
     const StateOptions none;
     if (!options)
         options = &none;
@@ -1122,6 +1127,7 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
     state->set_buffer(buffer);
     buffer_unlock(buffer);
     if (in_timeline_) {
+        composited_point_ = in_point_;
         state->set_wait_timeline(in_timeline_, in_point_);
         ++out_point_;
         state->set_signal_timeline(out_timeline_, out_point_);
