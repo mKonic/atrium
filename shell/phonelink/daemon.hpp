@@ -12,8 +12,11 @@
 // that is pairing too), "confirm" (Code shown: Accept or Reject),
 // "connecting", "connected" (the phone isn't sending sound), "streaming" or
 // "failed" (Error says why).
+//
+// The phone's media session shows up as an MPRIS player (mpris.hpp).
 
 #include "link_core.hpp"
+#include "mpris.hpp"
 #include "playback.hpp"
 
 #include <QHostAddress>
@@ -94,6 +97,7 @@ private:
         std::uint32_t nackCounter = 0;
         bool streaming = false, closed = false;
         QString name, failed;
+        Media media;
     };
 
     void setEnabled(bool on);
@@ -111,6 +115,7 @@ private:
     void apply(Conn* c, std::vector<Event> events);
     void message(Conn* c, Type type, const std::string& body);
     void drop(Conn* c, const QString& why);
+    void updateMedia();
     void loadPaired();
     void savePaired();
     bool pairingOpen() const;
@@ -135,6 +140,7 @@ private:
     std::uint32_t target_;
     QTimer retry_, pairTimer_;
     Status* status_;
+    Mpris* mpris_;
     AvahiClient* avahi_ = nullptr;
     AvahiServiceBrowser* browser_ = nullptr;
 };

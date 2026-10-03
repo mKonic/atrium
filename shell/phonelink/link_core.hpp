@@ -26,6 +26,11 @@
 // AUDIO_START  u16 UDP port to send to, u16 frames per packet
 // AUDIO_STOP   nothing
 // AUDIO_STATE  u8 state (AudioState), reason (UTF-8)
+// MEDIA        (phone) what its media session plays: u8 status (MediaStatus),
+//              u8 actions (MediaActions), u32 duration ms, u32 position ms
+//              when sent, then title, artist, album, app as u16 length +
+//              UTF-8 each, then the cover art (JPEG; may be empty)
+// MEDIA_COMMAND (PC) u8 command (MediaCommand), u32 position ms (Seek's)
 //
 // Both send HELLO. Then the PC goes on with what it knows:
 // - It has a key for the phone's id: AUTH. The phone answers AUTH and PROOF
@@ -63,6 +68,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace atrium::phonelink {
@@ -92,6 +98,8 @@ enum class Type : std::uint8_t {
     AudioStart = 16,
     AudioStop = 17,
     AudioState = 18,
+    Media = 19,
+    MediaCommand = 20,
 };
 
 enum class AudioState : std::uint8_t { Stopped = 0, Streaming = 1, Failed = 2 };
@@ -179,6 +187,34 @@ std::string transcript(std::string_view pcId, std::string_view phoneId, std::str
 std::string pairCode(std::string_view transcript);
 
 std::string helloBody(Role role, const Identity& me);
+
+// --- media -------------------------------------------------------------------
+
+enum class MediaStatus : std::uint8_t { None = 0, Playing = 1, Paused = 2, Stopped = 3 };
+
+enum MediaActions : std::uint8_t {
+    CanPlay = 1,
+    CanPause = 2,
+    CanNext = 4,
+    CanPrevious = 8,
+    CanSeek = 16,
+};
+
+enum class MediaCommand : std::uint8_t { Play = 1, Pause = 2, PlayPause = 3, Next = 4, Previous = 5, Stop = 6, Seek = 7 };
+
+struct Media {
+    MediaStatus status = MediaStatus::None;
+    std::uint8_t actions = 0;
+    std::uint32_t duration = 0, position = 0;  // ms
+    std::string title, artist, album, app, art;
+
+    bool operator==(const Media&) const = default;
+};
+
+std::string packMedia(const Media& m);
+std::optional<Media> unpackMedia(std::string_view body);
+std::string packMediaCommand(MediaCommand c, std::uint32_t position = 0);
+std::optional<std::pair<MediaCommand, std::uint32_t>> unpackMediaCommand(std::string_view body);
 
 // --- datagrams ---------------------------------------------------------------
 

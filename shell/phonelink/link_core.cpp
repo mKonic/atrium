@@ -337,6 +337,57 @@ std::vector<Event> Link::message(Type type, std::string_view body) {
 
 // --- datagrams ---------------------------------------------------------------
 
+// --- media -------------------------------------------------------------------
+
+std::string packMedia(const Media& m) {
+    std::string b;
+    b += char(m.status);
+    b += char(m.actions);
+    put32(b, m.duration);
+    put32(b, m.position);
+    for (const std::string* s : {&m.title, &m.artist, &m.album, &m.app}) {
+        const std::size_t n = std::min<std::size_t>(s->size(), 0xffff);
+        put16(b, std::uint16_t(n));
+        b.append(*s, 0, n);
+    }
+    return b + m.art;
+}
+
+std::optional<Media> unpackMedia(std::string_view b) {
+    if (b.size() < 10 || std::uint8_t(b[0]) > std::uint8_t(MediaStatus::Stopped))
+        return std::nullopt;
+    Media m;
+    m.status = MediaStatus(b[0]);
+    m.actions = std::uint8_t(b[1]);
+    m.duration = get(b, 2, 4);
+    m.position = get(b, 6, 4);
+    std::size_t at = 10;
+    for (std::string* s : {&m.title, &m.artist, &m.album, &m.app}) {
+        if (at + 2 > b.size())
+            return std::nullopt;
+        const std::size_t n = get(b, at, 2);
+        at += 2;
+        if (at + n > b.size())
+            return std::nullopt;
+        *s = b.substr(at, n);
+        at += n;
+    }
+    m.art = b.substr(at);
+    return m;
+}
+
+std::string packMediaCommand(MediaCommand c, std::uint32_t position) {
+    std::string b(1, char(c));
+    put32(b, position);
+    return b;
+}
+
+std::optional<std::pair<MediaCommand, std::uint32_t>> unpackMediaCommand(std::string_view b) {
+    if (b.size() != 5 || b[0] < char(MediaCommand::Play) || b[0] > char(MediaCommand::Seek))
+        return std::nullopt;
+    return std::pair{MediaCommand(b[0]), get(b, 1, 4)};
+}
+
 std::string packAudio(std::string_view key, const AudioPacket& p) {
     std::string d;
     d += char(kAudioMagic);
