@@ -13,6 +13,7 @@
 #include <QDBusUnixFileDescriptor>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
@@ -153,6 +154,45 @@ uint EmailAdaptor::ComposeEmail(const QDBusObjectPath&, const QString&, const QS
         g_error_free(error);
     }
     return ok ? 0 : 2;
+}
+
+// --- AppChooser ----------------------------------------------------------------
+
+uint AppChooserAdaptor::ChooseApplication(const QDBusObjectPath& handle, const QString&, const QString&,
+                                          const QStringList& choices, const QVariantMap& options, QVariantMap&) {
+    const QJsonObject question{
+        {"choices", QJsonArray::fromStringList(choices)},
+        {"last", options.value("last_choice").toString()},
+        {"contentType", options.value("content_type").toString()},
+        {"filename", options.value("filename").toString()},
+        {"uri", options.value("uri").toString()},
+    };
+    const QString token = options.value("activation_token").toString();
+    // 0 chosen, 1 cancelled, 2 failed.
+    QProcess* dialog = askShell(
+        handle.path(), "openwith.qml", QJsonDocument(question).toJson(QJsonDocument::Compact) + '\n', {},
+        [token](const std::optional<QByteArray>& out) -> QVariantList {
+            if (!out)
+                return {uint(2), QVariantMap()};
+            const QString choice = QJsonDocument::fromJson(*out).object().value("choice").toString();
+            if (choice.isEmpty())
+                return {uint(1), QVariantMap()};
+            QVariantMap results{{"choice", choice}};
+            if (!token.isEmpty())
+                results.insert("activation_token", token);
+            return {uint(0), results};
+        },
+        true);
+    open_.insert(handle.path(), dialog);
+    connect(dialog, &QObject::destroyed, this, [this, path = handle.path()] { open_.remove(path); });
+    return 2;  // unused: the reply goes later
+}
+
+void AppChooserAdaptor::UpdateChoices(const QDBusObjectPath& handle, const QStringList& choices) {
+    if (QProcess* dialog = open_.value(handle.path()))
+        dialog->write(QJsonDocument(QJsonObject{{"choices", QJsonArray::fromStringList(choices)}})
+                          .toJson(QJsonDocument::Compact) +
+                      '\n');
 }
 
 // --- Account -------------------------------------------------------------------

@@ -185,6 +185,7 @@ PortalBackend::PortalBackend() {
     new DynamicLauncherAdaptor(this);
     new NotificationAdaptor(this);
     new FileChooserAdaptor(this);
+    new AppChooserAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 
@@ -403,8 +404,8 @@ PortalRequest::~PortalRequest() {
     bus().unregisterObject(path_);
 }
 
-void askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
-              Answer answer) {
+QProcess* askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
+                   Answer answer, bool keepInput) {
     PortalBackend* backend = PortalBackend::instance();
     const QDBusMessage call = backend->delayReply();
     auto* request = new PortalRequest(handle, backend);
@@ -433,7 +434,9 @@ void askShell(const QString& handle, const QString& file, const QByteArray& inpu
     dialog->setProcessEnvironment(env);
     dialog->start(shellProgram(), {shellFile(file)});
     dialog->write(input);
-    dialog->closeWriteChannel();
+    if (!keepInput)
+        dialog->closeWriteChannel();
+    return dialog;
 }
 
 
