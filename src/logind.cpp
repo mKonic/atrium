@@ -186,12 +186,28 @@ bool Logind::holds_power_key() const {
     return impl_ && impl_->power_key >= 0;
 }
 
+namespace {
+
+void manager_call(sd_bus* bus, const char* method) {
+    sd_bus_call_method_async(bus, nullptr, kLogind, kManagerPath, kManager, method, [](sd_bus_message* m, void* d,
+                                                                                         sd_bus_error*) {
+        if (const sd_bus_error* e = sd_bus_message_get_error(m))
+            alog(Log::Error, "logind: %s refused: %s", static_cast<const char*>(d), e->message ? e->message : e->name);
+        return 0;
+    }, const_cast<char*>(method), "b", 1);
+    sd_bus_flush(bus);
+}
+
+} // namespace
+
 void Logind::power_off() {
-    if (!impl_)
-        return;
-    sd_bus_call_method_async(impl_->bus, nullptr, kLogind, kManagerPath, kManager, "PowerOff", nullptr, nullptr, "b",
-                             0);
-    sd_bus_flush(impl_->bus);
+    if (impl_)
+        manager_call(impl_->bus, "PowerOff");
+}
+
+void Logind::reboot() {
+    if (impl_)
+        manager_call(impl_->bus, "Reboot");
 }
 
 Logind::~Logind() = default;
@@ -258,6 +274,7 @@ void Logind::set_idle_hint(bool) {}
 bool Logind::idle_blocked() { return false; }
 void Logind::suspend() {}
 void Logind::power_off() {}
+void Logind::reboot() {}
 bool Logind::holds_power_key() const { return false; }
 
 #endif

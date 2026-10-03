@@ -2,7 +2,14 @@
 
 #include "compositor.hpp"
 
+#include "Shell/desktop_entries.hpp"
+
 #include <QDBusConnection>
+#include <QFile>
+#include <QPointer>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -50,7 +57,12 @@ void Session::request(const QString& action) {
 void Session::confirm() {
     const QString action = pending_;
     cancel();
-    if (!action.isEmpty())
+    if (action == "logout")
+        Compositor::instance()->action("quit");
+    // Apps asked to quit first; the compositor restarts or shuts down once they have.
+    else if (action == "restart" || action == "shutdown")
+        Compositor::instance()->action("quit", action);
+    else if (!action.isEmpty())
         run(action);
 }
 
@@ -71,6 +83,36 @@ void Session::run(const QString& action) {
         logind("PowerOff");
     else if (action == "logout")
         Compositor::instance()->action("quit");
+}
+
+void Session::reopenApps(QObject* entries) {
+    QString base = QString::fromLocal8Bit(qgetenv("XDG_STATE_HOME"));
+    if (base.isEmpty())
+        base = QDir::homePath() + "/.local/state";
+    QFile file(base + "/atrium/reopen.json");
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonArray apps = QJsonDocument::fromJson(file.readAll()).object().value("apps").toArray();
+    file.close();
+    file.remove();  // once: a crash during the next session doesn't replay this one
+    // A moment in: the windows the compositor knows of are in, and login
+    // items have begun opening theirs.
+    QPointer<QObject> source(entries);
+    QTimer::singleShot(2000, this, [apps, source] {
+        QStringList open;
+        for (const QVariant& w : Compositor::instance()->windows())
+            open << w.toMap().value("app_id").toString();
+        auto* index = qobject_cast<shell::DesktopEntries*>(source.data());
+        if (!index)
+            index = shell::DesktopEntries::instance();
+        for (const QJsonValue& v : apps) {
+            const QString id = v.toString();
+            if (id.isEmpty() || open.contains(id))
+                continue;  // already back (a login item)
+            if (QObject* entry = index->heuristicLookup(id))
+                QMetaObject::invokeMethod(entry, "execute");
+        }
+    });
 }
 
 QVariantList Session::waylandSessions() const {

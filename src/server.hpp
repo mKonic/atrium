@@ -59,6 +59,7 @@ class ShellProcess;
 class LockScreen;
 class Logind;
 class Idle;
+class Logout;
 class Space;
 class Settings;
 class View;
@@ -215,6 +216,8 @@ public:
     void check_idle_inhibitors();
     // Input happened (idle clients and atrium's own idle actions start over).
     void note_activity();
+    // A notification from atrium itself (through the shell's server).
+    void notify(const std::string& summary, const std::string& body);
     // The power button was pressed: false leaves it to logind.
     bool power_button();
     // A screen on or off (DPMS): idle, and clients through wlr-output-power.
@@ -280,6 +283,7 @@ public:
     std::unique_ptr<LockScreen> lock_screen;
     std::unique_ptr<Logind> logind;  // after lock_screen: it holds on to it
     std::unique_ptr<Idle> idle;
+    std::unique_ptr<Logout> logout;  // apps asked to quit, the session about to end
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     std::unique_ptr<InputMethodRelay> input_method;

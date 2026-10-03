@@ -32,6 +32,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The login screen remembers each person's desktop.
 - Unlock with a fingerprint, next to the password (fprintd).
 - Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
+- Log Out, Restart and Shut Down ask every app to quit first; an app that won't (unsaved work) cancels it and says which.
+- Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
 - The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
 - Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone). The phone needs the atrium module (rooted, KernelSU).
 - The phone's music shows in atrium's media controls (play, pause, skip, seek, cover art), and the media keys drive it.

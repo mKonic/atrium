@@ -104,7 +104,11 @@ ShellRoot {
     }
 
     // The first login: the welcome, once.
-    Component.onCompleted: if (Welcome.due) Shell.launch("welcome.qml", {})
+    Component.onCompleted: {
+        if (Welcome.due)
+            Shell.launch("welcome.qml", {});
+        Session.reopenApps(null);
+    }
 
     About {}
 

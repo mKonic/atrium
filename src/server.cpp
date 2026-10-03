@@ -44,6 +44,7 @@
 #include "lock_screen.hpp"
 #include "logind.hpp"
 #include "idle.hpp"
+#include "logout.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -700,6 +701,7 @@ void Server::teardown() {
     xwayland.reset();
 #endif
     shell.reset();  // stops it
+    logout.reset();
     idle.reset();
     logind.reset();
     lock_screen.reset();
@@ -1454,6 +1456,12 @@ bool Server::power_button() {
     return true;
 }
 
+void Server::notify(const std::string& summary, const std::string& body) {
+    spawn("exec gdbus call --session --dest org.freedesktop.Notifications --object-path "
+          "/org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify atrium 0 dialog-warning " +
+          quoted(summary) + " " + quoted(body) + " '[]' '{}' 10000 >/dev/null 2>&1");
+}
+
 void Server::note_activity() {
     wl->idle_notifier->activity();
     if (idle)
@@ -1497,7 +1505,13 @@ void Server::run_action(const Keybind& b) {
     case Action::FocusNext: cycle_focus(+1); break;
     case Action::FocusPrev: cycle_focus(-1); break;
     case Action::SwitchVt: change_vt(unsigned(b.iarg)); break;
-    case Action::Quit: quit(); break;
+    case Action::Quit:
+        // "now": at once (the old way, and the greeter's); else as macOS logs out.
+        if (b.arg == "now" || config.greeter)
+            quit();
+        else if (!logout)
+            logout = std::make_unique<Logout>(*this, Logout::parse(b.arg));
+        break;
     case Action::Lock:
         if (lock_screen)
             lock_screen->lock();

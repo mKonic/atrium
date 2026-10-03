@@ -14,6 +14,7 @@ atrium_sources = files(
   'logind.cpp',
   'idle.cpp',
   'idle_core.cpp',
+  'logout.cpp',
   'cairo_buffer.cpp',
   'backend/allocator.cpp',
   'backend/drm/drm.cpp',
