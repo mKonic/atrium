@@ -1,5 +1,6 @@
 #include "ipc.hpp"
 #include "clipboard_history.hpp"
+#include "screencast.hpp"
 #include "screenshot.hpp"
 #include "lock_screen.hpp"
 #include "util/log.hpp"
@@ -574,21 +575,30 @@ void Ipc::drop(Client& c) {
     c.source = nullptr;
     c.fd = -1;
     c.dead = true;
+    // Its screen casts end with it (atrium-portal went).
+    if (server_.screencast)
+        server_.screencast->stop_owned(c.serial);
+}
+
+std::function<void(json)> Ipc::sender(Client& c) {
+    return [this, alive = std::weak_ptr<bool>(alive_), serial = c.serial](json msg) {
+        if (alive.expired())
+            return;
+        for (Client& c : clients_)
+            if (c.serial == serial && !c.dead) {
+                send(c, msg);
+                break;
+            }
+        reap();
+    };
 }
 
 std::function<void(json)> Ipc::reply_later(Client& c, const json& request) {
     json id = request.contains("id") ? request["id"] : json();
-    return [this, alive = std::weak_ptr<bool>(alive_), serial = c.serial, id](json reply) {
-        if (alive.expired())
-            return;
+    return [send = sender(c), id](json reply) {
         if (!id.is_null())
             reply["id"] = id;
-        for (Client& c : clients_)
-            if (c.serial == serial && !c.dead) {
-                send(c, reply);
-                break;
-            }
-        reap();
+        send(std::move(reply));
     };
 }
 
@@ -667,6 +677,76 @@ json Ipc::handle(Client& c, const json& req) {
             return **now;
         *waiting = true;
         return later();
+    }
+
+    // A PipeWire stream of a screen, a window or an area, for screen sharing
+    // (atrium-portal's ScreenCast): {stream, node, width, height} once
+    // PipeWire has it. It ends with screencast.stop, or with this connection.
+    if (cmd == "screencast.start") {
+        if (!server_.screencast)
+            return fail("no screen casting here");
+        wl::Capture::Target t;
+        t.cursor = req.value("cursor", true);
+        const std::string output = req.value("output", ""), identifier = req.value("identifier", "");
+        const std::optional<uint64_t> window =
+            req.contains("window") && req["window"].is_number_integer() ? std::optional(req["window"].get<uint64_t>())
+                                                                        : std::nullopt;
+        if (window || !identifier.empty()) {
+            for (View* v : server_.views)
+                if ((window && v->id == *window) || (!identifier.empty() && v->toplevel_identifier() == identifier))
+                    t.toplevel = v->toplevel_handle();
+            if (!t.toplevel)
+                return fail("no such window");
+        } else {
+            std::optional<Box> region;
+            if (req.contains("region") && req["region"].is_object()) {
+                const json& b = req["region"];
+                region = Box{b.value("x", 0), b.value("y", 0), b.value("width", 0), b.value("height", 0)};
+            }
+            for (Output* o : server_.outputs) {
+                if (!o->enabled() || !o->global)
+                    continue;
+                // A region goes to the screen holding its middle, cut to it.
+                const bool hit = region ? box_contains_point(&o->box, region->x + region->width / 2.0,
+                                                             region->y + region->height / 2.0)
+                                        : (output.empty() || o->screen->name == output);
+                if (!hit)
+                    continue;
+                t.output = o->global.get();
+                if (region) {
+                    Box cut{};
+                    if (!box_intersection(&cut, &*region, &o->box))
+                        return fail("nothing shown there");
+                    t.region = cut;
+                }
+                break;
+            }
+            if (!t.output)
+                return fail(output.empty() ? "no screen there" : "no such screen");
+        }
+        auto later_reply = reply_later(c, req);
+        auto now = std::make_shared<std::optional<json>>();
+        auto waiting = std::make_shared<bool>(false);
+        auto id = std::make_shared<uint64_t>(0);
+        auto tell = sender(c);
+        *id = server_.screencast->start(t, c.serial, [=](const ScreenCast::Ready& r) {
+            json reply = r.error.empty() ? ok({{"stream", *id}, {"node", r.node}, {"width", r.width},
+                                               {"height", r.height}})
+                                         : fail(r.error);
+            if (*waiting)
+                later_reply(std::move(reply));
+            else
+                *now = std::move(reply);
+        }, [=] { tell({{"event", "screencast.ended"}, {"stream", *id}}); });
+        if (*now)
+            return **now;
+        *waiting = true;
+        return later();
+    }
+    if (cmd == "screencast.stop") {
+        if (!server_.screencast || !req.contains("stream") || !req["stream"].is_number_integer())
+            return fail("screencast.stop needs a \"stream\"");
+        return server_.screencast->stop(req["stream"].get<uint64_t>()) ? ok() : fail("no such stream");
     }
 
     // Clipboard history: the entries (each one's data in its file), copying

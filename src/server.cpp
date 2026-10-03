@@ -47,6 +47,7 @@
 #include "logout.hpp"
 #include "wrapper.hpp"
 #include "clipboard_history.hpp"
+#include "screencast.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -706,6 +707,7 @@ void Server::teardown() {
     shell.reset();  // stops it
     logout.reset();
     clipboard_history.reset();
+    screencast.reset();
     idle.reset();
     logind.reset();
     lock_screen.reset();
@@ -860,6 +862,7 @@ void Server::run(const char* startup_cmd) {
     shell->start();
     if (!config.greeter) {
         start_clipboard_history();
+        screencast = std::make_unique<ScreenCast>(*this);
         start_clipboard_sync();
         start_phone_link();
         restore_power_and_brightness();

@@ -96,6 +96,11 @@ public:
     // A PNG at `path` of everything, or of {output}, {window}, {identifier}
     // or {region: {x, y, width, height}}, at {scale}; `done` says whether.
     void screenshot(const QString& path, const QVariantMap& fields, std::function<void(bool ok)> done);
+    // A PipeWire stream of {output}, {window}, {identifier} or {region}
+    // ({cursor}: drawn in): the reply's result is {stream, node, width,
+    // height}. It lasts until screencastStop, or this connection goes.
+    void screencastStart(const QVariantMap& fields, std::function<void(const QJsonObject& reply)> done);
+    void screencastStop(qint64 stream);
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.
     Q_INVOKABLE void insertText(const QString& text);
@@ -155,6 +160,8 @@ signals:
     void devicesChanged();
     void recordsChanged(const QString& table);
     void clipboardChanged();
+    // A stream screencastStart made ended by itself (its screen or window went).
+    void screencastEnded(qint64 stream);
     // A registry change was refused: why, for the Settings app to say.
     void refused(const QString& why);
     void connectedChanged();

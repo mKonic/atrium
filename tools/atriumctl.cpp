@@ -11,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -58,6 +59,8 @@ void usage() {
         "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
         "  screenshot FILE [output=NAME] [window=ID] [region=X,Y,W,H] [scale=S]   a PNG of everything, a\n"
         "                            screen, a window or an area\n"
+        "  screencast [output=NAME] [window=ID] [region=X,Y,W,H] [cursor=0]   a PipeWire stream of it: prints\n"
+        "                            its node id and keeps it going until stopped\n"
         "  clipboard [list]          clipboard history, newest first\n"
         "  clipboard copy|delete ID | clipboard clear | clipboard set TEXT\n"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
@@ -243,7 +246,22 @@ void print_human(const std::string& cmd, const json& r) {
 
 } // namespace
 
+int run(int argc, char** argv);
+
 int main(int argc, char** argv) {
+    // A number that isn't one ("window=abc"): said, not a crash.
+    try {
+        return run(argc, argv);
+    } catch (const std::logic_error& e) {
+        std::fprintf(stderr, "atriumctl: not a number where one goes (%s)\n", e.what());
+        return 2;
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "atriumctl: %s\n", e.what());
+        return 1;
+    }
+}
+
+int run(int argc, char** argv) {
     bool raw = false;
     std::string socket_path;
     int i = 1;
@@ -307,19 +325,28 @@ int main(int argc, char** argv) {
     } else if (cmd == "reset") {
         need(1);
         req = {{"cmd", "settings.reset"}, {"key", args[0]}};
-    } else if (cmd == "screenshot") {
-        need(1);
-        std::error_code ec;
-        req = {{"cmd", "screenshot"}, {"path", std::filesystem::absolute(args[0], ec).string()}};
-        for (size_t k = 1; k < args.size(); ++k) {
+    } else if (cmd == "screenshot" || cmd == "screencast") {
+        // What: a screen, a window or an area (everything, by default).
+        size_t k = 0;
+        if (cmd == "screenshot") {
+            need(1);
+            std::error_code ec;
+            req = {{"cmd", "screenshot"}, {"path", std::filesystem::absolute(args[0], ec).string()}};
+            k = 1;
+        } else {
+            req = {{"cmd", "screencast.start"}};
+        }
+        for (; k < args.size(); ++k) {
             const auto eq = args[k].find('=');
             const std::string key = args[k].substr(0, eq), value = eq == std::string::npos ? "" : args[k].substr(eq + 1);
             if (key == "output")
                 req["output"] = value;
             else if (key == "window")
                 req["window"] = std::stoull(value);
-            else if (key == "scale")
+            else if (key == "scale" && cmd == "screenshot")
                 req["scale"] = std::stod(value);
+            else if (key == "cursor" && cmd == "screencast")
+                req["cursor"] = value != "0" && value != "false";
             else if (key == "region") {
                 int x = 0, y = 0, w = 0, h = 0;
                 if (std::sscanf(value.c_str(), "%d,%d,%d,%d", &x, &y, &w, &h) != 4) {
@@ -328,7 +355,7 @@ int main(int argc, char** argv) {
                 }
                 req["region"] = {{"x", x}, {"y", y}, {"width", w}, {"height", h}};
             } else {
-                std::fprintf(stderr, "atriumctl: screenshot doesn't take %s\n", key.c_str());
+                std::fprintf(stderr, "atriumctl: %s doesn't take %s\n", cmd.c_str(), key.c_str());
                 return 2;
             }
         }
@@ -521,6 +548,20 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "atriumctl: %s\n",
                      reply.is_discarded() ? "garbled reply" : reply.value("error", "failed").c_str());
         return 1;
+    }
+
+    if (cmd == "screencast") {
+        const json& r = reply["result"];
+        std::printf("%u %dx%d\n", r.value("node", 0u), r.value("width", 0), r.value("height", 0));
+        std::fflush(stdout);
+        // The stream lasts as long as this connection, or until its screen or
+        // window goes.
+        while (read_line(fd, buf, line))
+            if (json::parse(line, nullptr, false).value("event", "") == "screencast.ended") {
+                std::fprintf(stderr, "atriumctl: the stream ended\n");
+                return 0;
+            }
+        return 0;
     }
 
     if (cmd == "watch") {

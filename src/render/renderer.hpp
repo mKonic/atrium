@@ -224,6 +224,9 @@ public:
     RenderPass* begin_buffer_pass(Buffer* buffer, const BufferPassOptions* options);
     // Null without timer queries.
     RenderTimer* timer_create();
+    // Waits until the GPU has done everything asked of it (for a buffer
+    // another process reads without a fence).
+    void finish();
 
     // The device it renders on (its render node), owned by it.
     int drm_fd();

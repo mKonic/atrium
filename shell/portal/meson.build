@@ -4,7 +4,7 @@ portal_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'DBus',
 portal_moc = qt6.compile_moc(headers: ['../plugin/Atrium/portal.hpp', '../plugin/Atrium/compositor.hpp'],
   dependencies: portal_qt)
 
-executable('atrium-portal', 'main.cpp', '../plugin/Atrium/portal.cpp', '../plugin/Atrium/compositor.cpp',
+executable('atrium-portal', 'main.cpp', '../plugin/Atrium/portal.cpp', '../plugin/Atrium/compositor.cpp', '../plugin/Atrium/share_core.cpp',
   '../../src/accent.cpp', '../../src/palette.cpp', '../../src/records.cpp', portal_moc, paths_h,
   dependencies: [portal_qt, atrium_runtime_dep, json],
   include_directories: include_directories('../plugin/Atrium', '../../src', '../..'),

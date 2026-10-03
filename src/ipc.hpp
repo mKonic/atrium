@@ -73,6 +73,8 @@ private:
     // its client if that is still there.
     static json later() { return json(json::value_t::discarded); }
     std::function<void(json)> reply_later(Client& c, const json& request);
+    // Sends to that one client later (an event of its own), if it's there.
+    std::function<void(json)> sender(Client& c);
 
     Server& server_;
     std::string path_;

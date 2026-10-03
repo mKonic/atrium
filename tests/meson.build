@@ -106,6 +106,7 @@ if gtest.found()
     'idle_test.cpp',
     'clipboard_test.cpp',
     'screenshot_test.cpp',
+    'screencast_test.cpp',
     'logout_test.cpp',
     'wrapper_test.cpp',
     'battery_test.cpp',

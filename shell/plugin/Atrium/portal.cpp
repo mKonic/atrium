@@ -2,6 +2,7 @@
 
 #include "compositor.hpp"
 #include "paths.hpp"
+#include "share_core.hpp"
 
 #include <QColor>
 #include <QCryptographicHash>
@@ -41,6 +42,34 @@ QString appKey(const QString& app) {
 }
 
 } // namespace
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalStream& s) {
+    arg.beginStructure();
+    arg << s.node << s.properties;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalStream& s) {
+    arg.beginStructure();
+    arg >> s.node >> s.properties;
+    arg.endStructure();
+    return arg;
+}
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalRestore& r) {
+    arg.beginStructure();
+    arg << r.vendor << r.version << r.data;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalRestore& r) {
+    arg.beginStructure();
+    arg >> r.vendor >> r.version >> r.data;
+    arg.endStructure();
+    return arg;
+}
 
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalColor& c) {
     arg.beginStructure();
@@ -115,6 +144,13 @@ void PortalSession::Close() {
     deleteLater();
 }
 
+void PortalSession::end() {
+    // Sent by hand: QtDBus doesn't relay this object's signals.
+    bus().send(QDBusMessage::createSignal(path_, QStringLiteral("org.freedesktop.impl.portal.Session"),
+                                          QStringLiteral("Closed")));
+    Close();
+}
+
 // --- PortalBackend -----------------------------------------------------------
 
 PortalBackend* PortalBackend::instance() {
@@ -131,12 +167,16 @@ PortalBackend::PortalBackend() {
     qDBusRegisterMetaType<PortalPairs>();
     qDBusRegisterMetaType<PortalChoice>();
     qDBusRegisterMetaType<PortalChoices>();
+    qDBusRegisterMetaType<PortalStream>();
+    qDBusRegisterMetaType<PortalStreams>();
+    qDBusRegisterMetaType<PortalRestore>();
     new GlobalShortcutsAdaptor(this);
     new SettingsAdaptor(this);
     new WallpaperAdaptor(this);
     new AccessAdaptor(this);
     new ScreenshotAdaptor(this);
     new InhibitAdaptor(this);
+    new ScreenCastAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 
@@ -521,6 +561,213 @@ uint InhibitAdaptor::CreateMonitor(const QDBusObjectPath&, const QDBusObjectPath
         emit StateChanged(session, {{"screensaver-active", false}, {"session-state", uint(1)}});
     });
     return 0;
+}
+
+// --- ScreenCast --------------------------------------------------------------
+
+namespace {
+
+const QString kRestoreVendor = QStringLiteral("atrium");
+
+// A source's {output} or {window} for screencast.start, from the chooser's
+// pick or a restored one; empty if it isn't there (any more).
+QVariantMap castTarget(const QString& kind, const QString& name, bool byApp) {
+    Compositor* c = Compositor::instance();
+    if (kind == "screen") {
+        for (const QVariant& o : c->outputs())
+            if (o.toMap().value("name").toString() == name)
+                return {{"output", name}};
+        return {};
+    }
+    for (const QVariant& v : c->windows()) {
+        const QVariantMap w = v.toMap();
+        if ((byApp ? w.value("app_id") : w.value("identifier")).toString() == name)
+            return {{"window", w.value("id")}, {"app_id", w.value("app_id")}};
+    }
+    return {};
+}
+
+// The lines the chooser takes (share_core.hpp), as xdg-desktop-portal-wlr
+// wrote them.
+QByteArray chooserInput(uint types) {
+    QByteArray out;
+    Compositor* c = Compositor::instance();
+    if (types & 1)
+        for (const QVariant& v : c->outputs()) {
+            const QVariantMap o = v.toMap();
+            if (o.value("enabled").toBool())
+                out += ("Monitor: " + o.value("name").toString() + " " + o.value("description").toString() + "\n")
+                           .toUtf8();
+        }
+    if (types & 2)
+        for (const QVariant& v : c->windows()) {
+            const QVariantMap w = v.toMap();
+            const QString id = w.value("identifier").toString();
+            if (!id.isEmpty())
+                out += ("Window: " + w.value("title").toString().replace('\n', ' ') + " (" + id + ")\n").toUtf8();
+        }
+    return out;
+}
+
+} // namespace
+
+ScreenCastAdaptor::ScreenCastAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {
+    // A stream whose screen or window went ends its session; so does atrium
+    // going (every stream with it).
+    connect(Compositor::instance(), &Compositor::screencastEnded, this, [this](qint64 stream) {
+        for (auto it = casts_.begin(); it != casts_.end(); ++it)
+            if (it->streams.contains(stream)) {
+                const QString path = it.key();
+                it->streams.removeAll(stream);
+                if (PortalSession* s = PortalBackend::instance()->session(path))
+                    s->end();
+                return;
+            }
+    });
+    connect(Compositor::instance(), &Compositor::connectedChanged, this, [this] {
+        if (Compositor::instance()->connected())
+            return;
+        for (const QString& path : casts_.keys()) {
+            casts_[path].streams.clear();
+            if (PortalSession* s = PortalBackend::instance()->session(path))
+                s->end();
+        }
+    });
+}
+
+void ScreenCastAdaptor::end(const QString& session) {
+    const Cast cast = casts_.take(session);
+    for (qint64 stream : cast.streams)
+        Compositor::instance()->screencastStop(stream);
+}
+
+uint ScreenCastAdaptor::CreateSession(const QDBusObjectPath&, const QDBusObjectPath& session, const QString& app,
+                                      const QVariantMap&, QVariantMap& results) {
+    auto* s = new PortalSession(session.path(), app, PortalBackend::instance());
+    PortalBackend::instance()->addSession(s);
+    casts_.insert(session.path(), Cast{});
+    const QString path = session.path();
+    connect(s, &QObject::destroyed, this, [this, path] { end(path); });
+    results.insert("session_id", path);
+    return 0;
+}
+
+uint ScreenCastAdaptor::SelectSources(const QDBusObjectPath&, const QDBusObjectPath& session, const QString&,
+                                      const QVariantMap& options, QVariantMap&) {
+    auto it = casts_.find(session.path());
+    if (it == casts_.end())
+        return 2;
+    if (options.contains("types"))
+        it->types = options.value("types").toUInt() & sourceTypes();
+    if (!it->types)
+        it->types = 1;
+    if (options.contains("cursor_mode"))
+        it->cursor = options.value("cursor_mode").toUInt();
+    it->persist = options.value("persist_mode").toUInt();
+    if (options.contains("restore_data")) {
+        PortalRestore r;
+        options.value("restore_data").value<QDBusArgument>() >> r;
+        if (r.vendor == kRestoreVendor && r.version == 1)
+            it->restore = qdbus_cast<QVariantMap>(r.data.variant());
+    }
+    return 0;
+}
+
+uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString&,
+                              const QString&, const QVariantMap&, QVariantMap&) {
+    auto it = casts_.find(session.path());
+    if (it == casts_.end())
+        return 2;
+    PortalBackend* backend = PortalBackend::instance();
+    const QDBusMessage call = backend->delayReply();
+    const QString path = session.path();
+    auto* request = new PortalRequest(handle.path(), backend);
+    auto answer = [call, request](uint response, const QVariantMap& results) {
+        if (request->property("answered").toBool())
+            return;
+        request->setProperty("answered", true);
+        bus().send(call.createReply(QVariantList{response, results}));
+        request->deleteLater();
+    };
+
+    // The source picked: its stream, then the answer.
+    auto cast = [this, path, answer](const QString& kind, const QVariantMap& target) {
+        auto c = casts_.find(path);
+        if (c == casts_.end() || target.isEmpty())
+            return answer(target.isEmpty() ? 1 : 2, {});
+        QVariantMap fields = target;
+        fields.remove("app_id");
+        fields.insert("cursor", c->cursor == 2);
+        Compositor::instance()->screencastStart(fields, [this, path, kind, target, answer](const QJsonObject& reply) {
+            auto c = casts_.find(path);
+            if (!reply.value("ok").toBool() || c == casts_.end())
+                return answer(2, {});
+            const QJsonObject r = reply.value("result").toObject();
+            const qint64 stream = r.value("stream").toInteger();
+            c->streams.append(stream);
+            QVariantMap props{{"source_type", uint(kind == "screen" ? 1 : 2)}};
+            // Where it is and how big, in the desktop's logical pixels.
+            int x = 0, y = 0, w = r.value("width").toInt(), h = r.value("height").toInt();
+            if (kind == "screen")
+                for (const QVariant& o : Compositor::instance()->outputs())
+                    if (o.toMap().value("name") == target.value("output")) {
+                        const QVariantMap g = o.toMap().value("geometry").toMap();
+                        x = g.value("x").toInt(), y = g.value("y").toInt();
+                        w = g.value("width").toInt(), h = g.value("height").toInt();
+                    }
+            QDBusArgument position, size;
+            position.beginStructure();
+            position << x << y;
+            position.endStructure();
+            size.beginStructure();
+            size << w << h;
+            size.endStructure();
+            if (kind == "screen")
+                props.insert("position", QVariant::fromValue(position));
+            props.insert("size", QVariant::fromValue(size));
+            props.insert("id", QString::number(stream));
+            QVariantMap results{{"streams", QVariant::fromValue(PortalStreams{{uint(r.value("node").toInt()), props}})}};
+            if (c->persist) {
+                // Next time without asking: the same screen, or a window of the same app.
+                const QString name = kind == "screen" ? target.value("output").toString()
+                                                      : target.value("app_id").toString();
+                const PortalRestore restore{kRestoreVendor, 1,
+                                            QDBusVariant(QVariantMap{{"kind", kind}, {"name", name}})};
+                results.insert("persist_mode", c->persist);
+                results.insert("restore_data", QVariant::fromValue(restore));
+            }
+            answer(0, results);
+        });
+    };
+
+    // An earlier pick that's still there: no need to ask.
+    const QString kind = it->restore.value("kind").toString();
+    if (!kind.isEmpty() && (kind == "screen" ? (it->types & 1) : (it->types & 2))) {
+        const QVariantMap target = castTarget(kind, it->restore.value("name").toString(), true);
+        if (!target.isEmpty()) {
+            cast(kind, target);
+            return 2;
+        }
+    }
+
+    auto* chooser = new QProcess(request);
+    QObject::connect(request, &PortalRequest::closed, chooser, [chooser] { chooser->kill(); });
+    QObject::connect(chooser, &QProcess::finished, request, [chooser, cast, answer](int code, QProcess::ExitStatus st) {
+        const auto picked = share::parse(chooser->readAllStandardOutput().toStdString());
+        if (st != QProcess::NormalExit || code != 0 || picked.empty())
+            return answer(1, {});  // the user said no
+        const share::Source& p = picked.front();
+        const QString kind = p.kind == share::Source::Kind::Screen ? "screen" : "window";
+        cast(kind, castTarget(kind, QString::fromStdString(p.name), false));
+    });
+    QObject::connect(chooser, &QProcess::errorOccurred, request, [answer](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart)
+            answer(2, {});
+    });
+    chooser->start(shellProgram(), {shellFile("share.qml")});
+    chooser->write(chooserInput(it->types));
+    chooser->closeWriteChannel();
+    return 2;
 }
 
 } // namespace atrium

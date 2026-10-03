@@ -12,6 +12,7 @@
 #include <QLocale>
 
 #include <algorithm>
+#include <utility>
 
 namespace atrium {
 
@@ -66,6 +67,9 @@ Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     for (QLocalSocket* s : {&requests_, &events_})
         connect(s, &QLocalSocket::disconnected, this, [this] {
             pending_.clear();
+            // Those that wanted to hear either way hear it failed.
+            for (auto& [id, done] : std::exchange(fullPending_, {}))
+                done(QJsonObject{{"ok", false}, {"error", "atrium went away"}});
             emit connectedChanged();
             reconnect_.start();
         });
@@ -150,6 +154,12 @@ void Compositor::refreshAll() {
 void Compositor::readReplies() {
     for (const QByteArray& line : takeLines(requests_, requestBuffer_)) {
         const QJsonObject reply = QJsonDocument::fromJson(line).object();
+        // Events for this connection alone (a stream it started ended).
+        if (reply.contains("event") && !reply.contains("id")) {
+            if (reply.value("event").toString() == "screencast.ended")
+                emit screencastEnded(reply.value("stream").toInteger());
+            continue;
+        }
         if (auto full = fullPending_.find(reply.value("id").toInteger(-1)); full != fullPending_.end()) {
             FullReply done = std::move(full->second);
             fullPending_.erase(full);
@@ -371,6 +381,18 @@ void Compositor::screenshot(const QString& path, const QVariantMap& fields, std:
     if (requests_.state() != QLocalSocket::ConnectedState)
         return done(false);
     requestFull(req, [done = std::move(done)](const QJsonObject& reply) { done(reply.value("ok").toBool()); });
+}
+
+void Compositor::screencastStart(const QVariantMap& fields, std::function<void(const QJsonObject&)> done) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "screencast.start";
+    if (requests_.state() != QLocalSocket::ConnectedState)
+        return done(QJsonObject{{"ok", false}, {"error", "atrium isn't there"}});
+    requestFull(req, std::move(done));
+}
+
+void Compositor::screencastStop(qint64 stream) {
+    request({{"cmd", "screencast.stop"}, {"stream", stream}});
 }
 
 void Compositor::closeWindow(int id) {

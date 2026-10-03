@@ -44,7 +44,7 @@ json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_de
 xwayland = dependency('xwayland', required: get_option('xwayland'))
 use_xwayland = xwayland.found()
 
-deps = [wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2]
+deps = [wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2, dependency('libpipewire-0.3')]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm'), dependency('xcb-composite'), dependency('xcb-xfixes'),
            dependency('xcb-res'), dependency('xcb-render'), dependency('xcb-ewmh')]
@@ -91,8 +91,6 @@ portal_service.set('DATADIR', get_option('prefix') / get_option('datadir'))
 configure_file(input: 'data/share/dbus-1/services/org.freedesktop.impl.portal.desktop.atrium.service.in',
   output: 'org.freedesktop.impl.portal.desktop.atrium.service', configuration: portal_service,
   install_dir: get_option('datadir') / 'dbus-1' / 'services')
-# Sharing the screen: xdg-desktop-portal-wlr asks atrium's chooser (share.qml).
-subdir('data/etc/xdg/xdg-desktop-portal-wlr')
 # Sessions for the display manager (plain, and under uwsm).
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # sudo -A and ssh ask for passwords through the shell (SUDO_ASKPASS).

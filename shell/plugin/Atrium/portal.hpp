@@ -44,6 +44,25 @@ struct PortalChoice {
 };
 using PortalChoices = QList<PortalChoice>;
 
+// A ScreenCast stream as the portal hands it on: (ua{sv}), its PipeWire node
+// and {position, size, source_type, id}.
+struct PortalStream {
+    uint node = 0;
+    QVariantMap properties;
+};
+using PortalStreams = QList<PortalStream>;
+// What a ScreenCast session restores the next time (suv): our name, a
+// version, and {kind, name}.
+struct PortalRestore {
+    QString vendor;
+    uint version = 0;
+    QDBusVariant data;
+};
+
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalStream& s);
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalStream& s);
+QDBusArgument& operator<<(QDBusArgument& arg, const PortalRestore& r);
+const QDBusArgument& operator>>(const QDBusArgument& arg, PortalRestore& r);
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalColor& c);
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalColor& c);
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalPair& p);
@@ -68,6 +87,9 @@ public:
     QString app() const { return app_; }
     QStringList ids;  // the shortcuts it bound
     QHash<QString, QString> descriptions;  // id → what the app calls it
+
+    // Ends it from this side: the portal (and the app) hear Closed.
+    void end();
 
 public slots:
     void Close();
@@ -280,8 +302,47 @@ signals:
     void StateChanged(const QDBusObjectPath& session, const QVariantMap& state);
 };
 
+// ScreenCast: atrium's streams (src/screencast.hpp), picked with its chooser
+// (share.qml) unless the app asks to restore an earlier pick that is still
+// there. One source a session.
+class ScreenCastAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.ScreenCast")
+    Q_PROPERTY(uint AvailableSourceTypes READ sourceTypes CONSTANT)
+    Q_PROPERTY(uint AvailableCursorModes READ cursorModes CONSTANT)
+    Q_PROPERTY(uint version READ version CONSTANT)
+
+public:
+    explicit ScreenCastAdaptor(PortalBackend* parent);
+    uint sourceTypes() const { return 1 | 2; }   // monitors, windows
+    uint cursorModes() const { return 1 | 2; }  // hidden, embedded
+    uint version() const { return 5; }
+
+public slots:
+    uint CreateSession(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString& app,
+                       const QVariantMap& options, QVariantMap& results);
+    uint SelectSources(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString& app,
+                       const QVariantMap& options, QVariantMap& results);
+    uint Start(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString& app,
+               const QString& parentWindow, const QVariantMap& options, QVariantMap& results);
+
+private:
+    struct Cast {
+        uint types = 1;
+        uint cursor = 2;
+        uint persist = 0;
+        QVariantMap restore;  // {kind, name} from the app's restore_data
+        QList<qint64> streams;
+    };
+    QHash<QString, Cast> casts_;  // by session path
+    void end(const QString& session);
+};
+
 } // namespace atrium
 
+Q_DECLARE_METATYPE(atrium::PortalStream)
+Q_DECLARE_METATYPE(atrium::PortalStreams)
+Q_DECLARE_METATYPE(atrium::PortalRestore)
 Q_DECLARE_METATYPE(atrium::PortalColor)
 Q_DECLARE_METATYPE(atrium::PortalPair)
 Q_DECLARE_METATYPE(atrium::PortalPairs)

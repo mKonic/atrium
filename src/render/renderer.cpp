@@ -479,6 +479,11 @@ int Renderer::drm_fd() {
     return drm_fd_;
 }
 
+void Renderer::finish() {
+    if (egl_->make_current())
+        glFinish();
+}
+
 RenderPass* Renderer::begin_buffer_pass(Buffer* b, const BufferPassOptions* o) {
     if (!egl_->make_current())
         return nullptr;
