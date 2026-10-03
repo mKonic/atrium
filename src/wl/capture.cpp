@@ -70,6 +70,9 @@ struct Capture::Session {
     Weak<ExtImageCopyCaptureFrameV1> frame;
     std::optional<Constraints> sent;
     bool stopped = false;
+    // Set once a frame is ready: only the frames after it may wait for the
+    // source to change, the first is copied at once.
+    std::shared_ptr<bool> copied = std::make_shared<bool>(false);
 };
 
 struct Capture::CursorSession {
@@ -354,7 +357,7 @@ Capture::Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels)
                         return;
                     }
                     Weak<ExtImageCopyCaptureFrameV1> w = self;
-                    Copy cp{s->target, b, true, [w](const Result& r) {
+                    Copy cp{s->target, b, *s->copied, [w, copied = s->copied](const Result& r) {
                                 auto* f = w.get();
                                 if (!f)
                                     return;
@@ -362,6 +365,7 @@ Capture::Capture(wl_display* display, Seat& seat, ForeignToplevels& toplevels)
                                     f->send_failed(r.fail_reason);
                                     return;
                                 }
+                                *copied = true;
                                 f->send_transform(r.transform);
                                 for (const Box& d : r.damage)
                                     f->send_damage(d.x, d.y, d.width, d.height);

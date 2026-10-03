@@ -33,9 +33,11 @@ struct Cap : wltest::Harness {
     std::vector<wl_buffer*> buffers;
     // What the "compositor" is asked to render, and answers.
     std::vector<wl::Capture::Target> copied;
+    std::vector<bool> waited;  // each copy's wait_for_damage
     bool answer_ok = true;
     wl::Connection on_copy = capture.copy.connect([this](wl::Capture::Copy& c) {
         copied.push_back(c.target);
+        waited.push_back(c.wait_for_damage);
         wl::Capture::Result r;
         r.ok = answer_ok;
         r.when = {1, 500};
@@ -171,6 +173,18 @@ TEST(WlCapture, ImageCopySessionsFollowTheirSource) {
     ext_image_copy_capture_frame_v1_capture(f);
     c.pump();
     EXPECT_EQ(log.ready, 1);
+    ext_image_copy_capture_frame_v1_destroy(f);
+
+    // The session's first frame is copied at once; the next waits for change.
+    f = ext_image_copy_capture_session_v1_create_frame(s);
+    ext_image_copy_capture_frame_v1_add_listener(f, &fl, &log);
+    ext_image_copy_capture_frame_v1_attach_buffer(f, c.buffer(16, 8));
+    ext_image_copy_capture_frame_v1_capture(f);
+    c.pump();
+    EXPECT_EQ(log.ready, 2);
+    ASSERT_EQ(c.waited.size(), 2u);
+    EXPECT_FALSE(c.waited[0]);
+    EXPECT_TRUE(c.waited[1]);
     ext_image_copy_capture_frame_v1_destroy(f);
 
     // A buffer the wrong size fails with that reason, without an error.
