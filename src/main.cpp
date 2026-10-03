@@ -2,6 +2,7 @@
 #include "util/log.hpp"
 #include "settings.hpp"
 #include "version.hpp"
+#include "wrapper.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -84,6 +85,13 @@ int main(int argc, char** argv) {
     if (!std::getenv("XDG_RUNTIME_DIR")) {
         alog(Log::Error, "XDG_RUNTIME_DIR must be set");
         return 1;
+    }
+
+    // A session's atrium runs under its crash-recovery parent (wrapper.hpp);
+    // the child it starts comes back here with the socket in hand.
+    if (!nested && !greeter && !std::getenv("ATRIUM_WAYLAND_SOCKET_FD") && !std::getenv("ATRIUM_NO_WRAPPER")) {
+        if (const int status = atrium::run_wrapper(argv); status >= 0)
+            return status;
     }
 
     {

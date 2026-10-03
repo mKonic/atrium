@@ -45,6 +45,7 @@
 #include "logind.hpp"
 #include "idle.hpp"
 #include "logout.hpp"
+#include "wrapper.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -784,7 +785,16 @@ void Server::prepare_session_environment() {
 }
 
 void Server::run(const char* startup_cmd) {
-    const char* socket = wl_display_add_socket_auto(display);
+    const char* wrapped_name = nullptr;
+    const int wrapped = take_wrapped_socket(&wrapped_name);
+    const char* socket = nullptr;
+    if (wrapped >= 0 && wl_display_add_socket_fd(display, wrapped) == 0) {
+        socket = wrapped_name;
+        // The socket outlives us: Qt apps wait for the next atrium instead of quitting.
+        setenv("QT_WAYLAND_RECONNECT", "1", 0);
+    } else {
+        socket = wl_display_add_socket_auto(display);
+    }
     if (!socket)
         die("couldn't add a Wayland socket");
     setenv("WAYLAND_DISPLAY", socket, 1);
@@ -816,7 +826,8 @@ void Server::run(const char* startup_cmd) {
               "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS "
               "SUDO_ASKPASS SSH_ASKPASS; "
               // Ours still up is a crashed atrium's: over from the start, so
-              // login apps start again. Another's (uwsm's) is left alone.
+              // login apps start again (the ones that died with it too).
+              // Another's (uwsm's) is left alone.
               "if systemctl --user -q is-active atrium-session.target; then "
               "systemctl --user stop atrium-session.target graphical-session.target; "
               "systemctl --user start --no-block atrium-session.target; "
@@ -897,6 +908,17 @@ void Server::note_last_session() {
         crashed = pid > 0 && pid != getpid() && kill(pid, 0) != 0 && errno == ESRCH;
     }
     std::ofstream(session_marker_) << getpid() << "\n";
+    // Started again by the wrapper after a crash: the session is still this one.
+    const bool restarted = std::getenv("ATRIUM_RESTARTED");
+    unsetenv("ATRIUM_RESTARTED");
+    if (restarted && crashed) {
+        spawn("for i in $(seq 30); do gdbus call --session --dest org.freedesktop.Notifications "
+              "--object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify "
+              "atrium 0 dialog-warning 'atrium restarted after a crash' "
+              "'Apps that can reconnect are still open. For the details: coredumpctl info atrium' "
+              "'[]' '{}' 10000 >/dev/null 2>&1 && break; sleep 1; done");
+        return;
+    }
     // Once the shell's notification server answers (gdbus comes with GLib,
     // which atrium needs anyway; notify-send may not be there).
     if (crashed)

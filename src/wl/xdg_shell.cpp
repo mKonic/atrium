@@ -387,8 +387,18 @@ void ShellSurface::ping() {
 
 bool ShellSurface::precommit(Surface& s) {
     const SurfaceState& p = s.pending();
+    // A buffer before the first configure is acked is an error by the
+    // letter (unconfigured_buffer). On the initial commit it stays one: held
+    // back, that commit would never get its configure. After it, Qt does it
+    // reconnecting after a compositor crash (its render thread swaps into
+    // the new surface before the ack): held back (pending, it goes in with
+    // the next commit, after the ack), the window shows up.
     if ((p.committed & SurfaceState::Buffer) && p.buffer && !configured_) {
-        post_error(uint32_t(Error::UnconfiguredBuffer), "a buffer before the first configure was acked");
+        if (!initialized_) {
+            post_error(uint32_t(Error::UnconfiguredBuffer), "a buffer before the first configure was acked");
+            return false;
+        }
+        alog(Log::Debug, "xdg_surface: a buffer before the first configure was acked; held back");
         return false;
     }
     if (!toplevel_ && !popup_ && !pip_) {

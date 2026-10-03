@@ -311,6 +311,33 @@ struct Win {
 
 } // namespace
 
+// Qt reconnecting after a compositor crash attaches a buffer before acking
+// the first configure: held back until the ack, not a protocol error.
+TEST(WlXdg, ABufferBeforeTheFirstAckWaitsForIt) {
+    Desk d;
+    wl::Toplevel* t = nullptr;
+    auto c = d.shell.events.new_toplevel.connect([&](wl::Toplevel* x) { t = x; });
+    Win w(d);
+    wl_surface_commit(w.surface);
+    d.pump();
+    ASSERT_TRUE(t);
+    t->set_size(100, 80);
+    d.pump();
+    ASSERT_NE(w.serial, 0u);
+    wl_surface_attach(w.surface, d.buffer(100, 80), 0, 0);
+    wl_surface_commit(w.surface);
+    d.pump();
+    EXPECT_EQ(d.error(), 0);
+    ASSERT_FALSE(d.surfaces.empty());
+    wl::Surface* s = d.surfaces.back();
+    EXPECT_FALSE(s->mapped());
+    xdg_surface_ack_configure(w.xdg, w.serial);
+    wl_surface_commit(w.surface);
+    d.pump();
+    EXPECT_EQ(d.error(), 0);
+    EXPECT_TRUE(s->mapped());
+}
+
 TEST(WlXdgExtras, DecorationModeGoesWithTheConfigure) {
     Desk d;
     wl::Toplevel* t = nullptr;
