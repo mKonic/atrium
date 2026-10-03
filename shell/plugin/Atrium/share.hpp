@@ -2,7 +2,7 @@
 // The screen-share chooser (share.qml), run by xdg-desktop-portal-wlr when an
 // app asks to share the screen: it reads the screens and windows on offer
 // from stdin, and `choose(line)` answers on stdout. Each source gets a small
-// picture of itself, taken with grim.
+// picture of itself, taken by atrium.
 //
 //   sources: [{ kind: "screen"|"window", line, name, text, appId, thumbnail }]
 

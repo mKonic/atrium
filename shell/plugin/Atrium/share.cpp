@@ -5,8 +5,6 @@
 
 #include <QCoreApplication>
 #include <QFile>
-#include <QProcess>
-#include <QStandardPaths>
 #include <QUrl>
 
 #include <unistd.h>
@@ -35,7 +33,7 @@ ShareChooser::ShareChooser(QObject* parent) : QObject(parent) {
     }
     matchApps();
     connect(Compositor::instance(), &Compositor::windowsChanged, this, &ShareChooser::matchApps);
-    if (dir_.isValid() && !QStandardPaths::findExecutable("grim").isEmpty())
+    if (dir_.isValid())
         for (int i = 0; i < sources_.size(); ++i)
             takeThumbnail(i);
 }
@@ -72,17 +70,17 @@ void ShareChooser::takeThumbnail(int i) {
     const QVariantMap m = sources_[i].toMap();
     const QString file = dir_.filePath(QString::number(i) + ".png");
     const bool screen = m.value("kind") == "screen";
-    auto* grim = new QProcess(this);
-    connect(grim, &QProcess::finished, this, [this, grim, i, file](int code) {
-        grim->deleteLater();
-        if (code != 0 || !QFile::exists(file))
+    const QString name = m.value("name").toString();
+    const QVariantMap what = screen ? QVariantMap{{"output", name}, {"scale", 0.2}}
+                                    : QVariantMap{{"identifier", name}, {"scale", 0.35}};
+    Compositor::instance()->screenshot(file, what, [this, i, file](bool ok) {
+        if (!ok || !QFile::exists(file))
             return;
         QVariantMap m = sources_[i].toMap();
         m["thumbnail"] = QUrl::fromLocalFile(file);
         sources_[i] = m;
         emit changed();
     });
-    grim->start("grim", {"-s", screen ? "0.2" : "0.35", "-l", "1", screen ? "-o" : "-T", m.value("name").toString(), file});
 }
 
 void ShareChooser::choose(const QString& line) {

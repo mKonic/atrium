@@ -90,6 +90,7 @@ public:
     std::string toplevel_identifier() const {
         return handle_ ? handle_->identifier() : "";
     }
+    wl::ForeignToplevels::Handle* toplevel_handle() const { return handle_; }
     void set_activated(bool activated);
     // `restore_geometry` false drops the maximized state where the window is
     // (resizing a maximized window) instead of returning to `restore`.

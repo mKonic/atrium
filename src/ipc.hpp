@@ -1,7 +1,9 @@
 #pragma once
 #include "settings.hpp"
 
+#include <functional>
 #include <list>
+#include <memory>
 #include <set>
 #include <string>
 
@@ -54,6 +56,7 @@ private:
         wl_event_source* source = nullptr;
         std::string in, out;
         std::set<std::string> topics;
+        uint64_t serial = 0;
     };
 
     static int on_accept(int fd, uint32_t mask, void* data);
@@ -66,12 +69,18 @@ private:
     void reap();
 
     json handle(Client& c, const json& request);
+    // A request answered later (handle returns `later`): the reply goes to
+    // its client if that is still there.
+    static json later() { return json(json::value_t::discarded); }
+    std::function<void(json)> reply_later(Client& c, const json& request);
 
     Server& server_;
     std::string path_;
     int listen_fd_ = -1;
     wl_event_source* listen_source_ = nullptr;
     std::list<Client> clients_;
+    uint64_t next_serial_ = 1;
+    std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
 };
 
 } // namespace atrium

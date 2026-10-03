@@ -1,5 +1,6 @@
 #include "ipc.hpp"
 #include "clipboard_history.hpp"
+#include "screenshot.hpp"
 #include "lock_screen.hpp"
 #include "util/log.hpp"
 #include "input_method.hpp"
@@ -468,6 +469,7 @@ void Ipc::accept_client() {
         if (fd < 0)
             return;
         Client& c = clients_.emplace_back();
+        c.serial = next_serial_++;
         c.owner = this;
         c.fd = fd;
         c.source = wl_event_loop_add_fd(server_.loop, fd, WL_EVENT_READABLE, on_client, &c);
@@ -519,6 +521,8 @@ bool Ipc::read_client(Client& c) {
         try {
             json req = json::parse(line);
             reply = handle(c, req);
+            if (reply.is_discarded())
+                continue;
             if (req.contains("id"))
                 reply["id"] = req["id"];
         } catch (const json::exception& e) {
@@ -572,6 +576,22 @@ void Ipc::drop(Client& c) {
     c.dead = true;
 }
 
+std::function<void(json)> Ipc::reply_later(Client& c, const json& request) {
+    json id = request.contains("id") ? request["id"] : json();
+    return [this, alive = std::weak_ptr<bool>(alive_), serial = c.serial, id](json reply) {
+        if (alive.expired())
+            return;
+        if (!id.is_null())
+            reply["id"] = id;
+        for (Client& c : clients_)
+            if (c.serial == serial && !c.dead) {
+                send(c, reply);
+                break;
+            }
+        reap();
+    };
+}
+
 void Ipc::reap() {
     std::erase_if(clients_, [](const Client& c) { return c.dead; });
 }
@@ -616,6 +636,37 @@ json Ipc::handle(Client& c, const json& req) {
     // window it came from (Notifications spec 1.2, ActivationToken).
     if (cmd == "activation.token") {
         return ok(server_.wl->activation->make_token(""));
+    }
+
+    // A PNG of a screen, a window, an area or everything (grim's job). The
+    // reply comes once the file is written.
+    if (cmd == "screenshot") {
+        ScreenshotRequest r;
+        r.path = req.value("path", "");
+        r.output = req.value("output", "");
+        r.identifier = req.value("identifier", "");
+        if (req.contains("window") && req["window"].is_number_integer())
+            r.window = req["window"].get<uint64_t>();
+        if (req.contains("scale") && req["scale"].is_number())
+            r.scale = req["scale"].get<double>();
+        if (req.contains("region") && req["region"].is_object()) {
+            const json& b = req["region"];
+            r.region = Box{b.value("x", 0), b.value("y", 0), b.value("width", 0), b.value("height", 0)};
+        }
+        auto later_reply = reply_later(c, req);
+        auto now = std::make_shared<std::optional<json>>();
+        auto waiting = std::make_shared<bool>(false);
+        take_screenshot(server_, r, [=](const std::string& error) {
+            json reply = error.empty() ? ok(r.path) : fail(error);
+            if (*waiting)
+                later_reply(std::move(reply));
+            else
+                *now = std::move(reply);  // answered before handle returns
+        });
+        if (*now)
+            return **now;
+        *waiting = true;
+        return later();
     }
 
     // Clipboard history: the entries (each one's data in its file), copying

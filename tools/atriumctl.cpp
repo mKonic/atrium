@@ -56,6 +56,8 @@ void usage() {
         "  record add TABLE FIELD=VALUE... | record set TABLE ID FIELD=VALUE... | record rm TABLE ID\n"
         "  shortcuts                 key combinations and what they do\n"
         "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
+        "  screenshot FILE [output=NAME] [window=ID] [region=X,Y,W,H] [scale=S]   a PNG of everything, a\n"
+        "                            screen, a window or an area\n"
         "  clipboard [list]          clipboard history, newest first\n"
         "  clipboard copy|delete ID | clipboard clear | clipboard set TEXT\n"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
@@ -305,6 +307,31 @@ int main(int argc, char** argv) {
     } else if (cmd == "reset") {
         need(1);
         req = {{"cmd", "settings.reset"}, {"key", args[0]}};
+    } else if (cmd == "screenshot") {
+        need(1);
+        std::error_code ec;
+        req = {{"cmd", "screenshot"}, {"path", std::filesystem::absolute(args[0], ec).string()}};
+        for (size_t k = 1; k < args.size(); ++k) {
+            const auto eq = args[k].find('=');
+            const std::string key = args[k].substr(0, eq), value = eq == std::string::npos ? "" : args[k].substr(eq + 1);
+            if (key == "output")
+                req["output"] = value;
+            else if (key == "window")
+                req["window"] = std::stoull(value);
+            else if (key == "scale")
+                req["scale"] = std::stod(value);
+            else if (key == "region") {
+                int x = 0, y = 0, w = 0, h = 0;
+                if (std::sscanf(value.c_str(), "%d,%d,%d,%d", &x, &y, &w, &h) != 4) {
+                    std::fprintf(stderr, "atriumctl: region=X,Y,W,H\n");
+                    return 2;
+                }
+                req["region"] = {{"x", x}, {"y", y}, {"width", w}, {"height", h}};
+            } else {
+                std::fprintf(stderr, "atriumctl: screenshot doesn't take %s\n", key.c_str());
+                return 2;
+            }
+        }
     } else if (cmd == "clipboard") {
         const std::string what = args.empty() ? "list" : args[0];
         req = {{"cmd", "clipboard." + what}};

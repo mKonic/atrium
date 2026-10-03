@@ -93,6 +93,9 @@ public:
     // "copy"/"delete" ({entry: id}), "clear", "set" ({text} or {mime, path}: onto
     // the clipboard), "add" (the same, into the list only).
     void clipboard(const QString& command, const QVariantMap& fields = {}, std::function<void(bool ok)> done = {});
+    // A PNG at `path` of everything, or of {output}, {window}, {identifier}
+    // or {region: {x, y, width, height}}, at {scale}; `done` says whether.
+    void screenshot(const QString& path, const QVariantMap& fields, std::function<void(bool ok)> done);
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.
     Q_INVOKABLE void insertText(const QString& text);

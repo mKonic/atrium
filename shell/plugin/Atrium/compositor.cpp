@@ -364,6 +364,15 @@ void Compositor::clipboard(const QString& command, const QVariantMap& fields, st
         requestFull(req, [done = std::move(done)](const QJsonObject& reply) { done(reply.value("ok").toBool()); });
 }
 
+void Compositor::screenshot(const QString& path, const QVariantMap& fields, std::function<void(bool)> done) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "screenshot";
+    req["path"] = path;
+    if (requests_.state() != QLocalSocket::ConnectedState)
+        return done(false);
+    requestFull(req, [done = std::move(done)](const QJsonObject& reply) { done(reply.value("ok").toBool()); });
+}
+
 void Compositor::closeWindow(int id) {
     request({{"cmd", "window.close"}, {"window", id}});
 }

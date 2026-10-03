@@ -49,6 +49,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - atrium drives the displays itself, on drivers with or without atomic modesetting.
 - atrium no longer needs wlroots, and runs nested only inside a Wayland session (not X11).
 - Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, and never records a password manager's copies.
+- Screenshots are taken by atrium itself, without grim; `atriumctl screenshot` takes one of a screen, a window or an area.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

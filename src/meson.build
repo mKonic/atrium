@@ -17,6 +17,8 @@ atrium_sources = files(
   'logout.cpp',
   'wrapper.cpp',
   'clipboard_core.cpp',
+  'screenshot.cpp',
+  'screenshot_core.cpp',
   'clipboard_history.cpp',
   'cairo_buffer.cpp',
   'backend/allocator.cpp',
