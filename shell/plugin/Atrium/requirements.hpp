@@ -1,7 +1,7 @@
 #pragma once
 // What Settings fronts but atrium doesn't provide itself: system services
 // (NetworkManager, BlueZ, power-profiles-daemon, AccountsService), PipeWire,
-// a Bluetooth adapter, and programs (ddcutil, gpu-screen-recorder).
+// a Bluetooth adapter, and programs (ddcutil, cups).
 // `Requirements.missing` maps each one that's absent to a sentence saying so;
 // present ones aren't in it. System services are watched, so the notice goes
 // once one starts.

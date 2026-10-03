@@ -113,4 +113,5 @@ subdir('shell/lock')
 
 subdir('src')
 subdir('login')
+subdir('record')
 subdir('tests')

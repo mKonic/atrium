@@ -2,7 +2,9 @@
 
 #include "compositor.hpp"
 
+#include <QCoreApplication>
 #include <QDateTime>
+#include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
 
@@ -11,7 +13,9 @@
 namespace atrium {
 
 Recorder::Recorder(QObject* parent) : QObject(parent) {
-    gsr_ = QStandardPaths::findExecutable("gpu-screen-recorder");
+    // Beside a shell run from the build tree, its own; else the installed one.
+    const QString built = QCoreApplication::applicationDirPath() + "/../../record/atrium-record";
+    program_ = QFileInfo(built).isExecutable() ? built : QStandardPaths::findExecutable("atrium-record");
     tick_.setInterval(1000);
     connect(&tick_, &QTimer::timeout, this, &Recorder::secondsChanged);
 }
@@ -27,9 +31,10 @@ void Recorder::start(const QString& output, int fps, bool audio) {
     QDir().mkpath(dir);
     file_ = dir + "/recording_" + QDateTime::currentDateTime().toString("yyyyMMdd_HH-mm-ss") + ".mp4";
 
-    QStringList args{"-w", output, "-f", QString::number(std::max(fps, 30)), "-o", file_};
+    QStringList args{"-o", output, "-f", QString::number(std::max(fps, 30))};
     if (audio)
-        args << "-a" << "default_output";
+        args << "-a";
+    args << file_;
 
     process_ = new QProcess(this);
     process_->setProcessChannelMode(QProcess::ForwardedErrorChannel);
@@ -40,11 +45,11 @@ void Recorder::start(const QString& output, int fps, bool audio) {
         tick_.stop();
         emit recordingChanged();
         if (early && code != 0)
-            emit failed(QString("gpu-screen-recorder stopped at once (exit %1)").arg(code));
+            emit failed(QString("Recording stopped at once (atrium-record exit %1)").arg(code));
         else
             emit saved(file_);
     });
-    process_->start(gsr_, args);
+    process_->start(program_, args);
     clock_.start();
     tick_.start();
     emit recordingChanged();

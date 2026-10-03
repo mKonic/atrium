@@ -36,7 +36,6 @@ struct Program {
 
 constexpr Program kPrograms[] = {
     {"ddcutil", "ddcutil"},
-    {"gpu-screen-recorder", "gpu-screen-recorder"},
     {"cups", "lpstat"},
 };
 
