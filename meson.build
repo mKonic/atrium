@@ -44,7 +44,7 @@ json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_de
 xwayland = dependency('xwayland', required: get_option('xwayland'))
 use_xwayland = xwayland.found()
 
-deps = [wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2, dependency('libpipewire-0.3'), dependency('libeis-1.0')]
+deps = [wayland_server, dependency('wayland-client'), dependency('libseat'), xkbcommon, libinput, libudev, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, egl, glesv2, gbm, lcms2, dependency('libpipewire-0.3'), dependency('libeis-1.0'), dependency('sm'), dependency('ice')]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm'), dependency('xcb-composite'), dependency('xcb-xfixes'),
            dependency('xcb-res'), dependency('xcb-render'), dependency('xcb-ewmh')]

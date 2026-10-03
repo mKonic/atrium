@@ -4,6 +4,9 @@
 // computer restart or shut down. An app still there after a while (a
 // "Save changes?" sheet) cancels it, and says which app did.
 //
+// X11 apps that save through XSMP are asked to save first (one may ask
+// "Save changes?", and Cancel there cancels it too); then the windows close.
+//
 // The apps open at the start go to $XDG_STATE_HOME/atrium/reopen.json for
 // the shell to open again at the next login (session.reopen_windows).
 #include "common.hpp"
@@ -27,6 +30,7 @@ public:
     static Then parse(const std::string& arg);
 
 private:
+    void close_windows();
     void check();
     void finish();
     void cancel(const std::string& holdout);

@@ -1,5 +1,7 @@
 #include "logout.hpp"
 
+#include "xsmp.hpp"
+
 #include "logind.hpp"
 #include "server.hpp"
 #include "view.hpp"
@@ -75,14 +77,34 @@ Logout::Logout(Server& server, Then then) : server_(server), then_(then) {
         else
             std::filesystem::remove(file, ec);
     }
-    alog(Log::Info, "logout: asking %zu windows to close", ids.size());
-    for (View* v : std::vector<View*>(server_.views))
-        if (counts(v))
-            v->close();
     timer_ = wl_event_loop_add_timer(server_.loop, [](void* d) {
         static_cast<Logout*>(d)->check();
         return 0;
     }, this);
+    // X11 apps that save through the session manager first, then every window.
+    if (server_.xsmp && server_.xsmp->clients() > 0) {
+        alog(Log::Info, "logout: asking %zu X11 apps to save", server_.xsmp->clients());
+        server_.xsmp->save_all([this](const std::string& holdout) {
+            if (holdout.empty())
+                close_windows();
+            else
+                cancel(holdout);
+        });
+        return;
+    }
+    close_windows();
+}
+
+void Logout::close_windows() {
+    if (done_)
+        return;
+    size_t n = 0;
+    for (View* v : std::vector<View*>(server_.views))
+        if (counts(v)) {
+            v->close();
+            ++n;
+        }
+    alog(Log::Info, "logout: asking %zu windows to close", n);
     check();
 }
 
@@ -115,6 +137,8 @@ void Logout::check() {
 
 void Logout::finish() {
     done_ = true;
+    if (server_.xsmp)
+        server_.xsmp->die();
     switch (then_) {
     case Then::LogOut:
         alog(Log::Info, "logout: every app quit; logging out");
@@ -141,6 +165,8 @@ void Logout::finish() {
 // The rest of the session stays as it is: what quit, quit.
 void Logout::cancel(const std::string& holdout) {
     done_ = true;
+    if (server_.xsmp)
+        server_.xsmp->cancel();
     const char* what = then_ == Then::Restart ? "Restart" : then_ == Then::ShutDown ? "Shut down" : "Log out";
     alog(Log::Info, "logout: %s cancelled, %s didn't quit", what, holdout.c_str());
     server_.notify(std::string(what) + " was cancelled", holdout + " didn't quit.");

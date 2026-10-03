@@ -6,10 +6,6 @@ namespace atrium::input_capture {
 
 namespace {
 
-bool contains(const Box& b, int x, int y) {
-    return x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
-}
-
 // Any screen covering pixels of column `x` (or row `y`) between `from` and `to`.
 bool covered_column(std::span<const Box> screens, int x, int from, int to) {
     for (const Box& s : screens)

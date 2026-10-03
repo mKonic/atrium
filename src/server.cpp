@@ -49,6 +49,7 @@
 #include "clipboard_history.hpp"
 #include "screencast.hpp"
 #include "eis.hpp"
+#include "xsmp.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -723,6 +724,7 @@ void Server::teardown() {
     clipboard_history.reset();
     screencast.reset();
     eis.reset();
+    xsmp.reset();
     idle.reset();
     logind.reset();
     lock_screen.reset();
@@ -832,6 +834,12 @@ void Server::run(const char* startup_cmd) {
         install_qt_theme(config.light, config.accent, interface());
         install_app_defaults();
     }
+    if (!config.greeter) {
+        // X11 apps that save through a session manager find it here.
+        xsmp = std::make_unique<Xsmp>(*this);
+        if (xsmp->ok())
+            setenv("SESSION_MANAGER", xsmp->address().c_str(), 1);
+    }
     if (!nested && !config.greeter) {
         // D-Bus-started apps get the session's environment, themes included.
         // (A nested atrium's environment isn't the host session's.)
@@ -845,7 +853,7 @@ void Server::run(const char* startup_cmd) {
             spawn("/usr/lib/pam_kwallet_init");
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
               "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS "
-              "SUDO_ASKPASS SSH_ASKPASS; "
+              "SUDO_ASKPASS SSH_ASKPASS SESSION_MANAGER; "
               // Ours still up is a crashed atrium's: over from the start, so
               // login apps start again (the ones that died with it too).
               // Another's (uwsm's) is left alone.
