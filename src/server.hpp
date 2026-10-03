@@ -226,7 +226,7 @@ public:
     bool power_button();
     // A screen on or off (DPMS): idle, and clients through wlr-output-power.
     void set_screen_power(Output* output, bool on);
-    void spawn(const std::string& command);
+    pid_t spawn(const std::string& command);
     void change_vt(unsigned vt);
     void run_action(const Keybind& bind);
 
@@ -397,6 +397,8 @@ private:
 
     int wrapped_fd_ = -1;  // the wrapper's listening socket (libwayland owns it)
     pid_t startup_pid_ = -1;
+    // The login screen's input method (fcitx5), for names typed in CJK.
+    pid_t greeter_im_ = -1;
     std::string startup_cmd_;               // until Xwayland is up
     bool session_target_ = false;  // atrium-session.target may be ours to stop
     std::filesystem::path session_marker_;  // "running": ours while we run
