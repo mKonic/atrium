@@ -148,6 +148,17 @@ if gtest.found()
     dependencies: [atrium_dep, gtest, dependency('libcrypto'), dependency('libxcrypt'), dependency('wayland-client')],
   )
   test('unit', unit)
+
+  # The shell plugin's Qt classes, on QtCore alone (no QML, no display).
+  unit_qt_qt = dependency('qt6', version: '>=6.8', modules: ['Core'])
+  unit_qt = executable('unit-qt',
+    'folder_model_test.cpp', 'file_chooser_test.cpp',
+    files('../shell/plugin/Atrium/folder_model.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/file_chooser.cpp'),
+    qt6.compile_moc(headers: ['../shell/plugin/Atrium/folder_model.hpp', '../shell/plugin/Atrium/file_chooser.hpp'], dependencies: unit_qt_qt),
+    include_directories: include_directories('../shell/plugin/Atrium'),
+    dependencies: [gtest, unit_qt_qt],
+  )
+  test('unit-qt', unit_qt)
 endif
 
 

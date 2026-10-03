@@ -31,6 +31,7 @@
 #include "keyboard_layouts.hpp"
 #include "welcome.hpp"
 #include "share.hpp"
+#include "file_chooser.hpp"
 #include "access.hpp"
 #include "capture.hpp"
 #include "markup.hpp"
@@ -249,6 +250,8 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Welcome; });
         qmlRegisterSingletonType<ShareChooser>(uri, 1, 0, "ShareChooser",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new ShareChooser; });
+        qmlRegisterSingletonType<FileChooser>(uri, 1, 0, "FileChooser",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new FileChooser; });
         qmlRegisterSingletonType<AccessPrompt>(uri, 1, 0, "AccessPrompt",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new AccessPrompt; });
         qmlRegisterSingletonType<Capture>(uri, 1, 0, "Capture",

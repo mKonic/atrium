@@ -55,6 +55,24 @@ TEST(Files, FiltersBySuffix) {
     EXPECT_TRUE(has_suffix("anything", {}));
 }
 
+TEST(Files, FreeFileNamesKeepTheSuffix) {
+    std::set<std::string> have{"photo.png", "photo 2.png", ".bashrc", "notes"};
+    auto taken = [&](const std::string& n) { return have.contains(n); };
+    EXPECT_EQ(free_file_name("photo.png", taken), "photo 3.png");
+    EXPECT_EQ(free_file_name("new.png", taken), "new.png");
+    EXPECT_EQ(free_file_name(".bashrc", taken), ".bashrc 2");
+    EXPECT_EQ(free_file_name("notes", taken), "notes 2");
+}
+
+TEST(Files, Globs) {
+    EXPECT_TRUE(glob_match("sky.PNG", "*.png"));
+    EXPECT_TRUE(glob_match("IMG_0042.jpg", "IMG_????.jpg"));
+    EXPECT_FALSE(glob_match("IMG_42.jpg", "IMG_????.jpg"));
+    EXPECT_TRUE(glob_match("b-side", "[ab]*"));
+    EXPECT_FALSE(glob_match("notes.txt", "*.png"));
+    EXPECT_TRUE(glob_match("anything", "*"));
+}
+
 TEST(Files, FreeNames) {
     std::set<std::string> have{"New Folder", "New Folder 2"};
     EXPECT_EQ(free_name("New Folder", [&](const std::string& n) { return have.contains(n); }), "New Folder 3");
