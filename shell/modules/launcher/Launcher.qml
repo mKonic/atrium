@@ -342,7 +342,7 @@ PanelWindow {
 
                 StyledText {
                     anchors.fill: parent
-                    visible: input.text.length === 0 && !argRow.visible
+                    visible: input.text.length === 0 && input.preeditText.length === 0 && !argRow.visible
                     text: lm.screen === "output" ? lm.outputTitle : (launcher.placeholders[lm.screen] ?? "")
                     elide: Text.ElideRight
                     font.pointSize: 16
@@ -468,7 +468,7 @@ PanelWindow {
                             StyledText {
                                 anchors.fill: parent
                                 verticalAlignment: Text.AlignVCenter
-                                visible: argInput.text.length === 0
+                                visible: argInput.text.length === 0 && argInput.preeditText.length === 0
                                 text: argBox.modelData.name + (argBox.modelData.optional ? " (optional)" : "")
                                 color: Theme.palette.tertiaryLabel
                             }
@@ -828,7 +828,7 @@ PanelWindow {
                         anchors.fill: parent
                         leftPadding: 16
                         verticalAlignment: Text.AlignVCenter
-                        visible: menuSearch.text.length === 0
+                        visible: menuSearch.text.length === 0 && menuSearch.preeditText.length === 0
                         text: launcher.menuSource === "filter" ? "Search types…" : "Search for actions…"
                         color: Theme.palette.tertiaryLabel
                     }

@@ -233,7 +233,7 @@ PanelWindow {
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: nameField.text.length === 0
+                    visible: nameField.text.length === 0 && nameField.preeditText.length === 0
                     text: "Name"
                     color: Theme.dark.secondaryLabel
                 }
