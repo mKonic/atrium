@@ -914,9 +914,12 @@ void Server::run(const char* startup_cmd) {
         note_last_session();
     // At the login screen, the input method for names in Chinese, Japanese
     // or Korean: fcitx5 with the machine's defaults (/etc/xdg/fcitx5), when
-    // it's installed. In a session it starts itself (XDG autostart).
+    // it's installed. Its own settings go in the runtime dir: one it saved
+    // in the greeter's home would hide the machine's from then on. In a
+    // session it starts itself (XDG autostart).
     if (config.greeter && !nested)
-        greeter_im_ = spawn("command -v fcitx5 >/dev/null && exec fcitx5 --replace");
+        greeter_im_ = spawn("command -v fcitx5 >/dev/null && "
+                            "XDG_CONFIG_HOME=\"$XDG_RUNTIME_DIR/greeter-im\" exec fcitx5 --replace");
 
     if (startup_cmd && !config.greeter) {
         startup_cmd_ = startup_cmd;
