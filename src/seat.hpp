@@ -127,7 +127,6 @@ private:
     void show_shake_level(int level);
     ShakeDetector shake_;
     static constexpr int kShakeLevels = 4;  // sizes on the way up: 1.5x to 3x
-    std::array<std::unique_ptr<xcursor::Manager>, kShakeLevels> shake_xcursor_;
     int shake_level_ = 0;  // 0: normal size
     bool shaking_ = false;
     wl_event_source* shake_end_ = nullptr;

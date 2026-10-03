@@ -157,7 +157,7 @@ void Cursor::refresh(Screen& s) {
     if (o.renderer && o.enabled) {
         if (kind_ == Kind::XCursor) {
             // The theme at this screen's scale: one image pixel per screen pixel.
-            if (const xcursor::Cursor* xc = manager_->get(name_, o.scale)) {
+            if (const xcursor::Cursor* xc = manager_->get(name_, o.scale * grow_)) {
                 const xcursor::Image* img = &xc->images[frame_ % xc->images.size()];
                 s.texture = o.renderer->texture_from_pixels(DRM_FORMAT_ARGB8888, img->width * 4, img->width,
                                                             img->height, img->pixels.data());
@@ -169,7 +169,7 @@ void Cursor::refresh(Screen& s) {
         } else if (kind_ == Kind::Buffer) {
             s.texture = o.renderer->texture_from_buffer(buffer_);
             if (s.texture) {
-                const float k = o.scale / buffer_scale_;
+                const float k = o.scale * grow_ / buffer_scale_;
                 s.width = int(std::lround(s.texture->width * k));
                 s.height = int(std::lround(s.texture->height * k));
                 s.hot_x = int(std::lround(hot_x_ * k));
@@ -182,6 +182,13 @@ void Cursor::refresh(Screen& s) {
     if (was_plane && !s.plane)
         o.set_cursor(nullptr, 0, 0);
     place(s);
+}
+
+void Cursor::set_grow(float factor) {
+    if (factor == grow_)
+        return;
+    grow_ = factor;
+    refresh_all();
 }
 
 bool Cursor::try_plane(Screen& s) {

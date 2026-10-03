@@ -43,6 +43,9 @@ public:
     void set_xcursor(xcursor::Manager* manager, const char* name);
     void set_buffer(Buffer* buffer, int hotspot_x, int hotspot_y, float scale);
     void unset_image();
+    // Shown `factor` times its size (shake to find): a theme's cursor from
+    // the theme at that size, a client's scaled. 1: as it is.
+    void set_grow(float factor);
 
     // Draws it into a frame of `output` where it has no cursor plane
     // (`damage` in the frame's buffer pixels).
@@ -98,6 +101,7 @@ private:
     Buffer* buffer_ = nullptr;  // locked
     int hot_x_ = 0, hot_y_ = 0;
     float buffer_scale_ = 1;
+    float grow_ = 1;
     size_t frame_ = 0;  // an animated theme cursor's image
     uint64_t serial_ = 1;  // of the image
     wl_event_source* animation_ = nullptr;

@@ -104,14 +104,14 @@ Seat::Seat(Server& srv) : server(srv) {
     auto& c = connections_;
     c.push_back(ws.events.request_cursor.connect([this](const wl::Seat::CursorRequest& r) {
         // While we own the pointer (move/resize) the client's image waits.
-        if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
+        if (mode != Mode::Normal && mode != Mode::Pressed)
             return;
         wl::Surface* focus = server.wl->seat->pointer_focus();
         if (focus && focus->client() == r.client)
             set_cursor_surface(r.surface, r.hotspot_x, r.hotspot_y);
     }));
     c.push_back(server.wl->cursor_shapes->request_shape.connect([this](const wl::CursorShapes::Request& r) {
-        if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_ || r.tablet_tool)
+        if ((mode != Mode::Normal && mode != Mode::Pressed) || r.tablet_tool)
             return;
         wl::Surface* focus = server.wl->seat->pointer_focus();
         if (focus && focus->client() == r.client) {
@@ -386,9 +386,6 @@ void Seat::apply_cursor_theme() {
     const Config& c = server.config;
     const char* theme = c.cursor_theme.empty() ? getenv("XCURSOR_THEME") : c.cursor_theme.c_str();
     xcursor = std::make_unique<xcursor::Manager>(theme, c.cursor_size);
-    for (int i = 0; i < kShakeLevels; ++i)
-        shake_xcursor_[i] =
-            std::make_unique<xcursor::Manager>(theme, uint32_t(std::lround(c.cursor_size * (1.5 + 0.5 * i))));
     setenv("XCURSOR_SIZE", std::to_string(c.cursor_size).c_str(), 1);
     if (theme)
         setenv("XCURSOR_THEME", theme, 1);
@@ -396,12 +393,14 @@ void Seat::apply_cursor_theme() {
 
 // --- shake to find ---------------------------------------------------------
 
+// Whatever the pointer shows grows: the theme's arrow, or an app's own
+// cursor (an I-beam stays one).
 void Seat::show_shake_level(int level) {
     shake_level_ = level;
-    cursor->set_xcursor(level ? shake_xcursor_[level - 1].get() : xcursor.get(), "default");
+    cursor->set_grow(level ? 1.5f + 0.5f * float(level - 1) : 1.0f);
 }
 
-// The arrow grows while the shaking goes on, and settles once it stops.
+// The pointer grows while the shaking goes on, and settles once it stops.
 void Seat::shake_grow() {
     constexpr int kHoldMs = 600;  // still big this long after the last shake
     if (!shake_end_)
@@ -426,14 +425,7 @@ void Seat::shake_settle() {
     const int from = shake_level_;
     server.animator.start(&shake_, 300, Ease::Standard, [this, from](double t) {
         show_shake_level(int(std::lround(from * (1 - t))));
-    }, [this] {
-        // The app under the pointer sets its own cursor again, as on entering.
-        shaking_ = false;
-        if (mode == Mode::Normal) {
-            server.wl->seat->pointer_clear_focus();
-            refresh_pointer();
-        }
-    });
+    }, [this] { shaking_ = false; });
 }
 
 void Seat::set_default_cursor() {
