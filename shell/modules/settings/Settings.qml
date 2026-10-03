@@ -110,6 +110,8 @@ FloatingWindow {
             TextInput {
                 id: search
 
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
                 anchors.left: glass.right
                 anchors.leftMargin: 6
                 anchors.right: parent.right

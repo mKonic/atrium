@@ -130,6 +130,8 @@ Column {
                         TextInput {
                             id: password
 
+                            selectionColor: Theme.palette.accent
+                            selectedTextColor: Theme.palette.labelOnAccent
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10

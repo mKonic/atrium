@@ -168,6 +168,8 @@ FloatingWindow {
             TextInput {
                 id: search
 
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
                 anchors.left: glass.right
                 anchors.leftMargin: 6
                 anchors.right: parent.right
@@ -355,6 +357,8 @@ FloatingWindow {
             TextInput {
                 id: renameField
 
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
                 anchors.fill: parent
                 anchors.leftMargin: 8
                 anchors.rightMargin: 8

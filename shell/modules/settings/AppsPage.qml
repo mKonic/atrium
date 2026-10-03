@@ -75,6 +75,8 @@ Column {
                 TextInput {
                     id: search
 
+                    selectionColor: Theme.palette.accent
+                    selectedTextColor: Theme.palette.labelOnAccent
                     anchors.fill: parent
                     anchors.leftMargin: 12
                     anchors.rightMargin: 12
