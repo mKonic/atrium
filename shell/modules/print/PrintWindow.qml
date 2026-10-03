@@ -27,6 +27,12 @@ FloatingWindow {
         onActivated: PrintPrompt.cancel()
     }
 
+    // Return prints, as the default button.
+    Shortcut {
+        sequences: ["Return", "Enter"]
+        onActivated: PrintPrompt.print()
+    }
+
     component Label: StyledText {
         width: 130
         horizontalAlignment: Text.AlignRight

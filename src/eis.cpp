@@ -486,6 +486,8 @@ bool Eis::capture_motion(uint32_t, double x, double y, double dx, double dy) {
         if (!s->enabled || s->barriers.empty())
             continue;
         if (const auto c = input_capture::crossing(s->barriers, x, y, dx, dy)) {
+            // The pointer waits at the edge it went through.
+            server_.seat->cursor->warp_closest(c->x, c->y);
             activate(*s, c->x, c->y, c->id);
             return true;
         }
