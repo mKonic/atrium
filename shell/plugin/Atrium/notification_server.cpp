@@ -126,11 +126,23 @@ NotificationServer::NotificationServer() {
         return;
     }
     // Taken over from whatever held it (a daemon D-Bus activated before
-    // the shell was up), and handed on if another asks.
-    const auto reply = bus.interface()->registerService("org.freedesktop.Notifications",
-        QDBusConnectionInterface::ReplaceExistingService, QDBusConnectionInterface::AllowReplacement);
-    if (!reply.isValid() || reply.value() != QDBusConnectionInterface::ServiceRegistered)
-        qWarning("notifications: another server keeps org.freedesktop.Notifications");
+    // the shell was up), and handed on if another asks; taken back when
+    // that one goes. Left without an owner, every app's notification waits
+    // out D-Bus activation, and Discord or Chrome hang while it does.
+    auto claim = [bus] {
+        const auto reply = bus.interface()->registerService("org.freedesktop.Notifications",
+            QDBusConnectionInterface::ReplaceExistingService, QDBusConnectionInterface::AllowReplacement);
+        if (!reply.isValid() || reply.value() != QDBusConnectionInterface::ServiceRegistered)
+            qWarning("notifications: another server keeps org.freedesktop.Notifications");
+    };
+    claim();
+    auto* owner = new QDBusServiceWatcher("org.freedesktop.Notifications", bus,
+                                          QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(owner, &QDBusServiceWatcher::serviceOwnerChanged, this,
+            [claim](const QString&, const QString&, const QString& now) {
+        if (now.isEmpty())
+            claim();
+    });
     senders_ = new QDBusServiceWatcher(this);
     senders_->setConnection(bus);
     senders_->setWatchMode(QDBusServiceWatcher::WatchForUnregistration);
