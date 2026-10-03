@@ -154,10 +154,23 @@ void Capture::takeRegion(const QString& screen, int x0, int y0, int x1, int y1) 
                                               image.height());
     if (p.width < 2 || p.height < 2)
         return;
+    if (mode_ == "area")
+        return answerArea(s->geometry().translated(b.x, b.y).topLeft(), b.width, b.height);
     deliver(image.copy(p.x, p.y, p.width, p.height));
 }
 
+void Capture::answerArea(QPoint at, int width, int height) {
+    answer(QString("%1 %2 %3 %4").arg(at.x()).arg(at.y()).arg(width).arg(height));
+}
+
 void Capture::takeScreen(const QString& screen) {
+    if (mode_ == "area") {
+        QRect all;
+        for (QScreen* s : QGuiApplication::screens())
+            if (screen.isEmpty() || s->name() == screen)
+                all |= s->geometry();
+        return answerArea(all.topLeft(), all.width(), all.height());
+    }
     if (!screen.isEmpty()) {
         deliver(QImage(frozen_.value(screen)));
         return;
@@ -190,6 +203,11 @@ void Capture::takeScreen(const QString& screen) {
 }
 
 void Capture::takeWindow(const QString& identifier, const QString& screen, int x, int y, int width, int height) {
+    if (mode_ == "area") {
+        if (QScreen* s = screenNamed(screen); s && width > 1 && height > 1)
+            answerArea(s->geometry().topLeft() + QPoint(x, y), width, height);
+        return;
+    }
     const QString file = dir_.filePath("window.png");
     busy_ = true;
     pickingMayChange();

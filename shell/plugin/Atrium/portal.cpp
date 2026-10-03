@@ -5,6 +5,7 @@
 #include "share_core.hpp"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -356,15 +357,22 @@ QDBusVariant SettingsAdaptor::Read(const QString& ns, const QString& key) {
 
 namespace {
 
-// An installed file, else the source tree's (running from the build tree).
+// Run from the build tree: its own shell, not an installed (older) one.
+bool fromBuildTree() {
+    return QCoreApplication::applicationDirPath().startsWith(QStringLiteral(ATRIUM_BUILD_DIR "/"));
+}
+
+// An installed file, else the source tree's.
 QString shellFile(const QString& name) {
     const QString installed = QStringLiteral(ATRIUM_DATADIR "/shell/") + name;
-    return QFileInfo::exists(installed) ? installed : QStringLiteral(ATRIUM_SOURCE_DIR "/shell/") + name;
+    return QFileInfo::exists(installed) && !fromBuildTree() ? installed
+                                                            : QStringLiteral(ATRIUM_SOURCE_DIR "/shell/") + name;
 }
 
 QString shellProgram() {
     const QString installed = QStringLiteral(ATRIUM_BINDIR "/atrium-shell");
-    return QFileInfo::exists(installed) ? installed : QStringLiteral(ATRIUM_BUILD_DIR "/shell/host/atrium-shell");
+    return QFileInfo::exists(installed) && !fromBuildTree() ? installed
+                                                            : QStringLiteral(ATRIUM_BUILD_DIR "/shell/host/atrium-shell");
 }
 
 } // namespace
@@ -697,7 +705,7 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
             return answer(target.isEmpty() ? 1 : 2, {});
         QVariantMap fields = target;
         fields.remove("app_id");
-        fields.insert("cursor", c->cursor == 2);
+        fields.insert("cursor", c->cursor == 4 ? QVariant("metadata") : QVariant(c->cursor == 2));
         Compositor::instance()->screencastStart(fields, [this, path, kind, target, answer](const QJsonObject& reply) {
             auto c = casts_.find(path);
             if (!reply.value("ok").toBool() || c == casts_.end())
@@ -705,9 +713,15 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
             const QJsonObject r = reply.value("result").toObject();
             const qint64 stream = r.value("stream").toInteger();
             c->streams.append(stream);
-            QVariantMap props{{"source_type", uint(kind == "screen" ? 1 : 2)}};
+            QVariantMap props{{"source_type", uint(kind == "window" ? 2 : 1)}};
             // Where it is and how big, in the desktop's logical pixels.
             int x = 0, y = 0, w = r.value("width").toInt(), h = r.value("height").toInt();
+            if (kind == "area") {
+                // What the stream holds: the area cut to the screen its middle is on.
+                const QVariantMap a = target.value("region").toMap();
+                x = a.value("x").toInt(), y = a.value("y").toInt();
+                w = a.value("width").toInt(), h = a.value("height").toInt();
+            }
             if (kind == "screen")
                 for (const QVariant& o : Compositor::instance()->outputs())
                     if (o.toMap().value("name") == target.value("output")) {
@@ -722,12 +736,12 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
             size.beginStructure();
             size << w << h;
             size.endStructure();
-            if (kind == "screen")
+            if (kind != "window")
                 props.insert("position", QVariant::fromValue(position));
             props.insert("size", QVariant::fromValue(size));
             props.insert("id", QString::number(stream));
             QVariantMap results{{"streams", QVariant::fromValue(PortalStreams{{uint(r.value("node").toInt()), props}})}};
-            if (c->persist) {
+            if (c->persist && kind != "area") {
                 // Next time without asking: the same screen, or a window of the same app.
                 const QString name = kind == "screen" ? target.value("output").toString()
                                                       : target.value("app_id").toString();
@@ -752,8 +766,29 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
 
     auto* chooser = new QProcess(request);
     QObject::connect(request, &PortalRequest::closed, chooser, [chooser] { chooser->kill(); });
-    QObject::connect(chooser, &QProcess::finished, request, [chooser, cast, answer](int code, QProcess::ExitStatus st) {
-        const auto picked = share::parse(chooser->readAllStandardOutput().toStdString());
+    QObject::connect(chooser, &QProcess::finished, request, [request, chooser, cast, answer](int code,
+                                                                                         QProcess::ExitStatus st) {
+        const QByteArray out = chooser->readAllStandardOutput();
+        if (st == QProcess::NormalExit && code == 0 && out.trimmed() == "Area:") {
+            // An area next, picked with the screenshot tool: "x y width height".
+            auto* picker = new QProcess(request);
+            QObject::connect(request, &PortalRequest::closed, picker, [picker] { picker->kill(); });
+            QObject::connect(picker, &QProcess::finished, request, [picker, cast, answer] {
+                const QStringList v = QString::fromUtf8(picker->readAllStandardOutput()).simplified().split(' ');
+                if (v.size() != 4)
+                    return answer(1, {});
+                cast("area", {{"region", QVariantMap{{"x", v[0].toInt()}, {"y", v[1].toInt()},
+                                                     {"width", v[2].toInt()}, {"height", v[3].toInt()}}}});
+            });
+            QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+            env.insert("ATRIUM_CAPTURE_MODE", "area");
+            picker->setProcessEnvironment(env);
+            // Once the chooser has gone (it zooms out over 300 ms): the picker
+            // freezes the screen as it starts.
+            QTimer::singleShot(350, picker, [picker] { picker->start(shellProgram(), {shellFile("capture.qml")}); });
+            return;
+        }
+        const auto picked = share::parse(out.toStdString());
         if (st != QProcess::NormalExit || code != 0 || picked.empty())
             return answer(1, {});  // the user said no
         const share::Source& p = picked.front();

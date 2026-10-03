@@ -1,5 +1,6 @@
 #include "screencast.hpp"
 
+#include "cursor.hpp"
 #include "output.hpp"
 #include "render/renderer.hpp"
 #include "screencast_core.hpp"
@@ -27,6 +28,8 @@ namespace atrium {
 namespace {
 
 constexpr int kDamageRects = 16;
+constexpr int kCursorSize = 256;  // the largest pointer image sent
+constexpr size_t kCursorMeta = sizeof(spa_meta_cursor) + sizeof(spa_meta_bitmap) + kCursorSize * kCursorSize * 4;
 
 int64_t now_ns() {
     timespec t;
@@ -94,6 +97,11 @@ struct ScreenCast::Stream {
     spa_video_info_raw format{};       // negotiated
     std::optional<uint64_t> modifier;  // a DMA-BUF one, once picked
     uint32_t max_rate = 60;            // frames a second we offer at most
+    bool metadata = false;             // the pointer beside the picture
+    uint64_t sent_image = 0;           // the pointer image the app has
+    bool cursor_shown = false;         // on the picture, last the app heard
+    int64_t last_cursor = 0;
+    wl::Connection cursor_changed;
 
     pw_buffer* in_flight = nullptr;  // being copied into
     bool copying = false;
@@ -207,6 +215,10 @@ struct ScreenCast::Stream {
         params.push_back(static_cast<const spa_pod*>(spa_pod_builder_add_object(
             &b, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta, SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Header),
             SPA_PARAM_META_size, SPA_POD_Int(sizeof(spa_meta_header)))));
+        if (metadata)
+            params.push_back(static_cast<const spa_pod*>(spa_pod_builder_add_object(
+                &b, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta, SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Cursor),
+                SPA_PARAM_META_size, SPA_POD_Int(int(kCursorMeta)))));
         params.push_back(static_cast<const spa_pod*>(spa_pod_builder_add_object(
             &b, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta, SPA_PARAM_META_type, SPA_POD_Id(SPA_META_VideoDamage),
             SPA_PARAM_META_size,
@@ -364,6 +376,103 @@ struct ScreenCast::Stream {
         delete slot;
     }
 
+    // The pointer for the app to draw: where it is in the picture's pixels,
+    // its image when that changed. Hidden (id 0) when it's off the picture.
+    bool put_cursor(spa_buffer* sb) {
+        auto* mc = static_cast<spa_meta_cursor*>(spa_buffer_find_meta_data(sb, SPA_META_Cursor, sizeof(spa_meta_cursor)));
+        if (!mc)
+            return false;
+        mc->id = 0;
+        mc->flags = 0;
+        mc->bitmap_offset = 0;
+        Cursor* cursor = server().cursor.get();
+        if (!cursor)
+            return false;
+        // The screen it's on, and where the picture starts on it.
+        Output* on = nullptr;
+        for (Output* o : server().outputs)
+            if (o->enabled() && box_contains_point(&o->box, cursor->x, cursor->y))
+                on = o;
+        if (!on)
+            return false;
+        Cursor::Image image;
+        int x = 0, y = 0;
+        if (!cursor->image_on(on->screen, &image, &x, &y))
+            return false;
+        double ox = 0, oy = 0, k = 1;  // the picture's origin on that screen, in its pixels; its pixels per those
+        if (target.output) {
+            auto* o = static_cast<Output*>(target.output->data);
+            // Drawn in software, it's in the picture already: not twice.
+            if (o != on || !cursor->in_plane(o->screen))
+                return false;
+            if (target.region) {
+                ox = (target.region->x - o->box.x) * o->screen->scale;
+                oy = (target.region->y - o->box.y) * o->screen->scale;
+            }
+        } else if (auto* v = target.toplevel ? static_cast<View*>(target.toplevel->data) : nullptr) {
+            const int top = v->top();
+            const double s = on->screen->scale;
+            ox = (v->geom.x - on->box.x) * s;
+            oy = (v->geom.y + top - on->box.y) * s;
+            if (v->geom.width > 0)
+                k = width / (v->geom.width * s);
+        }
+        const int hx = int(std::lround((x + image.hot_x - ox) * k)), hy = int(std::lround((y + image.hot_y - oy) * k));
+        if (hx < 0 || hy < 0 || hx >= width || hy >= height)
+            return false;
+        mc->id = 1;
+        mc->position.x = hx;
+        mc->position.y = hy;
+        mc->hotspot.x = image.hot_x;
+        mc->hotspot.y = image.hot_y;
+        if (image.serial == sent_image || image.width > kCursorSize || image.height > kCursorSize)
+            return true;
+        // A new picture of it: sent once, the app keeps it.
+        mc->bitmap_offset = sizeof(spa_meta_cursor);
+        auto* bm = SPA_PTROFF(mc, mc->bitmap_offset, spa_meta_bitmap);
+        bm->format = SPA_VIDEO_FORMAT_BGRA;
+        bm->size.width = uint32_t(image.width);
+        bm->size.height = uint32_t(image.height);
+        bm->stride = image.width * 4;
+        bm->offset = sizeof(spa_meta_bitmap);
+        std::memcpy(SPA_PTROFF(bm, bm->offset, void), image.pixels.data(), image.pixels.size() * 4);
+        sent_image = image.serial;
+        return true;
+    }
+
+    // The pointer moved over a still picture: a buffer with it alone.
+    void cursor_only() {
+        if (closed || !streaming)
+            return;
+        const int64_t now = now_ns();
+        if (screencast_wait_ns(last_cursor, now, max_rate, 1) > 0)
+            return;
+        pw_buffer* pwb = pw_stream_dequeue_buffer(stream);
+        if (!pwb)
+            return;
+        if (!pwb->user_data) {
+            pw_stream_return_buffer(stream, pwb);
+            return;
+        }
+        spa_buffer* sb = pwb->buffer;
+        if (auto* h = static_cast<spa_meta_header*>(spa_buffer_find_meta_data(sb, SPA_META_Header, sizeof(spa_meta_header)))) {
+            h->pts = now;
+            h->flags = 0;
+            h->seq = seq++;
+            h->dts_offset = 0;
+        }
+        const bool shown = put_cursor(sb);
+        if (!shown && !cursor_shown) {
+            pw_stream_return_buffer(stream, pwb);  // off the picture, and was
+            return;
+        }
+        cursor_shown = shown;
+        // "Don't look at the picture": only the pointer is new.
+        sb->datas[0].chunk->flags = SPA_CHUNK_FLAG_CORRUPTED;
+        pw_stream_queue_buffer(stream, pwb);
+        last_cursor = now;
+    }
+
     void arm(int64_t ns) {
         wl_event_source_timer_update(timer, std::max(1, int((ns + 999'999) / 1'000'000)));
     }
@@ -453,6 +562,8 @@ struct ScreenCast::Stream {
                     put(b.x, b.y, b.width, b.height);
             put(0, 0, 0, 0);  // the end
         }
+        if (metadata)
+            cursor_shown = put_cursor(sb);
         sb->datas[0].chunk->flags = SPA_CHUNK_FLAG_NONE;
         if (!modifier) {
             sb->datas[0].chunk->offset = 0;
@@ -460,7 +571,7 @@ struct ScreenCast::Stream {
             sb->datas[0].chunk->stride = width * 4;
         }
         pw_stream_queue_buffer(stream, pwb);
-        last_frame = now_ns();
+        last_frame = last_cursor = now_ns();
         defer_pump();
     }
 
@@ -561,8 +672,8 @@ void ScreenCast::disconnect() {
     loop_ = nullptr;
 }
 
-uint64_t ScreenCast::start(const wl::Capture::Target& target, uint64_t tag, std::function<void(const Ready&)> ready,
-                           std::function<void()> ended) {
+uint64_t ScreenCast::start(const wl::Capture::Target& target, bool cursor_metadata, uint64_t tag,
+                           std::function<void(const Ready&)> ready, std::function<void()> ended) {
     if (!connect()) {
         ready(Ready{.error = "PipeWire isn't running"});
         return 0;
@@ -574,6 +685,12 @@ uint64_t ScreenCast::start(const wl::Capture::Target& target, uint64_t tag, std:
     s->target = target;
     s->ready = std::move(ready);
     s->ended = std::move(ended);
+    s->metadata = cursor_metadata;
+    if (s->metadata) {
+        s->target.cursor = false;  // not in the picture as well
+        if (server_.cursor)
+            s->cursor_changed = server_.cursor->changed.connect([raw = s.get()] { raw->cursor_only(); });
+    }
     if (!s->constraints(&s->width, &s->height, &s->drm_format, &s->modifiers)) {
         s->ready(Ready{.error = "nothing to capture there"});
         return 0;

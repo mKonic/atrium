@@ -36,6 +36,8 @@ struct Cursor::Screen {
     std::unique_ptr<backend::Swapchain> swapchain;
     Buffer* front = nullptr;  // in the plane now
     Box drawn{};  // drawn in software here last (transformed pixels)
+    std::vector<uint32_t> pixels;  // read back for image_on, at `pixels_serial`
+    uint64_t pixels_serial = 0;
 
     ~Screen() {
         if (texture)
@@ -144,6 +146,7 @@ void Cursor::refresh_all() {
 }
 
 void Cursor::refresh(Screen& s) {
+    ++serial_;
     damage(s);
     s.drawn = {};
     if (s.texture)
@@ -270,6 +273,7 @@ void Cursor::damage(Screen& s) {
 }
 
 void Cursor::place(Screen& s) {
+    changed.emit();
     if (s.plane) {
         const Box ob = layout_.box(s.output);
         const float k = s.output->scale;
@@ -430,6 +434,37 @@ void Cursor::render_into_copy(const backend::Output* o, render::RenderPass* pass
     tex.transform = o->transform;
     tex.filter_mode = render::SCALE_FILTER_BILINEAR;
     pass->add_texture(&tex);
+}
+
+bool Cursor::image_on(const backend::Output* o, Image* image, int* x, int* y) {
+    Screen* s = screen_of(o);
+    if (!s || !s->texture || s->width <= 0 || s->height <= 0)
+        return false;
+    if (s->pixels_serial != serial_) {
+        // Read back once per picture, at the size the screen shows it.
+        const int tw = s->texture->width, th = s->texture->height;
+        std::vector<uint32_t> raw(size_t(tw) * size_t(th));
+        const render::ReadPixelsOptions r{
+            .data = raw.data(), .format = DRM_FORMAT_ARGB8888, .stride = uint32_t(tw) * 4};
+        if (!s->texture->read_pixels(&r))
+            return false;
+        s->pixels.assign(size_t(s->width) * size_t(s->height), 0);
+        for (int py = 0; py < s->height; ++py)
+            for (int px = 0; px < s->width; ++px)
+                s->pixels[size_t(py) * size_t(s->width) + size_t(px)] =
+                    raw[size_t(py * th / s->height) * size_t(tw) + size_t(px * tw / s->width)];
+        s->pixels_serial = serial_;
+    }
+    image->width = s->width;
+    image->height = s->height;
+    image->hot_x = s->hot_x;
+    image->hot_y = s->hot_y;
+    image->serial = serial_;
+    image->pixels = s->pixels;
+    const Box b = box_on(*s);
+    *x = b.x;
+    *y = b.y;
+    return true;
 }
 
 } // namespace atrium

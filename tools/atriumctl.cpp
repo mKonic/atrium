@@ -59,7 +59,7 @@ void usage() {
         "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
         "  screenshot FILE [output=NAME] [window=ID] [region=X,Y,W,H] [scale=S]   a PNG of everything, a\n"
         "                            screen, a window or an area\n"
-        "  screencast [output=NAME] [window=ID] [region=X,Y,W,H] [cursor=0]   a PipeWire stream of it: prints\n"
+        "  screencast [output=NAME] [window=ID] [region=X,Y,W,H] [cursor=0|metadata]   a PipeWire stream of it: prints\n"
         "                            its node id and keeps it going until stopped\n"
         "  clipboard [list]          clipboard history, newest first\n"
         "  clipboard copy|delete ID | clipboard clear | clipboard set TEXT\n"
@@ -346,7 +346,7 @@ int run(int argc, char** argv) {
             else if (key == "scale" && cmd == "screenshot")
                 req["scale"] = std::stod(value);
             else if (key == "cursor" && cmd == "screencast")
-                req["cursor"] = value != "0" && value != "false";
+                req["cursor"] = value == "metadata" ? json("metadata") : json(value != "0" && value != "false");
             else if (key == "region") {
                 int x = 0, y = 0, w = 0, h = 0;
                 if (std::sscanf(value.c_str(), "%d,%d,%d,%d", &x, &y, &w, &h) != 4) {

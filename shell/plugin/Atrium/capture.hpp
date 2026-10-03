@@ -38,7 +38,7 @@ public:
     explicit Capture(QObject* parent = nullptr);
 
     QString mode() const { return mode_; }
-    bool forPortal() const { return mode_.startsWith("portal") || mode_ == "color"; }
+    bool forPortal() const { return mode_.startsWith("portal") || mode_ == "color" || mode_ == "area"; }
     bool ready() const { return ready_; }
     QVariantMap frozen() const;
     QString kind() const { return kind_; }
@@ -55,6 +55,9 @@ public:
     // "#rrggbb" of the frozen picture there.
     Q_INVOKABLE QString colorAt(const QString& screen, int x, int y) const;
 
+    // "area" mode (screen sharing picks a part of the desktop): what was
+    // picked goes back as "x y width height" in the desktop's coordinates,
+    // not a picture.
     Q_INVOKABLE void takeRegion(const QString& screen, int x0, int y0, int x1, int y1);
     Q_INVOKABLE void takeScreen(const QString& screen);  // "" all of them, side by side
     // The window by itself; where the app's buffer can't be copied (a format
@@ -79,6 +82,7 @@ private:
     void pickingMayChange();
     void deliver(const QImage& image);
     void answer(const QString& line);  // the portal's; then quit
+    void answerArea(QPoint at, int width, int height);
 
     QString mode_, kind_;
     bool ready_ = false;

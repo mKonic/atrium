@@ -50,7 +50,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - atrium no longer needs wlroots, and runs nested only inside a Wayland session (not X11).
 - Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, and never records a password manager's copies.
 - Screenshots are taken by atrium itself, without grim; `atriumctl screenshot` takes one of a screen, a window or an area.
-- Sharing the screen goes through atrium itself, without xdg-desktop-portal-wlr: a screen or a window, at the screen's refresh rate, remembered for apps that ask to.
+- Sharing the screen goes through atrium itself, without xdg-desktop-portal-wlr: a screen, a window or an area, at the screen's refresh rate, with the pointer drawn in or sent apart (OBS), remembered for apps that ask to.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

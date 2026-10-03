@@ -315,7 +315,7 @@ class ScreenCastAdaptor : public QDBusAbstractAdaptor {
 public:
     explicit ScreenCastAdaptor(PortalBackend* parent);
     uint sourceTypes() const { return 1 | 2; }   // monitors, windows
-    uint cursorModes() const { return 1 | 2; }  // hidden, embedded
+    uint cursorModes() const { return 1 | 2 | 4; }  // hidden, embedded, metadata
     uint version() const { return 5; }
 
 public slots:

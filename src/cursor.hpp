@@ -7,6 +7,7 @@
 #include "util/buffer.hpp"
 #include "util/xcursor.hpp"
 #include "output_layout.hpp"
+#include "wl/signal.hpp"
 
 #include <memory>
 #include <string>
@@ -56,6 +57,18 @@ public:
     // Whether `output` shows it in its cursor plane.
     bool in_plane(const backend::Output* output) const;
 
+    // The image as `output` shows it, for a screen cast that sends the pointer
+    // apart from the picture: premultiplied ARGB, and where its top left is in
+    // the screen's (untransformed) pixels. False when it shows none.
+    struct Image {
+        int width = 0, height = 0, hot_x = 0, hot_y = 0;
+        std::vector<uint32_t> pixels;
+        uint64_t serial = 0;  // changes with the picture
+    };
+    bool image_on(const backend::Output* output, Image* image, int* x, int* y);
+    // It moved or changed its image.
+    wl::Signal<> changed;
+
 private:
     struct Screen;
     enum class Kind { None, XCursor, Buffer };
@@ -82,6 +95,7 @@ private:
     int hot_x_ = 0, hot_y_ = 0;
     float buffer_scale_ = 1;
     size_t frame_ = 0;  // an animated theme cursor's image
+    uint64_t serial_ = 1;  // of the image
     wl_event_source* animation_ = nullptr;
 };
 

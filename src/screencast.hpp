@@ -33,12 +33,13 @@ public:
         int width = 0, height = 0;
         std::string error;  // why there is none
     };
-    // A stream of `target` (its `cursor` drawn in or not); `ready` once
-    // PipeWire knows it, `ended` when it stops by itself (its screen or
+    // A stream of `target` (its `cursor` drawn in or not; `cursor_metadata`:
+    // sent beside the picture instead, as apps like OBS want it); `ready`
+    // once PipeWire knows it, `ended` when it stops by itself (its screen or
     // window went, PipeWire did). Its id, for stop. `owner` tags it (an IPC
     // client) for stop_owned.
-    uint64_t start(const wl::Capture::Target& target, uint64_t owner, std::function<void(const Ready&)> ready,
-                   std::function<void()> ended = {});
+    uint64_t start(const wl::Capture::Target& target, bool cursor_metadata, uint64_t owner,
+                   std::function<void(const Ready&)> ready, std::function<void()> ended = {});
     bool stop(uint64_t id);
     void stop_owned(uint64_t owner);
     size_t streams() const { return streams_.size(); }

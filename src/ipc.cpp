@@ -686,7 +686,9 @@ json Ipc::handle(Client& c, const json& req) {
         if (!server_.screencast)
             return fail("no screen casting here");
         wl::Capture::Target t;
-        t.cursor = req.value("cursor", true);
+        // "cursor": drawn in (true, the default), not (false), or "metadata".
+        const bool metadata = req.contains("cursor") && req["cursor"] == "metadata";
+        t.cursor = metadata || !req.contains("cursor") || (req["cursor"].is_boolean() && req["cursor"].get<bool>());
         const std::string output = req.value("output", ""), identifier = req.value("identifier", "");
         const std::optional<uint64_t> window =
             req.contains("window") && req["window"].is_number_integer() ? std::optional(req["window"].get<uint64_t>())
@@ -729,7 +731,7 @@ json Ipc::handle(Client& c, const json& req) {
         auto waiting = std::make_shared<bool>(false);
         auto id = std::make_shared<uint64_t>(0);
         auto tell = sender(c);
-        *id = server_.screencast->start(t, c.serial, [=](const ScreenCast::Ready& r) {
+        *id = server_.screencast->start(t, metadata, c.serial, [=](const ScreenCast::Ready& r) {
             json reply = r.error.empty() ? ok({{"stream", *id}, {"node", r.node}, {"width", r.width},
                                                {"height", r.height}})
                                          : fail(r.error);

@@ -8,8 +8,8 @@ import shell.services
 import Atrium
 
 // Choose what to share: a whole screen or one window, each shown as a small
-// picture of itself. Double-click, or pick one and Share; closing the window
-// or Cancel shares nothing.
+// picture of itself, or an area picked next. Double-click, or pick one and
+// Share; closing the window or Cancel shares nothing.
 FloatingWindow {
     id: root
 
@@ -110,6 +110,16 @@ FloatingWindow {
                 width: parent.width
                 height: 1
                 color: Theme.palette.separator
+            }
+
+            // A part of the desktop instead, picked as for a screenshot.
+            PillButton {
+                anchors.left: parent.left
+                anchors.leftMargin: 24
+                anchors.verticalCenter: parent.verticalCenter
+                visible: ShareChooser.screens.length > 0
+                text: "Share an Area…"
+                onClicked: ShareChooser.choose("Area:")
             }
 
             Row {
