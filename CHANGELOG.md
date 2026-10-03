@@ -15,6 +15,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Wobbly windows, off by default (Windows: Wobbly windows).
 - The Genie minimize effect, as on a Mac (Windows: Minimize effect; Scale is the other).
 - A color profile (ICC) per display, in Displays.
+- An HDR calibration per display, in Displays: an ICC profile with an MHC2 tag, as Windows HDR Calibration and DisplayCAL make, with its measured peak brightness.
 - Shake the pointer to find it: it grows for a moment.
 - Frosted blur behind menus and input-method popups when transparency is on.
 - A screen shader setting: a GLSL file drawn over every screen.
