@@ -508,7 +508,7 @@ TEST(PhonelinkDrift, HoldsTheTargetAgainstASkewedClock) {
     std::uint32_t seq = 0;
     const std::uint32_t period = 1024;
     std::vector<std::int16_t> out(period * 2 * 2);
-    for (int step = 0; step < 60 * kRate / period; step++) {  // a minute
+    for (std::uint32_t step = 0; step < 60 * kRate / period; step++) {  // a minute
         // Network side: everything up to now, in packets.
         sent += period * skew;
         while (seq * double(kPacketFrames) + kPacketFrames <= sent) {
