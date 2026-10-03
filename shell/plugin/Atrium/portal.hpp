@@ -14,6 +14,7 @@
 #include <QDBusUnixFileDescriptor>
 #include <QHash>
 #include <QObject>
+#include <QPoint>
 #include <QProcess>
 #include <QVariantMap>
 
@@ -336,6 +337,18 @@ public:
     uint cursorModes() const { return 1 | 2 | 4; }  // hidden, embedded, metadata
     uint version() const { return 5; }
 
+    // For RemoteDesktop, whose sessions share the screen too: one of its
+    // sessions taken on, whether the app asked for a screen in it, the
+    // streams' answer (`request` ends the chooser when it goes), and where a
+    // stream's picture starts on the desktop.
+    void adopt(const QString& session);
+    bool selected(const QString& session) const;
+    void startCast(const QString& session, QObject* request, std::function<void(uint, const QVariantMap&)> answer);
+    std::optional<QPoint> origin(const QString& session, uint node) const;
+    // What RemoteDesktop restores ({kind, name}; none: as it is), and how
+    // long to keep it.
+    void restoreFrom(const QString& session, const QVariantMap& data, uint persist);
+
 public slots:
     uint CreateSession(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString& app,
                        const QVariantMap& options, QVariantMap& results);
@@ -349,8 +362,10 @@ private:
         uint types = 1;
         uint cursor = 2;
         uint persist = 0;
+        bool selected = false;  // SelectSources came
         QVariantMap restore;  // {kind, name} from the app's restore_data
         QList<qint64> streams;
+        QHash<uint, QPoint> origins;  // by PipeWire node
     };
     QHash<QString, Cast> casts_;  // by session path
     void end(const QString& session);

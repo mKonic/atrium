@@ -132,6 +132,15 @@ void watch(std::function<void(const QString&, const QString&, const QVariant&)> 
 
 // --- Email ---------------------------------------------------------------------
 
+QString appDisplayName(const QString& app) {
+    QString name = app;
+    if (GDesktopAppInfo* info = g_desktop_app_info_new((app + ".desktop").toUtf8().constData())) {
+        name = QString::fromUtf8(g_app_info_get_name(G_APP_INFO(info)));
+        g_object_unref(info);
+    }
+    return name;
+}
+
 uint EmailAdaptor::ComposeEmail(const QDBusObjectPath&, const QString&, const QString&, const QVariantMap& options,
                                 QVariantMap&) {
     auto list = [&](const char* key) {
@@ -312,16 +321,6 @@ QVariant plain(const QVariant& v) {
     return v.metaType() == QMetaType::fromType<QDBusVariant>() ? v.value<QDBusVariant>().variant() : v;
 }
 
-// The app's name from its desktop file, else its id.
-QString nameOf(const QString& app) {
-    QString name = app;
-    if (GDesktopAppInfo* info = g_desktop_app_info_new((app + ".desktop").toUtf8().constData())) {
-        name = QString::fromUtf8(g_app_info_get_name(G_APP_INFO(info)));
-        g_object_unref(info);
-    }
-    return name;
-}
-
 QList<QVariantMap> buttonsOf(const QVariant& v) {
     QList<QVariantMap> out;
     if (!v.canConvert<QDBusArgument>())
@@ -376,7 +375,7 @@ void NotificationAdaptor::AddNotification(const QString& app, const QString& id,
     if (n.contains("category"))
         hints.insert("category", n.value("category"));
     QDBusMessage call = QDBusMessage::createMethodCall(kNotifications, kNotificationsPath, kNotifications, "Notify");
-    call << nameOf(app) << serverIdOf(app, id) << iconOf(n.value("icon")) << n.value("title").toString()
+    call << appDisplayName(app) << serverIdOf(app, id) << iconOf(n.value("icon")) << n.value("title").toString()
          << n.value("body").toString() << actions << hints << int(-1);
     const QDBusReply<uint> reply = QDBusConnection::sessionBus().call(call, QDBus::Block, 5000);
     if (!reply.isValid()) {

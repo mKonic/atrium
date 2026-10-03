@@ -39,6 +39,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Phone audio: a paired phone's sound plays here over Wi-Fi (Settings: Phone), paired from the phones nearby, with Connect, Disconnect, Forget and connect automatically like Bluetooth. The phone needs the atrium module (rooted, KernelSU).
 - The phone's music shows in atrium's media controls (play, pause, skip, seek, cover art), and the media keys drive it.
 - What you copied stays on the clipboard after the app it came from quits.
+- Remote control for apps that ask (remote-desktop servers such as RustDesk, KVM switches): once you allow it, they use the keyboard, mouse and touchscreen, and see the screen if they ask to.
 
 ### Changed
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.

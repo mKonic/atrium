@@ -395,6 +395,16 @@ void Compositor::screencastStop(qint64 stream) {
     request({{"cmd", "screencast.stop"}, {"stream", stream}});
 }
 
+void Compositor::eisOpen(uint devices, std::function<void(const QJsonObject&)> done) {
+    if (requests_.state() != QLocalSocket::ConnectedState)
+        return done(QJsonObject{{"ok", false}, {"error", "atrium isn't there"}});
+    requestFull({{"cmd", "eis.open"}, {"devices", qint64(devices)}}, std::move(done));
+}
+
+void Compositor::eisClose(qint64 session) {
+    request({{"cmd", "eis.close"}, {"session", session}});
+}
+
 void Compositor::closeWindow(int id) {
     request({{"cmd", "window.close"}, {"window", id}});
 }

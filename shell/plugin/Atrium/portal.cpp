@@ -5,6 +5,7 @@
 #include "portal_extras.hpp"
 #include "portal_files.hpp"
 #include "portal_print.hpp"
+#include "portal_remote.hpp"
 #include "share_core.hpp"
 
 #include <QColor>
@@ -180,7 +181,7 @@ PortalBackend::PortalBackend() {
     new AccessAdaptor(this);
     new ScreenshotAdaptor(this);
     new InhibitAdaptor(this);
-    new ScreenCastAdaptor(this);
+    new RemoteDesktopAdaptor(this, new ScreenCastAdaptor(this));
     new EmailAdaptor(this);
     new AccountAdaptor(this);
     new DynamicLauncherAdaptor(this);
@@ -685,6 +686,7 @@ uint ScreenCastAdaptor::SelectSources(const QDBusObjectPath&, const QDBusObjectP
     if (options.contains("cursor_mode"))
         it->cursor = options.value("cursor_mode").toUInt();
     it->persist = options.value("persist_mode").toUInt();
+    it->selected = true;
     if (options.contains("restore_data")) {
         PortalRestore r;
         options.value("restore_data").value<QDBusArgument>() >> r;
@@ -696,20 +698,52 @@ uint ScreenCastAdaptor::SelectSources(const QDBusObjectPath&, const QDBusObjectP
 
 uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString&,
                               const QString&, const QVariantMap&, QVariantMap&) {
-    auto it = casts_.find(session.path());
-    if (it == casts_.end())
+    if (!casts_.contains(session.path()))
         return 2;
     PortalBackend* backend = PortalBackend::instance();
     const QDBusMessage call = backend->delayReply();
-    const QString path = session.path();
     auto* request = new PortalRequest(handle.path(), backend);
-    auto answer = [call, request](uint response, const QVariantMap& results) {
+    startCast(session.path(), request, [call, request](uint response, const QVariantMap& results) {
         if (request->property("answered").toBool())
             return;
         request->setProperty("answered", true);
         bus().send(call.createReply(QVariantList{response, results}));
         request->deleteLater();
-    };
+    });
+    return 2;
+}
+
+void ScreenCastAdaptor::adopt(const QString& session) {
+    casts_.insert(session, Cast{});
+    if (PortalSession* s = PortalBackend::instance()->session(session))
+        connect(s, &QObject::destroyed, this, [this, session] { end(session); });
+}
+
+bool ScreenCastAdaptor::selected(const QString& session) const {
+    return casts_.value(session).selected;
+}
+
+std::optional<QPoint> ScreenCastAdaptor::origin(const QString& session, uint node) const {
+    const auto c = casts_.find(session);
+    if (c == casts_.end() || !c->origins.contains(node))
+        return std::nullopt;
+    return c->origins.value(node);
+}
+
+void ScreenCastAdaptor::restoreFrom(const QString& session, const QVariantMap& data, uint persist) {
+    auto c = casts_.find(session);
+    if (c == casts_.end())
+        return;
+    if (!data.isEmpty())
+        c->restore = data;
+    c->persist = persist;
+}
+
+void ScreenCastAdaptor::startCast(const QString& path, QObject* request,
+                                  std::function<void(uint, const QVariantMap&)> answer) {
+    auto it = casts_.find(path);
+    if (it == casts_.end())
+        return answer(2, {});
 
     // The source picked: its stream, then the answer.
     auto cast = [this, path, answer](const QString& kind, const QVariantMap& target) {
@@ -751,6 +785,7 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
             size.endStructure();
             if (kind != "window")
                 props.insert("position", QVariant::fromValue(position));
+            c->origins.insert(uint(r.value("node").toInt()), QPoint(x, y));
             props.insert("size", QVariant::fromValue(size));
             props.insert("id", QString::number(stream));
             QVariantMap results{{"streams", QVariant::fromValue(PortalStreams{{uint(r.value("node").toInt()), props}})}};
@@ -771,21 +806,21 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
     const QString kind = it->restore.value("kind").toString();
     if (!kind.isEmpty() && (kind == "screen" ? (it->types & 1) : (it->types & 2))) {
         const QVariantMap target = castTarget(kind, it->restore.value("name").toString(), true);
-        if (!target.isEmpty()) {
-            cast(kind, target);
-            return 2;
-        }
+        if (!target.isEmpty())
+            return cast(kind, target);
     }
 
     auto* chooser = new QProcess(request);
-    QObject::connect(request, &PortalRequest::closed, chooser, [chooser] { chooser->kill(); });
+    if (auto* r = qobject_cast<PortalRequest*>(request))
+        QObject::connect(r, &PortalRequest::closed, chooser, [chooser] { chooser->kill(); });
     QObject::connect(chooser, &QProcess::finished, request, [request, chooser, cast, answer](int code,
                                                                                          QProcess::ExitStatus st) {
         const QByteArray out = chooser->readAllStandardOutput();
         if (st == QProcess::NormalExit && code == 0 && out.trimmed() == "Area:") {
             // An area next, picked with the screenshot tool: "x y width height".
             auto* picker = new QProcess(request);
-            QObject::connect(request, &PortalRequest::closed, picker, [picker] { picker->kill(); });
+            if (auto* r = qobject_cast<PortalRequest*>(request))
+                QObject::connect(r, &PortalRequest::closed, picker, [picker] { picker->kill(); });
             QObject::connect(picker, &QProcess::finished, request, [picker, cast, answer] {
                 const QStringList v = QString::fromUtf8(picker->readAllStandardOutput()).simplified().split(' ');
                 if (v.size() != 4)
@@ -815,7 +850,6 @@ uint ScreenCastAdaptor::Start(const QDBusObjectPath& handle, const QDBusObjectPa
     chooser->start(shellProgram(), {shellFile("share.qml")});
     chooser->write(chooserInput(it->types));
     chooser->closeWriteChannel();
-    return 2;
 }
 
 } // namespace atrium

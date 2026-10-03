@@ -1,12 +1,12 @@
 # atrium-portal: the xdg-desktop-portal backend (see main.cpp), sharing the
 # shell plugin's IPC client and portal code.
 portal_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'Gui', 'DBus', 'Network'])
-portal_moc = qt6.compile_moc(headers: ['../plugin/Atrium/portal.hpp', '../plugin/Atrium/portal_extras.hpp', '../plugin/Atrium/portal_files.hpp', '../plugin/Atrium/portal_print.hpp', '../plugin/Atrium/compositor.hpp'],
+portal_moc = qt6.compile_moc(headers: ['../plugin/Atrium/portal.hpp', '../plugin/Atrium/portal_extras.hpp', '../plugin/Atrium/portal_files.hpp', '../plugin/Atrium/portal_print.hpp', '../plugin/Atrium/portal_remote.hpp', '../plugin/Atrium/compositor.hpp'],
   dependencies: portal_qt)
 
-executable('atrium-portal', 'main.cpp', '../plugin/Atrium/portal.cpp', '../plugin/Atrium/portal_extras.cpp', '../plugin/Atrium/portal_files.cpp', '../plugin/Atrium/portal_print.cpp', '../plugin/Atrium/printers_core.cpp', '../plugin/Atrium/portal_core.cpp', '../plugin/Atrium/compositor.cpp', '../plugin/Atrium/share_core.cpp',
+executable('atrium-portal', 'main.cpp', '../plugin/Atrium/portal.cpp', '../plugin/Atrium/portal_extras.cpp', '../plugin/Atrium/portal_files.cpp', '../plugin/Atrium/portal_print.cpp', '../plugin/Atrium/portal_remote.cpp', '../plugin/Atrium/printers_core.cpp', '../plugin/Atrium/portal_core.cpp', '../plugin/Atrium/compositor.cpp', '../plugin/Atrium/share_core.cpp',
   '../../src/accent.cpp', '../../src/palette.cpp', '../../src/records.cpp', portal_moc, paths_h,
-  dependencies: [portal_qt, atrium_runtime_dep, json, dependency('gio-2.0'), dependency('gio-unix-2.0')],
+  dependencies: [portal_qt, atrium_runtime_dep, json, dependency('gio-2.0'), dependency('gio-unix-2.0'), dependency('libei-1.0')],
   include_directories: include_directories('../plugin/Atrium', '../../src', '../..'),
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),
   override_options: ['b_sanitize=none'],

@@ -101,6 +101,11 @@ public:
     // height}. It lasts until screencastStop, or this connection goes.
     void screencastStart(const QVariantMap& fields, std::function<void(const QJsonObject& reply)> done);
     void screencastStop(qint64 stream);
+    // A socket remote input (libei) goes to, for `devices` (keyboard 1,
+    // pointer 2, touch 4): the reply's result is {session, path}. It lasts
+    // until eisClose, or this connection goes.
+    void eisOpen(uint devices, std::function<void(const QJsonObject& reply)> done);
+    void eisClose(qint64 session);
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.
     Q_INVOKABLE void insertText(const QString& text);

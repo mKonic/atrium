@@ -27,6 +27,9 @@ QVariantMap read(const QString& ns);
 void watch(std::function<void(const QString&, const QString&, const QVariant&)> changed);
 } // namespace gnome_settings
 
+// An app's name from its desktop file ("org.gnome.Maps": "Maps"), else its id.
+QString appDisplayName(const QString& app);
+
 // Email: the mail app, by a mailto: link.
 class EmailAdaptor : public QDBusAbstractAdaptor {
     Q_OBJECT
