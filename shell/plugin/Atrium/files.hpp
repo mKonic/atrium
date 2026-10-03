@@ -26,6 +26,10 @@ Launcher parse_launcher(std::string_view text);
 // `base`, or "base 2", "base 3"... whichever `taken` says is free first.
 std::string free_name(const std::string& base, const std::function<bool(const std::string&)>& taken);
 
+// `name`, or "name 2.ext", "name 3.ext"... whichever `taken` says is free
+// first: the number goes before the suffix, as Finder puts it.
+std::string free_file_name(const std::string& name, const std::function<bool(const std::string&)>& taken);
+
 // Whether `name` can rename a file in place: not empty, no slash, not . or ..
 bool valid_name(std::string_view name);
 
@@ -36,6 +40,10 @@ std::string resolve_typed(std::string_view typed, const std::string& current, co
 // Whether a file's name ends in one of `suffixes` ("png", any case); no
 // suffixes lets everything through.
 bool has_suffix(std::string_view name, const std::vector<std::string>& suffixes);
+
+// Whether `name` matches a shell glob ("*.png", "IMG_????.jpg", "[ab]*"),
+// in any case.
+bool glob_match(std::string_view name, std::string_view pattern);
 
 // The suffixes a Qt-style name filter lists: "Pictures (*.png *.jpg)" gives
 // png and jpg; a filter of "*" or "*.*" gives none (everything).

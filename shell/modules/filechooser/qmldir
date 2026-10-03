@@ -1,0 +1,2 @@
+module shell.modules.filechooser
+FileChooserWindow 1.0 FileChooserWindow.qml

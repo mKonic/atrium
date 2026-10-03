@@ -16,7 +16,6 @@ Sheet {
     property string nameFilter: ""
     property string folder: ""  // where it starts (a path or a file:// URL)
     property string selected: ""
-    property bool editingPath: false
     signal picked(url file)
 
     readonly property bool selectedAllowed: selected !== "" && folderModel.resolve(selected).allowed
@@ -26,7 +25,7 @@ Sheet {
         if (r.isDir) {
             folderModel.folder = r.path;
             selected = "";
-            editingPath = false;
+            pathBar.stop();
             error = "";
             grid.forceActiveFocus();
         } else if (r.allowed) {
@@ -46,7 +45,7 @@ Sheet {
         if (folder)
             folderModel.folder = folder.replace(/^file:\/\//, "");
         selected = "";
-        editingPath = false;
+        pathBar.stop();
         grid.forceActiveFocus();
     }
     onSubmitted: choose(selected)
@@ -58,125 +57,13 @@ Sheet {
     }
 
     // --- the path bar ------------------------------------------------------
-    Row {
+    PathBar {
+        id: pathBar
+
         width: parent.width
-        spacing: 8
-
-        Rectangle {
-            width: 32
-            height: 32
-            radius: 8
-            color: upArea.containsMouse ? Theme.palette.secondaryFill : Theme.palette.tertiaryFill
-            opacity: folderModel.folder !== "/" ? 1 : 0.4
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                text: "arrow_upward"
-                color: Theme.palette.label
-            }
-
-            MouseArea {
-                id: upArea
-
-                anchors.fill: parent
-                hoverEnabled: true
-                onClicked: folderModel.up()
-            }
-        }
-
-        Rectangle {
-            id: bar
-
-            width: parent.width - 40
-            height: 32
-            radius: 8
-            color: Theme.palette.tertiaryFill
-            border.width: 1
-            border.color: pathInput.activeFocus ? Theme.palette.focusRing : "transparent"
-            clip: true
-
-            // Clicking beside the crumbs types an address instead.
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.IBeamCursor
-                onClicked: {
-                    pathInput.text = folderModel.folder === "/" ? "/" : folderModel.folder + "/";
-                    root.editingPath = true;
-                    pathInput.forceActiveFocus();
-                }
-            }
-
-            Row {
-                visible: !root.editingPath
-                x: 6
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 0
-
-                Repeater {
-                    model: folderModel.crumbs
-
-                    Row {
-                        id: crumb
-
-                        required property var modelData
-                        required property int index
-
-                        MaterialIcon {
-                            visible: crumb.index > 0
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "chevron_right"
-                            font.pointSize: Theme.font.size.small
-                            color: Theme.palette.tertiaryLabel
-                        }
-
-                        Rectangle {
-                            width: crumbText.implicitWidth + 12
-                            height: 24
-                            radius: 6
-                            color: crumbArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
-
-                            StyledText {
-                                id: crumbText
-
-                                anchors.centerIn: parent
-                                text: crumb.index === 0 ? "Computer" : crumb.modelData.name
-                                font.pointSize: Theme.font.size.small
-                                font.weight: crumb.index === folderModel.crumbs.length - 1 ? Font.DemiBold : Font.Normal
-                                color: crumb.index === folderModel.crumbs.length - 1 ? Theme.palette.label : Theme.palette.secondaryLabel
-                            }
-
-                            MouseArea {
-                                id: crumbArea
-
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: root.choose(crumb.modelData.path)
-                            }
-                        }
-                    }
-                }
-            }
-
-            TextInput {
-                id: pathInput
-
-                visible: root.editingPath
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                verticalAlignment: TextInput.AlignVCenter
-                color: Theme.palette.label
-                font.family: Theme.font.sans
-                font.pointSize: Theme.font.size.small
-                selectByMouse: true
-                onAccepted: root.choose(text)
-                onActiveFocusChanged: if (!activeFocus) root.editingPath = false
-                Keys.onEscapePressed: {
-                    root.editingPath = false;
-                    grid.forceActiveFocus();
-                }
-            }
-        }
+        model: folderModel
+        onChose: path => root.choose(path)
+        onDone: grid.forceActiveFocus()
     }
 
     // --- places and files ---------------------------------------------------
@@ -280,9 +167,7 @@ Sheet {
                         folderModel.up();
                         event.accepted = true;
                     } else if (event.text === "/" || event.text === "~" || (event.key === Qt.Key_L && event.modifiers & Qt.ControlModifier)) {
-                        pathInput.text = event.text === "~" ? "~/" : event.text === "/" ? "/" : folderModel.folder + "/";
-                        root.editingPath = true;
-                        pathInput.forceActiveFocus();
+                        pathBar.type(event.text === "~" ? "~/" : event.text === "/" ? "/" : folderModel.folder + "/");
                         event.accepted = true;
                     }
                 }
@@ -319,7 +204,9 @@ Sheet {
                         height: 64
 
                         Image {
-                            visible: file.isImage
+                            id: picture
+
+                            visible: file.isImage && status !== Image.Error
                             anchors.fill: parent
                             source: file.isImage ? "file://" + file.path : ""
                             sourceSize: Qt.size(144, 128)
@@ -328,8 +215,9 @@ Sheet {
                             smooth: true
                         }
 
+                        // A picture that can't be read shows its icon instead.
                         IconImage {
-                            visible: !file.isImage
+                            visible: !file.isImage || picture.status === Image.Error
                             anchors.centerIn: parent
                             implicitSize: 56
                             source: Shell.iconPath(file.isDir ? "folder" : file.icon, "text-x-generic")

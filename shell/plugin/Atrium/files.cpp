@@ -1,5 +1,7 @@
 #include "files.hpp"
 
+#include <fnmatch.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -94,9 +96,25 @@ std::string free_name(const std::string& base, const std::function<bool(const st
             return name;
 }
 
+std::string free_file_name(const std::string& name, const std::function<bool(const std::string&)>& taken) {
+    if (!taken(name))
+        return name;
+    // The suffix: from the last dot, unless that starts the name (".bashrc").
+    const size_t dot = name.rfind('.');
+    const size_t cut = dot == std::string::npos || dot == 0 ? name.size() : dot;
+    const std::string stem = name.substr(0, cut), suffix = name.substr(cut);
+    for (int n = 2;; ++n)
+        if (std::string candidate = stem + " " + std::to_string(n) + suffix; !taken(candidate))
+            return candidate;
+}
+
 bool valid_name(std::string_view name) {
     return !name.empty() && name != "." && name != ".." && name.find('/') == std::string_view::npos &&
            name.find('\0') == std::string_view::npos;
+}
+
+bool glob_match(std::string_view name, std::string_view pattern) {
+    return fnmatch(std::string(pattern).c_str(), std::string(name).c_str(), FNM_CASEFOLD) == 0;
 }
 
 std::string resolve_typed(std::string_view typed, const std::string& current, const std::string& home) {

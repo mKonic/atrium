@@ -4,6 +4,7 @@
 #include "compositor.hpp"
 #include "paths.hpp"
 #include "portal_extras.hpp"
+#include "portal_files.hpp"
 #include "share_core.hpp"
 
 #include <QColor>
@@ -146,6 +147,7 @@ PortalBackend::PortalBackend() {
     new AccountAdaptor(this);
     new DynamicLauncherAdaptor(this);
     new NotificationAdaptor(this);
+    new FileChooserAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 

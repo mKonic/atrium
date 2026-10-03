@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Open and Save
+Comment=Choose the files an app opens or saves
+Icon=document-open
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-filechooser
+OnlyShowIn=atrium;
