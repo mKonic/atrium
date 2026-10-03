@@ -5,9 +5,10 @@ import Atrium
 import shell.components
 import shell.services
 
-// Phone: a paired phone's sound played here over the network
-// (atrium-phonelink), pairing with the code both screens show, and the
-// phones paired so far.
+// Phone: a phone's sound played here over the network (atrium-phonelink),
+// laid out like Bluetooth: your phones (connect, disconnect, connect by
+// themselves, forget), the code to compare while pairing, and the phones
+// nearby to pair.
 Column {
     id: root
 
@@ -26,42 +27,68 @@ Column {
             }
         ]
 
-        DeviceRow {
-            visible: root.on && root.state !== "confirm"
-            glyph: "smartphone"
-            name: PhoneLink.phone || (PhoneLink.phones.length ? "No phone nearby" : "No phone paired")
-            active: root.state === "streaming"
-            busy: root.state === "connecting" || root.state === "pairing"
-            note: ({
-                    streaming: "Playing its sound here",
-                    connected: "Connected, nothing playing",
-                    connecting: "Connecting…",
-                    pairing: "Waiting for a phone that is pairing too…",
-                    searching: PhoneLink.phones.length ? "Looking for your phone on the network" : "Pair a phone to start",
-                    failed: "Its sound can't come here: " + PhoneLink.error,
-                })[root.state] ?? "Not running"
-
-            PillButton {
-                visible: root.state === "pairing"
-                text: "Cancel"
-                onClicked: PhoneLink.cancelPairing()
-            }
-
-            PillButton {
-                visible: root.state !== "pairing" && root.state !== ""
-                text: "Pair"
-                primary: PhoneLink.phones.length === 0
-                onClicked: PhoneLink.pair()
-            }
+        StyledText {
+            visible: root.state === ""
+            padding: 10
+            text: "Not running."
+            color: Theme.palette.secondaryLabel
         }
 
         StyledText {
-            visible: root.state === "pairing"
-            width: parent.width
+            visible: root.on && root.state !== "confirm" && PhoneLink.phones.length === 0
             padding: 10
-            wrapMode: Text.Wrap
-            text: "On the phone, open KernelSU › Modules › atrium clipboard sync, open its page and press Pair."
+            text: "No phone paired yet. Pair yours under Nearby."
             color: Theme.palette.secondaryLabel
+        }
+
+        Repeater {
+            model: root.on && root.state !== "confirm" ? PhoneLink.phones : []
+
+            Column {
+                id: phone
+
+                required property var modelData
+                readonly property bool linked: ["streaming", "connected", "connecting", "failed"].includes(modelData.state)
+
+                width: parent?.width ?? 0
+
+                DeviceRow {
+                    glyph: "smartphone"
+                    name: phone.modelData.name
+                    active: phone.modelData.state === "streaming"
+                    busy: phone.modelData.state === "connecting"
+                    note: ({
+                            streaming: "Playing its sound here",
+                            connected: "Connected, nothing playing",
+                            connecting: "Connecting…",
+                            failed: "Its sound can't come here: " + phone.modelData.error,
+                            disconnected: "Not connected",
+                            away: "Not on this network",
+                            forgot: "It forgot this computer. Forget it here too, then pair again.",
+                        })[phone.modelData.state] ?? ""
+
+                    PillButton {
+                        visible: phone.modelData.state !== "forgot"
+                        text: phone.linked ? "Disconnect" : "Connect"
+                        onClicked: phone.linked ? PhoneLink.disconnectPhone(phone.modelData.id) : PhoneLink.connectPhone(phone.modelData.id)
+                    }
+
+                    PillButton {
+                        text: "Forget"
+                        onClicked: PhoneLink.forget(phone.modelData.id)
+                    }
+                }
+
+                ControlRow {
+                    title: "Connect automatically"
+                    note: "Whenever it's on this network."
+
+                    Switch {
+                        checked: phone.modelData.auto
+                        onToggled: PhoneLink.setAutoConnect(phone.modelData.id, !phone.modelData.auto)
+                    }
+                }
+            }
         }
 
         // Numeric comparison: the same code on both screens means no one
@@ -106,24 +133,35 @@ Column {
     }
 
     Group {
-        visible: PhoneLink.phones.length > 0
-        title: "Paired Phones"
+        visible: root.on && root.state !== ""
+        title: "Nearby"
+        subtitle: "On the phone, open KernelSU › Modules › atrium clipboard sync and press Pair, then pair it here."
+
+        StyledText {
+            visible: PhoneLink.nearby.length === 0
+            padding: 10
+            text: "No other phone with the atrium module on this network."
+            color: Theme.palette.secondaryLabel
+        }
 
         Repeater {
-            model: PhoneLink.phones
+            model: PhoneLink.nearby
 
             DeviceRow {
-                id: paired
+                id: device
 
                 required property var modelData
+                readonly property bool pairing: modelData.state === "pairing"
 
                 glyph: "smartphone"
                 name: modelData.name
-                note: modelData.name === PhoneLink.phone && root.state === "streaming" ? "Playing" : ""
+                busy: pairing
+                note: pairing ? "Pairing…" : modelData.error || (modelData.ready ? "Ready to pair" : "Press Pair on the phone first")
 
                 PillButton {
-                    text: "Forget"
-                    onClicked: PhoneLink.forget(paired.modelData.id)
+                    text: device.pairing ? "Cancel" : "Pair"
+                    primary: !device.pairing && device.modelData.ready
+                    onClicked: device.pairing ? PhoneLink.cancelPairing() : PhoneLink.pairWith(device.modelData.id)
                 }
             }
         }

@@ -5,7 +5,9 @@
 // change one, change both. Both test suites pin the same golden bytes.
 //
 // The phone listens on TCP and announces itself as _atrium-link._tcp over
-// mDNS; atrium connects. Every message is a frame:
+// mDNS; atrium connects. Its TXT record: id=<hex id>, pair=1 while its user
+// is pairing, call=<hex PC id> while its user asks that PC to connect.
+// Every message is a frame:
 //   u32 length (big endian, of what follows), u8 type, body
 // Once both ends are authenticated, a frame is
 //   u32 length, AES-256-GCM(u8 type, body)
@@ -31,6 +33,8 @@
 //              when sent, then title, artist, album, app as u16 length +
 //              UTF-8 each, then the cover art (JPEG; may be empty)
 // MEDIA_COMMAND (PC) u8 command (MediaCommand), u32 position ms (Seek's)
+// DISCONNECT   (phone) nothing: its user disconnected this PC, which stays
+//              away until asked back (by its own user, or by call=)
 //
 // Both send HELLO. Then the PC goes on with what it knows:
 // - It has a key for the phone's id: AUTH. The phone answers AUTH and PROOF
@@ -102,6 +106,7 @@ enum class Type : std::uint8_t {
     AudioState = 18,
     Media = 19,
     MediaCommand = 20,
+    Disconnect = 21,
 };
 
 enum class AudioState : std::uint8_t { Stopped = 0, Streaming = 1, Failed = 2 };
