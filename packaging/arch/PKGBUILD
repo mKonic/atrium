@@ -34,6 +34,7 @@ optdepends=(
   'gpu-screen-recorder: screen recording'
   'ddcutil: brightness of external monitors'
   'fcitx5: input methods'
+  'noto-fonts-cjk: Chinese, Japanese and Korean text (and input method candidates)'
   'xdg-terminal-exec: terminal apps started in your terminal'
   'packagekit: software updates in Settings'
   'qtengine: Qt apps in atrium'"'"'s colours with your own Qt style'
