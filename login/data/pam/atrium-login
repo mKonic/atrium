@@ -1,10 +1,9 @@
 #%PAM-1.0
 # Logging in at atrium's login screen.
 auth       include      system-local-login
--auth      optional     pam_gnome_keyring.so
--auth      optional     pam_kwallet5.so
+# The login password opens atrium-keyring (Secret Service).
+auth       optional     pam_atrium_keyring.so
 account    include      system-local-login
 password   include      system-local-login
 session    include      system-local-login
--session   optional     pam_gnome_keyring.so auto_start
--session   optional     pam_kwallet5.so auto_start
+session    optional     pam_atrium_keyring.so

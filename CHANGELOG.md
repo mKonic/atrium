@@ -48,6 +48,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - One keyboard and mouse for several computers (Deskflow, Input Leap): the pointer goes off the edge of the screen onto the next computer once you allow it; Super+Escape brings it back at any time.
 
 ### Changed
+- Saved passwords and apps' keys (Chrome's, VS Code's, Flatpak apps') are kept by atrium's own keyring, opened by the login password; the first login copies everything over from KWallet. KWallet is no longer needed.
 - Screen recording is atrium's own (atrium-record, from atrium's own stream of the screen, encoded with NVENC, VA-API or x264); gpu-screen-recorder is no longer needed.
 - Maximizing, snapping and restoring a window morph it smoothly into its new size.
 - Windows zoom in as they open and out as they close, and pour into their app's Dock icon when minimized.

@@ -7,6 +7,7 @@
 #include "portal_print.hpp"
 #include "portal_remote.hpp"
 #include "portal_capture.hpp"
+#include "portal_secret.hpp"
 #include "share_core.hpp"
 
 #include <QColor>
@@ -191,6 +192,7 @@ PortalBackend::PortalBackend() {
     new FileChooserAdaptor(this);
     new AppChooserAdaptor(this);
     new PrintAdaptor(this);
+    new SecretAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 

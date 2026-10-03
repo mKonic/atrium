@@ -640,6 +640,21 @@ void Server::start_clipboard_history() {
         clipboard_history = std::make_unique<ClipboardHistory>(*this, dir);
 }
 
+// atrium-keyring, the Secret Service (keyring/service.hpp): the build's
+// when atrium runs from the build tree, and the shell it asks through.
+void Server::start_keyring() {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path exe = fs::read_symlink("/proc/self/exe", ec);
+    fs::path bin = fs::path(ATRIUM_BINDIR) / "atrium-keyring";
+    if (const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "keyring" / "atrium-keyring";
+        !ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built))
+        bin = built;
+    if (fs::exists(bin))
+        spawn("ATRIUM_SHELL=" + quoted(shell_binary()) + " ATRIUM_SHELL_DIR=" + quoted(builtin_dir()) + " exec " +
+              quoted(bin.string()));
+}
+
 // atrium-clipsync, the clipboard shared with a phone: always started, it
 // idles while bluetooth.phone_clipboard is off. BlueZ is the machine's, so
 // a nested atrium leaves it to the host session.
@@ -849,12 +864,10 @@ void Server::run(const char* startup_cmd) {
         // (A nested atrium's environment isn't the host session's.)
         // Then the session's services and autostart apps, unless something
         // else (uwsm) already runs the graphical session.
-        // The login password opens the KDE wallet (Chrome's and Spotify's
-        // keys): pam_kwallet left a socket for it in our environment only,
-        // and Plasma's own service for it (or the autostart entry, which
-        // systemd skips) can't see it. Before anything asks for a secret.
-        if (std::getenv("PAM_KWALLET5_LOGIN") && access("/usr/lib/pam_kwallet_init", X_OK) == 0)
-            spawn("/usr/lib/pam_kwallet_init");
+        // The keyring (Chrome's and Spotify's keys, saved passwords), before
+        // anything asks for a secret: pam_atrium_keyring hands it the login
+        // password; the first time, it copies what KWallet or GNOME's kept.
+        start_keyring();
         spawn("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP "
               "XDG_SESSION_TYPE XDG_MENU_PREFIX DISPLAY GTK_THEME QT_QPA_PLATFORMTHEME QTENGINE_CONFIG XDG_CONFIG_DIRS "
               "SUDO_ASKPASS SSH_ASKPASS SESSION_MANAGER; "
