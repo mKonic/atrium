@@ -14,6 +14,10 @@ Rectangle {
         input.forceActiveFocus();
     }
 
+    function select(start: int, end: int): void {
+        input.select(start, end);
+    }
+
     implicitWidth: 260
     implicitHeight: 32
     radius: 8
@@ -24,6 +28,8 @@ Rectangle {
     TextInput {
         id: input
 
+        selectionColor: Theme.palette.accent
+        selectedTextColor: Theme.palette.labelOnAccent
         anchors.fill: parent
         anchors.leftMargin: 10
         anchors.rightMargin: 10

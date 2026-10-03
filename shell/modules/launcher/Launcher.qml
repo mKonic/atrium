@@ -444,6 +444,7 @@ PanelWindow {
                             font.family: Theme.font.sans
                             font.pointSize: Theme.font.size.normal
                             selectionColor: Theme.palette.accent
+                            selectedTextColor: Theme.palette.labelOnAccent
                             clip: true
                             onTextChanged: {
                                 const a = launcher.args.slice();
@@ -786,6 +787,8 @@ PanelWindow {
                 TextInput {
                     id: menuSearch
 
+                    selectionColor: Theme.palette.accent
+                    selectedTextColor: Theme.palette.labelOnAccent
                     width: parent.width
                     height: 38
                     leftPadding: 16

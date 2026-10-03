@@ -93,6 +93,8 @@ LockWindow {
             TextInput {
                 id: password
 
+                selectionColor: Theme.palette.accent
+                selectedTextColor: Theme.palette.labelOnAccent
                 anchors.fill: parent
                 anchors.leftMargin: 16
                 anchors.rightMargin: 40
