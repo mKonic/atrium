@@ -55,6 +55,35 @@ private:
     std::vector<std::unique_ptr<Kde>> kde_;
 };
 
+// KDE's org_kde_kwin_appmenu: where a window's menus are on D-Bus (a
+// com.canonical.dbusmenu object), for the menu bar to show. Qt apps tell it
+// when a registrar (com.canonical.AppMenu.Registrar) is on the bus.
+class AppMenus {
+public:
+    explicit AppMenus(wl_display* display);
+    ~AppMenus();
+    AppMenus(const AppMenus&) = delete;
+    AppMenus& operator=(const AppMenus&) = delete;
+
+    struct Address {
+        std::string service, path;
+    };
+    // The surface's menus, if its app said where.
+    const Address* for_surface(Surface* surface) const;
+    Signal<Surface*> changed;
+
+private:
+    struct Menu {
+        Surface* surface;
+        Address address;
+        Weak<Resource> resource;
+        Signal<>::Connection surface_gone;
+    };
+    std::unique_ptr<Global> global_;
+    std::vector<Weak<Resource>> managers_;
+    std::vector<std::unique_ptr<Menu>> menus_;
+};
+
 // xdg_wm_dialog_v1: a toplevel says it is a (modal) dialog of its parent.
 class Dialogs {
 public:

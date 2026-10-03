@@ -66,6 +66,7 @@ struct Protocols {
     std::unique_ptr<wl::PipShell> pip;
     std::unique_ptr<wl::Decorations> decorations;
     std::unique_ptr<wl::Dialogs> dialogs;
+    std::unique_ptr<wl::AppMenus> appmenus;  // where windows' menus are on D-Bus
     std::unique_ptr<wl::Activation> activation;
     std::unique_ptr<wl::ToplevelTags> tags;
     std::unique_ptr<wl::XdgForeign> foreign;

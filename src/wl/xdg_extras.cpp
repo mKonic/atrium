@@ -2,6 +2,7 @@
 
 #include "wl/seat.hpp"
 
+#include "appmenu-server.hpp"
 #include "server-decoration-server.hpp"
 #include "xdg-activation-v1-server.hpp"
 #include "xdg-decoration-unstable-v1-server.hpp"
@@ -150,6 +151,72 @@ void Decorations::set_mode(Xdg* d, Mode mode) {
 }
 
 // ---- Dialogs ---------------------------------------------------------------------------
+
+AppMenus::AppMenus(wl_display* display) {
+    global_ = Global::create<OrgKdeKwinAppmenuManager>(display, 2, [this](wl_client* client, uint32_t version,
+                                                                         uint32_t id) {
+        auto* m = make<OrgKdeKwinAppmenuManager>(client, version, id);
+        if (!m)
+            return;
+        m->on_create([this](OrgKdeKwinAppmenuManager* self, uint32_t id, wl_resource* surface_res) {
+            auto* r = make<OrgKdeKwinAppmenu>(self->client(), self->version(), id);
+            Surface* s = Surface::from(surface_res);
+            if (!r)
+                return;
+            if (!s) {
+                r->detach();
+                return;
+            }
+            // One address a surface: a new object replaces the old one's.
+            std::erase_if(menus_, [s](const auto& m) {
+                if (m->surface != s)
+                    return false;
+                if (Resource* res = m->resource.get())
+                    res->detach();
+                return true;
+            });
+            auto owned = std::make_unique<Menu>(Menu{s, {}, r, {}});
+            Menu* menu = owned.get();
+            menus_.push_back(std::move(owned));
+            auto drop = [this, menu] {
+                Surface* surface = menu->surface;
+                if (Resource* res = menu->resource.get())
+                    res->detach();
+                std::erase_if(menus_, [menu](const auto& x) { return x.get() == menu; });
+                changed.emit(surface);
+            };
+            r->on_set_address([this, menu](OrgKdeKwinAppmenu*, const char* service, const char* path) {
+                menu->address = {service ? service : "", path ? path : ""};
+                changed.emit(menu->surface);
+            });
+            r->on_gone(drop);
+            menu->surface_gone = s->events.destroy.connect([this, menu] {
+                if (Resource* res = menu->resource.get())
+                    res->detach();
+                std::erase_if(menus_, [menu](const auto& x) { return x.get() == menu; });
+            });
+        });
+        std::erase_if(managers_, [](const auto& w) { return !w; });
+        managers_.push_back(m);
+    });
+}
+
+AppMenus::~AppMenus() {
+    global_.reset();
+    for (auto& m : managers_)
+        if (m)
+            m->detach();
+    for (auto& m : menus_)
+        if (Resource* r = m->resource.get())
+            r->detach();
+}
+
+const AppMenus::Address* AppMenus::for_surface(Surface* surface) const {
+    for (const auto& m : menus_)
+        if (m->surface == surface && !m->address.service.empty())
+            return &m->address;
+    return nullptr;
+}
 
 Dialogs::Dialogs(wl_display* display) {
     global_ = Global::create<XdgWmDialogV1>(display, 1, [this](wl_client* client, uint32_t version, uint32_t id) {

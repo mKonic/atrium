@@ -172,7 +172,24 @@ PanelWindow {
             }
 
             ActiveWindow {
+                id: activeWindow
+
                 anchors.verticalCenter: parent.verticalCenter
+                // With the app's own menus there, its name alone.
+                showTitle: !appMenus.shown
+                maxWidth: rightRow.x - leftRow.x - x - Theme.spacing.large
+                opacity: bar.chrome ? 1 : 0
+
+                Behavior on opacity {
+                    Anim {}
+                }
+            }
+
+            AppMenus {
+                id: appMenus
+
+                anchors.verticalCenter: parent.verticalCenter
+                screen: bar.screen
                 maxWidth: rightRow.x - leftRow.x - x - Theme.spacing.large
                 opacity: bar.chrome ? 1 : 0
 

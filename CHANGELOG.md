@@ -40,6 +40,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The phone's music shows in atrium's media controls (play, pause, skip, seek, cover art), and the media keys drive it.
 - What you copied stays on the clipboard after the app it came from quits.
 - Remote control for apps that ask (remote-desktop servers such as RustDesk, KVM switches): once you allow it, they use the keyboard, mouse and touchscreen, and see the screen if they ask to.
+- The menu bar shows the focused app's own menus (File, Edit, View…), as on a Mac, for Qt and KDE apps, with their shortcuts; moving along the titles opens each, and menus that don't fit are under ».
 - One keyboard and mouse for several computers (Deskflow, Input Leap): the pointer goes off the edge of the screen onto the next computer once you allow it; Super+Escape brings it back at any time.
 
 ### Changed

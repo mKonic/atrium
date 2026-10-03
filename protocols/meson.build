@@ -43,6 +43,7 @@ wl_protocol_xmls = [
   wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
   wl_protocol_dir / 'unstable/xdg-decoration/xdg-decoration-unstable-v1.xml',
   'server-decoration.xml',
+  'appmenu.xml',
   wl_protocol_dir / 'staging/xdg-dialog/xdg-dialog-v1.xml',
   wl_protocol_dir / 'staging/xdg-activation/xdg-activation-v1.xml',
   wl_protocol_dir / 'staging/xdg-toplevel-tag/xdg-toplevel-tag-v1.xml',

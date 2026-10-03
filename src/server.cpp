@@ -509,6 +509,12 @@ void Server::setup_protocols() {
             static_cast<XdgView*>(t->data)->set_kde_decoration(d);
     }));
     p.dialogs = std::make_unique<wl::Dialogs>(display);
+    p.appmenus = std::make_unique<wl::AppMenus>(display);
+    // A window's menus moved: the menu bar hears it with the window.
+    c.push_back(p.appmenus->changed.connect([this](wl::Surface* s) {
+        if (View* view = owner_of(s).view)
+            notify_window(*view, "changed");
+    }));
     p.activation = std::make_unique<wl::Activation>(display, *p.seat);
     c.push_back(p.activation->request_activate.connect([this](const wl::Activation::Request& r) {
         View* view = owner_of(r.surface).view;
