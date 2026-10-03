@@ -109,4 +109,32 @@ void Keys::refresh_modifiers() {
         on_modifiers();
 }
 
+std::optional<KeyFor> key_for_keysym(xkb_keymap* keymap, xkb_layout_index_t layout, xkb_keysym_t sym) {
+    if (!keymap)
+        return std::nullopt;
+    const xkb_mod_index_t shift = xkb_keymap_mod_get_index(keymap, XKB_MOD_NAME_SHIFT);
+    std::optional<KeyFor> shifted;
+    for (xkb_keycode_t kc = xkb_keymap_min_keycode(keymap); kc <= xkb_keymap_max_keycode(keymap); ++kc) {
+        if (kc < 8 || layout >= xkb_keymap_num_layouts_for_key(keymap, kc))
+            continue;
+        const xkb_level_index_t levels = xkb_keymap_num_levels_for_key(keymap, kc, layout);
+        for (xkb_level_index_t level = 0; level < levels; ++level) {
+            const xkb_keysym_t* syms = nullptr;
+            const int n = xkb_keymap_key_get_syms_by_level(keymap, kc, layout, level, &syms);
+            if (n != 1 || syms[0] != sym)
+                continue;
+            // The modifiers that reach this level: none, or Shift alone.
+            xkb_mod_mask_t masks[8];
+            const size_t m = xkb_keymap_key_get_mods_for_level(keymap, kc, layout, level, masks, 8);
+            for (size_t i = 0; i < m; ++i) {
+                if (masks[i] == 0)
+                    return KeyFor{kc - 8, false};
+                if (shift != XKB_MOD_INVALID && masks[i] == (1u << shift) && !shifted)
+                    shifted = KeyFor{kc - 8, true};
+            }
+        }
+    }
+    return shifted;
+}
+
 } // namespace atrium::input

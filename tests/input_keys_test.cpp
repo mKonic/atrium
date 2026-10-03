@@ -102,3 +102,18 @@ TEST(InputKeys, ANewKeymapKeepsKeysHeld) {
     EXPECT_EQ(g.keys.mod_mask(), uint32_t(Mod::Alt));
     EXPECT_EQ(g.keys.pressed(), (std::vector<uint32_t>{KEY_LEFTALT}));
 }
+
+TEST(InputKeys, KeyForKeysym) {
+    xkb_keymap* km = keymap("us,de");
+    using atrium::input::KeyFor;
+    using atrium::input::key_for_keysym;
+    EXPECT_EQ(key_for_keysym(km, 0, XKB_KEY_a), (KeyFor{KEY_A, false}));
+    EXPECT_EQ(key_for_keysym(km, 0, XKB_KEY_A), (KeyFor{KEY_A, true}));
+    EXPECT_EQ(key_for_keysym(km, 0, XKB_KEY_exclam), (KeyFor{KEY_1, true}));
+    EXPECT_EQ(key_for_keysym(km, 0, XKB_KEY_Return), (KeyFor{KEY_ENTER, false}));
+    EXPECT_EQ(key_for_keysym(km, 0, XKB_KEY_adiaeresis), std::nullopt);  // not on a US keyboard
+    EXPECT_EQ(key_for_keysym(km, 1, XKB_KEY_adiaeresis), (KeyFor{KEY_APOSTROPHE, false}));  // German ä
+    EXPECT_EQ(key_for_keysym(km, 1, XKB_KEY_z), (KeyFor{KEY_Y, false}));
+    EXPECT_EQ(key_for_keysym(km, 1, XKB_KEY_at), std::nullopt);  // AltGr+Q there: more than Shift
+    xkb_keymap_unref(km);
+}

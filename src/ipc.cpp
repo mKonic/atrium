@@ -1,6 +1,7 @@
 #include "ipc.hpp"
 #include "clipboard_history.hpp"
 #include "screencast.hpp"
+#include "eis.hpp"
 #include "screenshot.hpp"
 #include "lock_screen.hpp"
 #include "util/log.hpp"
@@ -578,6 +579,8 @@ void Ipc::drop(Client& c) {
     // Its screen casts end with it (atrium-portal went).
     if (server_.screencast)
         server_.screencast->stop_owned(c.serial);
+    if (server_.eis)
+        server_.eis->close_owned(c.serial);
 }
 
 std::function<void(json)> Ipc::sender(Client& c) {
@@ -744,6 +747,22 @@ json Ipc::handle(Client& c, const json& req) {
             return **now;
         *waiting = true;
         return later();
+    }
+    // Remote input: a socket for a RemoteDesktop session's libei clients,
+    // with the devices allowed (keyboard 1, pointer 2, touch 4). It closes
+    // with eis.close, or with this connection.
+    if (cmd == "eis.open") {
+        if (!server_.eis || !req.contains("devices") || !req["devices"].is_number_unsigned())
+            return fail("eis.open needs \"devices\"");
+        const auto opened = server_.eis->open(req["devices"].get<uint32_t>(), c.serial);
+        if (!opened)
+            return fail("can't open a remote input socket");
+        return ok({{"session", opened->id}, {"path", opened->path}});
+    }
+    if (cmd == "eis.close") {
+        if (!server_.eis || !req.contains("session") || !req["session"].is_number_unsigned())
+            return fail("eis.close needs a \"session\"");
+        return server_.eis->close(req["session"].get<uint64_t>()) ? ok() : fail("no such session");
     }
     if (cmd == "screencast.stop") {
         if (!server_.screencast || !req.contains("stream") || !req["stream"].is_number_integer())

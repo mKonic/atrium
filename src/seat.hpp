@@ -176,6 +176,11 @@ private:
     void motion_absolute(uint32_t time, double lx, double ly);
     void button(const ButtonEvent& event);
     void axis(const AxisEvent& event);
+    // A touch point in layout coordinates (libinput's, or a remote one's).
+    void touch_down(uint32_t time, int32_t id, double lx, double ly);
+    void touch_motion(uint32_t time, int32_t id, double lx, double ly);
+    void touch_up(uint32_t time, int32_t id);
+    void touch_cancel();
     double space_scroll_ = 0;  // Mod + scroll, toward the next space step
     void pointer_focus(View* view, wl::Surface* surface, double sx, double sy, uint32_t time);
 
@@ -188,6 +193,7 @@ private:
     void new_virtual_pointer(wl::VirtualInputs::Pointer* vp);
 
     friend struct KeyboardGroup;
+    friend class Eis;
 
     std::unique_ptr<KeyboardGroup> keyboards_;
     std::vector<std::unique_ptr<KeyboardGroup>> virtual_keyboards_;

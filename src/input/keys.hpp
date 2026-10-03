@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -80,5 +81,15 @@ private:
     std::unordered_map<uint32_t, int> counts_;  // per keycode: keyboards holding it
     xkb_mod_index_t mod_index_[8]{};
 };
+
+// The key that types `sym` in `layout`: its evdev code, and whether Shift
+// goes with it. Without Shift when both would do; nothing when no key in
+// the layout types it (or only with modifiers beyond Shift).
+struct KeyFor {
+    uint32_t keycode;
+    bool shift;
+    bool operator==(const KeyFor&) const = default;
+};
+std::optional<KeyFor> key_for_keysym(xkb_keymap* keymap, xkb_layout_index_t layout, xkb_keysym_t sym);
 
 } // namespace atrium::input

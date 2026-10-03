@@ -48,6 +48,7 @@
 #include "wrapper.hpp"
 #include "clipboard_history.hpp"
 #include "screencast.hpp"
+#include "eis.hpp"
 #include "xwayland/server.hpp"
 #include "xwayland/xwm.hpp"
 #endif
@@ -715,6 +716,7 @@ void Server::teardown() {
     logout.reset();
     clipboard_history.reset();
     screencast.reset();
+    eis.reset();
     idle.reset();
     logind.reset();
     lock_screen.reset();
@@ -871,6 +873,7 @@ void Server::run(const char* startup_cmd) {
     if (!config.greeter) {
         start_clipboard_history();
         screencast = std::make_unique<ScreenCast>(*this);
+        eis = std::make_unique<Eis>(*this);
         start_clipboard_sync();
         start_phone_link();
         restore_power_and_brightness();
@@ -1104,6 +1107,8 @@ void Server::update_outputs() {
     cursor->move(0, 0);
 
     publish_outputs();
+    if (eis)
+        eis->outputs_changed();
     if (ipc)
         ipc->broadcast("outputs", {{"event", "outputs.changed"}});
 }

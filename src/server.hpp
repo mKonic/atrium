@@ -62,6 +62,7 @@ class Idle;
 class Logout;
 class ClipboardHistory;
 class ScreenCast;
+class Eis;
 class Space;
 class Settings;
 class View;
@@ -288,6 +289,7 @@ public:
     std::unique_ptr<Logout> logout;  // apps asked to quit, the session about to end
     std::unique_ptr<ClipboardHistory> clipboard_history;
     std::unique_ptr<ScreenCast> screencast;  // PipeWire streams for screen sharing
+    std::unique_ptr<Eis> eis;                // remote input (libei) for RemoteDesktop sessions
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
     std::unique_ptr<InputMethodRelay> input_method;

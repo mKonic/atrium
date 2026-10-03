@@ -193,59 +193,68 @@ void Seat::hold(input::Device&, libinput_event_gesture* e, libinput_event_type t
 // ---- touch -----------------------------------------------------------------------------
 
 void Seat::touch(input::Device& d, libinput_event_touch* e, libinput_event_type type) {
-    wl::Seat& ws = *server.wl->seat;
     const uint32_t time = libinput_event_touch_get_time(e);
-    server.note_activity();
+    double lx = 0, ly = 0;
+    if (type == LIBINPUT_EVENT_TOUCH_DOWN || type == LIBINPUT_EVENT_TOUCH_MOTION)
+        to_layout(d, libinput_event_touch_get_x_transformed(e, 1), libinput_event_touch_get_y_transformed(e, 1), &lx,
+                  &ly);
     switch (type) {
-    case LIBINPUT_EVENT_TOUCH_DOWN: {
-        const int32_t id = libinput_event_touch_get_seat_slot(e);
-        double lx, ly;
-        to_layout(d, libinput_event_touch_get_x_transformed(e, 1), libinput_event_touch_get_y_transformed(e, 1), &lx,
-                  &ly);
-        const Hit hit = server.hit_test(lx, ly);
-        // A touch focuses what it lands on, as a click does.
-        if (!server.locked && hit.view && (!hit.view->unmanaged() || hit.view->wants_focus()))
-            server.focus_view(hit.view);
-        if (!hit.surface)
-            return;
-        touches_[id] = hit.surface;
-        ws.touch_down(time, hit.surface, id, hit.sx, hit.sy);
+    case LIBINPUT_EVENT_TOUCH_DOWN:
+        touch_down(time, libinput_event_touch_get_seat_slot(e), lx, ly);
         break;
-    }
-    case LIBINPUT_EVENT_TOUCH_MOTION: {
-        const int32_t id = libinput_event_touch_get_seat_slot(e);
-        auto it = touches_.find(id);
-        if (it == touches_.end())
-            return;
-        double lx, ly;
-        to_layout(d, libinput_event_touch_get_x_transformed(e, 1), libinput_event_touch_get_y_transformed(e, 1), &lx,
-                  &ly);
-        // In the surface the touch began on, wherever it goes now.
-        const Owner owner = Server::owner_of(it->second);
-        double ox = 0, oy = 0;
-        if (owner.view)
-            owner.view->surface_origin(ox, oy);
-        else if (owner.layer)
-            ox = owner.layer->tree->x, oy = owner.layer->tree->y;
-        ws.touch_motion(time, id, lx - ox, ly - oy);
+    case LIBINPUT_EVENT_TOUCH_MOTION:
+        touch_motion(time, libinput_event_touch_get_seat_slot(e), lx, ly);
         break;
-    }
-    case LIBINPUT_EVENT_TOUCH_UP: {
-        const int32_t id = libinput_event_touch_get_seat_slot(e);
-        if (touches_.erase(id))
-            ws.touch_up(time, id);
+    case LIBINPUT_EVENT_TOUCH_UP:
+        touch_up(time, libinput_event_touch_get_seat_slot(e));
         break;
-    }
     case LIBINPUT_EVENT_TOUCH_CANCEL:
-        touches_.clear();
-        ws.touch_cancel();
+        touch_cancel();
         break;
     case LIBINPUT_EVENT_TOUCH_FRAME:
-        ws.touch_frame();
+        server.wl->seat->touch_frame();
         break;
     default:
         break;
     }
+}
+
+void Seat::touch_down(uint32_t time, int32_t id, double lx, double ly) {
+    server.note_activity();
+    const Hit hit = server.hit_test(lx, ly);
+    // A touch focuses what it lands on, as a click does.
+    if (!server.locked && hit.view && (!hit.view->unmanaged() || hit.view->wants_focus()))
+        server.focus_view(hit.view);
+    if (!hit.surface)
+        return;
+    touches_[id] = hit.surface;
+    server.wl->seat->touch_down(time, hit.surface, id, hit.sx, hit.sy);
+}
+
+void Seat::touch_motion(uint32_t time, int32_t id, double lx, double ly) {
+    server.note_activity();
+    auto it = touches_.find(id);
+    if (it == touches_.end())
+        return;
+    // In the surface the touch began on, wherever it goes now.
+    const Owner owner = Server::owner_of(it->second);
+    double ox = 0, oy = 0;
+    if (owner.view)
+        owner.view->surface_origin(ox, oy);
+    else if (owner.layer)
+        ox = owner.layer->tree->x, oy = owner.layer->tree->y;
+    server.wl->seat->touch_motion(time, id, lx - ox, ly - oy);
+}
+
+void Seat::touch_up(uint32_t time, int32_t id) {
+    server.note_activity();
+    if (touches_.erase(id))
+        server.wl->seat->touch_up(time, id);
+}
+
+void Seat::touch_cancel() {
+    touches_.clear();
+    server.wl->seat->touch_cancel();
 }
 
 // ---- tablets -----------------------------------------------------------------------------
