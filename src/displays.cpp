@@ -152,6 +152,7 @@ void Server::remember_displays() {
         d.sdr_brightness = o->sdr_brightness;
         d.sdr_color = o->sdr_color;
         d.icc = o->icc;
+        d.icc_hdr = o->icc_hdr;
         if (o->screen->enabled) {
             d.width = o->screen->width;
             d.height = o->screen->height;
@@ -168,6 +169,7 @@ void Server::remember_displays() {
             d.sdr_brightness = o->sdr_brightness;
             d.sdr_color = o->sdr_color;
             d.icc = o->icc;
+            d.icc_hdr = o->icc_hdr;
         }
         registry->put_display(d);
     }
@@ -199,6 +201,8 @@ void Server::restore_display(Output* output) {
     output->sdr_color = d->sdr_color;
     output->icc = d->icc;
     output->apply_icc();
+    output->icc_hdr = d->icc_hdr;
+    output->apply_icc_hdr();
     backend::Output* w = output->screen;
     backend::OutputState state;
     state.set_enabled(d->enabled);
@@ -264,6 +268,18 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
         if (!target->apply_icc(&why)) {
             target->icc = before;
             target->apply_icc();
+            return why;
+        }
+    }
+    if (req.contains("icc_hdr")) {
+        if (!req["icc_hdr"].is_string())
+            return "icc_hdr is the path of an HDR calibration (an ICC file with an MHC2 tag), or empty for none";
+        const std::string before = target->icc_hdr;
+        target->icc_hdr = req["icc_hdr"];
+        std::string why;
+        if (!target->apply_icc_hdr(&why)) {
+            target->icc_hdr = before;
+            target->apply_icc_hdr();
             return why;
         }
     }

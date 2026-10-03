@@ -85,6 +85,14 @@ void primaries_transform_absolute_colorimetric(const ColorPrimaries* source, con
     mul(matrix, dst, src);
 }
 
+void xyz_matrix_in_primaries(const ColorPrimaries* primaries, const float xyz[9], float out[9]) {
+    float to[9], from[9], m[9];
+    to_xyz(primaries, to);
+    invert(from, to);
+    mul(m, xyz, to);
+    mul(out, from, m);
+}
+
 Luminances default_luminance(TransferFunction tf) {
     switch (tf) {
     case TRANSFER_FUNCTION_ST2084_PQ:

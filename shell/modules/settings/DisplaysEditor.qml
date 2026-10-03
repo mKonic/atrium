@@ -354,6 +354,41 @@ Rectangle {
                 onClicked: root.configure({ icc: "" })
             }
         }
+
+        // Its calibration for HDR, as Windows HDR Calibration or DisplayCAL
+        // make it (an ICC profile with an MHC2 tag).
+        Setting {
+            visible: root.output?.hdr_supported ?? false
+            label: "HDR calibration"
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, 260)
+                elide: Text.ElideMiddle
+                text: (root.output?.icc_hdr ?? "") ? root.output.icc_hdr.split("/").pop() : "None"
+                font.pointSize: Theme.font.size.small
+            }
+
+            PillButton {
+                text: "Choose…"
+                onClicked: hdrPicker.open()
+            }
+
+            PillButton {
+                visible: (root.output?.icc_hdr ?? "") !== ""
+                text: "None"
+                onClicked: root.configure({ icc_hdr: "" })
+            }
+        }
+    }
+
+    FilePicker {
+        id: hdrPicker
+
+        title: "Choose an HDR Calibration"
+        folder: StandardPaths.writableLocation(StandardPaths.GenericDataLocation) + "/icc"
+        nameFilter: "Color profiles (*.icc *.icm)"
+        onPicked: file => root.configure({ icc_hdr: file.toString().replace(/^file:\/\//, "") })
     }
 
     FilePicker {

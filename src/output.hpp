@@ -69,19 +69,33 @@ public:
     // (100), as the screen itself stretches it outside HDR.
     int sdr_color = 100;
     std::string icc;  // colour profile (ICC file) for SDR, empty for none
+    // Its calibration for HDR (an ICC file with an MHC2 tag, as Windows HDR
+    // Calibration writes), empty for none.
+    std::string icc_hdr;
     std::optional<HdrCaps> hdr_caps;  // from the screen's EDID (real screens only)
     bool hdr_supported() const;
     bool hdr_active() const;
     // Signal and compositing as set; false when the screen refused HDR.
     bool apply_hdr();
+    backend::ImageDescription hdr_description() const;
     // Loads `icc` into the renderer's colour pass; false (and none) if it can't.
     bool apply_icc(std::string* error = nullptr);
+    // The same for `icc_hdr`.
+    bool apply_icc_hdr(std::string* error = nullptr);
+    // The brightest and darkest it shows in HDR: as calibrated, else as its
+    // EDID says (0 when nothing says).
+    double peak_nits() const {
+        return calibrated_max_nits_ > 0 ? calibrated_max_nits_ : hdr_caps ? hdr_caps->max_nits : 0.0;
+    }
+    double black_nits() const {
+        return calibrated_min_nits_ > 0 ? calibrated_min_nits_ : hdr_caps ? hdr_caps->min_nits : 0.0;
+    }
     // SDR brightness 0-100 as the nits white is shown at in HDR: 80 (what
     // SDR is mastered for) up to the screen's peak, never past it. Content
     // that says what it is (Chromium, HDR video) has its reference white
     // here too.
     double sdr_white_nits() const {
-        const double top = hdr_caps && hdr_caps->max_nits > 80 ? hdr_caps->max_nits : 480.0;
+        const double top = peak_nits() > 80 ? peak_nits() : 480.0;
         return 80.0 + (top - 80.0) * sdr_brightness / 100.0;
     }
 
@@ -112,6 +126,8 @@ private:
     // from frames that missed their vblank anyway.
     frame_timing::RenderJournal journal_;
     int64_t slack_ns_ = 1'500'000;
+    double calibrated_max_nits_ = 0, calibrated_min_nits_ = 0;  // from icc_hdr
+    bool resend_hdr_description_ = false;
     int render_fence_ = -1;               // the last composited frame's, until it's shown
     int64_t render_started_ns_ = 0;
     int64_t aimed_ns_ = 0;                // the vblank the waiting frame is aimed at

@@ -972,7 +972,8 @@ json Ipc::handle(Client& c, const json& req) {
                 {"sdr_color", o->sdr_color},
                 {"icc", o->icc},
                 {"sdr_white_nits", o->sdr_white_nits()},
-                {"max_luminance", o->hdr_caps ? o->hdr_caps->max_nits : 0.0},
+                {"icc_hdr", o->icc_hdr},
+                {"max_luminance", o->peak_nits()},
                 // Frame timing: what compositing takes and how long before a
                 // vblank it starts (ns; on screens whose frames wait for one).
                 {"render_ns", o->render_estimate_ns()},

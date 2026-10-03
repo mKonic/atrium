@@ -217,8 +217,9 @@ SceneOutput* SceneOutput::create(Scene* scene, backend::Output* output) {
         so->renderer_destroy_.connect(&output->renderer->events.destroy, [so](void*) {
             so->fx_.release();
             so->warp_layers_.clear();
-            if (so->lut_)
-                so->lut_->tex = 0;  // went with its context
+            for (render::ColorLut* l : {so->lut_.get(), so->hdr_lut_.get()})
+                if (l)
+                    l->tex = 0;  // went with its context
             so->renderer_destroy_.disconnect();
         });
     }
@@ -250,23 +251,34 @@ void SceneOutput::destroy() {
         timeline_unref(out_timeline_);
     }
     color_transform_unref(gamma_lut_transform_);
-    drop_lut_texture();
+    drop_lut_texture(lut_.get());
+    drop_lut_texture(hdr_lut_.get());
     delete this;
 }
 
-void SceneOutput::drop_lut_texture() {
-    if (!lut_ || !lut_->tex)
+void SceneOutput::drop_lut_texture(render::ColorLut* lut) {
+    if (!lut || !lut->tex)
         return;
     if (render::Renderer* r = output->renderer) {
         r->egl().make_current();
-        glDeleteTextures(1, &lut_->tex);
+        glDeleteTextures(1, &lut->tex);
     }
-    lut_->tex = 0;
+    lut->tex = 0;
 }
 
 void SceneOutput::set_color_lut(std::unique_ptr<render::ColorLut> lut) {
-    drop_lut_texture();
+    drop_lut_texture(lut_.get());
     lut_ = std::move(lut);
+    color_changed_ = true;
+    damage_whole();
+}
+
+void SceneOutput::set_hdr_calibration(const float* matrix, std::unique_ptr<render::ColorLut> lut) {
+    drop_lut_texture(hdr_lut_.get());
+    hdr_lut_ = matrix ? std::move(lut) : nullptr;
+    hdr_calibrated_ = matrix != nullptr;
+    const float identity[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    std::memcpy(hdr_matrix_, matrix ? matrix : identity, sizeof hdr_matrix_);
     color_changed_ = true;
     damage_whole();
 }
@@ -396,6 +408,15 @@ render::OutputColor SceneOutput::output_color(const backend::ImageDescription* d
     if (lut_ && lut_->size > 1 && (!desc || c.tf == 0 || c.tf == 3)) {
         c.lut = lut_.get();
         c.tf = 0;
+    }
+    // Its HDR calibration, in PQ: the matrix on linear BT.2020 (where the
+    // one above leaves it), the table on the PQ signal.
+    if (desc && c.tf == 1 && hdr_calibrated_) {
+        float calibrated[9];
+        render::matrix::multiply(calibrated, hdr_matrix_, m);
+        std::memcpy(m, calibrated, sizeof m);
+        if (hdr_lut_ && hdr_lut_->size > 1)
+            c.lut = hdr_lut_.get();
     }
     // Columns take the tint: it applies to linear sRGB in.
     for (int i = 0; i < 9; ++i)

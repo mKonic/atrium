@@ -465,6 +465,10 @@ public:
     void set_tint(float r, float g, float b);
     // The display's colour profile as a 3D table (SDR), or none.
     void set_color_lut(std::unique_ptr<render::ColorLut> lut);
+    // The display's calibration for HDR (icc::HdrCalibration): a matrix on
+    // linear BT.2020 and a table on the PQ signal (null for none); none of
+    // it at all with `matrix` null.
+    void set_hdr_calibration(const float* matrix, std::unique_ptr<render::ColorLut> lut);
 
     struct StateOptions {
         Timer* timer = nullptr;
@@ -509,10 +513,13 @@ private:
 
     render::EffectBuffers fx_;
     std::unique_ptr<render::ColorLut> lut_;
+    std::unique_ptr<render::ColorLut> hdr_lut_;
+    float hdr_matrix_[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    bool hdr_calibrated_ = false;
     // Offscreen layers of warped trees, kept while they stay warped.
     std::unordered_map<const Tree*, std::unique_ptr<render::Target>> warp_layers_;
     std::unordered_set<const Tree*> warp_layers_used_;
-    void drop_lut_texture();
+    void drop_lut_texture(render::ColorLut* lut);
     uint8_t dmabuf_feedback_debounce_ = 0;
     bool prev_scanout_ = false;
     bool gamma_lut_changed_ = false;

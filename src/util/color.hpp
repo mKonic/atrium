@@ -38,6 +38,9 @@ void primaries_from_named(ColorPrimaries* out, NamedPrimaries named);
 // white points kept as they are.
 void primaries_transform_absolute_colorimetric(const ColorPrimaries* source, const ColorPrimaries* destination,
                                                float matrix[9]);
+// A matrix on CIE XYZ (row-major) as the same change made to `primaries`'
+// linear RGB: RGB to XYZ, `xyz`, back to RGB.
+void xyz_matrix_in_primaries(const ColorPrimaries* primaries, const float xyz[9], float out[9]);
 // A transfer function's default luminances, as the color-management
 // protocol defines them.
 Luminances default_luminance(TransferFunction tf);

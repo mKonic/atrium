@@ -88,6 +88,7 @@ struct DisplayRecord {
     int sdr_brightness = 30;              // 0-100 as Windows' "SDR content brightness": 80-480 nits
     int sdr_color = 100;                  // 0-100: SDR in HDR from plain sRGB to the screen's own gamut
     std::string icc;                      // colour profile (ICC file), empty for none
+    std::string icc_hdr;                  // calibration for HDR (ICC file with MHC2), empty for none
 
     bool operator==(const DisplayRecord&) const = default;
 };

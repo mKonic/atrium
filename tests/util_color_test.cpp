@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+
 using namespace atrium;
 
 namespace {
@@ -48,3 +50,28 @@ TEST(Color, DefaultLuminances) {
 }
 
 } // namespace
+
+TEST(Color, XyzMatrixInPrimaries) {
+    // BT.2020 to XYZ, as ITU-R BT.2087 gives it.
+    const double t[9] = {0.6370, 0.1446, 0.1689, 0.2627, 0.6780, 0.0593, 0.0, 0.0281, 1.0610};
+    // Something lopsided on XYZ: X takes a little of Y, Z loses some.
+    const float xyz[9] = {1.0f, 0.1f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.9f};
+    ColorPrimaries bt2020;
+    primaries_from_named(&bt2020, NAMED_PRIMARIES_BT2020);
+    float m[9];
+    xyz_matrix_in_primaries(&bt2020, xyz, m);
+    // For any RGB: to XYZ, the change, must equal the change in RGB, to XYZ.
+    for (const auto& rgb : {std::array<double, 3>{1, 0, 0}, {0.2, 0.7, 0.4}, {0, 0, 1}}) {
+        double a[3], b[3], via[3];
+        for (int i = 0; i < 3; ++i) {
+            a[i] = t[i * 3] * rgb[0] + t[i * 3 + 1] * rgb[1] + t[i * 3 + 2] * rgb[2];
+            via[i] = m[i * 3] * rgb[0] + m[i * 3 + 1] * rgb[1] + m[i * 3 + 2] * rgb[2];
+        }
+        for (int i = 0; i < 3; ++i)
+            b[i] = xyz[i * 3] * a[0] + xyz[i * 3 + 1] * a[1] + xyz[i * 3 + 2] * a[2];
+        for (int i = 0; i < 3; ++i) {
+            const double back = t[i * 3] * via[0] + t[i * 3 + 1] * via[1] + t[i * 3 + 2] * via[2];
+            EXPECT_NEAR(back, b[i], 2e-3) << i;
+        }
+    }
+}

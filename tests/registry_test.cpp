@@ -129,6 +129,12 @@ TEST(Registry, RemembersDisplays) {
     EXPECT_TRUE(r.display("Dell U2720Q 123")->hdr);
     EXPECT_EQ(r.display("Dell U2720Q 123")->sdr_brightness, 60);
     EXPECT_EQ(r.display("Dell U2720Q 123")->sdr_color, 40);
+    EXPECT_EQ(d->icc_hdr, "");
+    d->icc = "/p/sdr.icc";
+    d->icc_hdr = "/p/hdr.icc";
+    r.put_display(*d);
+    EXPECT_EQ(r.display("Dell U2720Q 123")->icc, "/p/sdr.icc");
+    EXPECT_EQ(r.display("Dell U2720Q 123")->icc_hdr, "/p/hdr.icc");
     d->enabled = false;
     d->x.reset();
     r.put_display(*d);
@@ -162,6 +168,8 @@ TEST(Registry, MigratesDisplaysToAdaptiveSync) {
         EXPECT_FALSE(d->hdr);
         EXPECT_EQ(d->sdr_brightness, 30);
         EXPECT_EQ(d->sdr_color, 100);
+        EXPECT_EQ(d->icc, "");
+        EXPECT_EQ(d->icc_hdr, "");
         // Apps and rules have the newer fields too.
         EXPECT_GT(r.add_rule({.app_pattern = "x", .follow = true}), 0);
         EXPECT_EQ(r.rules().front().follow, true);

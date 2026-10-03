@@ -197,6 +197,24 @@ void log_formats(backend::Output* output) {
 
 } // namespace
 
+// The metadata describes the screen (what Windows sends from the EDID, or
+// from its calibration): its primaries and the luminances it can show.
+backend::ImageDescription Output::hdr_description() const {
+    backend::ImageDescription desc{};
+    desc.primaries = NAMED_PRIMARIES_BT2020;
+    desc.transfer_function = TRANSFER_FUNCTION_ST2084_PQ;
+    if (screen->default_primaries)
+        desc.mastering_display_primaries = *screen->default_primaries;
+    else
+        primaries_from_named(&desc.mastering_display_primaries, NAMED_PRIMARIES_BT2020);
+    const double max = peak_nits() > 0 ? peak_nits() : 1000.0;
+    desc.mastering_luminance.min = black_nits();
+    desc.mastering_luminance.max = max;
+    desc.max_cll = max;
+    desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? std::min(hdr_caps->max_frame_avg_nits, max) : max;
+    return desc;
+}
+
 bool Output::apply_hdr() {
     const bool want = hdr && hdr_supported();
     bool ok = true;
@@ -204,20 +222,7 @@ bool Output::apply_hdr() {
         backend::OutputState state;
         state.allow_reconfiguration = true;
         if (want) {
-            // The metadata describes the screen (what Windows sends from the
-            // EDID): its primaries and the luminances it says it can show.
-            backend::ImageDescription desc{};
-            desc.primaries = NAMED_PRIMARIES_BT2020;
-            desc.transfer_function = TRANSFER_FUNCTION_ST2084_PQ;
-            if (screen->default_primaries)
-                desc.mastering_display_primaries = *screen->default_primaries;
-            else
-                primaries_from_named(&desc.mastering_display_primaries, NAMED_PRIMARIES_BT2020);
-            const double max = hdr_caps && hdr_caps->max_nits > 0 ? hdr_caps->max_nits : 1000.0;
-            desc.mastering_luminance.min = hdr_caps ? hdr_caps->min_nits : 0.0;
-            desc.mastering_luminance.max = max;
-            desc.max_cll = max;
-            desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? hdr_caps->max_frame_avg_nits : max;
+            const backend::ImageDescription desc = hdr_description();
             state.set_image_description(&desc);
             // Night light moves from the gamma table into the renderer.
             if (screen->gamma_size() > 0)
@@ -268,6 +273,41 @@ bool Output::apply_hdr() {
         scene_output->set_sdr_primaries(nullptr);
     }
     screen->schedule_frame();
+    return ok;
+}
+
+bool Output::apply_icc_hdr(std::string* error) {
+    if (!scene_output)
+        return false;
+    const double was_max = calibrated_max_nits_, was_min = calibrated_min_nits_;
+    calibrated_max_nits_ = calibrated_min_nits_ = 0;
+    bool ok = true;
+    if (icc_hdr.empty()) {
+        scene_output->set_hdr_calibration(nullptr, nullptr);
+    } else if (std::string why; auto cal = icc::load_hdr(icc_hdr, &why)) {
+        std::unique_ptr<render::ColorLut> lut;
+        if (cal->lut.size > 1) {
+            lut = std::make_unique<render::ColorLut>();
+            lut->size = cal->lut.size;
+            lut->rgb = std::move(cal->lut.rgb);
+        }
+        scene_output->set_hdr_calibration(cal->matrix, std::move(lut));
+        calibrated_max_nits_ = cal->max_nits;
+        calibrated_min_nits_ = cal->min_nits;
+        alog(Log::Info, "%s: HDR calibration %s (%.0f nits)", screen->name.c_str(), cal->description.c_str(),
+             cal->max_nits);
+    } else {
+        alog(Log::Error, "%s: HDR calibration: %s", screen->name.c_str(), why.c_str());
+        if (error)
+            *error = why;
+        scene_output->set_hdr_calibration(nullptr, nullptr);
+        ok = false;
+    }
+    // New luminances: the screen is told, and SDR white follows.
+    if (hdr_active() && (was_max != calibrated_max_nits_ || was_min != calibrated_min_nits_)) {
+        resend_hdr_description_ = true;  // with the next frame
+        scene_output->set_sdr_white_nits(float(sdr_white_nits()));
+    }
     return ok;
 }
 
@@ -399,6 +439,10 @@ void Output::render() {
     if (scene_output->build_state(&state)) {
         if (switch_vrr)
             state.set_adaptive_sync_enabled(vrr);
+        const bool resend = std::exchange(resend_hdr_description_, false) && hdr_active();
+        const backend::ImageDescription desc = resend ? hdr_description() : backend::ImageDescription{};
+        if (resend)
+            state.set_image_description(&desc);
         if (tearing_view(server, *this)) {
             // Show the frame the moment it is ready, torn if need be; fall
             // back to waiting for vblank when the hardware won't.
@@ -406,7 +450,14 @@ void Output::render() {
             if (!screen->test_state(state))
                 state.tearing_page_flip = false;
         }
-        const bool committed = screen->commit_state(state);
+        bool committed = screen->commit_state(state);
+        if (!committed && resend) {
+            // The screen won't take new metadata without a modeset: the
+            // frame without it, and it waits for the next time HDR is set.
+            alog(Log::Error, "%s: refused new HDR metadata", screen->name.c_str());
+            state.committed &= ~backend::OutputState::ImageDescriptionField;
+            committed = screen->commit_state(state);
+        }
         // Timed on screens whose frames wait for a vblank (frame()).
         if (committed && screen->backend.is_drm()) {
             if (render_fence_ >= 0)
