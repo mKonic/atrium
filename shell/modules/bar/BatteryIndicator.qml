@@ -8,6 +8,8 @@ import shell.services
 Pill {
     id: root
 
+    property bool greeter: false  // at the login screen: no settings to open
+
     visible: Battery.present
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2
 
@@ -32,6 +34,7 @@ Pill {
     }
 
     TapHandler {
+        enabled: !root.greeter
         onTapped: Atrium.action("shell", "settings:Power")
     }
 }

@@ -12,6 +12,9 @@ import shell.services
 PanelWindow {
     id: cc
 
+    // At the login screen: only what works before anyone logs in (Wi-Fi,
+    // Bluetooth, the display's brightness), over the login screen.
+    property bool greeter: false
     property string page: ""  // "", "wifi", "bluetooth", "media"
     property Item pageTile: null  // the tile the page grew out of
     property real open: 0         // 0: the tiles, 1: the page, between: growing
@@ -101,14 +104,15 @@ PanelWindow {
         right: true
     }
     margins {
-        top: 8
+        // Under the login screen's status items, which have no bar.
+        top: greeter ? 44 : 8
         right: 8
     }
     implicitWidth: 340
     implicitHeight: panel.implicitHeight
     exclusiveZone: 0
     color: "transparent"
-    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.layer: greeter ? WlrLayer.Overlay : WlrLayer.Top
     WlrLayershell.namespace: "atrium-control-center"
     WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
@@ -155,7 +159,7 @@ PanelWindow {
             readonly property real gap: 12
             readonly property real cell: (width - 3 * gap) / 4
             readonly property real span2: 2 * cell + gap
-            readonly property bool playing: !!cc.player
+            readonly property bool playing: !!cc.player && !cc.greeter
 
             x: 12
             y: 12
@@ -170,7 +174,7 @@ PanelWindow {
             CapsuleToggle {
                 id: wifiTile
 
-                width: main.span2
+                width: cc.greeter ? parent.width : main.span2
                 height: main.cell
                 icon: !Network.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
                 title: "Wi-Fi"
@@ -185,7 +189,7 @@ PanelWindow {
                 id: btTile
 
                 y: main.cell + main.gap
-                width: main.span2
+                width: cc.greeter ? parent.width : main.span2
                 height: main.cell
                 icon: !cc.adapter?.enabled ? "bluetooth_disabled" : cc.adapter.connectedNames ? "bluetooth_connected" : "bluetooth"
                 title: "Bluetooth"
@@ -202,6 +206,7 @@ PanelWindow {
             Grid {
                 id: rounds
 
+                visible: !cc.greeter
                 x: main.playing ? 0 : main.span2 + main.gap
                 y: main.playing ? 2 * (main.cell + main.gap) : 0
                 columns: main.playing ? 4 : 2
@@ -547,10 +552,13 @@ PanelWindow {
                     }
                 }
 
-                Separator {}
+                Separator {
+                    visible: !cc.greeter
+                }
 
                 // Everything else about it, in System Settings.
                 Rectangle {
+                    visible: !cc.greeter
                     width: list.width
                     height: 38
                     radius: 12

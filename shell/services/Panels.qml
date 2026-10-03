@@ -24,13 +24,15 @@ Singleton {
     })
 
     // A press anywhere but the open panel closes it, as on macOS. Presses on
-    // the bar are its buttons' own: they toggle the panel themselves.
+    // the bar (or the login screen, which has its own buttons) are its
+    // buttons' own: they toggle the panel themselves.
     property Connections outsideClicks: Connections {
         target: Atrium
 
         function onPointerPressed(layerNamespace: string): void {
             const mine = root.namespaces[root.open];
-            if (mine && layerNamespace !== mine && layerNamespace !== "atrium-bar")
+            if (mine && layerNamespace !== mine && layerNamespace !== "atrium-bar"
+                    && layerNamespace !== "atrium-greeter")
                 root.open = "";
         }
     }

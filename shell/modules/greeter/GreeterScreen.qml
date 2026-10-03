@@ -5,6 +5,7 @@ import Atrium.Shell
 import Atrium
 import shell.components
 import shell.services
+import shell.modules.bar
 
 // The login screen, as macOS draws it: the time at the top, the people who
 // can log in along the bottom, a password field under the chosen one, and
@@ -30,6 +31,18 @@ PanelWindow {
     readonly property bool busy: Greeter.busy
 
     onChosenChanged: pickedSession = ""
+
+    // Where typing starts: the name, unless one is already there (the last
+    // one's, or a person picked), then the password. Once: a binding would
+    // move it out of the name at its first letter.
+    Component.onCompleted: {
+        if (!primary)
+            return;
+        if (person === null && nameField.text.length === 0)
+            nameField.forceActiveFocus();
+        else
+            password.forceActiveFocus();
+    }
 
     function userName(): string {
         return person ? person.userName : nameField.text.trim();
@@ -73,6 +86,12 @@ PanelWindow {
         }
     }
 
+    // A press on the backdrop closes the Control Center.
+    MouseArea {
+        anchors.fill: parent
+        onPressed: Panels.open = ""
+    }
+
     SystemClock {
         id: clock
 
@@ -98,6 +117,42 @@ PanelWindow {
             font.pointSize: 84
             font.weight: Font.Bold
             color: Theme.dark.label
+        }
+    }
+
+    // Top right, as on a Mac's login screen: the keyboard layout, the
+    // battery, and Wi-Fi (opening the Control Center).
+    Row {
+        visible: root.primary
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 8
+        spacing: Theme.spacing.small
+
+        InputMenu {
+            bar: root
+            greeter: true
+        }
+
+        BatteryIndicator {
+            greeter: true
+        }
+
+        Pill {
+            implicitWidth: network.implicitWidth + Theme.padding.normal * 2
+
+            MaterialIcon {
+                id: network
+
+                anchors.centerIn: parent
+                text: Network.glyph
+                font.pointSize: Theme.font.size.normal
+                color: Network.online ? Theme.palette.label : Theme.palette.tertiaryLabel
+            }
+
+            TapHandler {
+                onTapped: Panels.toggle("control")
+            }
         }
     }
 
@@ -174,8 +229,6 @@ PanelWindow {
                 color: Theme.dark.label
                 font.pointSize: 12
                 text: root.last.user ?? ""
-                // A name already there (the last one): straight to the password.
-                focus: root.primary && root.person === null && text.length === 0
                 onAccepted: password.forceActiveFocus()
 
                 StyledText {
@@ -204,7 +257,6 @@ PanelWindow {
                 echoMode: TextInput.Password
                 passwordCharacter: "●"
                 enabled: !root.busy
-                focus: root.primary && (root.person !== null || nameField.text.length > 0)
                 onAccepted: root.submit()
                 // Empty, beside a running session: back to it.
                 Keys.onEscapePressed: {

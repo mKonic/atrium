@@ -12,6 +12,7 @@ Pill {
     id: root
 
     required property var bar  // the panel window, for placing the menu
+    property bool greeter: false  // at the login screen: no settings to open
 
     readonly property var layouts: Atrium.keyboard.layouts ?? []
     readonly property int active: Atrium.keyboard.active ?? 0
@@ -76,7 +77,7 @@ Pill {
                 icon: i === root.active ? "check" : "",
                 text: l.name,
                 run: () => Atrium.setKeyboardLayout(i)
-            })).concat(["-", {
+            })).concat(root.greeter ? [] : ["-", {
                 icon: "",
                 text: "Keyboard Settings…",
                 run: () => Atrium.action("shell", "settings:Keyboard")
