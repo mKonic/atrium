@@ -172,9 +172,14 @@ void Server::setup_capture() {
                 per.commit = o->screen->events.commit.connect(
                     [this, o](const backend::OutputState& st) { capture_output_frame(o, st); });
             // A copy that needn't wait for change: the screen is drawn anew.
-            if (!copy.wait_for_damage && o->scene_output)
-                o->scene_output->damage_whole();
-            o->screen->schedule_frame();
+            // One that waits gets the next frame something else brings
+            // (scheduling one here would redraw an idle screen at its refresh
+            // rate for as long as a stream is read).
+            if (!copy.wait_for_damage) {
+                if (o->scene_output)
+                    o->scene_output->damage_whole();
+                o->screen->schedule_frame();
+            }
             return;
         }
         View* v = view_of(copy.target);
