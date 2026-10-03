@@ -16,6 +16,9 @@
 #include <QObject>
 #include <QVariantMap>
 
+#include <functional>
+#include <optional>
+
 namespace atrium {
 
 // One shortcut as the portal passes them: its id and {description, preferred_trigger}.
@@ -71,6 +74,19 @@ QDBusArgument& operator<<(QDBusArgument& arg, const PortalChoice& c);
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalChoice& c);
 QDBusArgument& operator<<(QDBusArgument& arg, const PortalShortcut& s);
 const QDBusArgument& operator>>(const QDBusArgument& arg, PortalShortcut& s);
+
+// Dialogs are QML files run in their own atrium-shell: the installed ones,
+// or the source tree's for a portal run from the build tree.
+QString shellFile(const QString& name);
+QString shellProgram();
+// What goes back to the portal, from a dialog's stdout (nothing when it
+// failed or the portal closed it first).
+using Answer = std::function<QVariantList(const std::optional<QByteArray>& out)>;
+// Runs a shell file (a dialog) for the call being answered, with `input` on
+// its stdin and `mode` in ATRIUM_CAPTURE_MODE, until it exits or the portal
+// closes the request.
+void askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
+              Answer answer);
 
 // A session the portal made for an app: its object, closed by either side.
 class PortalSession : public QObject {
