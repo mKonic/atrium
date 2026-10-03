@@ -18,6 +18,24 @@ namespace atrium::wl {
 
 namespace {
 
+// zwp_input_popup_surface_v2: an input method's candidates, shown while
+// they have content.
+class PopupRole : public Role {
+public:
+    static constexpr const char* kName = "zwp_input_popup_surface_v2";
+    const char* name() const override { return kName; }
+    void commit(Surface& s) override {
+        if (s.current().buffer_width > 0)
+            s.map();
+        else
+            s.unmap();
+    }
+};
+
+} // namespace
+
+namespace {
+
 template <class List>
 void detach_all(List& list) {
     for (auto& w : list)
@@ -219,19 +237,31 @@ InputMethods::InputMethods(wl_display* display, Seat& seat) : seat_(seat) {
                 auto p = std::make_unique<Popup>(Popup{s});
                 Popup* pp = p.get();
                 pp->resource = pr;
+                // Its role maps it when it has a buffer (as wlroots does):
+                // without one it would never show.
+                pp->role = std::make_unique<PopupRole>();
+                if (!s->set_role(pp->role.get(), self, uint32_t(ZwpInputMethodV2::Error::Role))) {
+                    pr->detach();
+                    return;
+                }
                 im->popups.push_back(std::move(p));
-                auto drop = [this, im, pp] {
+                auto drop = [this, im, pp](bool surface_alive) {
                     auto it = std::ranges::find_if(im->popups, [pp](const auto& x) { return x.get() == pp; });
                     if (it == im->popups.end())
                         return;
                     events.destroy_popup.emit(pp);
                     if (Resource* res = pp->resource.get())
                         res->detach();
+                    if (surface_alive) {
+                        pp->surface->unmap();
+                        pp->surface->clear_role(pp->role.get());
+                    }
                     im->popups.erase(it);
                 };
-                pr->on_gone(drop);
-                pp->surface_gone = s->events.destroy.connect(drop);
+                pr->on_gone([drop] { drop(true); });
+                pp->surface_gone = s->events.destroy.connect([drop] { drop(false); });
                 events.new_popup.emit(pp);
+                pp->role->commit(*s);  // content already there
             });
             r->on_grab_keyboard([this, im](ZwpInputMethodV2* self, uint32_t id) {
                 auto* g = make<ZwpInputMethodKeyboardGrabV2>(self->client(), self->version(), id);

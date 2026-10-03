@@ -70,6 +70,7 @@ public:
         Surface* surface;
         Weak<Resource> resource;
         Connection surface_gone;
+        std::unique_ptr<Role> role;  // shown while it has content
     };
     struct InputMethod {
         Seat* seat;

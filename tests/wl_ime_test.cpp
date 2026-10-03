@@ -3,6 +3,7 @@
 #include "wl/compositor.hpp"
 #include "wl/ime.hpp"
 #include "wl/seat.hpp"
+#include "wl/shm.hpp"
 #include "wl_harness.hpp"
 
 #include "input-method-unstable-v2-client-protocol.h"
@@ -23,6 +24,7 @@ namespace {
 
 struct Ime : wltest::Harness {
     wl::Compositor compositor{server, nullptr};
+    wl::Shm shm{server, {}};
     wl::Seat seat{server, "seat0"};
     wl::TextInputs texts{server, seat};
     wl::InputMethods methods{server, seat};
@@ -31,9 +33,11 @@ struct Ime : wltest::Harness {
     wl::Connection made = compositor.new_surface.connect([this](wl::Surface* s) { surfaces.push_back(s); });
     wl_compositor* comp = nullptr;
     wl_seat* wseat = nullptr;
+    wl_shm* wshm = nullptr;
     Ime() {
         seat.set_capabilities(wl::Seat::Keyboard);
         comp = bind<wl_compositor>(&wl_compositor_interface);
+        wshm = bind<struct wl_shm>(&wl_shm_interface, 2);
         wseat = bind<wl_seat>(&wl_seat_interface);
         pump();
     }
@@ -41,8 +45,18 @@ struct Ime : wltest::Harness {
         if (!client)
             return;
         wl_seat_release(wseat);
+        wl_shm_release(wshm);
         wl_compositor_destroy(comp);
         pump();
+    }
+    wl_buffer* buffer(int w, int h) {
+        int fd = memfd_create("ime-test", MFD_CLOEXEC);
+        EXPECT_EQ(ftruncate(fd, w * h * 4), 0);
+        wl_shm_pool* pool = wl_shm_create_pool(wshm, fd, w * h * 4);
+        wl_buffer* b = wl_shm_pool_create_buffer(pool, 0, w, h, w * 4, WL_SHM_FORMAT_ARGB8888);
+        wl_shm_pool_destroy(pool);
+        close(fd);
+        return b;
     }
 };
 
@@ -232,6 +246,42 @@ TEST(WlIme, VirtualPointerMoves) {
     EXPECT_DOUBLE_EQ(moves[0].second, 0.25);
     zwlr_virtual_pointer_v1_destroy(vp);
     zwlr_virtual_pointer_manager_v1_destroy(m);
+    t.pump();
+    EXPECT_EQ(t.error(), 0);
+}
+
+TEST(WlIme, PopupShowsWhileItHasContent) {
+    Ime t;
+    auto* m = t.bind<zwp_input_method_manager_v2>(&zwp_input_method_manager_v2_interface, 1);
+    zwp_input_method_v2* im = zwp_input_method_manager_v2_get_input_method(m, t.wseat);
+    wl_surface* s = wl_compositor_create_surface(t.comp);
+    zwp_input_popup_surface_v2* popup = zwp_input_method_v2_get_input_popup_surface(im, s);
+    t.pump();
+    wl::Surface* ss = t.surfaces.back();
+    EXPECT_FALSE(ss->mapped());
+
+    wl_buffer* b = t.buffer(30, 10);
+    wl_surface_attach(s, b, 0, 0);
+    wl_surface_commit(s);
+    t.pump();
+    EXPECT_TRUE(ss->mapped());  // fcitx5's candidates: never shown before
+    wl_surface_attach(s, nullptr, 0, 0);
+    wl_surface_commit(s);
+    t.pump();
+    EXPECT_FALSE(ss->mapped());
+
+    // Destroying the popup hides it.
+    wl_surface_attach(s, b, 0, 0);
+    wl_surface_commit(s);
+    zwp_input_popup_surface_v2_destroy(popup);
+    t.pump();
+    EXPECT_FALSE(ss->mapped());
+    EXPECT_EQ(t.error(), 0);
+
+    wl_buffer_destroy(b);
+    wl_surface_destroy(s);
+    zwp_input_method_v2_destroy(im);
+    zwp_input_method_manager_v2_destroy(m);
     t.pump();
     EXPECT_EQ(t.error(), 0);
 }
