@@ -312,6 +312,7 @@ private:
     wlr_backend* headless_ = nullptr;  // made on the first create_output() without a nested backend
     void seed_registry(const std::filesystem::path& dir);
 
+    int wrapped_fd_ = -1;  // the wrapper's listening socket (libwayland owns it)
     pid_t startup_pid_ = -1;
     std::string startup_cmd_;               // until Xwayland is up
     bool session_target_ = false;  // atrium-session.target may be ours to stop

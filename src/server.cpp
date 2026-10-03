@@ -35,6 +35,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <sys/wait.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 namespace atrium {
@@ -568,6 +569,11 @@ void Server::run_startup() {
 }
 
 void Server::teardown() {
+    // Quitting, not crashing: the socket the wrapper holds for the next
+    // atrium refuses connections from here, so Qt apps reconnecting as we go
+    // (QT_WAYLAND_RECONNECT) give up instead of connecting to nobody.
+    if (wrapped_fd_ >= 0)
+        shutdown(wrapped_fd_, SHUT_RDWR);
     night_light.reset();
     ipc.reset();
     disconnect_listeners();
@@ -640,6 +646,7 @@ void Server::run(const char* startup_cmd) {
     const char* socket = nullptr;
     if (wrapped >= 0 && wl_display_add_socket_fd(display, wrapped) == 0) {
         socket = wrapped_name;
+        wrapped_fd_ = wrapped;
         // The socket outlives us: Qt apps wait for the next atrium instead of quitting.
         setenv("QT_WAYLAND_RECONNECT", "1", 0);
     } else {
