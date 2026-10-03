@@ -20,6 +20,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - An HDR calibration per display, in Displays: an ICC profile with an MHC2 tag, as Windows HDR Calibration and DisplayCAL make, with its measured peak brightness.
 - Shake the pointer to find it: it grows for a moment, whatever it shows (an app's own cursor too).
 - Frosted blur behind menus and input-method popups when transparency is on.
+- An input method's candidate window (fcitx5) shows under the text being typed, in apps and on the login screen.
 - A screen shader setting: a GLSL file drawn over every screen.
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
 - Touchpad swipes with three or four fingers: sideways to the next space, up for Mission Control, down for the app's windows.
