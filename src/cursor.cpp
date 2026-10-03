@@ -467,4 +467,20 @@ bool Cursor::image_on(const backend::Output* o, Image* image, int* x, int* y) {
     return true;
 }
 
+bool Cursor::drawn_box(const backend::Output* o, Box* box) const {
+    Screen* s = screen_of(o);
+    if (!s || s->plane || !s->texture)
+        return false;
+    int w, h;
+    o->transformed_resolution(&w, &h);
+    *box = box_on(*s);
+    box_transform(box, box, output_transform_invert(o->transform), w, h);
+    return true;
+}
+
+void Cursor::damage_on(const backend::Output* o) {
+    if (Screen* s = screen_of(o))
+        damage(*s);
+}
+
 } // namespace atrium

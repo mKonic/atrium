@@ -52,6 +52,10 @@ public:
     // pointer while a cursor plane shows it (the frame hasn't got it).
     void render_into_copy(const backend::Output* output, render::RenderPass* pass, const Box& src, int dst_width,
                           int dst_height);
+    // Where it's drawn into `output`'s frames (buffer pixels), when drawn in
+    // software there; and that area damaged, to be drawn again.
+    bool drawn_box(const backend::Output* output, Box* box) const;
+    void damage_on(const backend::Output* output);
     // The renderer or allocator changed (GPU reset): everything made again.
     void reset_render();
     // Whether `output` shows it in its cursor plane.

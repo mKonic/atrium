@@ -358,6 +358,13 @@ public:
     // A window's capture scene, or a screen, is going: its captures stop.
     void capture_view_gone(View* view);
     void capture_output_gone(Output* output);
+    // A frame of `output` is about to be drawn / its pointer drawn into it:
+    // copies that want no pointer get what's under it.
+    void capture_before_frame(Output* output);
+    void capture_before_cursor(const backend::Output* screen, render::RenderPass* pass);
+    // Its copies without the pointer still have it (drawn in software
+    // through the blend buffer).
+    bool capture_keeps_pointer(Output* output) const;
 private:
     void gpu_reset();
     void disconnect_listeners();

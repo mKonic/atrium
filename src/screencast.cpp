@@ -402,8 +402,8 @@ struct ScreenCast::Stream {
         double ox = 0, oy = 0, k = 1;  // the picture's origin on that screen, in its pixels; its pixels per those
         if (target.output) {
             auto* o = static_cast<Output*>(target.output->data);
-            // Drawn in software, it's in the picture already: not twice.
-            if (o != on || !cursor->in_plane(o->screen))
+            // Where the picture has it anyway, not twice.
+            if (o != on || (!cursor->in_plane(o->screen) && server().capture_keeps_pointer(o)))
                 return false;
             if (target.region) {
                 ox = (target.region->x - o->box.x) * o->screen->scale;

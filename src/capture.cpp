@@ -4,6 +4,7 @@
 // a window's comes from its own capture scene (scene::CaptureSource).
 #include "capture_state.hpp"
 #include "cursor.hpp"
+#include "render/pass.hpp"
 #include "output.hpp"
 #include "seat.hpp"
 #include "server.hpp"
@@ -52,15 +53,29 @@ bool copy_into(render::Renderer* renderer, Buffer* src, const Box& box, Buffer* 
             const render::ReadPixelsOptions o{
                 .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = box};
             ok = t->read_pixels(&o);
-        } else if (Buffer* tmp = allocator ? allocator->allocate(dst->width, dst->height, DRM_FORMAT_ARGB8888, {})
-                                           : nullptr) {
-            if (draw(tmp))
-                if (render::Texture* drawn = renderer->texture_from_buffer(tmp)) {
-                    const render::ReadPixelsOptions o{.data = data, .format = format, .stride = uint32_t(stride)};
-                    ok = drawn->read_pixels(&o);
-                    drawn->destroy();
-                }
-            buffer_drop(tmp);
+        } else if (allocator) {
+            // One the GPU draws into: with the modifiers it reads (the
+            // driver's pick; NVIDIA can't draw into an implicit one), else linear.
+            std::vector<std::vector<uint64_t>> tries;
+            if (const FormatSet* set = renderer->texture_formats(BUFFER_CAP_DMABUF))
+                if (const DrmFormat* f = set->get(DRM_FORMAT_ARGB8888))
+                    tries.push_back(f->modifiers);
+            tries.push_back({DRM_FORMAT_MOD_LINEAR});
+            for (const auto& mods : tries) {
+                Buffer* tmp = allocator->allocate(dst->width, dst->height, DRM_FORMAT_ARGB8888, mods);
+                if (!tmp)
+                    continue;
+                bool drawn_ok = draw(tmp);
+                if (drawn_ok)
+                    if (render::Texture* drawn = renderer->texture_from_buffer(tmp)) {
+                        const render::ReadPixelsOptions o{.data = data, .format = format, .stride = uint32_t(stride)};
+                        ok = drawn->read_pixels(&o);
+                        drawn->destroy();
+                    }
+                buffer_drop(tmp);
+                if (drawn_ok)
+                    break;
+            }
         }
         buffer_end_data_ptr_access(dst);
     } else {
@@ -209,6 +224,63 @@ void Server::setup_capture() {
     }));
 }
 
+namespace {
+
+template <class PerOutput>
+bool wants_no_pointer(const PerOutput& per) {
+    return std::ranges::any_of(per.copies, [](const auto& p) { return !p.copy.target.cursor; });
+}
+
+} // namespace
+
+// The pointer drawn in software is in every frame: for a copy without it,
+// the area it covers is drawn anew (what the buffer had there from an older
+// frame may hold it)...
+void Server::capture_before_frame(Output* o) {
+    if (!capture_ || !cursor)
+        return;
+    auto it = capture_->outputs.find(o);
+    if (it != capture_->outputs.end() && wants_no_pointer(it->second))
+        cursor->damage_on(o->screen);
+}
+
+// ...and kept before the pointer goes over it.
+void Server::capture_before_cursor(const backend::Output* screen, render::RenderPass* pass) {
+    if (!capture_ || !cursor)
+        return;
+    for (auto& [o, per] : capture_->outputs) {
+        if (o->screen != screen)
+            continue;
+        per.under_valid = false;
+        Box b;
+        if (!wants_no_pointer(per) || !cursor->drawn_box(screen, &b))
+            return;
+        // Drawn through a blend buffer (HDR, a profile), the target isn't the
+        // frame: such a copy keeps the pointer.
+        per.pointer_kept = pass->two_pass();
+        if (per.pointer_kept)
+            return;
+        Box cut{};
+        const Box all{0, 0, pass->width(), pass->height()};
+        if (!box_intersection(&cut, &b, &all) || !per.under.ensure(*renderer, pass->width(), pass->height(), GL_RGBA8))
+            return;
+        pixman_region32_t r;
+        pixman_region32_init_rect(&r, cut.x, cut.y, unsigned(cut.width), unsigned(cut.height));
+        pass->copy(&r, per.under.get(), pass->target());
+        pixman_region32_fini(&r);
+        per.under_box = cut;
+        per.under_valid = true;
+        return;
+    }
+}
+
+bool Server::capture_keeps_pointer(Output* o) const {
+    if (!capture_)
+        return false;
+    auto it = capture_->outputs.find(o);
+    return it != capture_->outputs.end() && it->second.pointer_kept;
+}
+
 // A screen showed a frame: what waited for one gets it.
 void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
     if (!(st.committed & backend::OutputState::Buffer) || !st.buffer)
@@ -228,6 +300,20 @@ void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
             over = [this, o, &p](render::RenderPass* pass) {
                 cursor->render_into_copy(o->screen, pass, p.box, p.copy.buffer->width, p.copy.buffer->height);
             };
+        // Drawn in software but not wanted: what was under it, back over it.
+        if (!p.copy.target.cursor && per.under_valid)
+            over = [&per, &p](render::RenderPass* pass) {
+                const double kx = double(p.copy.buffer->width) / p.box.width;
+                const double ky = double(p.copy.buffer->height) / p.box.height;
+                const Box& u = per.under_box;
+                render::TextureDraw t;
+                t.tex = per.under->texture();
+                t.src = {double(u.x), double(u.y), double(u.width), double(u.height)};
+                t.dst = {(u.x - p.box.x) * kx, (u.y - p.box.y) * ky, u.width * kx, u.height * ky};
+                t.blend = false;
+                t.filter = render::SCALE_FILTER_NEAREST;
+                pass->add_texture(t);
+            };
         r.ok = copy_into(renderer, frame, p.box, p.copy.buffer, over, allocator);
         r.when = when;
         r.transform = uint32_t(o->screen->transform);
@@ -235,6 +321,7 @@ void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
         buffer_unlock(p.copy.buffer);
         p.copy.done(r);
     }
+    per.under_valid = false;
     for (auto& x : std::exchange(per.exports, {})) {
         DmabufAttributes attrs{};
         if (buffer_get_dmabuf(frame, &attrs))

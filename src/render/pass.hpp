@@ -156,6 +156,9 @@ public:
     // them blur is skipped.
     EffectBuffers* effects() const { return fx_; }
     Framebuffer* target() const { return fb_; }
+    // Drawing into a blend buffer first (HDR, a colour profile): target()
+    // isn't the frame itself until submit.
+    bool two_pass() const { return two_pass_; }
     const BlurParams* blur_params = nullptr;
 
     void add_texture(const TextureDraw& d);

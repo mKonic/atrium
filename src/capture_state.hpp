@@ -1,5 +1,6 @@
 #pragma once
 // What waits for capture frames (capture.cpp), per screen and per window.
+#include "render/renderer.hpp"
 #include "server.hpp"
 
 #include <unordered_map>
@@ -16,6 +17,12 @@ struct Server::CaptureState {
         std::vector<Pending> copies;
         std::vector<wl::Capture::Export> exports;
         wl::Connection commit;
+        // What the pointer (drawn in software) covered in this frame, for
+        // copies without it.
+        render::Target under;
+        Box under_box{};
+        bool under_valid = false;
+        bool pointer_kept = false;  // the last such frame couldn't leave it out
         PerOutput() = default;
         PerOutput(const PerOutput&) = delete;
         ~PerOutput() {

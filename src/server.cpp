@@ -311,6 +311,7 @@ void Server::setup() {
     output_layout = output_layout_.get();
     cursor = std::make_unique<Cursor>(*output_layout, loop);
     scene->draw_cursor = [this](const backend::Output* o, render::RenderPass* pass, const pixman_region32_t* damage) {
+        capture_before_cursor(o, pass);
         cursor->render(o, pass, damage);
     };
     layout_change_conn_ = output_layout->change.connect([this] { update_outputs(); });

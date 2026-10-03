@@ -383,6 +383,7 @@ void Output::render() {
         send_frame_done();
         return;
     }
+    server.capture_before_frame(this);
     backend::OutputState state;
     if (scene_output->build_state(&state)) {
         if (switch_vrr)
