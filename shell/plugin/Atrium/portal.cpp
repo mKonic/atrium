@@ -3,8 +3,11 @@
 
 #include "compositor.hpp"
 #include "paths.hpp"
+#include "portal_extras.hpp"
+#include "share_core.hpp"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -139,6 +142,10 @@ PortalBackend::PortalBackend() {
     new ScreenshotAdaptor(this);
     new InhibitAdaptor(this);
     new SecretAdaptor(this);
+    new EmailAdaptor(this);
+    new AccountAdaptor(this);
+    new DynamicLauncherAdaptor(this);
+    new NotificationAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 
@@ -270,6 +277,9 @@ const QString kAppearance = QStringLiteral("org.freedesktop.appearance");
 
 SettingsAdaptor::SettingsAdaptor(PortalBackend* parent) : QDBusAbstractAdaptor(parent) {
     last_ = appearance();
+    gnome_settings::watch([this](const QString& ns, const QString& key, const QVariant& value) {
+        emit SettingChanged(ns, key, QDBusVariant(value));
+    });
     connect(Compositor::instance(), &Compositor::settingsChanged, this, [this] {
         const QVariantMap now = appearance();
         for (auto it = now.begin(); it != now.end(); ++it)
@@ -297,17 +307,25 @@ QVariantMap SettingsAdaptor::appearance() const {
 PortalNamespaces SettingsAdaptor::ReadAll(const QStringList& namespaces) {
     PortalNamespaces out;
     // Globs ("org.freedesktop.*") or names; none asks for everything.
-    const bool wanted = namespaces.isEmpty() || std::ranges::any_of(namespaces, [](const QString& n) {
-        return n == kAppearance || (n.endsWith('*') && kAppearance.startsWith(n.chopped(1)));
-    });
-    if (wanted)
+    auto wanted = [&](const QString& ns) {
+        return namespaces.isEmpty() || std::ranges::any_of(namespaces, [&](const QString& n) {
+                   return n == ns || (n.endsWith('*') && ns.startsWith(n.chopped(1)));
+               });
+    };
+    if (wanted(kAppearance))
         out.insert(kAppearance, appearance());
+    // GNOME's, for GTK apps (fonts, cursor, title-bar buttons...).
+    for (const QString& ns : gnome_settings::namespaces())
+        if (wanted(ns))
+            out.insert(ns, gnome_settings::read(ns));
     return out;
 }
 
 QDBusVariant SettingsAdaptor::Read(const QString& ns, const QString& key) {
-    const QVariantMap a = appearance();
-    if (ns != kAppearance || !a.contains(key)) {
+    const QVariantMap a = ns == kAppearance                             ? appearance()
+                          : gnome_settings::namespaces().contains(ns) ? gnome_settings::read(ns)
+                                                                      : QVariantMap();
+    if (!a.contains(key)) {
         static_cast<PortalBackend*>(parent())->fail("org.freedesktop.portal.Error.NotFound", "No such setting");
         return {};
     }
@@ -318,18 +336,25 @@ QDBusVariant SettingsAdaptor::Read(const QString& ns, const QString& key) {
 
 namespace {
 
-// An installed file, else the source tree's (running from the build tree).
+// Run from the build tree: its own shell, not an installed (older) one.
+bool fromBuildTree() {
+    return QCoreApplication::applicationDirPath().startsWith(QStringLiteral(ATRIUM_BUILD_DIR "/"));
+}
+
+} // namespace
+
+// An installed file, else the source tree's.
 QString shellFile(const QString& name) {
     const QString installed = QStringLiteral(ATRIUM_DATADIR "/shell/") + name;
-    return QFileInfo::exists(installed) ? installed : QStringLiteral(ATRIUM_SOURCE_DIR "/shell/") + name;
+    return QFileInfo::exists(installed) && !fromBuildTree() ? installed
+                                                            : QStringLiteral(ATRIUM_SOURCE_DIR "/shell/") + name;
 }
 
 QString shellProgram() {
     const QString installed = QStringLiteral(ATRIUM_BINDIR "/atrium-shell");
-    return QFileInfo::exists(installed) ? installed : QStringLiteral(ATRIUM_BUILD_DIR "/shell/host/atrium-shell");
+    return QFileInfo::exists(installed) && !fromBuildTree() ? installed
+                                                            : QStringLiteral(ATRIUM_BUILD_DIR "/shell/host/atrium-shell");
 }
-
-} // namespace
 
 PortalRequest::PortalRequest(const QString& path, QObject* parent) : QObject(parent), path_(path) {
     bus().registerObject(path, this, QDBusConnection::ExportAllSlots);
@@ -339,15 +364,6 @@ PortalRequest::~PortalRequest() {
     bus().unregisterObject(path_);
 }
 
-namespace {
-
-// What goes back to the portal, from a dialog's stdout (nothing when it
-// failed or the portal closed it first).
-using Answer = std::function<QVariantList(const std::optional<QByteArray>& out)>;
-
-// Runs a shell file (a dialog) in its own atrium-shell for the call being
-// answered, with `input` on its stdin and `mode` in ATRIUM_CAPTURE_MODE,
-// until it exits or the portal closes the request.
 void askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
               Answer answer) {
     PortalBackend* backend = PortalBackend::instance();
@@ -381,7 +397,6 @@ void askShell(const QString& handle, const QString& file, const QByteArray& inpu
     dialog->closeWriteChannel();
 }
 
-} // namespace
 
 uint AccessAdaptor::AccessDialog(const QDBusObjectPath& handle, const QString& app, const QString&,
                                  const QString& title, const QString& subtitle, const QString& body,
