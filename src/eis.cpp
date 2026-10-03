@@ -42,6 +42,13 @@ struct Eis::Session {
     std::unordered_map<uint32_t, input::KeyFor> typed;
     // Touch ids, apart from the screen's own fingers.
     static constexpr int32_t kTouchBase = 1 << 20;
+
+    // Input capture.
+    CaptureListener listener;
+    std::vector<input_capture::Barrier> barriers;
+    bool enabled = false, active = false;
+    bool meta = false;  // Super held while captured (Super+Escape takes it back)
+    uint32_t activation = 0;
 };
 
 namespace {
@@ -68,7 +75,7 @@ Eis::~Eis() {
         close(sessions_.back()->id);
 }
 
-std::optional<Eis::Opened> Eis::open(uint32_t devices, uint64_t owner) {
+std::optional<Eis::Opened> Eis::open(uint32_t devices, uint64_t owner, CaptureListener capture) {
     const char* runtime = std::getenv("XDG_RUNTIME_DIR");
     if (!runtime || !(devices & (Keyboard | Pointer | Touch)))
         return std::nullopt;
@@ -79,6 +86,7 @@ std::optional<Eis::Opened> Eis::open(uint32_t devices, uint64_t owner) {
     s->id = next_++;
     s->owner = owner;
     s->devices = devices;
+    s->listener = std::move(capture);
     s->path = dir + "/eis-" + random_name();
     s->ctx = eis_new(nullptr);
     if (!s->ctx || eis_setup_backend_socket(s->ctx, s->path.c_str()) != 0) {
@@ -98,7 +106,7 @@ std::optional<Eis::Opened> Eis::open(uint32_t devices, uint64_t owner) {
             return 0;
         },
         raw);
-    if (devices & Keyboard)
+    if ((devices & Keyboard) && !s->listener)
         s->keyboard = std::make_unique<KeyboardGroup>(*server_.seat, true);
     sessions_.push_back(std::move(s));
     return Opened{raw->id, raw->path};
@@ -108,6 +116,8 @@ bool Eis::close(uint64_t id) {
     auto it = std::ranges::find_if(sessions_, [id](const auto& s) { return s->id == id; });
     if (it == sessions_.end())
         return false;
+    if ((*it)->active)
+        deactivate(**it);
     std::unique_ptr<Session> s = std::move(*it);
     sessions_.erase(it);
     wl_event_source_remove(s->source);
@@ -185,11 +195,12 @@ void Eis::make_devices(Session& s, Bound& b) {
     if (b.caps & EIS_DEVICE_CAP_POINTER_ABSOLUTE)
         add(device("atrium remote absolute pointer",
                    {EIS_DEVICE_CAP_POINTER_ABSOLUTE, EIS_DEVICE_CAP_BUTTON, EIS_DEVICE_CAP_SCROLL}, true));
-    if ((b.caps & (EIS_DEVICE_CAP_KEYBOARD | EIS_DEVICE_CAP_TEXT)) && s.keyboard) {
+    KeyboardGroup* keys = s.listener ? server_.seat->physical_keyboard() : s.keyboard.get();
+    if ((b.caps & (EIS_DEVICE_CAP_KEYBOARD | EIS_DEVICE_CAP_TEXT)) && keys) {
         eis_device* d = device("atrium remote keyboard", {EIS_DEVICE_CAP_KEYBOARD, EIS_DEVICE_CAP_TEXT}, false);
-        // Its keymap: the one its keys are read by.
-        if ((b.caps & EIS_DEVICE_CAP_KEYBOARD) && s.keyboard->keys.keymap()) {
-            char* text = xkb_keymap_get_as_string(s.keyboard->keys.keymap(), XKB_KEYMAP_FORMAT_TEXT_V1);
+        // Its keymap: the one its keys are read by (captured: the keyboard's own).
+        if ((b.caps & EIS_DEVICE_CAP_KEYBOARD) && keys->keys.keymap()) {
+            char* text = xkb_keymap_get_as_string(keys->keys.keymap(), XKB_KEYMAP_FORMAT_TEXT_V1);
             const size_t size = std::strlen(text) + 1;
             const int fd = memfd_create("atrium-eis-keymap", MFD_CLOEXEC);
             if (fd >= 0 && write(fd, text, size) == ssize_t(size)) {
@@ -214,8 +225,8 @@ void Eis::dispatch(Session& s) {
         switch (eis_event_get_type(e)) {
         case EIS_EVENT_CLIENT_CONNECT: {
             eis_client* client = eis_event_get_client(e);
-            // Only ones that send input: atrium doesn't hand its own out.
-            if (!eis_client_is_sender(client)) {
+            // Ones that send input, or for a capture ones that receive it.
+            if (eis_client_is_sender(client) == bool(s.listener)) {
                 eis_client_disconnect(client);
                 break;
             }
@@ -224,15 +235,17 @@ void Eis::dispatch(Session& s) {
             b->seat = eis_client_new_seat(client, "atrium");
             if (s.devices & Pointer) {
                 eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_POINTER);
-                eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_POINTER_ABSOLUTE);
+                if (!s.listener)
+                    eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_POINTER_ABSOLUTE);
                 eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_BUTTON);
                 eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_SCROLL);
             }
             if (s.devices & Keyboard) {
                 eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_KEYBOARD);
-                eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_TEXT);
+                if (!s.listener)
+                    eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_TEXT);
             }
-            if (s.devices & Touch)
+            if ((s.devices & Touch) && !s.listener)
                 eis_seat_configure_capability(b->seat, EIS_DEVICE_CAP_TOUCH);
             eis_seat_add(b->seat);
             s.bound.push_back(std::move(b));
@@ -357,6 +370,174 @@ void Eis::dispatch(Session& s) {
         }
         eis_event_unref(e);
     }
+}
+
+// --- input capture ------------------------------------------------------------
+
+Eis::Session* Eis::find(uint64_t id) const {
+    for (const auto& s : sessions_)
+        if (s->id == id)
+            return s.get();
+    return nullptr;
+}
+
+Eis::Session* Eis::active() const {
+    for (const auto& s : sessions_)
+        if (s->active)
+            return s.get();
+    return nullptr;
+}
+
+std::vector<uint32_t> Eis::set_barriers(uint64_t id, std::vector<input_capture::Barrier> barriers) {
+    std::vector<uint32_t> failed;
+    Session* s = find(id);
+    if (!s || !s->listener) {
+        for (const auto& b : barriers)
+            failed.push_back(b.id);
+        return failed;
+    }
+    std::vector<Box> screens;
+    for (const Output* o : server_.outputs)
+        if (!o->dying && o->enabled())
+            screens.push_back(o->box);
+    s->barriers.clear();
+    for (const auto& b : barriers) {
+        if (input_capture::valid(b, screens))
+            s->barriers.push_back(b);
+        else
+            failed.push_back(b.id);
+    }
+    // New barriers wait for Enable again.
+    if (s->active)
+        deactivate(*s);
+    s->enabled = false;
+    return failed;
+}
+
+bool Eis::enable(uint64_t id) {
+    Session* s = find(id);
+    if (!s || !s->listener)
+        return false;
+    s->enabled = true;
+    return true;
+}
+
+bool Eis::disable(uint64_t id) {
+    Session* s = find(id);
+    if (!s || !s->listener)
+        return false;
+    if (s->active)
+        deactivate(*s);
+    s->enabled = false;
+    return true;
+}
+
+bool Eis::release(uint64_t id, std::optional<std::pair<double, double>> to) {
+    Session* s = find(id);
+    if (!s || !s->active)
+        return false;
+    if (to)
+        server_.seat->cursor->warp_closest(to->first, to->second);
+    deactivate(*s);
+    return true;
+}
+
+void Eis::to_devices(Session& s, int cap, const std::function<void(eis_device*)>& send) {
+    for (auto& b : s.bound)
+        for (eis_device* d : b->devices)
+            if (eis_device_has_capability(d, eis_device_capability(cap))) {
+                send(d);
+                eis_device_frame(d, eis_now(s.ctx));
+            }
+}
+
+void Eis::activate(Session& s, double x, double y, uint32_t barrier) {
+    s.active = true;
+    s.meta = false;
+    s.activation += 1;
+    for (auto& b : s.bound)
+        for (eis_device* d : b->devices)
+            eis_device_start_emulating(d, s.activation);
+    // The pointer is on the other computer now: not shown here.
+    server_.seat->cursor->unset_image();
+    if (s.listener)
+        s.listener({CaptureEvent::Activated, s.activation, x, y, barrier});
+}
+
+void Eis::deactivate(Session& s) {
+    s.active = false;
+    for (auto& b : s.bound)
+        for (eis_device* d : b->devices)
+            eis_device_stop_emulating(d);
+    // Back here: shown again, over whatever it's on.
+    Seat& seat = *server_.seat;
+    seat.cursor->set_xcursor(seat.xcursor.get(), "default");
+    seat.motion(0, 0, 0, 0, 0);
+    if (s.listener)
+        s.listener({CaptureEvent::Deactivated, s.activation, seat.cursor->x, seat.cursor->y, 0});
+}
+
+bool Eis::capture_motion(uint32_t, double x, double y, double dx, double dy) {
+    if (Session* a = active()) {
+        to_devices(*a, EIS_DEVICE_CAP_POINTER, [&](eis_device* d) { eis_device_pointer_motion(d, dx, dy); });
+        return true;
+    }
+    for (auto& s : sessions_) {
+        if (!s->enabled || s->barriers.empty())
+            continue;
+        if (const auto c = input_capture::crossing(s->barriers, x, y, dx, dy)) {
+            activate(*s, c->x, c->y, c->id);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Eis::capture_button(uint32_t, uint32_t button, bool pressed) {
+    Session* a = active();
+    if (!a)
+        return false;
+    to_devices(*a, EIS_DEVICE_CAP_BUTTON, [&](eis_device* d) { eis_device_button_button(d, button, pressed); });
+    return true;
+}
+
+bool Eis::capture_axis(uint32_t, uint32_t orientation, double delta, int32_t value120) {
+    Session* a = active();
+    if (!a)
+        return false;
+    const bool vertical = orientation == WL_POINTER_AXIS_VERTICAL_SCROLL;
+    to_devices(*a, EIS_DEVICE_CAP_SCROLL, [&](eis_device* d) {
+        if (value120)
+            eis_device_scroll_discrete(d, vertical ? 0 : value120, vertical ? value120 : 0);
+        else if (delta != 0)
+            eis_device_scroll_delta(d, vertical ? 0 : delta, vertical ? delta : 0);
+        else
+            eis_device_scroll_stop(d, !vertical, vertical);
+    });
+    return true;
+}
+
+bool Eis::capture_key(uint32_t, uint32_t keycode, bool pressed) {
+    Session* a = active();
+    if (!a)
+        return false;
+    if (keycode == KEY_LEFTMETA || keycode == KEY_RIGHTMETA)
+        a->meta = pressed;
+    // Super+Escape: the keyboard and pointer come back, and stay (whatever
+    // the app does).
+    if (keycode == KEY_ESC && pressed && a->meta) {
+        to_devices(*a, EIS_DEVICE_CAP_KEYBOARD, [&](eis_device* d) {
+            eis_device_keyboard_key(d, KEY_LEFTMETA, false);
+            eis_device_keyboard_key(d, KEY_RIGHTMETA, false);
+        });
+        deactivate(*a);
+        a->enabled = false;
+        if (a->listener)
+            a->listener({CaptureEvent::Disabled, a->activation, 0, 0, 0});
+        return true;
+    }
+    to_devices(*a, EIS_DEVICE_CAP_KEYBOARD, [&](eis_device* d) { eis_device_keyboard_key(d, keycode, pressed); });
+    return true;
 }
 
 } // namespace atrium

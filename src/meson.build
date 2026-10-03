@@ -19,6 +19,7 @@ atrium_sources = files(
   'clipboard_core.cpp',
   'screencast.cpp',
   'eis.cpp',
+  'input_capture_core.cpp',
   'screencast_core.cpp',
   'screenshot.cpp',
   'screenshot_core.cpp',

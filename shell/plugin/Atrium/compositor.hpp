@@ -106,6 +106,11 @@ public:
     // until eisClose, or this connection goes.
     void eisOpen(uint devices, std::function<void(const QJsonObject& reply)> done);
     void eisClose(qint64 session);
+    // Input capture: a socket for {devices} (closed with eisClose), and its
+    // barriers, enable, disable and release (`cmd`, with {session, ...});
+    // what happens comes as captureEvent.
+    void captureOpen(uint devices, std::function<void(const QJsonObject& reply)> done);
+    void captureCall(const QString& cmd, const QJsonObject& fields, std::function<void(const QJsonObject& reply)> done);
     // Type into the focused text field (text-input-v3), as an input method
     // would; textNotInserted when no field takes it.
     Q_INVOKABLE void insertText(const QString& text);
@@ -167,6 +172,9 @@ signals:
     void clipboardChanged();
     // A stream screencastStart made ended by itself (its screen or window went).
     void screencastEnded(qint64 stream);
+    // An input capture session's: "activated" {session, activation, x, y,
+    // barrier}, "deactivated" {session, activation, x, y}, "disabled" {session}.
+    void captureEvent(const QString& kind, const QVariantMap& event);
     // A registry change was refused: why, for the Settings app to say.
     void refused(const QString& why);
     void connectedChanged();

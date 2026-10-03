@@ -156,8 +156,11 @@ void Compositor::readReplies() {
         const QJsonObject reply = QJsonDocument::fromJson(line).object();
         // Events for this connection alone (a stream it started ended).
         if (reply.contains("event") && !reply.contains("id")) {
-            if (reply.value("event").toString() == "screencast.ended")
+            const QString event = reply.value("event").toString();
+            if (event == "screencast.ended")
                 emit screencastEnded(reply.value("stream").toInteger());
+            else if (event.startsWith("capture."))
+                emit captureEvent(event.mid(8), reply.toVariantMap());
             continue;
         }
         if (auto full = fullPending_.find(reply.value("id").toInteger(-1)); full != fullPending_.end()) {
@@ -399,6 +402,21 @@ void Compositor::eisOpen(uint devices, std::function<void(const QJsonObject&)> d
     if (requests_.state() != QLocalSocket::ConnectedState)
         return done(QJsonObject{{"ok", false}, {"error", "atrium isn't there"}});
     requestFull({{"cmd", "eis.open"}, {"devices", qint64(devices)}}, std::move(done));
+}
+
+void Compositor::captureOpen(uint devices, std::function<void(const QJsonObject&)> done) {
+    if (requests_.state() != QLocalSocket::ConnectedState)
+        return done(QJsonObject{{"ok", false}, {"error", "atrium isn't there"}});
+    requestFull({{"cmd", "capture.open"}, {"devices", qint64(devices)}}, std::move(done));
+}
+
+void Compositor::captureCall(const QString& cmd, const QJsonObject& fields,
+                             std::function<void(const QJsonObject&)> done) {
+    if (requests_.state() != QLocalSocket::ConnectedState)
+        return done(QJsonObject{{"ok", false}, {"error", "atrium isn't there"}});
+    QJsonObject req = fields;
+    req["cmd"] = "capture." + cmd;
+    requestFull(req, std::move(done));
 }
 
 void Compositor::eisClose(qint64 session) {

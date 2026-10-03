@@ -759,6 +759,67 @@ json Ipc::handle(Client& c, const json& req) {
             return fail("can't open a remote input socket");
         return ok({{"session", opened->id}, {"path", opened->path}});
     }
+    // Input capture: a socket whose libei clients receive the input atrium
+    // takes when the pointer goes through one of its barriers. Its events:
+    // capture.activated {session, activation, x, y, barrier},
+    // capture.deactivated {session, activation, x, y}, capture.disabled {session}.
+    if (cmd == "capture.open") {
+        if (!server_.eis || !req.contains("devices") || !req["devices"].is_number_unsigned())
+            return fail("capture.open needs \"devices\"");
+        auto tell = sender(c);
+        auto id = std::make_shared<uint64_t>(0);
+        const auto opened = server_.eis->open(req["devices"].get<uint32_t>(), c.serial,
+                                              [tell, id](const Eis::CaptureEvent& e) {
+            json ev{{"session", *id}, {"activation", e.activation}};
+            switch (e.kind) {
+            case Eis::CaptureEvent::Activated:
+                ev["event"] = "capture.activated";
+                ev["x"] = e.x;
+                ev["y"] = e.y;
+                ev["barrier"] = e.barrier;
+                break;
+            case Eis::CaptureEvent::Deactivated:
+                ev["event"] = "capture.deactivated";
+                ev["x"] = e.x;
+                ev["y"] = e.y;
+                break;
+            case Eis::CaptureEvent::Disabled:
+                ev["event"] = "capture.disabled";
+                break;
+            }
+            tell(std::move(ev));
+        });
+        if (!opened)
+            return fail("can't open an input capture socket");
+        *id = opened->id;
+        return ok({{"session", opened->id}, {"path", opened->path}});
+    }
+    if (cmd == "capture.barriers") {
+        if (!server_.eis || !req.contains("session") || !req["session"].is_number_unsigned() ||
+            !req.contains("barriers") || !req["barriers"].is_array())
+            return fail("capture.barriers needs a \"session\" and \"barriers\"");
+        std::vector<input_capture::Barrier> barriers;
+        for (const json& b : req["barriers"])
+            barriers.push_back({b.value("id", 0u), b.value("x1", 0), b.value("y1", 0), b.value("x2", 0), b.value("y2", 0)});
+        return ok({{"failed", server_.eis->set_barriers(req["session"].get<uint64_t>(), std::move(barriers))}});
+    }
+    if (cmd == "capture.enable" || cmd == "capture.disable" || cmd == "capture.release") {
+        if (!server_.eis || !req.contains("session") || !req["session"].is_number_unsigned())
+            return fail(cmd + " needs a \"session\"");
+        const uint64_t id = req["session"].get<uint64_t>();
+        bool done = false;
+        if (cmd == "capture.enable")
+            done = server_.eis->enable(id);
+        else if (cmd == "capture.disable")
+            done = server_.eis->disable(id);
+        else {
+            std::optional<std::pair<double, double>> to;
+            if (req.contains("x") && req["x"].is_number() && req.contains("y") && req["y"].is_number())
+                to = std::pair{req["x"].get<double>(), req["y"].get<double>()};
+            done = server_.eis->release(id, to);
+        }
+        return done ? ok() : fail("no such session (or nothing captured)");
+    }
     if (cmd == "eis.close") {
         if (!server_.eis || !req.contains("session") || !req["session"].is_number_unsigned())
             return fail("eis.close needs a \"session\"");

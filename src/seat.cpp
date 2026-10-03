@@ -7,6 +7,7 @@
 #include "input_method.hpp"
 
 #include "devices.hpp"
+#include "eis.hpp"
 #include "geometry.hpp"
 #include "layer_surface.hpp"
 #include "ipc.hpp"
@@ -608,6 +609,10 @@ void Seat::key(KeyboardGroup& g, uint32_t time_ms, uint32_t code, bool pressed) 
 
     server.note_activity();
 
+    // Captured: the keyboard's keys go to the other computer.
+    if (!g.is_virtual && server.eis && server.eis->capture_key(time_ms, code, pressed))
+        return;
+
     // The power button, atrium's to handle while it holds logind's say on it.
     if (code == KEY_POWER && (consumed_[code] || (pressed && server.power_button()))) {
         consumed_[code] = pressed;
@@ -763,6 +768,9 @@ void Seat::reach_edge() {
 
 void Seat::motion(uint32_t time, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
+    // Through an input capture barrier, or captured already: the other computer's.
+    if (time && server.eis && server.eis->capture_motion(time, cursor->x, cursor->y, dx, dy))
+        return;
     wl::Surface* focused = server.wl->seat->pointer_focus();
     wl::Drag* drag = server.wl->data->drag();
 
@@ -963,6 +971,8 @@ void Seat::pointer_focus(View*, wl::Surface* surface, double sx, double sy, uint
 
 void Seat::button(const ButtonEvent& event) {
     const ButtonEvent* e = &event;
+    if (server.eis && server.eis->capture_button(e->time_ms, e->button, e->pressed))
+        return;
     if (e->pressed)
         server.keywords.reset();  // a click moves the caret
     server.note_activity();
@@ -1186,6 +1196,8 @@ bool Seat::titlebar_button(const ButtonEvent& event, const Hit& hit) {
 
 void Seat::axis(const AxisEvent& event) {
     const AxisEvent* e = &event;
+    if (server.eis && server.eis->capture_axis(e->time_ms, e->orientation, e->delta, e->value120))
+        return;
     server.note_activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a

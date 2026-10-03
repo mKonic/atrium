@@ -6,6 +6,7 @@
 #include "portal_files.hpp"
 #include "portal_print.hpp"
 #include "portal_remote.hpp"
+#include "portal_capture.hpp"
 #include "share_core.hpp"
 
 #include <QColor>
@@ -182,6 +183,7 @@ PortalBackend::PortalBackend() {
     new ScreenshotAdaptor(this);
     new InhibitAdaptor(this);
     new RemoteDesktopAdaptor(this, new ScreenCastAdaptor(this));
+    new InputCaptureAdaptor(this);
     new EmailAdaptor(this);
     new AccountAdaptor(this);
     new DynamicLauncherAdaptor(this);

@@ -139,6 +139,7 @@ if gtest.found()
     'wl_drm_lease_test.cpp',
     'xwm_test.cpp',
     'input_keys_test.cpp',
+    'input_capture_test.cpp',
     'output_layout_test.cpp',
     'backend_session_test.cpp',
     'backend_drm_test.cpp',
