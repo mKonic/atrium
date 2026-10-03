@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Print
+Comment=Choose the printer and how an app prints
+Icon=printer
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-print
+OnlyShowIn=atrium;
