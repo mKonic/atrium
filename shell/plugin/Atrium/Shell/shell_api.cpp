@@ -132,7 +132,9 @@ QVariantMap ShellApi::askingProcess() const {
     const QStringList asker = cmdline_of(pid);
     if (!asker.isEmpty()) {
         const QString exe = QFileInfo(asker.first()).fileName();
-        out["command"] = (exe == "sudo" ? sudo_command(asker) : asker).join(' ');
+        // On one line: a script passed to sh -c spans many, and the
+        // dialog shows one.
+        out["command"] = (exe == "sudo" ? sudo_command(asker) : asker).join(' ').simplified();
     }
     // Up to the app it came from, past the shells in between.
     for (int depth = 0; depth < 16 && pid > 1; ++depth) {
