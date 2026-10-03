@@ -30,6 +30,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Lock Screen and Switch User in the system menu: someone else logs in while your session stays open (locked); logging in as you again goes straight back to it.
 - The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
 - The login screen remembers each person's desktop.
+- The login screen has the keyboard layout, the battery and a Control Center with Wi-Fi, Bluetooth and brightness, and types Chinese, Japanese or Korean names with fcitx5.
+- A screen nothing was set for starts at a scale that suits its pixel density.
 - Unlock with a fingerprint, next to the password (fprintd).
 - Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
 - Log Out, Restart and Shut Down ask every app to quit first; an app that won't (unsaved work) cancels it and says which.
