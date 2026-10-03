@@ -354,7 +354,7 @@ void RenderPass::add_texture_mesh(const TextureDraw& d, const std::vector<MeshVe
     filter(d.tex.target, SCALE_FILTER_BILINEAR);
     p.set("tex", 0);
     p.set("alpha", d.alpha);
-    p.set("discard_transparent", 0);
+    p.set("discard_transparent", d.discard_transparent ? 1 : 0);
     float prim[9];
     matrix::identity(prim);
     p.set("hdr_tf", 0);
@@ -674,6 +674,49 @@ void RenderPass::add_blur(const BlurDraw& d) {
     }
     if (stencil)
         stencil_end();
+}
+
+void RenderPass::add_blur_mesh(const TexRef& shape, const std::vector<MeshVertex>& mesh, float strength, float alpha,
+                               bool use_cache) {
+    if (!fx_ || !blur_params || mesh.empty() || alpha <= 0)
+        return;
+    float x0 = float(width_), y0 = float(height_), x1 = 0, y1 = 0;
+    for (const MeshVertex& v : mesh) {
+        x0 = std::min(x0, v.x);
+        y0 = std::min(y0, v.y);
+        x1 = std::max(x1, v.x);
+        y1 = std::max(y1, v.y);
+    }
+    const int ix0 = std::max(0, int(std::floor(x0))), iy0 = std::max(0, int(std::floor(y0)));
+    const int ix1 = std::min(width_, int(std::ceil(x1))), iy1 = std::min(height_, int(std::ceil(y1)));
+    if (ix1 <= ix0 || iy1 <= iy0)
+        return;
+    pixman_region32_t clip;
+    pixman_region32_init_rect(&clip, ix0, iy0, unsigned(ix1 - ix0), unsigned(iy1 - iy0));
+    // As add_blur: the shared background blur, or what's under it now.
+    Framebuffer* blurred = nullptr;
+    if (use_cache && strength >= 1)
+        blurred = fx_->cache_blurred.get();
+    else
+        blurred = blur_into(blur_params->scaled(strength), use_cache ? fx_->cache_plain.get() : fb_, &clip);
+    if (blurred) {
+        // Where the shape has pixels, through the mesh; the blurred backdrop
+        // there, where it lies on screen.
+        stencil_begin();
+        TextureDraw m;
+        m.tex = shape;
+        m.discard_transparent = true;
+        add_texture_mesh(m, mesh);
+        stencil_inside();
+        TextureDraw t;
+        t.tex = sampler(blurred);
+        t.dst = {0, 0, double(width_), double(height_)};
+        t.clip = &clip;
+        t.alpha = alpha;
+        add_texture(t);
+        stencil_end();
+    }
+    pixman_region32_fini(&clip);
 }
 
 bool RenderPass::render_blur_cache(const FBox& box) {

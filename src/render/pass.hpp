@@ -171,6 +171,10 @@ public:
     void add_rect(const RectDraw& d);
     void add_shadow(const ShadowDraw& d);
     void add_blur(const BlurDraw& d);
+    // Blur through a warp: the backdrop blurred, where `shape` (its texture
+    // drawn through `mesh`) has pixels.
+    void add_blur_mesh(const TexRef& shape, const std::vector<MeshVertex>& mesh, float strength, float alpha,
+                       bool use_cache);
     // Re-blurs what's drawn so far over `box` into the blur cache.
     bool render_blur_cache(const FBox& box);
     // Copies `region` of `src` over `dst` (pixels, same size).

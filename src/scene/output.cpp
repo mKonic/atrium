@@ -479,8 +479,9 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
     if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || frame.width <= 0 || frame.height <= 0)
         return;
     // What's in it, bottom to top, as if it weren't warped. Blur can't be
-    // drawn off screen (it samples what's behind): it sits the warp out.
-    std::vector<Entry> entries;
+    // drawn off screen (it samples what's behind): it's drawn on screen
+    // under the layer instead, through the same warp.
+    std::vector<Entry> entries, blurs;
     pixman_region32_t area;
     pixman_region32_init(&area);
     const std::function<void(Node*, const Walk&)> collect = [&](Node* n, const Walk& nw) {
@@ -495,6 +496,8 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
             }
             return;
         }
+        if (n->type == Type::Blur && !SceneImpl::invisible(n))
+            blurs.push_back({n, nw});
         if (n->type == Type::Blur || n->type == Type::BlurCache || SceneImpl::invisible(n))
             return;
         entries.push_back({n, nw});
@@ -532,6 +535,25 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
         render_entry(e, ld, scene, pass, renderer, in_timeline, in_point);
     pixman_region32_fini(&ld.damage);
     pass->pop_target();
+
+    // The blur under it, each through the warp of its own part of the frame,
+    // shaped by the layer's pixels there (rounded corners, no shadow).
+    for (const Entry& e : blurs) {
+        const Blur* bl = static_cast<const Blur*>(e.node);
+        const Box b = box_of(e.node, e.walk);
+        if (b.width <= 0 || b.height <= 0)
+            continue;
+        const auto bverts = warp::mesh(tree->warp(), (b.x - frame.x) / frame.width, (b.y - frame.y) / frame.height,
+                                       (b.x + b.width - frame.x) / frame.width,
+                                       (b.y + b.height - frame.y) / frame.height, 16);
+        std::vector<render::RenderPass::MeshVertex> bmesh;
+        bmesh.reserve(bverts.size());
+        for (const warp::Vertex& v : bverts)
+            bmesh.push_back({float((v.x - d.logical.x) * d.scale), float((v.y - d.logical.y) * d.scale),
+                             float((b.x + v.u * b.width - bounds.x) / bounds.width),
+                             float((b.y + v.v * b.height - bounds.y) / bounds.height)});
+        pass->add_blur_mesh(layer->get()->texture(), bmesh, bl->strength, bl->alpha * e.walk.opacity, bl->use_cache);
+    }
 
     const double u0 = (bounds.x - frame.x) / frame.width, u1 = (bounds.x + bounds.width - frame.x) / frame.width;
     const double v0 = (bounds.y - frame.y) / frame.height, v1 = (bounds.y + bounds.height - frame.y) / frame.height;
