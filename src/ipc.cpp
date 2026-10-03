@@ -1,6 +1,7 @@
 #include "ipc.hpp"
 #include "clipboard_history.hpp"
 #include "screencast.hpp"
+#include "scene/dump.hpp"
 #include "eis.hpp"
 #include "wl/xdg_extras.hpp"
 #ifdef ATRIUM_XWAYLAND
@@ -937,6 +938,19 @@ json Ipc::handle(Client& c, const json& req) {
         return ok(list);
     }
 
+    // What's drawn, as scene nodes (scene/dump.hpp): a window's ("window":
+    // its id), or everything.
+    if (cmd == "scene.dump") {
+        if (req.contains("window")) {
+            if (!req["window"].is_number_integer())
+                return fail("scene.dump's \"window\" is a window's id");
+            for (View* v : server_.views)
+                if (v->id == req["window"].get<uint64_t>() && v->tree)
+                    return ok(scene::dump(v->tree));
+            return fail("no such window");
+        }
+        return ok(scene::dump(server_.scene));
+    }
     if (cmd == "outputs") {
         json list = json::array();
         for (Output* o : server_.outputs) {

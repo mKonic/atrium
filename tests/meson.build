@@ -78,6 +78,7 @@ if gtest.found()
     'geometry_test.cpp',
     'frame_timing_test.cpp',
     'record_test.cpp',
+    'scene_dump_test.cpp',
     'keyring_test.cpp',
     'config_test.cpp',
     'settings_test.cpp',
