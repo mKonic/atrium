@@ -24,7 +24,7 @@ depends=(
   libpipewire openssl avahi
   # what the shell fronts
   pipewire-pulse wireplumber polkit networkmanager bluez bluez-libs power-profiles-daemon udisks2
-  xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
+  xdg-desktop-portal xdg-desktop-portal-wlr
   cliphist wl-clipboard grim
   # the shell's icons and monospace font (Rubik comes with it)
   ttf-material-symbols-variable ttf-cascadia-code-nerd
@@ -33,6 +33,7 @@ depends=(
 )
 makedepends=(git meson ninja wayland-protocols gtest cmake hwdata)
 optdepends=(
+  'cups: printing'
   "greetd: atrium's login screen (see /usr/share/atrium/greetd-config.toml)"
   'uwsm: the uwsm-managed session'
   'gpu-screen-recorder: screen recording'

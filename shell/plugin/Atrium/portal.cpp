@@ -5,6 +5,7 @@
 #include "paths.hpp"
 #include "portal_extras.hpp"
 #include "portal_files.hpp"
+#include "portal_print.hpp"
 #include "share_core.hpp"
 
 #include <QColor>
@@ -149,6 +150,7 @@ PortalBackend::PortalBackend() {
     new NotificationAdaptor(this);
     new FileChooserAdaptor(this);
     new AppChooserAdaptor(this);
+    new PrintAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
 }
 
