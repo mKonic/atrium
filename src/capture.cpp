@@ -3,6 +3,7 @@
 // wl::Capture; this hands it frames. A screen's frame is what it last showed;
 // a window's comes from its own capture scene (scene::CaptureSource).
 #include "capture_state.hpp"
+#include "cursor.hpp"
 #include "output.hpp"
 #include "seat.hpp"
 #include "server.hpp"
@@ -11,6 +12,7 @@
 #include <drm_fourcc.h>
 #include <sys/stat.h>
 
+#include <functional>
 #include <map>
 #include <unordered_map>
 
@@ -18,29 +20,51 @@ namespace atrium {
 
 namespace {
 
-// Copies `box` of `src` (buffer pixels) into the whole of `dst`.
-bool copy_into(render::Renderer* renderer, Buffer* src, const Box& box, Buffer* dst) {
+// Copies `box` of `src` (buffer pixels) into the whole of `dst`. `over`
+// draws more on top (the pointer), which needs a render pass: a buffer in
+// memory gets one through a GPU buffer made for it.
+bool copy_into(render::Renderer* renderer, Buffer* src, const Box& box, Buffer* dst,
+               const std::function<void(render::RenderPass*)>& over = {}, backend::Allocator* allocator = nullptr) {
     render::Texture* t = renderer->texture_from_buffer(src);
     if (!t)
         return false;
+    auto draw = [&](Buffer* into) {
+        render::RenderPass* pass = renderer->begin_buffer_pass(into, nullptr);
+        if (!pass)
+            return false;
+        render::TextureOptions o{};
+        o.texture = t;
+        o.src_box = {double(box.x), double(box.y), double(box.width), double(box.height)};
+        o.dst_box = {0, 0, into->width, into->height};
+        o.filter_mode = render::SCALE_FILTER_NEAREST;
+        o.blend_mode = render::BLEND_MODE_NONE;
+        pass->add_texture(&o);
+        if (over)
+            over(pass);
+        return pass->submit();
+    };
     bool ok = false;
     void* data = nullptr;
     uint32_t format = 0;
     size_t stride = 0;
     if (buffer_begin_data_ptr_access(dst, BUFFER_DATA_PTR_ACCESS_WRITE, &data, &format, &stride)) {
-        const render::ReadPixelsOptions o{
-            .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = box};
-        ok = t->read_pixels(&o);
+        if (!over) {
+            const render::ReadPixelsOptions o{
+                .data = data, .format = format, .stride = uint32_t(stride), .dst_x = 0, .dst_y = 0, .src_box = box};
+            ok = t->read_pixels(&o);
+        } else if (Buffer* tmp = allocator ? allocator->allocate(dst->width, dst->height, DRM_FORMAT_ARGB8888, {})
+                                           : nullptr) {
+            if (draw(tmp))
+                if (render::Texture* drawn = renderer->texture_from_buffer(tmp)) {
+                    const render::ReadPixelsOptions o{.data = data, .format = format, .stride = uint32_t(stride)};
+                    ok = drawn->read_pixels(&o);
+                    drawn->destroy();
+                }
+            buffer_drop(tmp);
+        }
         buffer_end_data_ptr_access(dst);
-    } else if (render::RenderPass* pass = renderer->begin_buffer_pass(dst, nullptr)) {
-        render::TextureOptions o{};
-        o.texture = t;
-        o.src_box = {double(box.x), double(box.y), double(box.width), double(box.height)};
-        o.dst_box = {0, 0, dst->width, dst->height};
-        o.filter_mode = render::SCALE_FILTER_NEAREST;
-        o.blend_mode = render::BLEND_MODE_NONE;
-        pass->add_texture(&o);
-        ok = pass->submit();
+    } else {
+        ok = draw(dst);
     }
     t->destroy();
     return ok;
@@ -198,7 +222,13 @@ void Server::capture_output_frame(Output* o, const backend::OutputState& st) {
     clock_gettime(CLOCK_MONOTONIC, &when);
     for (auto& p : std::exchange(per.copies, {})) {
         wl::Capture::Result r;
-        r.ok = copy_into(renderer, frame, p.box, p.copy.buffer);
+        // The pointer is in its own plane, not in the frame: drawn in here.
+        std::function<void(render::RenderPass*)> over;
+        if (p.copy.target.cursor && cursor && cursor->in_plane(o->screen))
+            over = [this, o, &p](render::RenderPass* pass) {
+                cursor->render_into_copy(o->screen, pass, p.box, p.copy.buffer->width, p.copy.buffer->height);
+            };
+        r.ok = copy_into(renderer, frame, p.box, p.copy.buffer, over, allocator);
         r.when = when;
         r.transform = uint32_t(o->screen->transform);
         r.fail_reason = r.ok ? 0 : 1;
@@ -243,6 +273,9 @@ void Server::capture_view_frame(View* v, Buffer* frame, const timespec& when) {
 void Server::capture_view_gone(View* v) {
     if (!capture_)
         return;
+    // Sessions on it stop even if nothing was copied yet.
+    if (v->handle_)
+        wl->capture->stop({.toplevel = v->handle_});
     auto it = capture_->views.find(v);
     if (it == capture_->views.end())
         return;
@@ -251,13 +284,13 @@ void Server::capture_view_gone(View* v) {
         c.done({.ok = false, .fail_reason = 2});
     // Buffers and the timer go with it; the source with the capture scene.
     capture_->views.erase(it);
-    if (v->handle_)
-        wl->capture->stop({.toplevel = v->handle_});
 }
 
 void Server::capture_output_gone(Output* o) {
     if (!capture_)
         return;
+    if (o->global)
+        wl->capture->stop({.output = o->global.get()});
     auto it = capture_->outputs.find(o);
     if (it == capture_->outputs.end())
         return;
@@ -266,8 +299,6 @@ void Server::capture_output_gone(Output* o) {
     for (auto& x : it->second.exports)
         x.done(nullptr, {});
     capture_->outputs.erase(it);
-    if (o->global)
-        wl->capture->stop({.output = o->global.get()});
 }
 
 } // namespace atrium

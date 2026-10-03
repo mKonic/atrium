@@ -412,4 +412,24 @@ void Cursor::render(const backend::Output* o, render::RenderPass* pass, const pi
     pixman_region32_fini(&clip);
 }
 
+void Cursor::render_into_copy(const backend::Output* o, render::RenderPass* pass, const Box& src, int dst_width,
+                              int dst_height) {
+    Screen* s = screen_of(o);
+    if (!s || !s->texture || src.width <= 0 || src.height <= 0)
+        return;
+    int w, h;
+    o->transformed_resolution(&w, &h);
+    Box box = box_on(*s);
+    box_transform(&box, &box, output_transform_invert(o->transform), w, h);
+    const double kx = double(dst_width) / src.width, ky = double(dst_height) / src.height;
+    render::TextureOptions tex{};
+    tex.texture = s->texture;
+    tex.src_box = {0, 0, double(s->texture->width), double(s->texture->height)};
+    tex.dst_box = {int(std::lround((box.x - src.x) * kx)), int(std::lround((box.y - src.y) * ky)),
+                   int(std::lround(box.width * kx)), int(std::lround(box.height * ky))};
+    tex.transform = o->transform;
+    tex.filter_mode = render::SCALE_FILTER_BILINEAR;
+    pass->add_texture(&tex);
+}
+
 } // namespace atrium

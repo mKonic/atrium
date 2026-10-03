@@ -1247,12 +1247,13 @@ void View::create_toplevel_handles() {
 
 void View::destroy_toplevel_handles() {
     handle_connections_.clear();
+    // Captures of it stop first, while its handle still names it.
+    server.capture_view_gone(this);
     if (handle_) {
         server.wl->toplevels->destroy(handle_);
         handle_ = nullptr;
     }
     if (capture_scene_) {
-        server.capture_view_gone(this);
         capture_scene_->destroy();
         capture_scene_ = nullptr;
     }

@@ -46,6 +46,11 @@ public:
     // Draws it into a frame of `output` where it has no cursor plane
     // (`damage` in the frame's buffer pixels).
     void render(const backend::Output* output, render::RenderPass* pass, const pixman_region32_t* damage);
+    // Draws it into a copy of `src` (buffer pixels) of a frame of `output`,
+    // scaled to `dst_width` x `dst_height`: for a capture that asks for the
+    // pointer while a cursor plane shows it (the frame hasn't got it).
+    void render_into_copy(const backend::Output* output, render::RenderPass* pass, const Box& src, int dst_width,
+                          int dst_height);
     // The renderer or allocator changed (GPU reset): everything made again.
     void reset_render();
     // Whether `output` shows it in its cursor plane.

@@ -70,6 +70,8 @@ public:
     void constraints_changed(const Target& target);
     // A target is gone (screen unplugged, window closed): its sessions stop.
     void stop(const Target& target);
+    // Said for each one that went (screen casts end with it).
+    Signal<const Target&> stopped;
     // Where the pointer is over a target, for ext cursor sessions (null: not
     // over it).
     void cursor(const Target& target, std::optional<std::pair<int, int>> position, std::pair<int, int> hotspot);

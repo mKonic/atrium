@@ -465,6 +465,7 @@ void Capture::constraints_changed(const Target& target) {
 }
 
 void Capture::stop(const Target& target) {
+    stopped.emit(target);
     for (auto& s : sessions_)
         if (s->target.output == target.output && s->target.toplevel == target.toplevel && !s->stopped) {
             s->stopped = true;
