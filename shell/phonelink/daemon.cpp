@@ -412,6 +412,7 @@ void Daemon::apply(Conn* c, std::vector<Event> events) {
                 break;
             }
             qCInfo(lc) << "ready with" << c->name << "- asking for its sound";
+            apply(c, c->link->message(Type::Want, std::string(1, char(manual_.value(c->id, false) ? 1 : 0))));
             apply(c, c->link->message(Type::AudioStart, be16(c->playback->port()) + be16(kPacketFrames)));
             break;
         }
