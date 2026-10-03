@@ -14,6 +14,8 @@
 #include <QQuickImageProvider>
 #include <QVariant>
 
+class QTimer;
+
 namespace atrium {
 
 class Notification : public QObject {
@@ -107,12 +109,15 @@ class NotificationServer : public QObject, protected QDBusContext {
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.Notifications")
     Q_PROPERTY(QAbstractItemModel* popups READ popups CONSTANT)  // newest first, at most 5
     Q_PROPERTY(int popupCount READ popupCount NOTIFY popupsChanged)
+    // There are popups, or the last one is still sliding out.
+    Q_PROPERTY(bool showing READ showing NOTIFY showingChanged)
 
 public:
     static NotificationServer* instance();
 
     QAbstractItemModel* popups() const { return popups_; }
     int popupCount() const { return popups_->size(); }
+    bool showing() const { return showing_; }
 
     // The popup's time is up: it leaves the screen (and the history keeps it).
     Q_INVOKABLE void expire(atrium::Notification* n);
@@ -142,6 +147,7 @@ signals:
     // with (Notifications spec 1.2).
     Q_SCRIPTABLE void ActivationToken(uint id, const QString& activation_token);
     void popupsChanged();
+    void showingChanged();
 
 private:
     NotificationServer();
@@ -153,6 +159,8 @@ private:
 
     QHash<uint, Notification*> live_;
     PopupModel* popups_ = new PopupModel(this);
+    bool showing_ = false;
+    QTimer* hide_ = nullptr;
     // An app's notifications end with it: the history keeps them as records.
     QDBusServiceWatcher* senders_ = nullptr;
     uint next_ = 1;
