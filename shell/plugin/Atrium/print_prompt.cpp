@@ -185,6 +185,9 @@ void PrintPrompt::loadOptions() {
             if (!list)
                 continue;
             for (const std::string& c : o.choices) {
+                // "Custom.WIDTHxHEIGHT" is where a size would be typed in, not one.
+                if (c.starts_with("Custom."))
+                    continue;
                 const QString v = QString::fromStdString(c);
                 list->append(choice(v, o.key == "PageSize" ? paperLabel(v)
                                        : o.key == "Duplex" ? duplexLabel(v)
