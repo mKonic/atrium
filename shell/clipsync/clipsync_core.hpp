@@ -1,6 +1,6 @@
 #pragma once
 // Clipboard sync with a phone over Bluetooth, without Qt: the wire format and
-// the rules both ends follow. The phone's module (atrium-clipsync-ksu) implements the same
+// the rules both ends follow. The phone's module (atrium-link) implements the same
 // thing in Java; change one, change both.
 //
 // The phone listens on an RFCOMM channel under kServiceUuid; atrium connects

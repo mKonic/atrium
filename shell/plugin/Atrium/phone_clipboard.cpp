@@ -31,7 +31,7 @@ PhoneClipboard::PhoneClipboard(QObject* parent)
 }
 
 QString PhoneClipboard::moduleUrl() const {
-    return QStringLiteral("https://github.com/mKonic/atrium-clipsync-ksu/releases/latest/download/atrium-clipsync.zip");
+    return QStringLiteral("https://github.com/mKonic/atrium-link/releases/latest/download/atrium-link.zip");
 }
 
 void PhoneClipboard::load() {

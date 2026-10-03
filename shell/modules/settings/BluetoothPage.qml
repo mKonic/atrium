@@ -112,8 +112,8 @@ Column {
 
         DeviceRow {
             glyph: "download"
-            name: "Clipboard module for rooted phones"
-            note: "Install it with KernelSU, then connect the phone."
+            name: "Atrium Link for Android"
+            note: "For rooted phones: install the module with KernelSU, then connect the phone."
 
             PillButton {
                 text: "Download"
