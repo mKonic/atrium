@@ -32,7 +32,7 @@ Scope {
         exclusiveZone: 0
         color: "transparent"
         // The notification center, when open, already shows them all.
-        visible: NotificationServer.popupCount > 0 && Panels.open !== "notifications"
+        visible: NotificationServer.showing && Panels.open !== "notifications"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "atrium-notifications"
 

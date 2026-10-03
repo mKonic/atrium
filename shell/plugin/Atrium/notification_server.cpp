@@ -21,6 +21,10 @@ namespace atrium {
 namespace {
 
 constexpr int kMaxPopups = 5;
+// The time (ms) a card takes to slide out; a closed one is kept twice as
+// long for it.
+constexpr int kSlideOutMs = 500;
+constexpr int kCardGoneMs = 2 * kSlideOutMs;
 
 QMutex g_images_lock;
 QHash<QString, QImage>& images() {
@@ -98,6 +102,23 @@ NotificationServer* NotificationServer::instance() {
 }
 
 NotificationServer::NotificationServer() {
+    // Showing until the last card is out of sight, not the moment it leaves.
+    hide_ = new QTimer(this);
+    hide_->setSingleShot(true);
+    hide_->setInterval(kSlideOutMs);
+    auto setShowing = [this](bool on) {
+        if (std::exchange(showing_, on) != on)
+            emit showingChanged();
+    };
+    connect(hide_, &QTimer::timeout, this, [setShowing] { setShowing(false); });
+    connect(this, &NotificationServer::popupsChanged, this, [this, setShowing] {
+        if (popups_->size() > 0) {
+            hide_->stop();
+            setShowing(true);
+        } else if (showing_) {
+            hide_->start();
+        }
+    });
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.registerObject("/org/freedesktop/Notifications", this,
                             QDBusConnection::ExportScriptableSlots | QDBusConnection::ExportScriptableSignals)) {
@@ -266,12 +287,15 @@ uint NotificationServer::Notify(const QString& app_name, uint replaces_id, const
         {"actions", d.actions}, {"hasDefault", d.hasDefault},
     });
 
-    if (Notification* n = live_.value(id)) {
-        n->update(std::move(d));  // replaced in place, where it is
+    // A replaced one changes where it is, and comes back on screen if it
+    // had left it, as a new one would.
+    Notification* n = live_.value(id);
+    if (n)
+        n->update(std::move(d));
+    else
+        live_.insert(id, n = new Notification(id, std::move(d), this));
+    if (popups_->contains(n))
         return id;
-    }
-    auto* n = new Notification(id, std::move(d), this);
-    live_.insert(id, n);
     const bool dnd = Compositor::instance()->settings().value("notifications.dnd").toBool();
     if ((!dnd && mode != "quiet") || n->critical()) {
         popups_->prepend(n);
@@ -296,7 +320,7 @@ void NotificationServer::close(uint id, uint reason) {
     emit n->closed();
     if (shown)
         emit popupsChanged();
-    n->deleteLater();
+    QTimer::singleShot(kCardGoneMs, n, &QObject::deleteLater);
 }
 
 void NotificationServer::CloseNotification(uint id) {
