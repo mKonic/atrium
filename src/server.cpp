@@ -295,6 +295,7 @@ void Server::setup() {
     background_blur = scene::BlurCache::create(scene, 0, 0);
     background_blur->place_above(layer(Layer::Bottom));
     apply_blur_settings();
+    scene->motion_blur = config.motion_blur && config.animations;
 
     // atrium's own GLES 3 renderer: rounded corners, shadows, blur and glass.
     if (render::Renderer* r = render::Renderer::create(*backend))
@@ -1709,6 +1710,7 @@ void Server::setting_changed(const std::string& key) {
         apply_blur_settings();
     if (key == "appearance.screen_shader")
         apply_screen_shader();
+    scene->motion_blur = config.motion_blur && config.animations;
     if (is("appearance.blur") || key == "appearance.transparency")
         refresh_surface_blurs();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)

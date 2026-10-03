@@ -476,7 +476,8 @@ namespace {
 void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scene* scene, render::RenderPass* pass,
                                   render::Renderer* renderer, Timeline* in_timeline, uint64_t in_point) {
     const FBox& frame = tree->warp_frame();
-    if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || frame.width <= 0 || frame.height <= 0)
+    const bool warped = bool(tree->warp());
+    if (d.transform != WL_OUTPUT_TRANSFORM_NORMAL || (warped && (frame.width <= 0 || frame.height <= 0)))
         return;
     // What's in it, bottom to top, as if it weren't warped. Blur can't be
     // drawn off screen (it samples what's behind): it's drawn on screen
@@ -536,6 +537,30 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
     pixman_region32_fini(&ld.damage);
     pass->pop_target();
 
+    // Moving (motion blur): the blur under it where it is now, then the
+    // layer blurred back along its way.
+    if (!warped) {
+        const FBox at{(bounds.x - d.logical.x) * d.scale, (bounds.y - d.logical.y) * d.scale, lw * 1.0, lh * 1.0};
+        for (const Entry& e : blurs) {
+            const Blur* bl = static_cast<const Blur*>(e.node);
+            const Box b = box_of(e.node, e.walk);
+            if (b.width <= 0 || b.height <= 0)
+                continue;
+            const float x0 = float((b.x - d.logical.x) * d.scale), y0 = float((b.y - d.logical.y) * d.scale);
+            const float x1 = x0 + float(b.width * d.scale), y1 = y0 + float(b.height * d.scale);
+            const float u0 = float(double(b.x - bounds.x) / bounds.width), v0 = float(double(b.y - bounds.y) / bounds.height);
+            const float u1 = float(double(b.x + b.width - bounds.x) / bounds.width);
+            const float v1 = float(double(b.y + b.height - bounds.y) / bounds.height);
+            const std::vector<render::RenderPass::MeshVertex> quad{
+                {x0, y0, u0, v0}, {x1, y0, u1, v0}, {x0, y1, u0, v1}, {x1, y0, u1, v0}, {x1, y1, u1, v1}, {x0, y1, u0, v1}};
+            pass->add_blur_mesh(layer->get()->texture(), quad, bl->strength, bl->alpha * e.walk.opacity, bl->use_cache);
+        }
+        const double s = d.scale * w.scale;
+        pass->add_motion_blur(layer->get()->texture(), at, tree->back_x() * s, tree->back_y() * s,
+                              scene->motion_blur_samples, 1.0f);
+        return;
+    }
+
     // The blur under it, each through the warp of its own part of the frame,
     // shaped by the layer's pixels there (rounded corners, no shadow).
     for (const Entry& e : blurs) {
@@ -567,13 +592,42 @@ void SceneImpl::render_warp_layer(Tree* tree, const Walk& w, RenderData& d, Scen
     pass->add_texture_mesh(td, mesh);
 }
 
+// Which windows moved since the last frame on this screen (their own place,
+// not a space sliding under them): drawn this frame as layers, blurred back
+// to where they were. The whole screen is drawn while any moves, and once
+// after, so no trail is left.
+void SceneOutput::track_motion() {
+    bool moving = false;
+    for (auto it = motion_last_.begin(); it != motion_last_.end();)
+        it = scene->motion_trees_.contains(const_cast<Tree*>(it->first)) ? std::next(it) : motion_last_.erase(it);
+    for (Tree* t : scene->motion_trees_) {
+        t->moving_ = false;
+        int lx, ly;
+        if (!scene->motion_blur || !t->coords(&lx, &ly)) {
+            motion_last_.erase(t);
+            continue;
+        }
+        const std::pair<double, double> now{t->x, t->y};
+        auto it = motion_last_.find(t);
+        if (it != motion_last_.end() && it->second != now) {
+            t->moving_ = true;
+            t->back_x_ = it->second.first - now.first;
+            t->back_y_ = it->second.second - now.second;
+            moving = true;
+        }
+        motion_last_[t] = now;
+    }
+    if (moving || std::exchange(motion_settle_, moving))
+        damage_whole();
+}
+
 void SceneImpl::render_entry(const Entry& e, RenderData& d, Scene* scene, render::RenderPass* pass,
                              render::Renderer* renderer, Timeline* in_timeline, uint64_t in_point) {
     Node* node = e.node;
     const Walk& w = e.walk;
     if (node->type == Type::Tree) {
         Tree* t = static_cast<Tree*>(node);
-        if (t->warp())
+        if (t->layered())
             render_warp_layer(t, w, d, scene, pass, renderer, in_timeline, in_point);
         return;
     }
@@ -880,6 +934,8 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
     output_transform_coords(d.transform, &d.trans_width, &d.trans_height);
     d.logical.width = int(d.trans_width / d.scale);
     d.logical.height = int(d.trans_height / d.scale);
+
+    track_motion();
 
     // What shows, top to bottom.
     std::vector<Entry> list;

@@ -14,12 +14,12 @@ struct Walk {
     double x = 0, y = 0;
     double scale = 1;
     float opacity = 1;
-    const Tree* warp = nullptr;  // the warped tree it is under, if any
+    const Tree* warp = nullptr;  // the layered tree (warped, moving) it is under, if any
 
     // Where a tree's child lands.
     Walk child(const Tree* tree, const Node* child) const {
         const double s = scale * tree->scale();
-        return {x + child->x * s, y + child->y * s, s, opacity * tree->opacity(), tree->warp() ? tree : warp};
+        return {x + child->x * s, y + child->y * s, s, opacity * tree->opacity(), tree->layered() ? tree : warp};
     }
     bool identity() const { return scale == 1.0 && opacity == 1.0f && !warp; }
 };

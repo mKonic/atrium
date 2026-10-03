@@ -58,6 +58,7 @@ enum class Shader {
     BlurEffects, // brightness, contrast, saturation, noise
     Glass,
     GlassField,
+    Motion,      // a moving window's layer, blurred along its way
     Output,      // the HDR/colour output pass
     Screen,      // the user's screen shader over the whole output
     Count,

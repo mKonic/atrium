@@ -456,6 +456,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Windows
     s.push_back(boolean("windows.wobbly", "Windows", "Wobbly windows",
         "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
+    s.push_back(boolean("windows.motion_blur", "Windows", "Motion blur",
+        "Windows blur along the way as they move, like a camera sees fast motion.", &Config::motion_blur, d));
     s.push_back(boolean("windows.system_bell", "Windows", "Alert sound",
         "Apps can ring a bell (a terminal does on a Tab with nothing to complete). Off, it only marks "
         "the window as wanting attention.", &Config::system_bell, d));

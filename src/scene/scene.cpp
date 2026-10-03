@@ -688,7 +688,22 @@ Tree::Tree(Tree* parent, Type t) : Node(t, parent) {
     wl_list_init(&children);
 }
 
-Tree::~Tree() = default;
+Tree::~Tree() {
+    if (motion_scene_)
+        motion_scene_->motion_trees_.erase(this);
+}
+
+void Tree::set_motion_blur(bool on) {
+    if (on == (motion_scene_ != nullptr))
+        return;
+    if (!on) {
+        motion_scene_->motion_trees_.erase(this);
+        motion_scene_ = nullptr;
+        return;
+    }
+    motion_scene_ = root();
+    motion_scene_->motion_trees_.insert(this);
+}
 
 Tree* Tree::create(Tree* parent) {
     assert(parent);

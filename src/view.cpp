@@ -127,6 +127,7 @@ void View::handle_map() {
     outline = scene::Rect::create(tree, 0, 0, premultiplied(c.outline_color).data());
     outline->accepts_input = false;
     outline->place_above(shadow);
+    tree->set_motion_blur(true);  // when windows.motion_blur is on
     blur = scene::Blur::create(tree, 0, 0);
     blur->set_use_cache(true);  // the cheap, shared background blur
     blur->place_above(outline);

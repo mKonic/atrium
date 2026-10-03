@@ -147,6 +147,16 @@ public:
     void set_warp(std::function<std::pair<double, double>(double, double)> fn, FBox frame);
     const std::function<std::pair<double, double>(double, double)>& warp() const { return warp_; }
     const FBox& warp_frame() const { return warp_frame_; }
+    // A window: blurred along its way when it moves, while the scene's
+    // motion_blur is on (drawn as a layer, as a warped tree is).
+    void set_motion_blur(bool on);
+    // This frame, on the screen being drawn: moved since the last, by
+    // -back (layout pixels). Set by the scene for each screen.
+    bool moving() const { return moving_; }
+    double back_x() const { return back_x_; }
+    double back_y() const { return back_y_; }
+    // Drawn as a layer: warped, or moving with motion blur.
+    bool layered() const { return warp_ || moving_; }
 
 protected:
     explicit Tree(Tree* parent, Type type = Type::Tree);
@@ -157,7 +167,11 @@ private:
     float opacity_ = 1;
     std::function<std::pair<double, double>(double, double)> warp_;
     FBox warp_frame_{};
+    Scene* motion_scene_ = nullptr;  // registered there for motion blur
+    bool moving_ = false;
+    double back_x_ = 0, back_y_ = 0;
     friend class Node;
+    friend class SceneOutput;
 };
 
 // A tree's children, bottom to top or top to bottom; the current one may
@@ -426,6 +440,9 @@ public:
     bool restack_xwayland_surfaces = true;
     bool direct_scanout = true;
     bool calculate_visibility = true;
+    // Windows (Tree::set_motion_blur) blurred along their way as they move.
+    bool motion_blur = false;
+    int motion_blur_samples = 8;
     enum class DebugDamage { None, Rerender, Highlight } debug_damage = DebugDamage::None;
 
 private:
@@ -437,8 +454,10 @@ private:
     bool blur_cache_rendered_ = false;
     wl::GammaControls* gamma_ = nullptr;
     wl::Connection gamma_set_;
+    std::unordered_set<Tree*> motion_trees_;
 
     friend class Node;
+    friend class Tree;
     friend class SceneOutput;
     friend struct SceneImpl;
 };
@@ -514,6 +533,11 @@ private:
     render::EffectBuffers fx_;
     std::unique_ptr<render::ColorLut> lut_;
     std::unique_ptr<render::ColorLut> hdr_lut_;
+    // Motion blur: where each window was the last frame here, and a frame
+    // still to draw whole after one stopped (its trail goes).
+    std::unordered_map<const Tree*, std::pair<double, double>> motion_last_;
+    bool motion_settle_ = false;
+    void track_motion();
     float hdr_matrix_[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     bool hdr_calibrated_ = false;
     // Offscreen layers of warped trees, kept while they stay warped.

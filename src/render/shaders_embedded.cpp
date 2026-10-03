@@ -39,6 +39,9 @@ const char k8[] = {
 const char k9[] = {
 #embed "../../data/share/atrium/shaders/pq.glsl"
     , 0};
+const char k13[] = {
+#embed "../../data/share/atrium/shaders/motion.frag"
+    , 0};
 const char k10[] = {
 #embed "../../data/share/atrium/shaders/quad.frag"
     , 0};
@@ -63,6 +66,7 @@ const File kFiles[] = {
     {"corner_alpha.glsl", k5},
     {"glass.frag", k6},
     {"glass_field.frag", k7},
+    {"motion.frag", k13},
     {"output.frag", k8},
     {"pq.glsl", k9},
     {"quad.frag", k10},

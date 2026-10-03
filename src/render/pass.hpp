@@ -171,6 +171,9 @@ public:
     void add_rect(const RectDraw& d);
     void add_shadow(const ShadowDraw& d);
     void add_blur(const BlurDraw& d);
+    // A moving window's layer at `box` (framebuffer pixels), blurred back
+    // along (back_x, back_y) to where it was the frame before.
+    void add_motion_blur(const TexRef& layer, const FBox& box, double back_x, double back_y, int samples, float alpha);
     // Blur through a warp: the backdrop blurred, where `shape` (its texture
     // drawn through `mesh`) has pixels.
     void add_blur_mesh(const TexRef& shape, const std::vector<MeshVertex>& mesh, float strength, float alpha,

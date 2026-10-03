@@ -676,6 +676,31 @@ void RenderPass::add_blur(const BlurDraw& d) {
         stencil_end();
 }
 
+void RenderPass::add_motion_blur(const TexRef& layer, const FBox& box, double back_x, double back_y, int samples,
+                                 float alpha) {
+    Program& p = r_.shaders().get(Shader::Motion);
+    if (!p.id || !layer.tex || box.empty())
+        return;
+    // Everything it passed over.
+    const double x0 = std::min(box.x, box.x + back_x), y0 = std::min(box.y, box.y + back_y);
+    const FBox extents{x0, y0, std::max(box.x, box.x + back_x) + box.width - x0,
+                       std::max(box.y, box.y + back_y) + box.height - y0};
+    glEnable(GL_BLEND);
+    glUseProgram(p.id);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(layer.target, layer.tex);
+    filter(layer.target, SCALE_FILTER_BILINEAR);
+    p.set("tex", 0);
+    p.set("alpha", alpha);
+    p.set("samples", std::clamp(samples, 1, 32));
+    p.set("box", float(box.x), float(box.y), float(box.width), float(box.height));
+    p.set("back", float(back_x), float(back_y));
+    set_proj(p, extents);
+    set_tex_matrix(p, WL_OUTPUT_TRANSFORM_NORMAL, FBox{0, 0, 1, 1});
+    draw(p, extents, nullptr);
+    glBindTexture(layer.target, 0);
+}
+
 void RenderPass::add_blur_mesh(const TexRef& shape, const std::vector<MeshVertex>& mesh, float strength, float alpha,
                                bool use_cache) {
     if (!fx_ || !blur_params || mesh.empty() || alpha <= 0)

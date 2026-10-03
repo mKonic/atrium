@@ -144,6 +144,7 @@ struct Config {
     bool shake_to_find = true;  // pointer.shake_to_find: shaking grows the arrow
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     bool wobbly = false;  // windows.wobbly: wobble while dragged
+    bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving
     bool system_bell = true;  // windows.system_bell: an app's bell plays a sound
     bool touchpad_natural_scroll = true;
     bool tap_to_click = true;
