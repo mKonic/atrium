@@ -23,6 +23,8 @@ public:
     Switcher& operator=(const Switcher&) = delete;
 
     bool active() const { return active_; }
+    bool shown() const { return shown_; }
+    scene::Tree* root() const { return root_; }  // while shown
 
     // A switcher binding fired: start, or step `direction` further. `hold` is
     // the binding's modifiers; releasing them all picks.

@@ -87,6 +87,7 @@ atrium_sources = files(
   'titlebar.cpp',
   'view.cpp',
   'window_copy.cpp',
+  'scene_trace.cpp',
   'xdg_view.cpp',
   'xwayland_view.cpp',
   'xwayland/selection.cpp',

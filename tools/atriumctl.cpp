@@ -30,6 +30,7 @@ void usage() {
         "  version                   compositor version\n"
         "  windows                   open windows\n"
         "  scene [ID]                what's drawn, as scene nodes (a window's, or everything)\n"
+        "  trace [SECS [ID]] | stop  record what's drawn every frame into a file (a window's and the switcher's)\n"
         "  outputs                   monitors\n"
         "  layers                    panels, docks and overlays (layer surfaces)\n"
         "  spaces                    spaces and secret spaces\n"
@@ -304,6 +305,12 @@ int run(int argc, char** argv) {
         req = {{"cmd", "scene.dump"}};
         if (!args.empty())
             req["window"] = std::stoull(args[0]);
+    } else if (cmd == "trace") {
+        req = {{"cmd", args.empty() || args[0] != "stop" ? "trace.start" : "trace.stop"}};
+        if (!args.empty() && args[0] != "stop")
+            req["seconds"] = std::stod(args[0]);
+        if (args.size() > 1)
+            req["window"] = std::stoull(args[1]);
     } else if (cmd == "space") {
         need(1);
         req = {{"cmd", "space.switch"}, {"number", std::stoi(args[0])}};

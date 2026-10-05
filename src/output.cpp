@@ -1,4 +1,5 @@
 #include "output.hpp"
+#include "scene_trace.hpp"
 #include "util/log.hpp"
 #include "icc.hpp"
 #include "render/renderer.hpp"
@@ -475,6 +476,8 @@ void Output::render() {
         }
         if (committed && switch_vrr && server.ipc)
             server.ipc->broadcast("outputs", {{"event", "outputs.changed"}});
+        if (committed && server.trace)
+            server.trace->frame(*this);
     }
     send_frame_done();
 }

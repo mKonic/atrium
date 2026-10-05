@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "scene_trace.hpp"
 #include "util/log.hpp"
 #include "wl/drm_lease.hpp"
 #include "backend/drm/drm.hpp"

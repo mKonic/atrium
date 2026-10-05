@@ -2,6 +2,7 @@
 #include "clipboard_history.hpp"
 #include "screencast.hpp"
 #include "scene/dump.hpp"
+#include "scene_trace.hpp"
 #include "eis.hpp"
 #include "wl/xdg_extras.hpp"
 #ifdef ATRIUM_XWAYLAND
@@ -26,6 +27,7 @@
 #include "view.hpp"
 
 #include <algorithm>
+#include <ctime>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -950,6 +952,28 @@ json Ipc::handle(Client& c, const json& req) {
             return fail("no such window");
         }
         return ok(scene::dump(server_.scene));
+    }
+    // What's drawn, frame by frame, into a file for a few seconds
+    // (scene_trace.hpp): a window's nodes and the switcher's, or everything.
+    if (cmd == "trace.start") {
+        const double seconds = std::clamp(req.value("seconds", 10.0), 0.5, 120.0);
+        const uint64_t window = req.value("window", uint64_t(0));
+        const char* run = std::getenv("XDG_RUNTIME_DIR");
+        const std::string path = std::string(run ? run : "/tmp") + "/atrium-trace-" +
+                                 std::to_string(std::time(nullptr)) + ".jsonl";
+        if (!server_.trace)
+            server_.trace = std::make_unique<SceneTrace>(server_);
+        if (!server_.trace->start(path, seconds, window))
+            return fail("can't write " + path);
+        for (Output* o : server_.outputs)
+            o->screen->schedule_frame();
+        return ok({{"path", path}, {"seconds", seconds}});
+    }
+    if (cmd == "trace.stop") {
+        if (!server_.trace || !server_.trace->active())
+            return fail("not tracing");
+        server_.trace->stop();
+        return ok({{"path", server_.trace->path()}, {"frames", server_.trace->frames()}});
     }
     if (cmd == "outputs") {
         json list = json::array();

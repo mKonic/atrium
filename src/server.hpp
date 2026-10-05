@@ -282,6 +282,7 @@ public:
     std::unique_ptr<SnapPreview> snap_preview;
     std::unique_ptr<Overview> overview;
     std::unique_ptr<Switcher> switcher;
+    std::unique_ptr<class SceneTrace> trace;  // while `atriumctl trace` records
     std::unique_ptr<Registry> registry;
     std::unique_ptr<ShellProcess> shell;
     std::unique_ptr<LockScreen> lock_screen;
