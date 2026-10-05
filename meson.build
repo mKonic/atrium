@@ -30,7 +30,8 @@ add_project_arguments(
 # kept in $libdir/atrium (its exports are only its API: scenefx carries
 # copies of some of its internals, which a static wlroots would clash with);
 # scenefx is linked in. wlroots first: scenefx finds it through its override.
-wlroots_proj = subproject('wlroots', default_options: ['examples=false', 'default_library=shared'])
+wlroots_proj = subproject('wlroots', default_options: ['examples=false', 'default_library=shared',
+  'renderers=gles2', 'backends=drm,libinput,x11', 'allocators=gbm,udmabuf'])
 wlroots = wlroots_proj.get_variable('wlroots')
 meson.add_install_script('scripts/install-wlroots.sh', wlroots_proj.get_variable('lib_wlr'),
   get_option('prefix') / get_option('libdir'))
