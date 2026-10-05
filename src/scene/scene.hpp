@@ -351,6 +351,8 @@ public:
 
     // The surface this shows, when it's a surface's node.
     SurfaceNode* surface() const { return surface_; }
+    // Its colour (premultiplied) when the buffer is a single pixel.
+    const float* single_pixel_color() const { return single_pixel_ ? single_pixel_color_ : nullptr; }
 
     struct {
         wl_signal outputs_update;  // OutputsUpdateEvent
