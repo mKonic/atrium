@@ -56,6 +56,12 @@ public:
     void pointer_axis(uint32_t time_ms, uint32_t orientation, double value, int32_t value120, AxisSource source,
                       bool inverted);
     void pointer_frame();
+    // Events of another protocol for the focused pointer (relative motion)
+    // that its next frame groups: clients like Xwayland act on them only then.
+    void pointer_frame_needed() {
+        if (pointer_focus_)
+            pointer_frame_pending_ = true;
+    }
     Surface* pointer_focus() const { return pointer_focus_; }
     double pointer_x() const { return pointer_x_; }
     double pointer_y() const { return pointer_y_; }

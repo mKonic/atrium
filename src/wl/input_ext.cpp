@@ -67,11 +67,26 @@ RelativePointers::~RelativePointers() {
 }
 
 void RelativePointers::send_motion(uint64_t time_us, double dx, double dy, double dx_unaccel, double dy_unaccel) {
+    bool sent = false;
     for (auto& w : pointers_)
-        if (focused(seat_, w.get()))
+        if (focused(seat_, w.get())) {
             static_cast<ZwpRelativePointerV1*>(w.get())
                 ->send_relative_motion(uint32_t(time_us >> 32), uint32_t(time_us & 0xffffffff), dx, dy, dx_unaccel,
                                        dy_unaccel);
+            sent = true;
+        }
+    // A locked pointer sends no motion of its own; without the frame after
+    // it, Xwayland never hands a game this motion (mouselook stands still).
+    if (sent)
+        seat_.pointer_frame_needed();
+}
+
+std::vector<wl_client*> RelativePointers::clients() const {
+    std::vector<wl_client*> out;
+    for (const auto& w : pointers_)
+        if (Resource* r = w.get(); r && !r->inert() && std::ranges::find(out, r->client()) == out.end())
+            out.push_back(r->client());
+    return out;
 }
 
 // ---- pointer constraints ----------------------------------------------------------------

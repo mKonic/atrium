@@ -72,9 +72,31 @@ TEST(WlInput, RelativeMotionGoesToTheFocusedClient) {
     in.pump();
     EXPECT_EQ(got, 0);
     in.seat.pointer_enter(ss, 1, 1);
+    int frames = 0;
+    static const wl_pointer_listener pl = {
+        .enter = [](void*, wl_pointer*, uint32_t, wl_surface*, wl_fixed_t, wl_fixed_t) {},
+        .leave = [](void*, wl_pointer*, uint32_t, wl_surface*) {},
+        .motion = [](void*, wl_pointer*, uint32_t, wl_fixed_t, wl_fixed_t) {},
+        .button = [](void*, wl_pointer*, uint32_t, uint32_t, uint32_t, uint32_t) {},
+        .axis = [](void*, wl_pointer*, uint32_t, uint32_t, wl_fixed_t) {},
+        .frame = [](void* d, wl_pointer*) { ++*static_cast<int*>(d); },
+        .axis_source = [](void*, wl_pointer*, uint32_t) {},
+        .axis_stop = [](void*, wl_pointer*, uint32_t, uint32_t) {},
+        .axis_discrete = [](void*, wl_pointer*, uint32_t, int32_t) {},
+        .axis_value120 = [](void*, wl_pointer*, uint32_t, int32_t) {},
+        .axis_relative_direction = [](void*, wl_pointer*, uint32_t, uint32_t) {},
+    };
+    wl_pointer_add_listener(in.pointer, &pl, &frames);
+    in.seat.pointer_frame();
+    in.pump();
+    const int after_enter = frames;
     rel.send_motion(2, 3.5, 0, 3.5, 0);
+    in.seat.pointer_frame();  // the input's frame, as libinput's comes
     in.pump();
     EXPECT_DOUBLE_EQ(got, 3.5);
+    // Its own frame, with no absolute motion (a locked pointer): Xwayland
+    // applies relative motion only on one.
+    EXPECT_EQ(frames, after_enter + 1);
     zwp_relative_pointer_v1_destroy(r);
     zwp_relative_pointer_manager_v1_destroy(m);
     wl_surface_destroy(s);
