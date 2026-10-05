@@ -1,4 +1,8 @@
 #include "ipc.hpp"
+#include "appmenu.hpp"
+#ifdef ATRIUM_XWAYLAND
+#include "xwayland_view.hpp"
+#endif
 #include "input_method.hpp"
 #include "keyboard_conf.hpp"
 #include "night_light.hpp"
@@ -322,6 +326,38 @@ json box_json(const wlr_box& b) {
 
 } // namespace
 
+namespace {
+
+// Where the window's menus are (a com.canonical.dbusmenu object), if it said.
+json menu_json(const View& v) {
+    wlr_surface* s = v.surface();
+    const auto* a = s && v.server.appmenus ? v.server.appmenus->for_surface(s) : nullptr;
+    if (!a)
+        return nullptr;
+    return {{"service", a->service}, {"path", a->path}};
+}
+
+// A Wayland window's process (an X11 one's client is Xwayland).
+json pid_json(const View& v) {
+    wlr_surface* s = v.surface();
+    if (v.kind == View::Kind::X11 || !s || !s->resource)
+        return nullptr;
+    pid_t pid = 0;
+    wl_client_get_credentials(wl_resource_get_client(s->resource), &pid, nullptr, nullptr);
+    return pid > 0 ? json(pid) : json(nullptr);
+}
+
+// An X11 window's id (what its app registers its menus under).
+json x11_window_json(const View& v) {
+#ifdef ATRIUM_XWAYLAND
+    if (v.kind == View::Kind::X11)
+        return static_cast<const XwaylandView&>(v).xsurface->window_id;
+#endif
+    return nullptr;
+}
+
+} // namespace
+
 json Ipc::window_json(const View& v) {
     return {
         {"id", v.id},
@@ -348,6 +384,9 @@ json Ipc::window_json(const View& v) {
         {"tiled", v.tiled()},
         {"identifier", v.toplevel_identifier()},
         {"title_bar", v.top()},  // the geometry's top rows that are atrium's title bar
+        {"menu", menu_json(v)},
+        {"x11_window", x11_window_json(v)},
+        {"pid", pid_json(v)},
     };
 }
 

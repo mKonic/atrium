@@ -32,6 +32,7 @@ own_protocol_xmls = [
   wl_protocol_dir / 'staging/xdg-session-management/xdg-session-management-v1.xml',
   wl_protocol_dir / 'staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml',
   'atrium-glass-v1.xml',
+  'appmenu.xml',
 ]
 protocol_code = []
 # Interfaces the own protocols refer to (xdg-toplevel-drag names

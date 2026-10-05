@@ -6,6 +6,7 @@
 #include "sandbox.hpp"
 #include "server.hpp"
 #include "toplevel_icon.hpp"
+#include "appmenu.hpp"
 #include "view.hpp"
 
 #include <cstdlib>
@@ -26,6 +27,7 @@ void Server::setup_window_hints() {
     wlr_xdg_wm_dialog_v1_create(display, 1);  // read through View::modal()
 
     toplevel_icons = std::make_unique<ToplevelIcons>(*this);
+    appmenus = std::make_unique<AppMenus>(*this);
 
     auto* tags = wlr_xdg_toplevel_tag_manager_v1_create(display, 1);
     set_tag_.connect(&tags->events.set_tag, [this](wlr_xdg_toplevel_tag_manager_v1_set_tag_event* e) {

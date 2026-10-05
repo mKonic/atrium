@@ -5,6 +5,7 @@
 #include "glass.hpp"
 #include "session_management.hpp"
 #include "toplevel_icon.hpp"
+#include "appmenu.hpp"
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
@@ -609,6 +610,7 @@ void Server::teardown() {
     toplevel_drags.reset();
     sessions.reset();
     toplevel_icons.reset();
+    appmenus.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
