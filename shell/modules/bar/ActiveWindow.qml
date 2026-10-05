@@ -21,6 +21,8 @@ Item {
 
     // The room there is before the bar's right side; the title gives way first.
     property real maxWidth: 10000
+    // The window's title after the app's name (not when the app's menus are there).
+    property bool showTitle: true
 
     // Nothing focused (or no app): nothing shown, not an empty pill. (The
     // bar sets this item's own opacity, so the content fades instead.)
@@ -77,7 +79,7 @@ Item {
             elide: Text.ElideRight
             text: root.title
             color: Theme.palette.secondaryLabel
-            visible: text.length > 0 && width > 40
+            visible: root.showTitle && text.length > 0 && width > 40
         }
     }
 }

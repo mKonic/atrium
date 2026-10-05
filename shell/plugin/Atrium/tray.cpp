@@ -1,4 +1,5 @@
 #include "tray.hpp"
+#include "dbus_menu.hpp"
 
 #include <QCoreApplication>
 #include <QDBusArgument>
@@ -24,7 +25,6 @@ namespace {
 const QString kItem = QStringLiteral("org.kde.StatusNotifierItem");
 const QString kWatcher = QStringLiteral("org.kde.StatusNotifierWatcher");
 const QString kProps = QStringLiteral("org.freedesktop.DBus.Properties");
-const QString kMenu = QStringLiteral("com.canonical.dbusmenu");
 
 QMutex g_lock;
 QHash<QString, QImage>& icons() {
@@ -91,60 +91,6 @@ QString from_theme_path(const QString& dir, const QString& name) {
         }
     }
     return found.isEmpty() ? QString() : QUrl::fromLocalFile(found).toString();
-}
-
-struct MenuNode {
-    int id = 0;
-    QVariantMap props;
-    QList<MenuNode> children;
-};
-
-MenuNode read_node(const QDBusArgument& arg) {
-    MenuNode n;
-    arg.beginStructure();
-    arg >> n.id >> n.props;
-    arg.beginArray();
-    while (!arg.atEnd()) {
-        QDBusVariant v;
-        arg >> v;
-        n.children.append(read_node(v.variant().value<QDBusArgument>()));
-    }
-    arg.endArray();
-    arg.endStructure();
-    return n;
-}
-
-// dbusmenu marks mnemonics with "_" ("__" is a literal one); the shell
-// shows none.
-QString plain_label(QString label) {
-    label.replace("__", QString(QChar(1)));
-    label.remove('_');
-    label.replace(QChar(1), "_");
-    return label;
-}
-
-QVariantList entries(const MenuNode& node) {
-    QVariantList out;
-    for (const MenuNode& c : node.children) {
-        if (c.props.contains("visible") && !plain(c.props.value("visible")).toBool())
-            continue;
-        if (plain(c.props.value("type")).toString() == "separator") {
-            out.append(QVariantMap{{"separator", true}});
-            continue;
-        }
-        const bool sub = !c.children.isEmpty() || plain(c.props.value("children-display")).toString() == "submenu";
-        const QString toggle = plain(c.props.value("toggle-type")).toString();
-        const bool ticked = (toggle == "checkmark" || toggle == "radio") && plain(c.props.value("toggle-state")).toInt() == 1;
-        out.append(QVariantMap{
-            {"id", c.id},
-            {"text", plain_label(plain(c.props.value("label")).toString())},
-            {"checked", ticked},
-            {"enabled", !c.props.contains("enabled") || plain(c.props.value("enabled")).toBool()},
-            {"separator", false},
-            {"children", sub ? entries(c) : QVariantList()},
-        });
-    }
-    return out;
 }
 
 // "service/path" → (service, path).
@@ -260,25 +206,11 @@ void SystemTrayItem::scroll(int delta, bool horizontal) {
 }
 
 QVariantList SystemTrayItem::menu() const {
-    if (!hasMenu())
-        return {};
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    // Apps that build their menu lazily do it now.
-    QDBusMessage about = QDBusMessage::createMethodCall(service_, menu_, kMenu, "AboutToShow");
-    about << 0;
-    bus.call(about, QDBus::Block, 500);
-    QDBusMessage get = QDBusMessage::createMethodCall(service_, menu_, kMenu, "GetLayout");
-    get << 0 << -1 << QStringList();
-    const QDBusMessage reply = bus.call(get, QDBus::Block, 1000);
-    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().size() < 2)
-        return {};
-    return entries(read_node(reply.arguments().at(1).value<QDBusArgument>()));
+    return hasMenu() ? dbusmenu::layout(service_, menu_) : QVariantList();
 }
 
 void SystemTrayItem::trigger(int id) const {
-    QDBusMessage m = QDBusMessage::createMethodCall(service_, menu_, kMenu, "Event");
-    m << id << QStringLiteral("clicked") << QVariant::fromValue(QDBusVariant(0)) << uint(QDateTime::currentSecsSinceEpoch());
-    QDBusConnection::sessionBus().asyncCall(m);
+    dbusmenu::trigger(service_, menu_, id);
 }
 
 // --- TrayWatcher -------------------------------------------------------------

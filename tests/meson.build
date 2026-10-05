@@ -41,11 +41,11 @@ if gtest.found()
   )
   test('unit', unit)
 
-  # The shell plugin's Qt classes, on QtCore alone (no QML, no display).
-  unit_qt_qt = dependency('qt6', version: '>=6.8', modules: ['Core'])
+  # The shell plugin's Qt classes, on QtCore and QtDBus (no QML, no display).
+  unit_qt_qt = dependency('qt6', version: '>=6.8', modules: ['Core', 'DBus'])
   unit_qt = executable('unit-qt',
-    'folder_model_test.cpp', 'file_chooser_test.cpp', 'app_chooser_test.cpp', 'print_prompt_test.cpp',
-    files('../shell/plugin/Atrium/folder_model.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/file_chooser.cpp', '../shell/plugin/Atrium/app_chooser.cpp', '../shell/plugin/Atrium/Shell/desktop_entry_core.cpp', '../shell/plugin/Atrium/print_prompt.cpp', '../shell/plugin/Atrium/printers_core.cpp'),
+    'folder_model_test.cpp', 'file_chooser_test.cpp', 'app_chooser_test.cpp', 'print_prompt_test.cpp', 'dbus_menu_test.cpp',
+    files('../shell/plugin/Atrium/folder_model.cpp', '../shell/plugin/Atrium/files.cpp', '../shell/plugin/Atrium/file_chooser.cpp', '../shell/plugin/Atrium/app_chooser.cpp', '../shell/plugin/Atrium/Shell/desktop_entry_core.cpp', '../shell/plugin/Atrium/print_prompt.cpp', '../shell/plugin/Atrium/printers_core.cpp', '../shell/plugin/Atrium/dbus_menu.cpp'),
     qt6.compile_moc(headers: ['../shell/plugin/Atrium/folder_model.hpp', '../shell/plugin/Atrium/file_chooser.hpp', '../shell/plugin/Atrium/app_chooser.hpp', '../shell/plugin/Atrium/print_prompt.hpp'], dependencies: unit_qt_qt),
     include_directories: include_directories('../shell/plugin/Atrium', '../shell/plugin/Atrium/Shell'),
     dependencies: [gtest, unit_qt_qt],

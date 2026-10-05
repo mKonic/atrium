@@ -11,7 +11,7 @@ Rectangle {
     id: root
 
     property string title: ""
-    property var actions: []  // [{ icon, text, run, danger?, enabled?, keep?, trailing? }] or "-" for a separator
+    property var actions: []  // [{ icon, text, run, danger?, enabled?, keep?, trailing?, hint? }] or "-" for a separator
     // Rows line up: when any has an icon, all keep its room.
     readonly property bool iconColumn: actions.some(a => a !== "-" && (a.icon ?? "") !== "")
     signal picked
@@ -88,6 +88,7 @@ Rectangle {
             readonly property bool usable: action.enabled ?? true
 
             implicitWidth: content.implicitWidth + Theme.padding.normal * 2 + (trailingIcon.visible ? trailingIcon.implicitWidth + Theme.spacing.normal : 0)
+                           + (hint.visible ? hint.implicitWidth + Theme.spacing.large * 2 : 0)
             height: 34
             radius: Theme.rounding.small
             opacity: usable ? 1 : 0.4
@@ -116,6 +117,18 @@ Rectangle {
                     text: item.action.text
                     color: item.action.danger ? Theme.palette.red : Theme.palette.label
                 }
+            }
+
+            // Its shortcut ("⌃S"), at the end, as a Mac's menus show it.
+            StyledText {
+                id: hint
+
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: trailingIcon.visible ? trailingIcon.left : parent.right
+                anchors.rightMargin: trailingIcon.visible ? Theme.spacing.small : Theme.padding.normal
+                visible: text.length > 0
+                text: item.action.hint ?? ""
+                color: Theme.palette.tertiaryLabel
             }
 
             // A submenu's chevron, at the end.

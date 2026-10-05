@@ -33,6 +33,7 @@
 #include "file_chooser.hpp"
 #include "app_chooser.hpp"
 #include "print_prompt.hpp"
+#include "app_menu.hpp"
 #include "access.hpp"
 #include "capture.hpp"
 #include "markup.hpp"
@@ -251,6 +252,8 @@ public:
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new FileChooser; });
         qmlRegisterSingletonType<AppChooser>(uri, 1, 0, "AppChooser",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new AppChooser; });
+        qmlRegisterSingletonType<AppMenu>(uri, 1, 0, "AppMenu",
+            [](QQmlEngine*, QJSEngine*) -> QObject* { return new AppMenu; });
         qmlRegisterSingletonType<PrintPrompt>(uri, 1, 0, "PrintPrompt",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new PrintPrompt; });
         qmlRegisterSingletonType<AccessPrompt>(uri, 1, 0, "AccessPrompt",
