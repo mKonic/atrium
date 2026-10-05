@@ -56,6 +56,7 @@ enum class Action {
     NextLayout,       // the next keyboard layout
     Portal,           // arg: "APP/ID", an app's global shortcut (the portal): held and let go
     Lock,             // the lock screen
+    SwitchUser,       // lock, then the login manager's greeter beside the session
     Place,            // arg: where the window goes (geometry::named_place, maximize, restore,
                       // next-display, prev-display)
 };
@@ -160,6 +161,7 @@ struct Config {
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
+    bool lock_before_sleep = true;  // the lock screen is up before the machine sleeps
     bool allow_tearing = false;  // fullscreen games that ask may skip vblank
     int brightness = 100;           // external monitors (DDC/CI), restored at login
     std::string night_light = "off";  // off, sunset (to sunrise), custom (from/to), always

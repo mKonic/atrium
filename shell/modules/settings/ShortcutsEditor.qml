@@ -29,13 +29,14 @@ Rectangle {
             "focus-direction": "Focus the window beside", "move-direction": "Move window",
             "move-to-space-prev": "Move window to previous space", "move-to-space-next": "Move window to next space",
             "toggle-floating": "Float out of the tiles", "toggle-pin": "Show on every space",
-            "next_layout": "Next keyboard layout", "portal": "An app's shortcut"
+            "next_layout": "Next keyboard layout", "portal": "An app's shortcut",
+            "lock": "Lock screen", "switch-user": "Switch user", "place": "Place window"
         })
     readonly property var argHints: ({
             "spawn": "Command", "space": "Number", "move-to-space": "Number", "switch-vt": "Number",
             "toggle-secret": "Space name", "move-to-secret": "Space name", "shell": "What",
             "focus-direction": "left, right, up, down", "move-direction": "left, right, up, down",
-            "app-expose": "App id (focused app if empty)", "portal": "App/shortcut"
+            "app-expose": "App id (focused app if empty)", "portal": "App/shortcut", "place": "Where"
         })
 
     function add(): void {

@@ -1,5 +1,6 @@
 #include "session_lock.hpp"
 
+#include "logind.hpp"
 #include "output.hpp"
 #include "overview.hpp"
 #include "seat.hpp"
@@ -13,6 +14,8 @@ SessionLock::SessionLock(Server& srv, wlr_session_lock_v1* lock) : server(srv), 
     server.lock = this;
     server.overview->close_now();
     server.locked = true;
+    if (server.logind)
+        server.logind->set_locked_hint(true);
 
     // Nothing below the lock keeps a grab or pointer focus.
     server.seat->cancel_grab();
@@ -76,15 +79,21 @@ void SessionLock::new_surface(wlr_session_lock_surface_v1* ls) {
 // A lock destroyed without unlocking (the locker crashed) leaves the session
 // locked: the lock background stays up and a new locker can take over.
 void SessionLock::finish(bool unlocked) {
+    server.lock = nullptr;
+    ended(server, unlocked);
+    delete this;
+}
+
+void SessionLock::ended(Server& server, bool unlocked) {
     server.seat->clear_keyboard_focus();
     server.locked = !unlocked;
-    server.lock = nullptr;
     if (unlocked) {
         wlr_scene_node_set_enabled(&server.locked_bg->node, false);
         server.focus_top();
         server.seat->refresh_pointer();
+        if (server.logind)
+            server.logind->set_locked_hint(false);
     }
-    delete this;
 }
 
 } // namespace atrium

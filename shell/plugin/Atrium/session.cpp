@@ -3,6 +3,7 @@
 #include "compositor.hpp"
 
 #include <QDBusConnection>
+#include <QDBusInterface>
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
@@ -124,6 +125,17 @@ QString login_state_file() {
 QVariantMap Session::lastLogin() const {
     QSettings state(login_state_file(), QSettings::IniFormat);
     return {{"user", state.value("Last/User").toString()}, {"session", state.value("Last/Session").toString()}};
+}
+
+bool Session::canSwitchUser() const {
+    if (QFileInfo::exists(QStringLiteral("/run/atrium-login/control.sock")))
+        return true;
+    const QString seat = qEnvironmentVariable("XDG_SEAT_PATH");
+    if (seat.isEmpty())
+        return false;
+    QDBusInterface dm(QStringLiteral("org.freedesktop.DisplayManager"), seat,
+                      QStringLiteral("org.freedesktop.DisplayManager.Seat"), QDBusConnection::systemBus());
+    return dm.isValid() && dm.property("CanSwitch").toBool();
 }
 
 void Session::rememberLogin(const QString& user, const QString& session) {

@@ -24,6 +24,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The menu bar over a shown secret space, usable without putting it away.
 - A lock screen (Super+L), which stays locked if it crashes and comes back.
 - Unlock with a fingerprint, next to the password (fprintd).
+- Lock Screen and Switch User in the system menu: someone else logs in through the login screen while your session stays open, locked.
+- The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
