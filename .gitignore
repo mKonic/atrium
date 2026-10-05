@@ -3,6 +3,7 @@
 /design/
 /compile_commands.json
 /subprojects/*/
+!/subprojects/wlroots/
+!/subprojects/scenefx/
 /subprojects/packagecache/
 /tests/box/
-!/subprojects/packagefiles/

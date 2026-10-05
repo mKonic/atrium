@@ -14,8 +14,10 @@ url='https://github.com/mKonic/atrium'
 license=('GPL-3.0-or-later' 'OFL-1.1')
 depends=(
   # compositor
-  wlroots0.20 wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info
+  wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info
   xcb-util-wm libxcrypt fontconfig xorg-xwayland
+  # its wlroots (built in, under /usr/lib/atrium)
+  seatd libliftoff lcms2 libglvnd mesa libxcb xcb-util-errors xcb-util-renderutil
   # shell
   qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse
   # phone link: its audio stream, the pairing crypto and finding the phone
@@ -29,7 +31,7 @@ depends=(
   # apps looking at home
   adw-gtk-theme breeze-icons
 )
-makedepends=(git meson ninja wayland-protocols gtest cmake)
+makedepends=(git meson ninja wayland-protocols gtest cmake hwdata)
 optdepends=(
   "greetd: atrium's login screen (see /usr/share/atrium/greetd-config.toml)"
   'uwsm: the uwsm-managed session'
@@ -64,9 +66,10 @@ pkgver() {
 
 prepare() {
   cd atrium
-  # The pinned scenefx (with atrium's patch) and nlohmann-json, fetched here,
-  # not while building.
-  meson subprojects download scenefx nlohmann_json
+  # atrium's wlroots and scenefx (submodules) and nlohmann-json, fetched
+  # here, not while building.
+  git submodule update --init
+  meson subprojects download nlohmann_json
 }
 
 build() {
@@ -79,6 +82,7 @@ check() {
 }
 
 package() {
-  # scenefx is linked in; its headers and library stay out.
+  # scenefx is linked in and wlroots goes to /usr/lib/atrium (an install
+  # script); their headers and pkg-config files stay out.
   meson install -C build --destdir "$pkgdir" --skip-subprojects
 }

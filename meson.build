@@ -25,14 +25,20 @@ add_project_arguments(
   language: 'cpp',
 )
 
-# scenefx must come before wlroots: it re-exports the wlr_scene_* symbols with
-# effect support, and the first library providing a symbol wins at load time.
-# atrium's own scenefx (subprojects/packagefiles/scenefx: refraction for
-# Liquid Glass), built in and linked statically.
+# wlroots and scenefx are atrium's own forks (git submodules, branch atrium:
+# github.com/mKonic/wlroots and mKonic/scenefx). wlroots is a shared library
+# kept in $libdir/atrium (its exports are only its API: scenefx carries
+# copies of some of its internals, which a static wlroots would clash with);
+# scenefx is linked in. wlroots first: scenefx finds it through its override.
+wlroots_proj = subproject('wlroots', default_options: ['examples=false', 'default_library=shared'])
+wlroots = wlroots_proj.get_variable('wlroots')
+meson.add_install_script('scripts/install-wlroots.sh', wlroots_proj.get_variable('lib_wlr'),
+  get_option('prefix') / get_option('libdir'))
+# scenefx must come before wlroots among the dependencies: it re-exports the
+# wlr_scene_* symbols with effect support, and the first library providing a
+# symbol wins.
 scenefx_proj = subproject('scenefx', default_options: ['examples=false', 'default_library=static'])
 scenefx = scenefx_proj.get_variable('scenefx')
-# The system's wlroots, else the pinned one (subprojects/wlroots.wrap).
-wlroots = dependency('wlroots-0.20', version: '>=0.20.0')
 wayland_server = dependency('wayland-server')
 wayland_protos = dependency('wayland-protocols')
 xkbcommon = dependency('xkbcommon')
@@ -46,7 +52,7 @@ display_info = dependency('libdisplay-info')
 sqlite = dependency('sqlite3')
 json = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
 
-have_xwayland = wlroots.get_variable(pkgconfig: 'have_xwayland', default_value: 'false') == 'true'
+have_xwayland = wlroots.get_variable('have_xwayland', default_value: 'false') == 'true'
 xwayland_opt = get_option('xwayland')
 if xwayland_opt.enabled() and not have_xwayland
   error('xwayland requested but wlroots was built without it')

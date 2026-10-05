@@ -49,6 +49,7 @@ atrium_sources = files(
 executable('atrium',
   atrium_sources, protocol_headers, protocol_code, version_h, paths_h,
   dependencies: deps,
+  install_rpath: get_option('prefix') / get_option('libdir') / 'atrium',  # its wlroots
   install: true,
 )
 
