@@ -9,6 +9,8 @@
 #include "wl/ime.hpp"
 #include "wl/input_ext.hpp"
 #include "util/xcursor.hpp"
+
+#include <nlohmann/json_fwd.hpp>
 #include "wl/tablet.hpp"
 
 #include <array>
@@ -119,6 +121,8 @@ public:
     Cursor* cursor = nullptr;  // the server's
     std::unique_ptr<xcursor::Manager> xcursor;
     Mode mode = Mode::Normal;
+    // The pointer's state, for IPC (`atriumctl pointer`).
+    nlohmann::json describe_pointer() const;
 
 private:
     // Shaking the pointer grows the arrow for a moment, to find it.

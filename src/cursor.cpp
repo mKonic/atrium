@@ -490,4 +490,17 @@ void Cursor::damage_on(const backend::Output* o) {
         damage(*s);
 }
 
+std::string Cursor::describe() const {
+    switch (kind_) {
+    case Kind::XCursor:
+        return "theme " + name_;
+    case Kind::Buffer:
+        return buffer_ ? "client " + std::to_string(buffer_->width) + "x" + std::to_string(buffer_->height)
+                       : "client (no buffer)";
+    case Kind::None:
+        break;
+    }
+    return "none";
+}
+
 } // namespace atrium

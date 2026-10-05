@@ -13,6 +13,8 @@ public:
     RelativePointers(wl_display* display, Seat& seat);
     ~RelativePointers();
     void send_motion(uint64_t time_us, double dx, double dy, double dx_unaccel, double dy_unaccel);
+    // The clients with a relative pointer, one entry each (for IPC).
+    std::vector<wl_client*> clients() const;
 
 private:
     Seat& seat_;
@@ -45,6 +47,7 @@ public:
     ~PointerConstraints();
 
     Constraint* for_surface(Surface* surface) const;
+    const std::vector<std::unique_ptr<Constraint>>& all() const { return constraints_; }
     void activate(Constraint* c);
     void deactivate(Constraint* c);
 

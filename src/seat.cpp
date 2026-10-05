@@ -1356,3 +1356,64 @@ void Seat::warp_to_constraint_hint() {
 }
 
 } // namespace atrium
+
+namespace atrium {
+
+namespace {
+
+// A client as "comm (pid)", for reading what holds what.
+std::string client_name(wl_client* client) {
+    if (!client)
+        return "";
+    pid_t pid = 0;
+    wl_client_get_credentials(client, &pid, nullptr, nullptr);
+    std::string comm;
+    if (std::FILE* f = std::fopen(("/proc/" + std::to_string(pid) + "/comm").c_str(), "re")) {
+        char buf[64] = {};
+        if (std::fgets(buf, sizeof buf, f))
+            comm = buf;
+        std::fclose(f);
+        while (!comm.empty() && comm.back() == '\n')
+            comm.pop_back();
+    }
+    return comm + " (" + std::to_string(pid) + ")";
+}
+
+nlohmann::json surface_json(wl::Surface* s) {
+    if (!s)
+        return nullptr;
+    nlohmann::json j{{"client", client_name(s->client())}};
+    if (Owner o = Server::owner_of(s); o.view)
+        j["window"] = o.view->id;
+    else if (o.layer)
+        j["layer"] = true;
+    return j;
+}
+
+} // namespace
+
+nlohmann::json Seat::describe_pointer() const {
+    static const char* const modes[] = {"normal", "pressed", "move", "resize"};
+    nlohmann::json j{{"x", cursor->x},
+                     {"y", cursor->y},
+                     {"mode", modes[int(mode)]},
+                     {"focus", surface_json(server.wl->seat->pointer_focus())},
+                     {"image", cursor->describe()},
+                     {"client_cursor", surface_json(cursor_surface_)}};
+    nlohmann::json constraints = nlohmann::json::array();
+    for (const auto& c : server.wl->pointer_constraints->all())
+        constraints.push_back({{"type", c->type == wl::PointerConstraints::Type::Lock ? "lock" : "confine"},
+                               {"surface", surface_json(c->surface)},
+                               {"active", c->active},
+                               {"in_force", c.get() == active_constraint_},
+                               {"persistent", c->persistent},
+                               {"spent", c->spent}});
+    j["constraints"] = std::move(constraints);
+    nlohmann::json relative = nlohmann::json::array();
+    for (wl_client* c : server.wl->relative_pointers->clients())
+        relative.push_back(client_name(c));
+    j["relative_pointers"] = std::move(relative);
+    return j;
+}
+
+} // namespace atrium

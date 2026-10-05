@@ -955,6 +955,9 @@ json Ipc::handle(Client& c, const json& req) {
     }
     // What's drawn, frame by frame, into a file for a few seconds
     // (scene_trace.hpp): a window's nodes and the switcher's, or everything.
+    // The pointer: where, over what, what it shows, what holds it.
+    if (cmd == "pointer")
+        return ok(server_.seat->describe_pointer());
     if (cmd == "trace.start") {
         const double seconds = std::clamp(req.value("seconds", 10.0), 0.5, 120.0);
         const uint64_t window = req.value("window", uint64_t(0));

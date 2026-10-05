@@ -76,6 +76,9 @@ public:
     // It moved or changed its image.
     wl::Signal<> changed;
 
+    // What it shows, for IPC: "none", "theme NAME" or "client WxH".
+    std::string describe() const;
+
 private:
     struct Screen;
     enum class Kind { None, XCursor, Buffer };
