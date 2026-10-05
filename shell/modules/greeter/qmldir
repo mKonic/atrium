@@ -1,2 +1,5 @@
 module shell.modules.greeter
 GreeterScreen 1.0 GreeterScreen.qml
+LockScreen 1.0 LockScreen.qml
+Avatar 1.0 Avatar.qml
+FieldPill 1.0 FieldPill.qml

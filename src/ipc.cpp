@@ -1,5 +1,6 @@
 #include "ipc.hpp"
 #include "appmenu.hpp"
+#include "lock_screen.hpp"
 #ifdef ATRIUM_XWAYLAND
 #include "xwayland_view.hpp"
 #endif
@@ -807,6 +808,9 @@ json Ipc::handle(Client& c, const json& req) {
 
     if (cmd == "keyboard")
         return ok(keyboard_json(server_));
+    if (cmd == "session")
+        return ok({{"locked", server_.locked},
+                   {"lock_screen", server_.lock_screen && server_.lock_screen->running()}});
     if (cmd == "night_light")
         return server_.night_light ? ok(server_.night_light->state()) : fail("no night light here");
     if (cmd == "night_light.set") {

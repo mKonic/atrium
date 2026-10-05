@@ -45,6 +45,7 @@ private:
     int quick_failures_ = 0;
     static constexpr int kSafeAfter = 3;  // quick failures before safe mode
     int pipe_[2] = {-1, -1};  // the SIGCHLD handler reports the shell's exit here
+    int watch_ = -1;
     wl_event_source* pipe_source_ = nullptr;
     wl_event_source* retry_ = nullptr;
 };

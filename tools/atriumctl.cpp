@@ -31,6 +31,7 @@ void usage() {
         "  outputs                   monitors\n"
         "  layers                    panels, docks and overlays (layer surfaces)\n"
         "  spaces                    spaces and secret spaces\n"
+        "  session                   whether the session is locked\n"
         "  space N                   go to space N\n"
         "  secret NAME               show or hide a secret space\n"
         "  send ID N|NAME            move a window to space N or secret space NAME\n"
@@ -264,7 +265,7 @@ int main(int argc, char** argv) {
     };
 
     json req;
-    if (cmd == "version" || cmd == "windows" || cmd == "outputs" || cmd == "layers") {
+    if (cmd == "version" || cmd == "windows" || cmd == "outputs" || cmd == "layers" || cmd == "session") {
         req = {{"cmd", cmd}};
     } else if (cmd == "schema") {
         req = {{"cmd", "settings.schema"}};

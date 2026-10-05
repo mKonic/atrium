@@ -55,6 +55,7 @@ enum class Action {
     TogglePin,        // on every space (sticky)
     NextLayout,       // the next keyboard layout
     Portal,           // arg: "APP/ID", an app's global shortcut (the portal): held and let go
+    Lock,             // the lock screen
     Place,            // arg: where the window goes (geometry::named_place, maximize, restore,
                       // next-display, prev-display)
 };

@@ -90,7 +90,7 @@ paths.set_quoted('ATRIUM_BINDIR', get_option('prefix') / get_option('bindir'))
 paths.set_quoted('ATRIUM_QML_DIR', get_option('prefix') / get_option('libdir') / 'atrium' / 'qml')
 paths_h = configure_file(output: 'paths.hpp', configuration: paths)
 
-install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin', 'host', 'portal', 'clipsync', 'phonelink'])
+install_subdir('shell', install_dir: get_option('datadir') / 'atrium', exclude_directories: ['plugin', 'host', 'portal', 'clipsync', 'phonelink', 'lock'])
 # System Settings' desktop entry and icon.
 install_subdir('data/share/applications', install_dir: get_option('datadir'), strip_directory: false)
 install_subdir('data/share/icons', install_dir: get_option('datadir'), strip_directory: false)
@@ -109,6 +109,8 @@ subdir('data/etc/xdg/xdg-desktop-portal-wlr')
 # Sessions for the display manager (plain, and under uwsm).
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # sudo -A and ssh ask for passwords through the shell (SUDO_ASKPASS).
+# Unlocking the lock screen.
+install_data('data/pam/atrium-lock', install_dir: get_option('sysconfdir') / 'pam.d')
 install_data('data/bin/atrium-askpass', install_dir: get_option('bindir'), install_mode: 'rwxr-xr-x')
 # The login screen: an example greetd config (atrium --greeter), and where
 # it remembers the last login.
@@ -123,6 +125,7 @@ subdir('shell/host')
 subdir('shell/portal')
 subdir('shell/clipsync')
 subdir('shell/phonelink')
+subdir('shell/lock')
 
 subdir('src')
 subdir('keyring')

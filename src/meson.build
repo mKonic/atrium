@@ -1,6 +1,8 @@
 atrium_sources = files(
   'anim.cpp',
   'wrapper.cpp',
+  'child_watch.cpp',
+  'lock_screen.cpp',
   'cairo_buffer.cpp',
   'config.cpp',
   'geometry.cpp',

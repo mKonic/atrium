@@ -54,6 +54,7 @@ public:
         qmlRegisterType<SystemClock>(uri, 1, 0, "SystemClock");
         qmlRegisterType<PanelWindow>(uri, 1, 0, "PanelWindow");
         qmlRegisterType<FloatingWindow>(uri, 1, 0, "FloatingWindow");
+        qmlRegisterType<LockWindow>(uri, 1, 0, "LockWindow");
         qmlRegisterType<Region>(uri, 1, 0, "Region");
         qmlRegisterType<ShortcutInhibitor>(uri, 1, 0, "ShortcutInhibitor");
         qmlRegisterType<GlassShape>(uri, 1, 0, "GlassShape");

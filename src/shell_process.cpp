@@ -1,5 +1,6 @@
 #include "shell_process.hpp"
 
+#include "child_watch.hpp"
 #include "paths.hpp"
 #include "server.hpp"
 
@@ -16,10 +17,6 @@ namespace atrium {
 namespace fs = std::filesystem;
 
 namespace {
-
-// Read by the SIGCHLD handler, which may only do async-signal-safe things.
-volatile sig_atomic_t g_shell_pid = -1;
-int g_report_fd = -1;
 
 double now_ms() {
     timespec ts;
@@ -66,17 +63,9 @@ std::string shell_binary() {
     return fs::path(ATRIUM_BINDIR) / "atrium-shell";
 }
 
-
-// Called from Server's SIGCHLD handler for every reaped child.
-void report_child_exit(pid_t pid, int status) {
-    if (pid == g_shell_pid && g_report_fd >= 0) {
-        [[maybe_unused]] ssize_t n = write(g_report_fd, &status, sizeof status);
-    }
-}
-
 ShellProcess::ShellProcess(Server& server) : server_(server) {
     if (pipe2(pipe_, O_CLOEXEC | O_NONBLOCK) == 0) {
-        g_report_fd = pipe_[1];
+        watch_ = child_watch_add(pipe_[1]);
         pipe_source_ = wl_event_loop_add_fd(server_.loop, pipe_[0], WL_EVENT_READABLE, [](int fd, uint32_t, void* data) {
             int status = 0;
             while (read(fd, &status, sizeof status) == sizeof status)
@@ -92,7 +81,7 @@ ShellProcess::ShellProcess(Server& server) : server_(server) {
 
 ShellProcess::~ShellProcess() {
     stop();
-    g_report_fd = -1;
+    child_watch_remove(watch_);
     if (retry_)
         wl_event_source_remove(retry_);
     if (pipe_source_)
@@ -144,7 +133,7 @@ void ShellProcess::start() {
         _exit(127);
     }
     pid_ = pid;
-    g_shell_pid = pid;
+    child_watch_set(watch_, pid);
     started_ms_ = now_ms();
     wlr_log(WLR_INFO, "shell: started '%s' (pid %d)", cmd.c_str(), int(pid));
 }
@@ -153,7 +142,7 @@ void ShellProcess::stop() {
     wl_event_source_timer_update(retry_, 0);
     if (pid_ <= 0)
         return;
-    g_shell_pid = -1;  // an exit we asked for is not a crash
+    child_watch_set(watch_, -1);  // an exit we asked for is not a crash
     kill(-pid_, SIGTERM);
     pid_ = -1;
 }
@@ -170,7 +159,7 @@ void ShellProcess::schedule(int delay_ms) {
 
 void ShellProcess::exited(int status) {
     pid_ = -1;
-    g_shell_pid = -1;
+    child_watch_set(watch_, -1);
     if (server_.shutting_down)
         return;
     // The greeter is done once it has started a session: greetd runs that

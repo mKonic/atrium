@@ -30,6 +30,8 @@
 #include "view.hpp"
 #include "xwayland_view.hpp"
 #include "wrapper.hpp"
+#include "child_watch.hpp"
+#include "lock_screen.hpp"
 
 #include <algorithm>
 #include <csignal>
@@ -40,8 +42,6 @@
 #include <unistd.h>
 
 namespace atrium {
-
-void report_child_exit(pid_t pid, int status);  // shell_process.cpp
 
 namespace {
 
@@ -586,6 +586,7 @@ void Server::teardown() {
     xwayland = nullptr;
 #endif
     shell.reset();  // stops it
+    lock_screen.reset();
     if (startup_timer_) {
         wl_event_source_remove(startup_timer_);
         startup_timer_ = nullptr;
@@ -708,6 +709,8 @@ void Server::run(const char* startup_cmd) {
         die("couldn't start backend");
 
     shell = std::make_unique<ShellProcess>(*this);
+    if (!config.greeter)
+        lock_screen = std::make_unique<LockScreen>(*this);
     shell->start();
     if (!config.greeter) {
         start_clipboard_history();
@@ -1373,6 +1376,10 @@ void Server::run_action(const Keybind& b) {
     case Action::FocusPrev: cycle_focus(-1); break;
     case Action::SwitchVt: change_vt(unsigned(b.iarg)); break;
     case Action::Quit: quit(); break;
+    case Action::Lock:
+        if (lock_screen)
+            lock_screen->lock();
+        break;
     case Action::SnapLeft: if (v) v->snap(WLR_EDGE_LEFT); break;
     case Action::SnapRight: if (v) v->snap(WLR_EDGE_RIGHT); break;
     case Action::Restore:

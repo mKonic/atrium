@@ -152,7 +152,7 @@ PanelWindow {
             color: Theme.dark.label
         }
 
-        Pill_ {
+        FieldPill {
             id: nameBox
 
             visible: root.person === null
@@ -182,7 +182,7 @@ PanelWindow {
             }
         }
 
-        Pill_ {
+        FieldPill {
             id: passwordBox
 
             TextInput {
@@ -352,47 +352,5 @@ PanelWindow {
             cursorShape: Qt.PointingHandCursor
             onClicked: root.sessionIndex = (root.sessionIndex + 1) % root.sessions.length
         }
-    }
-
-    // A round picture, or initials on a tint.
-    component Avatar: Rectangle {
-        id: avatar
-
-        property var user: ({})
-        property real size: 40
-
-        width: size
-        height: size
-        radius: size / 2
-        color: Theme.dark.tertiaryFill
-        clip: true
-
-        StyledText {
-            anchors.centerIn: parent
-            visible: !(avatar.user.icon ?? "")
-            text: avatar.user.initials ?? ""
-            font.pointSize: avatar.size * 0.3
-            font.weight: Font.DemiBold
-            color: Theme.dark.label
-        }
-
-        Image {
-            anchors.fill: parent
-            visible: !!(avatar.user.icon ?? "")
-            source: avatar.user.icon ?? ""
-            fillMode: Image.PreserveAspectCrop
-            sourceSize: Qt.size(avatar.size * 2, avatar.size * 2)
-        }
-    }
-
-    // A frosted pill for a text field.
-    component Pill_: Rectangle {
-        anchors.horizontalCenter: parent?.horizontalCenter
-        width: 240
-        height: 36
-        radius: 18
-        color: Theme.dark.tertiaryFill
-        border.width: 1
-        border.color: Theme.dark.separator
     }
 }
