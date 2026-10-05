@@ -18,6 +18,8 @@ depends=(
   xcb-util-wm libxcrypt fontconfig xorg-xwayland
   # shell
   qt6-base qt6-declarative qt6-wayland layer-shell-qt polkit-qt6 libpulse
+  # phone link: its audio stream, the pairing crypto and finding the phone
+  libpipewire openssl avahi
   # what the shell fronts
   pipewire-pulse wireplumber polkit networkmanager bluez bluez-libs power-profiles-daemon udisks2
   xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk
