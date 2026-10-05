@@ -26,6 +26,9 @@ public:
     Q_INVOKABLE void request(const QString& action);
     Q_INVOKABLE void confirm();
     Q_INVOKABLE void cancel();
+    // The apps open at the last logout (reopen.json, from the compositor),
+    // opened again, once.
+    Q_INVOKABLE void reopenApps(QObject* entries = nullptr);
     // At once, without asking (the login screen's buttons).
     Q_INVOKABLE void now(const QString& action) { run(action); }
     // The desktops installed (wayland-sessions): [{id, name, exec, argv}],

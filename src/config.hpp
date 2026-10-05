@@ -162,6 +162,7 @@ struct Config {
     bool clipboard_history = true;  // record copies with cliphist for the Super+V picker
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
     bool lock_before_sleep = true;  // the lock screen is up before the machine sleeps
+    bool reopen_windows = true;  // apps open at logout open again at the next login
     std::string power_button = "ask";  // ask, sleep, shut-down, nothing
     // After this long without input ("never", "5-minutes", "1-hour"...): idle.hpp.
     std::string dim_after = "never", screen_off_after = "never", lock_after = "never", sleep_after = "never";

@@ -28,6 +28,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
 - Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
 - The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
+- Log Out, Restart and Shut Down ask every app to quit first; an app that won't (unsaved work) cancels it and says which.
+- Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

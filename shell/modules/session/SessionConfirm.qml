@@ -106,6 +106,24 @@ PanelWindow {
                 color: Theme.palette.secondaryLabel
             }
 
+            // macOS's checkbox: the apps open now open again at the next login.
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
+
+                Switch {
+                    anchors.verticalCenter: parent.verticalCenter
+                    checked: Atrium.settings["session.reopen_windows"] ?? true
+                    onToggled: Atrium.setSetting("session.reopen_windows", !checked)
+                }
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Reopen windows when logging back in"
+                    font.pointSize: Theme.font.size.small
+                }
+            }
+
             Item {
                 width: 1
                 height: 6

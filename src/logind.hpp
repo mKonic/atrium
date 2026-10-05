@@ -29,7 +29,11 @@ public:
     // Something holds idle off (systemd-inhibit --what=idle).
     bool idle_blocked();
     void suspend();
+    // Interactive: polkit may ask (others logged in). Async: the agent is
+    // the shell, which needs us drawing to ask.
     void power_off();
+    void reboot();
+    bool available() const { return bool(impl_); }
     // atrium holds handle-power-key: logind leaves the button to it.
     bool holds_power_key() const;
 
