@@ -9,6 +9,10 @@
 #include "service.hpp"
 
 #include <QCoreApplication>
+#include <QDBusConnectionInterface>
+#include <QDBusReply>
+#include <QFile>
+#include <QSocketNotifier>
 #include <QDir>
 #include <QProcess>
 #include <QStandardPaths>
@@ -16,6 +20,7 @@
 #include <security/pam_appl.h>
 #include <sys/prctl.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -146,12 +151,33 @@ void dialog(const QString& mode, const QString& who, bool wrong, std::function<v
     p->start(shell_program(), {shell_dir() + "/keyring.qml"});
 }
 
+// Whether the one serving now is another atrium-keyring (a crashed atrium's
+// restart starting it again): that one stays, open as it was.
+bool already_serving() {
+    QDBusConnectionInterface* dbus = QDBusConnection::sessionBus().interface();
+    if (!dbus)
+        return false;
+    const QDBusReply<uint> pid = dbus->servicePid("org.freedesktop.secrets");
+    if (!pid.isValid())
+        return false;
+    QFile comm(QString("/proc/%1/comm").arg(pid.value()));
+    return comm.open(QIODevice::ReadOnly) && comm.readAll().trimmed() == "atrium-keyring" &&
+           pid_t(pid.value()) != getpid();
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     // Started by atrium: it goes with the session, and the keyring's open
-    // contents with it (not left unlocked after logging out).
-    if (qEnvironmentVariableIsSet("ATRIUM_SHELL")) {
+    // contents with it (not left unlocked after logging out). The session
+    // is atrium's crash-recovery wrapper when there is one
+    // (ATRIUM_KEYRING_OUTLIVE), else atrium itself.
+    int session_fd = -1;
+    if (const QByteArray outlive = qgetenv("ATRIUM_KEYRING_OUTLIVE"); !outlive.isEmpty()) {
+        session_fd = int(syscall(SYS_pidfd_open, pid_t(outlive.toInt()), 0));
+        if (session_fd < 0)
+            return 0;  // already gone
+    } else if (qEnvironmentVariableIsSet("ATRIUM_SHELL")) {
         const pid_t parent = getppid();
         prctl(PR_SET_PDEATHSIG, SIGTERM);
         if (getppid() != parent)
@@ -159,6 +185,16 @@ int main(int argc, char** argv) {
     }
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("atrium-keyring");
+    if (already_serving()) {
+        qInfo("atrium-keyring: already running");
+        return 0;
+    }
+    if (session_fd >= 0) {
+        auto* gone = new QSocketNotifier(session_fd, QSocketNotifier::Read, &app);
+        // As the parent-death signal would: whatever it's in the middle of
+        // (a first prompt's loop too).
+        QObject::connect(gone, &QSocketNotifier::activated, &app, [] { ::kill(getpid(), SIGTERM); });
+    }
 
     QString dir = qEnvironmentVariable("ATRIUM_KEYRING_DIR");
     if (dir.isEmpty())

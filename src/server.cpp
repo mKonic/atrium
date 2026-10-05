@@ -651,9 +651,12 @@ void Server::start_keyring() {
     if (const fs::path built = fs::path(ATRIUM_BUILD_DIR) / "keyring" / "atrium-keyring";
         !ec && exe.string().starts_with(ATRIUM_BUILD_DIR) && fs::exists(built))
         bin = built;
+    // Under the crash-recovery wrapper it lives as long as the wrapper: a
+    // crashed atrium's restart finds it still open, not asking again.
+    const std::string outlive = wrapped_fd_ >= 0 ? " ATRIUM_KEYRING_OUTLIVE=" + std::to_string(getppid()) : "";
     if (fs::exists(bin))
-        spawn("ATRIUM_SHELL=" + quoted(shell_binary()) + " ATRIUM_SHELL_DIR=" + quoted(builtin_dir()) + " exec " +
-              quoted(bin.string()));
+        spawn("ATRIUM_SHELL=" + quoted(shell_binary()) + " ATRIUM_SHELL_DIR=" + quoted(builtin_dir()) + outlive +
+              " exec " + quoted(bin.string()));
 }
 
 // atrium-clipsync, the clipboard shared with a phone: always started, it
