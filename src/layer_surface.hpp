@@ -35,6 +35,7 @@ private:
     void unmap();
     // Frost what is behind the panel, only where it draws, per appearance.blurred_panels.
     void update_blur();
+    bool over_secret() const;
     wlr_scene_tree* home() const;
     wlr_scene_tree* popup_home() const;
 

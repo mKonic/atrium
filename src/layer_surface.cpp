@@ -38,7 +38,7 @@ LayerSurface::LayerSurface(Server& srv, wlr_layer_surface_v1* surface) : server(
     // above windows.
     popups = wlr_scene_tree_create(wlr->pending.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
                                        ? server.layer(Layer::Top) : parent);
-    if (wlr->pending.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP && output && output->secret_shown()) {
+    if (wlr->pending.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP && over_secret()) {
         wlr_scene_node_reparent(&tree->node, server.layer(Layer::SecretTop));
         wlr_scene_node_reparent(&popups->node, server.layer(Layer::SecretTop));
     }
@@ -77,10 +77,19 @@ bool LayerSurface::shown_on_output() const {
     return shown;
 }
 
-// A top panel (the menu bar) of an output showing a secret space comes over
-// it, out of the dimming and clickable, instead of putting the space away.
+// The menu bar of an output showing a secret space comes over it, out of the
+// dimming and clickable instead of putting the space away, with the panels
+// it opens. The Dock stays under it.
+bool LayerSurface::over_secret() const {
+    static constexpr std::string_view kBar[] = {"atrium-bar", "atrium-calendar", "atrium-control-center",
+                                                 "atrium-notification-center", "atrium-system-menu"};
+    if (!output || !output->secret_shown() || !wlr->namespace_)
+        return false;
+    return std::ranges::find(kBar, std::string_view(wlr->namespace_)) != std::end(kBar);
+}
+
 wlr_scene_tree* LayerSurface::home() const {
-    if (wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP && output && output->secret_shown())
+    if (wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP && over_secret())
         return server.layer(Layer::SecretTop);
     return server.layer(scene_layer_for(wlr->current.layer));
 }
