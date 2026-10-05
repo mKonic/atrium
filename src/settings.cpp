@@ -553,6 +553,24 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         &Config::idle_inhibit_ignore_visibility, d));
     s.push_back(boolean("power.lock_before_sleep", "Power", "Lock the screen before sleep",
         "Waking up asks for your password.", &Config::lock_before_sleep, d));
+    s.push_back(choice("power.button", "Power", "When the power button is pressed",
+        "Ask: the Shut Down dialog (on the lock screen it sleeps instead).", {"ask", "sleep", "shut-down", "nothing"},
+        d.power_button, [](Config& c, const json& v) { c.power_button = v.get<std::string>(); }));
+    {
+        const std::vector<std::string> after = {"never", "1-minute", "2-minutes", "5-minutes", "10-minutes",
+                                                "15-minutes", "30-minutes", "1-hour", "2-hours", "3-hours"};
+        auto idle_choice = [&](const char* key, const char* title, const char* desc, std::string Config::*field) {
+            s.push_back(choice(key, "Power", title, desc, after, d.*field,
+                               [field](Config& c, const json& v) { c.*field = v.get<std::string>(); }));
+        };
+        idle_choice("power.dim_after", "Dim the screen when inactive",
+                    "Without mouse or keyboard for this long. A playing video keeps it bright.", &Config::dim_after);
+        idle_choice("power.screen_off_after", "Turn the screen off when inactive",
+                    "Any input turns it back on.", &Config::screen_off_after);
+        idle_choice("power.lock_after", "Lock the screen when inactive", "", &Config::lock_after);
+        idle_choice("power.sleep_after", "Sleep when inactive",
+                    "Apps that ask to keep the computer awake (a download, a call) hold it off.", &Config::sleep_after);
+    }
 
     // Session
     s.push_back(text("session.shell", "Session", "Desktop shell",

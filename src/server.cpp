@@ -33,6 +33,7 @@
 #include "child_watch.hpp"
 #include "lock_screen.hpp"
 #include "logind.hpp"
+#include "idle.hpp"
 
 #include <algorithm>
 #include <csignal>
@@ -587,6 +588,7 @@ void Server::teardown() {
     xwayland = nullptr;
 #endif
     shell.reset();  // stops it
+    idle.reset();
     logind.reset();
     lock_screen.reset();
     if (startup_timer_) {
@@ -715,6 +717,7 @@ void Server::run(const char* startup_cmd) {
         lock_screen = std::make_unique<LockScreen>(*this);
         if (!nested)
             logind = std::make_unique<Logind>(*this);
+        idle = std::make_unique<Idle>(*this);
     }
     shell->start();
     if (!config.greeter) {
@@ -903,15 +906,17 @@ void Server::update_outputs() {
 }
 
 void Server::set_output_power(wlr_output_power_v1_set_mode_event* event) {
-    auto* o = static_cast<Output*>(event->output->data);
-    if (!o)
-        return;
+    if (auto* o = static_cast<Output*>(event->output->data))
+        set_screen_power(o, event->mode);
+}
+
+void Server::set_screen_power(Output* o, bool on) {
     wlr_output_state state;
     wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, event->mode);
+    wlr_output_state_set_enabled(&state, on);
     wlr_output_commit_state(o->wlr, &state);
     wlr_output_state_finish(&state);
-    o->asleep = !event->mode;
+    o->asleep = !on;
     update_outputs();
 }
 
@@ -1341,6 +1346,30 @@ void Server::check_idle_inhibitors(wlr_surface* exclude) {
         }
     }
     wlr_idle_notifier_v1_set_inhibited(idle_notifier, inhibited);
+    if (idle)
+        idle->inhibited_changed(inhibited);
+}
+
+// macOS's: it asks before shutting down; on the lock screen it sleeps.
+bool Server::power_button() {
+    if (!logind || !logind->holds_power_key())
+        return false;
+    const std::string& what = config.power_button;
+    if (what == "nothing")
+        return true;
+    if (what == "sleep" || (what == "ask" && locked))
+        logind->suspend();
+    else if (what == "shut-down")
+        logind->power_off();
+    else
+        run_action({.action = Action::Shell, .arg = "session:shutdown"});
+    return true;
+}
+
+void Server::note_activity() {
+    wlr_idle_notifier_v1_notify_activity(idle_notifier, seat->wlr);
+    if (idle)
+        idle->activity();
 }
 
 // --- processes -------------------------------------------------------------------
@@ -1531,6 +1560,8 @@ void Server::setting_changed(const std::string& key) {
         apply_power_profile();
     if (key == "power.lock_before_sleep" && logind)
         logind->reconfigure();
+    if (key.starts_with("power.") && key.ends_with("_after") && idle)
+        idle->reconfigure();
     if (key.starts_with("displays.night_light") && night_light) {
         if (key == "displays.night_light_warmth")
             night_light->update();

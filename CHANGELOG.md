@@ -26,6 +26,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Unlock with a fingerprint, next to the password (fprintd).
 - Lock Screen and Switch User in the system menu: someone else logs in through the login screen while your session stays open, locked.
 - The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
+- Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
+- The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

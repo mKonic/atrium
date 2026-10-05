@@ -491,7 +491,14 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         g.syms[level] = sym_at_level(kb->keymap, keycode, layout, level);
     g.mods = wlr_keyboard_get_modifiers(kb);
 
-    wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    server.note_activity();
+
+    // The power button, atrium's to handle while it holds logind's say on it.
+    const bool pressed = e->state == WL_KEYBOARD_KEY_STATE_PRESSED;
+    if (e->keycode == KEY_POWER && (consumed_[e->keycode] || (pressed && server.power_button()))) {
+        consumed_[e->keycode] = pressed;
+        return;
+    }
 
     const Keybind* bind = nullptr;
     if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
@@ -679,7 +686,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         }
 
         wlr_cursor_move(cursor, device, dx, dy);
-        wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+        server.note_activity();
         if (mode == Mode::Move && grab_view_)
             push_edge(dx);
     }
@@ -828,7 +835,7 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 void Seat::button(wlr_pointer_button_event* e) {
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED)
         server.keywords.reset();  // a click moves the caret
-    wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    server.note_activity();
 
     // A press on the overview is the overview's, and so is its release, even
     // when the overview has gone by then.
@@ -1039,7 +1046,7 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
 }
 
 void Seat::axis(wlr_pointer_axis_event* e) {
-    wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+    server.note_activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a
     // touchpad once per stretch of scrolling.

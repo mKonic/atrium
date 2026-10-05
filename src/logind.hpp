@@ -24,6 +24,14 @@ public:
     void set_locked_hint(bool locked);
     // The settings changed: take the sleep inhibitor, or let it go.
     void reconfigure();
+    // The session is idle (logind's IdleHint, which its IdleAction reads).
+    void set_idle_hint(bool idle);
+    // Something holds idle off (systemd-inhibit --what=idle).
+    bool idle_blocked();
+    void suspend();
+    void power_off();
+    // atrium holds handle-power-key: logind leaves the button to it.
+    bool holds_power_key() const;
 
     struct Impl;
 
