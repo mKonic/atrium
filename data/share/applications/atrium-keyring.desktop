@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Keyring
+Comment=Unlock the keyring that keeps saved passwords
+Icon=dialog-password
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-keyring
+OnlyShowIn=atrium;
