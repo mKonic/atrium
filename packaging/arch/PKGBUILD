@@ -74,7 +74,8 @@ prepare() {
 }
 
 build() {
-  arch-meson atrium build --wrap-mode=nodownload -Dtests=enabled
+  # ATRIUM_MESON_ARGS: extra options (-Ddebug=true for symbols with line numbers)
+  arch-meson atrium build --wrap-mode=nodownload -Dtests=enabled ${ATRIUM_MESON_ARGS:-}
   meson compile -C build
 }
 
