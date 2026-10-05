@@ -233,6 +233,10 @@ void View::handle_unmap() {
     tiled_ = false;
     before_tile_.reset();
     server.retile(old_space);  // the others close the gap
+    // The last window of a showing secret space closing puts the space away,
+    // as one moving out of it does.
+    if (managed && old_space && old_space == server.shown_secret && old_space->empty())
+        server.hide_secret();
     // Closed in the space it went fullscreen into: back to where it came from
     // (which prunes that space).
     if (const int home = std::exchange(fullscreen_home, 0);

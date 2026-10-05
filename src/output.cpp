@@ -6,6 +6,7 @@
 #include "overview.hpp"
 #include "seat.hpp"
 #include "server.hpp"
+#include "space.hpp"
 #include "view.hpp"
 #include "geometry.hpp"
 
@@ -417,6 +418,12 @@ void Output::arrange_layers() {
             return;
         }
     }
+}
+
+bool Output::secret_shown() const {
+    return std::ranges::any_of(server.spaces, [this](const auto& s) {
+        return s->secret && s->output == this && s->tree->node.enabled;
+    });
 }
 
 void Output::refit_views() {

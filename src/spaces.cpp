@@ -3,6 +3,7 @@
 
 #include "geometry.hpp"
 #include "ipc.hpp"
+#include "layer_surface.hpp"
 #include "output.hpp"
 #include "overview.hpp"
 #include "seat.hpp"
@@ -56,7 +57,11 @@ void Server::prune_space(Space* space) {
         return;
     std::unique_ptr<Space> doomed = std::move(*it);
     spaces.erase(it);
+    const bool secret = doomed->secret;
     doomed.reset();
+    // Gone while still fading away: its output's panels come back down.
+    if (secret)
+        restack_panels();
 }
 
 void Server::spaces_changed() {
@@ -374,6 +379,7 @@ void Server::toggle_secret(const std::string& name) {
     s->set_shown(true);
     shown_secret = s;
     fade_secret(s, true);
+    restack_panels();
 
     View* top = nullptr;
     for (View* v : views)
@@ -404,6 +410,7 @@ void Server::hide_secret() {
     animator.cancel_owner(s, true);
     s->set_shown(false, true);
     fade_secret(s, false);
+    restack_panels();
     if (focused_view && focused_view->space == s) {
         drop_focus();
     }
@@ -442,14 +449,22 @@ void Server::fade_secret(Space* s, bool in) {
         s->set_offset(0, -int(std::lround((1 - a) * reach)));
         each([a](View* v) { v->set_alpha(float(a)); });
     };
-    auto done = [s, each, in] {
+    auto done = [this, s, each, in] {
         each([](View* v) { v->set_alpha(1.0f); });
-        if (!in)
+        if (!in) {
             s->hide_now();
-        else
+            restack_panels();
+        } else {
             s->set_offset(0, 0);
+        }
     };
     animator.start(s, 400, Ease::EmphasizedDecel, step, done);
+}
+
+void Server::restack_panels() {
+    for (Output* o : outputs)
+        for (LayerSurface* l : o->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP])
+            l->restack();
 }
 
 void Server::reveal(Space* space) {

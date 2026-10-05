@@ -38,6 +38,10 @@ LayerSurface::LayerSurface(Server& srv, wlr_layer_surface_v1* surface) : server(
     // above windows.
     popups = wlr_scene_tree_create(wlr->pending.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
                                        ? server.layer(Layer::Top) : parent);
+    if (wlr->pending.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP && output && output->secret_shown()) {
+        wlr_scene_node_reparent(&tree->node, server.layer(Layer::SecretTop));
+        wlr_scene_node_reparent(&popups->node, server.layer(Layer::SecretTop));
+    }
     wlr->surface->data = popups;  // parent tree for xdg popups
     tree->node.data = popups->node.data = this;
 
@@ -71,6 +75,25 @@ bool LayerSurface::shown_on_output() const {
             *static_cast<bool*>(data) = true;
     }, &shown);
     return shown;
+}
+
+// A top panel (the menu bar) of an output showing a secret space comes over
+// it, out of the dimming and clickable, instead of putting the space away.
+wlr_scene_tree* LayerSurface::home() const {
+    if (wlr->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_TOP && output && output->secret_shown())
+        return server.layer(Layer::SecretTop);
+    return server.layer(scene_layer_for(wlr->current.layer));
+}
+
+wlr_scene_tree* LayerSurface::popup_home() const {
+    return wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP ? server.layer(Layer::Top) : home();
+}
+
+void LayerSurface::restack() {
+    if (tree->node.parent != home())
+        wlr_scene_node_reparent(&tree->node, home());
+    if (popups->node.parent != popup_home())
+        wlr_scene_node_reparent(&popups->node, popup_home());
 }
 
 void LayerSurface::commit() {
@@ -117,14 +140,11 @@ void LayerSurface::commit() {
         });
     }
 
-    wlr_scene_tree* parent = server.layer(scene_layer_for(wlr->current.layer));
-    if (parent != tree->node.parent) {
-        wlr_scene_node_reparent(&tree->node, parent);
+    if (home() != tree->node.parent) {
+        restack();
         for (auto& list : output->layers)
             std::erase(list, this);
         output->layers[wlr->current.layer].push_back(this);
-        wlr_scene_node_reparent(&popups->node, wlr->current.layer < ZWLR_LAYER_SHELL_V1_LAYER_TOP
-                                                   ? server.layer(Layer::Top) : parent);
     }
 
     output->arrange_layers();

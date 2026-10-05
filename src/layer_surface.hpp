@@ -27,12 +27,16 @@ public:
     bool mapped = false;
     // Some of it is on screen, not covered: the scene sends it frame callbacks.
     bool shown_on_output() const;
+    // Into the scene layer it belongs in now (see Server::restack_panels).
+    void restack();
 
 private:
     void commit();
     void unmap();
     // Frost what is behind the panel, only where it draws, per appearance.blurred_panels.
     void update_blur();
+    wlr_scene_tree* home() const;
+    wlr_scene_tree* popup_home() const;
 
     wlr_scene_blur* blur_ = nullptr;  // in `tree`, which frees it
     // Liquid Glass materializes: its lensing grows in on map (0..1).

@@ -49,6 +49,7 @@ enum class Layer : int {
     Top,
     Fullscreen,
     Secret,      // a secret space over everything, on its dimmed backdrop
+    SecretTop,   // the top panels (menu bar) of an output showing a secret space
     Overview,    // Mission Control
     Unmanaged,   // X11 override-redirect: menus, tooltips
     Overlay,
@@ -151,6 +152,9 @@ public:
     void prune_space(Space* space);
     void spaces_changed();
     void fade_secret(Space* space, bool in);
+    // Top panels over a secret space drawn on their output, back under
+    // windows once it is gone.
+    void restack_panels();
     // Where a new window should open, when it is its app's first window and
     // the app has closed one before.
     std::optional<Placement> placement_for(const View* view) const;

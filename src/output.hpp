@@ -27,6 +27,8 @@ public:
     void refit_views();
 
     bool enabled() const { return wlr->enabled; }
+    // A secret space is drawn over it (shown, or still fading away).
+    bool secret_shown() const;
     // Being destroyed: out of the layout, and nothing is placed on it or
     // told it is on it any more (that would hook the dying wlr_output again).
     bool dying = false;

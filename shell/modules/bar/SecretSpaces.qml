@@ -29,7 +29,7 @@ Row {
 
             required property var modelData
 
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenter: parent?.verticalCenter
             implicitWidth: row.implicitWidth + Theme.padding.normal * 2
             color: modelData.shown ? Theme.palette.accent : Theme.material.pill
 
@@ -48,7 +48,7 @@ Row {
                 spacing: 3
 
                 MaterialIcon {
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenter: parent?.verticalCenter
                     text: "visibility_off"
                     font.pointSize: Theme.font.size.normal
                     color: chip.modelData.shown ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
@@ -60,7 +60,7 @@ Row {
                     MaterialIcon {
                         required property string modelData
 
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenter: parent?.verticalCenter
                         text: Icons.appCategoryIcon(modelData)
                         font.pointSize: Theme.font.size.larger
                         color: chip.modelData.shown ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
