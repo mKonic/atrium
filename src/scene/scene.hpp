@@ -504,6 +504,11 @@ public:
     // (the caller's to close), -1 if it didn't composite (scanned a buffer
     // out, or nothing changed) or can't tell.
     int render_fence() const;
+    // What the last composited frame redrew (buffer pixels), and whether
+    // it padded round a blur: for traces.
+    const std::vector<pixman_box32_t>& last_damage() const { return last_damage_; }
+    bool last_blur_padding() const { return last_padding_; }
+    bool last_two_pass() const { return last_two_pass_; }
     void send_frame_done(const timespec* now);
     void for_each_buffer(const std::function<void(Buffer*, int lx, int ly)>& fn);
 
@@ -547,6 +552,9 @@ private:
     std::unordered_set<const Tree*> warp_layers_used_;
     void drop_lut_texture(render::ColorLut* lut);
     uint8_t dmabuf_feedback_debounce_ = 0;
+    std::vector<pixman_box32_t> last_damage_;
+    bool last_padding_ = false;
+    bool last_two_pass_ = false;
     bool prev_scanout_ = false;
     bool gamma_lut_changed_ = false;
     ColorTransform* gamma_lut_transform_ = nullptr;

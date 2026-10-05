@@ -61,6 +61,16 @@ void SceneTrace::frame(Output& output) {
                         {"frame", frames_},
                         {"output", output.screen->name},
                         {"switcher", server_.switcher && server_.switcher->shown()}};
+    // What was redrawn (buffer pixels; at most 64 boxes), and whether round a blur.
+    nlohmann::json damage = nlohmann::json::array();
+    for (const pixman_box32_t& b : output.scene_output->last_damage()) {
+        if (damage.size() >= 64)
+            break;
+        damage.push_back({b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1});
+    }
+    line["damage"] = std::move(damage);
+    line["blur_padding"] = output.scene_output->last_blur_padding();
+    line["two_pass"] = output.scene_output->last_two_pass();
     nlohmann::json windows = nlohmann::json::array();
     for (View* v : server_.views) {
         if (window_ && v->id != window_)

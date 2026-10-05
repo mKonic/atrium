@@ -1214,6 +1214,13 @@ bool SceneOutput::build_state(backend::OutputState* state, const StateOptions* o
         scene->draw_cursor(output, pass, &d.damage);
     if (compensate)
         pass->copy(&padding, pass->target(), pass->effects()->saved.get());
+    {
+        int n = 0;
+        const pixman_box32_t* rects = pixman_region32_rectangles(&d.damage, &n);
+        last_damage_.assign(rects, rects + n);
+        last_padding_ = compensate;
+        last_two_pass_ = pass->two_pass();
+    }
     pixman_region32_fini(&padding);
     pixman_region32_fini(&d.damage);
 
