@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Password
+Comment=A password a command asks for
+Icon=dialog-password
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-askpass
+OnlyShowIn=atrium;
