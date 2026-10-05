@@ -31,14 +31,14 @@ add_project_arguments(
 # copies of some of its internals, which a static wlroots would clash with);
 # scenefx is linked in. wlroots first: scenefx finds it through its override.
 wlroots_proj = subproject('wlroots', default_options: ['examples=false', 'default_library=shared',
-  'renderers=gles2', 'backends=drm,libinput,x11', 'allocators=gbm,udmabuf'])
+  'renderers=gles2', 'backends=drm,libinput,x11', 'allocators=gbm,udmabuf', 'werror=false'])
 wlroots = wlroots_proj.get_variable('wlroots')
 meson.add_install_script('scripts/install-wlroots.sh', wlroots_proj.get_variable('lib_wlr'),
   get_option('prefix') / get_option('libdir'))
 # scenefx must come before wlroots among the dependencies: it re-exports the
 # wlr_scene_* symbols with effect support, and the first library providing a
 # symbol wins.
-scenefx_proj = subproject('scenefx', default_options: ['examples=false', 'default_library=static'])
+scenefx_proj = subproject('scenefx', default_options: ['examples=false', 'default_library=static', 'werror=false'])
 scenefx = scenefx_proj.get_variable('scenefx')
 wayland_server = dependency('wayland-server')
 wayland_protos = dependency('wayland-protocols')
