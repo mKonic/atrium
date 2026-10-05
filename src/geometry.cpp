@@ -403,4 +403,21 @@ int neighbor(const wlr_box& from, std::span<const wlr_box> others, uint32_t dire
     return best;
 }
 
+bool internal_panel(std::string_view connector) {
+    return connector.starts_with("eDP") || connector.starts_with("LVDS") || connector.starts_with("DSI");
+}
+
+double default_scale(int width_px, int height_px, int width_mm, int height_mm, bool built_in) {
+    // Sizes an EDID leaves as an aspect ratio (16x9, 16x10 "cm"), or none.
+    if (width_px <= 0 || height_px <= 0 || width_mm < 100 || height_mm < 60)
+        return 1;
+    const double dpi_x = width_px / (width_mm / 25.4), dpi_y = height_px / (height_mm / 25.4);
+    // Square pixels or it isn't the real size.
+    if (std::abs(dpi_x - dpi_y) > 0.2 * std::max(dpi_x, dpi_y))
+        return 1;
+    const double dpi = (dpi_x + dpi_y) / 2;
+    const double scale = std::round(dpi / (built_in ? 135.0 : 110.0) * 4) / 4;
+    return std::clamp(scale, 1.0, 3.0);
+}
+
 } // namespace atrium::geometry

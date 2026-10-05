@@ -351,3 +351,30 @@ TEST(NamedPlace, OnlyTheSameCommandAgainCycles) {
     EXPECT_EQ(named_place("left-half", area, two_thirds, 0, false)->width, 600);
     EXPECT_EQ(named_place("left-half", area, two_thirds, 0, true)->width, 400);
 }
+
+TEST(Geometry, InternalPanels) {
+    EXPECT_TRUE(atrium::geometry::internal_panel("eDP-1"));
+    EXPECT_TRUE(atrium::geometry::internal_panel("LVDS-1"));
+    EXPECT_FALSE(atrium::geometry::internal_panel("DP-1"));
+    EXPECT_FALSE(atrium::geometry::internal_panel("HDMI-A-1"));
+}
+
+TEST(Geometry, DefaultScaleFromDensity) {
+    using atrium::geometry::default_scale;
+    // A 27" 1440p monitor and a 24" 1080p one: as they are.
+    EXPECT_EQ(default_scale(2560, 1440, 597, 336, false), 1.0);
+    EXPECT_EQ(default_scale(1920, 1080, 531, 299, false), 1.0);
+    // A 27" 4K monitor (163 dpi): one and a half.
+    EXPECT_EQ(default_scale(3840, 2160, 597, 336, false), 1.5);
+    // A 14" 2880x1800 laptop (243 dpi): one and three quarters.
+    EXPECT_EQ(default_scale(2880, 1800, 302, 189, true), 1.75);
+    // A 13" 1080p laptop (166 dpi): one and a quarter.
+    EXPECT_EQ(default_scale(1920, 1080, 294, 165, true), 1.25);
+    // No real size (a projector, an EDID's aspect ratio, a VM): left at 1.
+    EXPECT_EQ(default_scale(3840, 2160, 0, 0, false), 1.0);
+    EXPECT_EQ(default_scale(1920, 1080, 16, 9, false), 1.0);
+    EXPECT_EQ(default_scale(1920, 1080, 600, 100, false), 1.0);  // not square pixels
+    // Never below 1, never past 3.
+    EXPECT_EQ(default_scale(1280, 800, 600, 375, false), 1.0);
+    EXPECT_EQ(default_scale(7680, 4320, 300, 170, true), 3.0);
+}
