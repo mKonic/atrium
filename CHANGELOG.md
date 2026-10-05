@@ -20,6 +20,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - atrium restarts itself after a crash, and apps that can reconnect (Qt) stay open.
 - atrium's own open and save dialog, Open With and print dialog for apps that ask through portals (Flatpak and browsers), so xdg-desktop-portal-gtk is no longer needed.
 - Sandboxed apps' notifications, account details, email and launchers through atrium's portal, and GNOME's settings (fonts, cursor, title-bar buttons) for GTK apps.
+- The focused app's own menus in the menu bar (Qt 6, Qt 5 and X11 apps that publish them).
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
