@@ -16,6 +16,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Clicking a notification raises the app's own window.
 - Selected text in the accent colour in every text field.
 - A screen nothing was set for starts at a scale for its density.
+- atrium's own keyring (atrium-keyring), the Secret Service browsers and mail keep passwords in: KWallet's are copied over the first time, it asks for the login password once per session, and an atrium crash doesn't lock it.
+- atrium restarts itself after a crash, and apps that can reconnect (Qt) stay open.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
