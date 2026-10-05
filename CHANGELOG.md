@@ -23,6 +23,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The focused app's own menus in the menu bar (Qt 6, Qt 5 and X11 apps that publish them).
 - The menu bar over a shown secret space, usable without putting it away.
 - A lock screen (Super+L), which stays locked if it crashes and comes back.
+- Unlock with a fingerprint, next to the password (fprintd).
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

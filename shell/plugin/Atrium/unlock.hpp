@@ -5,6 +5,7 @@
 // and the lock screen quits.
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
 
 namespace atrium {
@@ -14,6 +15,8 @@ class Unlock : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
     Q_PROPERTY(QString message READ message NOTIFY changed)  // what went wrong, or ""
     Q_PROPERTY(bool locked READ locked NOTIFY changed)       // the compositor has locked
+    // A fingerprint unlocks too (fprintd, a reader, enrolled fingers).
+    Q_PROPERTY(bool fingerprint READ fingerprint NOTIFY changed)
 
 public:
     explicit Unlock(QObject* parent = nullptr);
@@ -21,6 +24,7 @@ public:
     bool busy() const { return busy_; }
     QString message() const { return message_; }
     bool locked() const;
+    bool fingerprint() const;
 
     Q_INVOKABLE void tryPassword(const QString& password);
     Q_INVOKABLE void clearMessage();
@@ -35,8 +39,14 @@ signals:
 private:
     void finish(bool ok, const QString& error);
 
+private slots:
+    void startFingerprint();
+
+private:
+
     bool busy_ = false;
     QString message_;
+    class Fingerprint* fingerprint_ = nullptr;
 };
 
 } // namespace atrium

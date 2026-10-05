@@ -1,5 +1,7 @@
 #include "unlock.hpp"
 
+#include "fingerprint.hpp"
+
 #include <QCoreApplication>
 #include <QPointer>
 #include <QThread>
@@ -47,9 +49,31 @@ QString service() {
 
 } // namespace
 
-Unlock::Unlock(QObject* parent) : QObject(parent) {
-    if (QObject* lock = session_lock())
+Unlock::Unlock(QObject* parent) : QObject(parent), fingerprint_(new Fingerprint(this)) {
+    connect(fingerprint_, &Fingerprint::listeningChanged, this, &Unlock::changed);
+    connect(fingerprint_, &Fingerprint::message, this, [this](const QString& text) {
+        message_ = text;
+        emit changed();
+    });
+    connect(fingerprint_, &Fingerprint::matched, this, [this] {
+        if (!busy_)
+            finish(true, {});
+    });
+    if (QObject* lock = session_lock()) {
         connect(lock, SIGNAL(lockedChanged()), this, SIGNAL(changed()));
+        // Once the session is locked: before that there's nothing to unlock.
+        connect(lock, SIGNAL(lockedChanged()), this, SLOT(startFingerprint()));
+    }
+    startFingerprint();
+}
+
+bool Unlock::fingerprint() const {
+    return fingerprint_->listening();
+}
+
+void Unlock::startFingerprint() {
+    if (locked())
+        fingerprint_->start();
 }
 
 bool Unlock::locked() const {
@@ -111,6 +135,7 @@ void Unlock::tryPassword(const QString& password) {
 void Unlock::finish(bool ok, const QString& error) {
     busy_ = false;
     if (ok) {
+        fingerprint_->stop();
         if (QObject* lock = session_lock())
             QMetaObject::invokeMethod(lock, "unlock");
         emit changed();

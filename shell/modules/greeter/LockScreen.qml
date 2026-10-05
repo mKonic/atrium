@@ -109,12 +109,14 @@ LockWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: password.text.length === 0
-                    text: "Enter Password"
+                    text: Unlock.fingerprint ? "Fingerprint or Password" : "Enter Password"
                     color: Theme.dark.secondaryLabel
                 }
             }
 
             MaterialIcon {
+                id: submitIcon
+
                 anchors.right: parent.right
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
@@ -128,7 +130,7 @@ LockWindow {
                     to: 360
                     duration: 900
                     loops: Animation.Infinite
-                    onStopped: parent.rotation = 0
+                    onStopped: submitIcon.rotation = 0
                 }
 
                 MouseArea {
