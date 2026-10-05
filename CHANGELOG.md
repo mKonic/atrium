@@ -18,6 +18,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A screen nothing was set for starts at a scale for its density.
 - atrium's own keyring (atrium-keyring), the Secret Service browsers and mail keep passwords in: KWallet's are copied over the first time, it asks for the login password once per session, and an atrium crash doesn't lock it.
 - atrium restarts itself after a crash, and apps that can reconnect (Qt) stay open.
+- atrium's own open and save dialog, Open With and print dialog for apps that ask through portals (Flatpak and browsers), so xdg-desktop-portal-gtk is no longer needed.
+- Sandboxed apps' notifications, account details, email and launchers through atrium's portal, and GNOME's settings (fonts, cursor, title-bar buttons) for GTK apps.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
