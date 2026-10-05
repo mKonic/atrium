@@ -67,6 +67,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A notification an app updates after it left the screen pops up again.
 
 ### Fixed
+- The compositor crashing on the next click after an app closed a dialog (Qt modal dialogs).
 - The shell's fonts and icons missing on a system without caelestia's packages.
 - A window launched or switched to over a fullscreen app staying hidden behind it.
 - Alt+Tab's miniature of a window playing video flickering at its edges.

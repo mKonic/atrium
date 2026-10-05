@@ -547,11 +547,14 @@ Toplevel::Toplevel(wl_client* client, uint32_t version, uint32_t id, ShellSurfac
 }
 
 Toplevel::~Toplevel() {
+    // unmapped before anyone hears it's gone: a window torn down on destroy
+    // has had its unmap (focus, stacking, the close animation) by then
+    if (base_)
+        if (Surface* s = base_->surface())
+            s->unmap();
     gone();
     if (base_) {
         base_->toplevel_ = nullptr;
-        if (Surface* s = base_->surface())
-            s->unmap();
         base_->reset();
     }
 }
@@ -865,11 +868,13 @@ Pip::Pip(wl_client* client, uint32_t version, uint32_t id, ShellSurface* base)
 }
 
 Pip::~Pip() {
+    // as a toplevel: unmapped before anyone hears it's gone
+    if (base_)
+        if (Surface* s = base_->surface())
+            s->unmap();
     gone();
     if (base_) {
         base_->pip_ = nullptr;
-        if (Surface* s = base_->surface())
-            s->unmap();
         base_->reset();
     }
 }

@@ -1,4 +1,5 @@
 // xdg-shell (src/wl/xdg_shell, positioner) against a real libwayland client.
+#include <string>
 #include "wl/compositor.hpp"
 #include "wl/seat.hpp"
 #include "wl/shm.hpp"
@@ -338,11 +339,14 @@ TEST(WlXdg, ToplevelGoingUnmapsAndTellsTheCompositor) {
     wl::Toplevel* t = s.toplevels[0];
     wl::Surface* ws = t->base()->surface();
     ASSERT_TRUE(ws->mapped());
-    int destroyed = 0;
-    auto c = t->events.destroy.connect([&] { ++destroyed; });
+    // the unmap first: a window torn down on destroy must have been unmapped
+    // (and let go of focus) by then
+    std::string order;
+    auto c = t->events.destroy.connect([&] { order += "destroy "; });
+    auto u = ws->events.unmap.connect([&] { order += "unmap "; });
     xdg_toplevel_destroy(toplevel);
     s.pump();
-    EXPECT_EQ(destroyed, 1);
+    EXPECT_EQ(order, "unmap destroy ");
     EXPECT_FALSE(ws->mapped());
     xdg_surface_destroy(xdg);
     wl_surface_destroy(surface);
