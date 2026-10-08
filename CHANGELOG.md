@@ -51,6 +51,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A password prompt drawing a command over several lines on top of itself.
 - A field's placeholder showing over text still being composed with an input method.
 - A secret space staying shown, empty, after its last window closed.
+- Gwenview closing on the next image: touchpad pinches and swipes now reach apps (pinch to zoom), and Gwenview's cleanup no longer meets a missing gestures protocol.
 
 ## [v0.1.0] - 2026-09-27
 ### Added

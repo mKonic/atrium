@@ -373,6 +373,10 @@ void Server::setup() {
             wlr_keyboard_shortcuts_inhibitor_v1_activate(inhibitor);
         });
     relative_pointer_manager = wlr_relative_pointer_manager_v1_create(display);
+    // Touchpad pinches, swipes and holds, passed on to the app under the
+    // pointer (pinch to zoom). Some apps also assume it's there: Gwenview
+    // crashed on every next image without it.
+    pointer_gestures = wlr_pointer_gestures_v1_create(display);
     cursor_shape_manager = wlr_cursor_shape_manager_v1_create(display, 1);
     virtual_keyboard_manager = wlr_virtual_keyboard_manager_v1_create(display);
     virtual_pointer_manager = wlr_virtual_pointer_manager_v1_create(display);

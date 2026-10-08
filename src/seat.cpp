@@ -129,6 +129,34 @@ Seat::Seat(Server& srv) : server(srv) {
     cursor_button_.connect(&cursor->events.button, [this](wlr_pointer_button_event* e) { button(e); });
     cursor_axis_.connect(&cursor->events.axis, [this](wlr_pointer_axis_event* e) { axis(e); });
     cursor_frame_.connect(&cursor->events.frame, [this](void*) { wlr_seat_pointer_notify_frame(wlr); });
+    // Touchpad gestures go to the app under the pointer, as they are.
+    wlr_pointer_gestures_v1* g = server.pointer_gestures;
+    swipe_begin_.connect(&cursor->events.swipe_begin, [this, g](wlr_pointer_swipe_begin_event* e) {
+        wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+        wlr_pointer_gestures_v1_send_swipe_begin(g, wlr, e->time_msec, e->fingers);
+    });
+    swipe_update_.connect(&cursor->events.swipe_update, [this, g](wlr_pointer_swipe_update_event* e) {
+        wlr_pointer_gestures_v1_send_swipe_update(g, wlr, e->time_msec, e->dx, e->dy);
+    });
+    swipe_end_.connect(&cursor->events.swipe_end, [this, g](wlr_pointer_swipe_end_event* e) {
+        wlr_pointer_gestures_v1_send_swipe_end(g, wlr, e->time_msec, e->cancelled);
+    });
+    pinch_begin_.connect(&cursor->events.pinch_begin, [this, g](wlr_pointer_pinch_begin_event* e) {
+        wlr_idle_notifier_v1_notify_activity(server.idle_notifier, wlr);
+        wlr_pointer_gestures_v1_send_pinch_begin(g, wlr, e->time_msec, e->fingers);
+    });
+    pinch_update_.connect(&cursor->events.pinch_update, [this, g](wlr_pointer_pinch_update_event* e) {
+        wlr_pointer_gestures_v1_send_pinch_update(g, wlr, e->time_msec, e->dx, e->dy, e->scale, e->rotation);
+    });
+    pinch_end_.connect(&cursor->events.pinch_end, [this, g](wlr_pointer_pinch_end_event* e) {
+        wlr_pointer_gestures_v1_send_pinch_end(g, wlr, e->time_msec, e->cancelled);
+    });
+    hold_begin_.connect(&cursor->events.hold_begin, [this, g](wlr_pointer_hold_begin_event* e) {
+        wlr_pointer_gestures_v1_send_hold_begin(g, wlr, e->time_msec, e->fingers);
+    });
+    hold_end_.connect(&cursor->events.hold_end, [this, g](wlr_pointer_hold_end_event* e) {
+        wlr_pointer_gestures_v1_send_hold_end(g, wlr, e->time_msec, e->cancelled);
+    });
 
     request_cursor_.connect(&wlr->events.request_set_cursor,
         [this](wlr_seat_pointer_request_set_cursor_event* e) {
@@ -225,6 +253,14 @@ Seat::~Seat() {
     cursor_button_.disconnect();
     cursor_axis_.disconnect();
     cursor_frame_.disconnect();
+    swipe_begin_.disconnect();
+    swipe_update_.disconnect();
+    swipe_end_.disconnect();
+    pinch_begin_.disconnect();
+    pinch_update_.disconnect();
+    pinch_end_.disconnect();
+    hold_begin_.disconnect();
+    hold_end_.disconnect();
     request_cursor_.disconnect();
     request_cursor_shape_.disconnect();
     request_selection_.disconnect();
