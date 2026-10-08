@@ -1,0 +1,18 @@
+[Unit]
+Description=atrium login
+Documentation=file:///usr/share/atrium/login.conf
+Conflicts=getty@tty1.service
+After=systemd-user-sessions.service getty@tty1.service plymouth-quit.service systemd-logind.service
+PartOf=graphical.target
+StartLimitIntervalSec=30
+StartLimitBurst=2
+
+[Service]
+ExecStart=@SBINDIR@/atrium-login
+Restart=always
+RuntimeDirectory=atrium-login
+RuntimeDirectoryMode=0711
+RuntimeDirectoryPreserve=yes
+
+[Install]
+Alias=display-manager.service

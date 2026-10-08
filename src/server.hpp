@@ -199,7 +199,7 @@ public:
     bool power_button();
     // A screen on or off (DPMS): idle, and clients through wlr-output-power.
     void set_screen_power(Output* output, bool on);
-    void spawn(const std::string& command);
+    pid_t spawn(const std::string& command);
     void change_vt(unsigned vt);
     void run_action(const Keybind& bind);
 
@@ -342,6 +342,8 @@ private:
     bool session_target_ = false;  // atrium-session.target may be ours to stop
     std::filesystem::path session_marker_;  // "running": ours while we run
     void note_last_session();
+    // The login screen's input method (fcitx5), for names typed in CJK.
+    pid_t greeter_im_ = -1;
     wl_event_source* startup_timer_ = nullptr;
     void run_startup();
 

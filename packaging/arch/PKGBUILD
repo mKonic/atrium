@@ -15,7 +15,7 @@ license=('GPL-3.0-or-later' 'OFL-1.1')
 depends=(
   # compositor
   wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info libsm
-  xcb-util-wm libxcrypt fontconfig xorg-xwayland
+  xcb-util-wm libxcrypt fontconfig xorg-xwayland pam
   # its wlroots (built in, under /usr/lib/atrium)
   seatd libliftoff lcms2 libglvnd mesa libxcb xcb-util-errors xcb-util-renderutil
   # shell
@@ -34,7 +34,7 @@ depends=(
 makedepends=(git meson ninja wayland-protocols gtest cmake hwdata)
 optdepends=(
   'cups: printing'
-  "greetd: atrium's login screen (see /usr/share/atrium/greetd-config.toml)"
+  "greetd: atrium's login screen under greetd instead of atrium-login (see /usr/share/atrium/greetd-config.toml)"
   'uwsm: the uwsm-managed session'
   'gpu-screen-recorder: screen recording'
   'ddcutil: brightness of external monitors'
@@ -49,7 +49,7 @@ optdepends=(
   'kate: a text editor'
 )
 provides=(atrium)
-backup=(etc/pam.d/atrium-lock)
+backup=(etc/pam.d/atrium-login etc/pam.d/atrium-greeter etc/pam.d/atrium-autologin etc/pam.d/atrium-lock)
 conflicts=(atrium)
 source=("atrium::git+file://${ATRIUM_SRC:-${startdir}/../..}")
 sha256sums=('SKIP')

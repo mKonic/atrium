@@ -38,6 +38,8 @@ public:
     // in last and into which desktop (a session id), kept in the greeter
     // user's state directory.
     Q_INVOKABLE QVariantMap lastLogin() const;
+    // The desktop `user` logged into last ("" when they never have).
+    Q_INVOKABLE QString sessionFor(const QString& user) const;
     // A login manager can show a greeter beside this session (atrium-login,
     // or a display manager's seat that can switch): Switch User works.
     Q_INVOKABLE bool canSwitchUser() const;

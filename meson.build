@@ -109,8 +109,6 @@ subdir('data/etc/xdg/xdg-desktop-portal-wlr')
 # Sessions for the display manager (plain, and under uwsm).
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # sudo -A and ssh ask for passwords through the shell (SUDO_ASKPASS).
-# Unlocking the lock screen.
-install_data('data/pam/atrium-lock', install_dir: get_option('sysconfdir') / 'pam.d')
 install_data('data/bin/atrium-askpass', install_dir: get_option('bindir'), install_mode: 'rwxr-xr-x')
 # The login screen: an example greetd config (atrium --greeter), and where
 # it remembers the last login.
@@ -129,4 +127,5 @@ subdir('shell/lock')
 
 subdir('src')
 subdir('keyring')
+subdir('login')
 subdir('tests')

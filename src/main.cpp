@@ -20,7 +20,7 @@ void usage(const char* argv0) {
         "usage: %s [-s startup-command] [-c registry] [-g] [-d] [-v]\n"
         "  -s, --startup CMD   run CMD through /bin/sh once the session is up\n"
         "  -c, --registry FILE the registry database (default $XDG_CONFIG_HOME/atrium/registry.db)\n"
-        "  -g, --greeter       the login screen, for greetd (atrium-greeter.toml)\n"
+        "  -g, --greeter       the login screen, for atrium-login or greetd\n"
         "  -d, --debug         verbose logging\n"
         "  -v, --version       print the version and exit\n",
         argv0);

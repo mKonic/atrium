@@ -1,0 +1,9 @@
+// The login screen may join a Wi-Fi network for everyone, as an admin
+// would: nobody has logged in yet to ask for a password, and the network
+// is the one the people logging in will want.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.NetworkManager.settings.modify.system" &&
+        subject.user == "atrium-greeter" && subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

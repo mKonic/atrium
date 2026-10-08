@@ -26,6 +26,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Unlock with a fingerprint, next to the password (fprintd).
 - Lock Screen and Switch User in the system menu: someone else logs in through the login screen while your session stays open, locked.
 - The screen locks before sleep (Power: Lock the screen before sleep), and when asked by `loginctl lock-session`.
+- atrium-login, atrium's own login manager: the login screen, autologin, and back to the login screen after logging out (in place of SDDM or greetd). Logging in through it opens the keyring with the login password.
+- The login screen remembers each person's desktop.
+- The login screen has the keyboard layout, the battery and a Control Center with Wi-Fi, Bluetooth and brightness, and types Chinese, Japanese or Korean names with fcitx5.
 - Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
 - The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
 - Log Out, Restart and Shut Down ask every app to quit first; an app that won't (unsaved work) cancels it and says which.

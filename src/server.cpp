@@ -606,6 +606,10 @@ void Server::teardown() {
         kill(-startup_pid_, SIGTERM);
         waitpid(startup_pid_, nullptr, 0);
     }
+    if (greeter_im_ > 0) {
+        kill(-greeter_im_, SIGTERM);
+        waitpid(greeter_im_, nullptr, 0);
+    }
 
     shutting_down = true;
     shown_secret = nullptr;
@@ -738,6 +742,14 @@ void Server::run(const char* startup_cmd) {
     }
     if (!nested && !config.greeter)
         note_last_session();
+    // At the login screen, the input method for names in Chinese, Japanese
+    // or Korean: fcitx5 with the machine's defaults (/etc/xdg/fcitx5), when
+    // it's installed. Its own settings go in the runtime dir: one it saved
+    // in the greeter's home would hide the machine's from then on. In a
+    // session it starts itself (XDG autostart).
+    if (config.greeter && !nested)
+        greeter_im_ = spawn("command -v fcitx5 >/dev/null && "
+                            "XDG_CONFIG_HOME=\"$XDG_RUNTIME_DIR/greeter-im\" exec fcitx5 --replace");
 
     if (startup_cmd && !config.greeter) {
         startup_cmd_ = startup_cmd;
@@ -1390,7 +1402,7 @@ void Server::note_activity() {
 
 // --- processes -------------------------------------------------------------------
 
-void Server::spawn(const std::string& command) {
+pid_t Server::spawn(const std::string& command) {
     pid_t pid = fork();
     if (pid == 0) {
         setsid();
@@ -1406,6 +1418,7 @@ void Server::spawn(const std::string& command) {
     } else if (pid < 0) {
         wlr_log_errno(WLR_ERROR, "fork failed for '%s'", command.c_str());
     }
+    return pid;
 }
 
 void Server::change_vt(unsigned vt) {
