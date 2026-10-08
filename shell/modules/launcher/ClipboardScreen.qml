@@ -16,6 +16,19 @@ Item {
     readonly property var entries: Clipboard.results
     readonly property var selected: entries[current] ?? null
     signal done
+    // Something to confirm first ({ title, detail, glyph, run }): the palette asks.
+    signal confirm(var request)
+
+    function clearAll(): void {
+        if (Clipboard.results.length === 0)
+            return;
+        screen.confirm({
+            title: "Clear Clipboard History?",
+            detail: "Everything you copied is forgotten. What's on the clipboard now stays.",
+            glyph: "delete_sweep",
+            run: () => Clipboard.clear()
+        });
+    }
 
     function paste(copyOnly: bool): void {
         if (!selected)
@@ -35,6 +48,8 @@ Item {
             current = Math.max(0, current - 1);
         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
             paste(ctrl);
+        else if (ctrl && (event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Delete)
+            clearAll();
         else if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_Delete && selected)
             Clipboard.remove(selected.id);
         else
@@ -44,7 +59,8 @@ Item {
     }
 
     // The footer's words for Enter and the rest.
-    readonly property var hints: [["Paste", "Enter"], ["Copy", "Ctrl+Enter"], ["Delete", "Shift+Delete"]]
+    readonly property var hints: [["Paste", "Enter"], ["Copy", "Ctrl+Enter"], ["Delete", "Shift+Delete"],
+                                  ["Clear All", "Ctrl+Shift+Delete", () => screen.clearAll()]]
 
     Component.onCompleted: {
         Clipboard.query = launcherModel.query;
@@ -207,7 +223,7 @@ Item {
 
             StyledText {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: !Clipboard.available ? "Clipboard history needs cliphist"
+                text: !Clipboard.available ? "Clipboard history isn't kept here"
                     : screen.launcherModel.query.length > 0 ? "No Results" : "Nothing copied yet"
                 color: Theme.palette.secondaryLabel
             }

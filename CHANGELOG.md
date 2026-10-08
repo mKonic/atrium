@@ -36,10 +36,12 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Log Out, Restart and Shut Down ask every app to quit first. Apps still open after a few seconds (unsaved work) are listed, as on Windows: answer them, Cancel, or go ahead anyway; doing nothing goes ahead after 30 seconds.
 - X11 apps that save through a session manager (XSMP) are asked to save when you log out, and can ask about unsaved work; Cancel there cancels the logout.
 - Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
+- What you copied stays on the clipboard after the app it came from quits, with every format it offered (rich text, HTML, pictures); a password manager's copies don't.
 
 ### Changed
 - A Dock icon's name shows above it, as on a Mac, instead of the Dock growing to fit it.
 - Over fullscreen apps, the bar and the Dock come only for a window you made fullscreen (green button or shortcut), after holding the pointer at the edge for a moment; over a video or game that went fullscreen itself they stay away, and a tap of Super brings the bar.
+- Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, with cliphist's rules (750 entries, a copy's text and its picture each kept); what cliphist had is brought over the first time.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.
@@ -52,6 +54,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A field's placeholder showing over text still being composed with an input method.
 - A secret space staying shown, empty, after its last window closed.
 - Gwenview closing on the next image: touchpad pinches and swipes now reach apps (pinch to zoom), and Gwenview's cleanup no longer meets a missing gestures protocol.
+- Super+V's Clear All, lost when the launcher was rebuilt (Ctrl+Shift+Delete, or click it in the footer).
 
 ## [v0.1.0] - 2026-09-27
 ### Added

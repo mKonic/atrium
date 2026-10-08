@@ -59,7 +59,7 @@ Compositor::Compositor(QObject* parent) : QObject(parent), path_(socketPath()) {
     });
     connect(&events_, &QLocalSocket::connected, this, [this] {
         const QJsonObject sub{{"cmd", "subscribe"},
-                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard", "portal", "night_light"}}};
+                              {"topics", QJsonArray{"windows", "spaces", "outputs", "settings", "shell", "keyboard", "portal", "night_light", "clipboard"}}};
         events_.write(QJsonDocument(sub).toJson(QJsonDocument::Compact) + '\n');
         emit connectedChanged();
     });
@@ -190,6 +190,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "setting.changed") {
         settings_[e.value("key").toString()] = e.value("value").toVariant();
         emit settingsChanged();
+    } else if (kind == "clipboard.changed") {
+        emit clipboardChanged();
     } else if (kind == "snippet.typed") {
         emit snippetTyped(e.value("snippet").toInteger(), e.value("delete").toInt());
     } else if (kind == "text.not_inserted") {
@@ -350,6 +352,22 @@ void Compositor::insertText(const QString& text) {
 
 void Compositor::replaceText(int before, const QString& text) {
     request({{"cmd", "text.replace"}, {"delete", before}, {"text", text}});
+}
+
+void Compositor::clipboardHistory(std::function<void(bool, const QVariantList&)> done) {
+    requestFull({{"cmd", "clipboard.list"}}, [done = std::move(done)](const QJsonObject& reply) {
+        const bool ok = reply.value("ok").toBool();
+        done(ok, ok ? reply.value("result").toArray().toVariantList() : QVariantList());
+    });
+}
+
+void Compositor::clipboard(const QString& command, const QVariantMap& fields, std::function<void(bool)> done) {
+    QJsonObject req = QJsonObject::fromVariantMap(fields);
+    req["cmd"] = "clipboard." + command;
+    if (!done)
+        request(req);
+    else
+        requestFull(req, [done = std::move(done)](const QJsonObject& reply) { done(reply.value("ok").toBool()); });
 }
 
 void Compositor::closeWindow(int id) {

@@ -24,7 +24,17 @@ PanelWindow {
     // Whose menu: the row's actions (a list screen's, or another screen's
     // own), or a screen's type filter.
     property string menuSource: "actions"
-    property var confirming: null  // { title, detail, glyph, token }
+    property var confirming: null  // { title, detail, glyph, token } or, a screen's own, { ..., run }
+
+    // Confirmed: the screen's own action, or the model's.
+    function confirmNow(): void {
+        const c = launcher.confirming;
+        launcher.confirming = null;
+        if (c.run)
+            c.run();
+        else
+            lm.confirm(c.token);
+    }
 
     readonly property var placeholders: ({
             "root": "Search for apps and commands…",
@@ -300,9 +310,7 @@ PanelWindow {
                     event.accepted = true;
                     if (launcher.confirming) {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                            const token = launcher.confirming.token;
-                            launcher.confirming = null;
-                            lm.confirm(token);
+                            launcher.confirmNow();
                         } else if (event.key === Qt.Key_Escape) {
                             launcher.confirming = null;
                         }
@@ -535,6 +543,7 @@ PanelWindow {
             id: clipboardScreen
 
             ClipboardScreen {
+                onConfirm: request => launcher.confirming = request
                 launcherModel: lm
                 onDone: launcher.close()
             }
@@ -639,21 +648,38 @@ PanelWindow {
                     model: launcher.listScreen ? (footer.primary ? [[footer.primary.title, "Enter"], ["Actions", "Ctrl+K"]] : [])
                                                : (body.item?.hints ?? [])
 
-                    Row {
+                    Item {
+                        id: hint
+
                         required property var modelData
 
-                        spacing: 6
+                        implicitWidth: hintRow.implicitWidth
+                        implicitHeight: hintRow.implicitHeight
 
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: parent.modelData[0]
-                            font.pointSize: Theme.font.size.smaller
-                            color: Theme.palette.secondaryLabel
+                        Row {
+                            id: hintRow
+
+                            spacing: 6
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: hint.modelData[0]
+                                font.pointSize: Theme.font.size.smaller
+                                color: Theme.palette.secondaryLabel
+                            }
+
+                            Keycap {
+                                anchors.verticalCenter: parent.verticalCenter
+                                keys: hint.modelData[1]
+                            }
                         }
 
-                        Keycap {
-                            anchors.verticalCenter: parent.verticalCenter
-                            keys: parent.modelData[1]
+                        // A hint with something to run can be clicked too.
+                        MouseArea {
+                            anchors.fill: parent
+                            visible: typeof hint.modelData[2] === "function"
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: hint.modelData[2]()
                         }
                     }
                 }
@@ -901,11 +927,7 @@ PanelWindow {
                         DialogButton {
                             text: "Confirm"
                             primary: true
-                            onClicked: {
-                                const token = launcher.confirming.token;
-                                launcher.confirming = null;
-                                lm.confirm(token);
-                            }
+                            onClicked: launcher.confirmNow()
                         }
                     }
                 }

@@ -1,32 +1,25 @@
 #include "clipboard.hpp"
 
-#include <QBuffer>
+#include "compositor.hpp"
+
 #include <QDir>
-#include <QImage>
 #include <QFile>
-#include <QRegularExpression>
-#include <QStandardPaths>
+#include <QImage>
+#include <QImageReader>
+#include <QLocale>
+#include <QTemporaryFile>
 #include <QUrl>
 
 namespace atrium {
 
 namespace {
 
-constexpr int kThumbnails = 80;  // the most recent pictures get one
-
-// "[[ binary data 16 KiB png 804x147 ]]"
-const QRegularExpression kBinary(R"(^\[\[ binary data (\S+ \S+) (\w+) (\d+)x(\d+) \]\]$)");
+constexpr qint64 kPreviewBytes = 256 * 1024;  // of a text, for the preview pane
 
 } // namespace
 
 ClipboardHistory::ClipboardHistory(QObject* parent) : QObject(parent) {
-    cliphist_ = QStandardPaths::findExecutable("cliphist");
-    wlcopy_ = QStandardPaths::findExecutable("wl-copy");
-    QString cache = qEnvironmentVariable("XDG_CACHE_HOME");
-    if (cache.isEmpty())
-        cache = QDir::homePath() + "/.cache";
-    cacheDir_ = cache + "/atrium/clipboard";
-    QDir().mkpath(cacheDir_);
+    connect(Compositor::instance(), &Compositor::clipboardChanged, this, &ClipboardHistory::refresh);
 }
 
 void ClipboardHistory::setQuery(const QString& query) {
@@ -38,46 +31,38 @@ void ClipboardHistory::setQuery(const QString& query) {
 }
 
 void ClipboardHistory::refresh() {
-    if (!available())
-        return;
-    auto* p = new QProcess(this);
-    connect(p, &QProcess::finished, this, [this, p] {
-        std::vector<Entry> fresh;
-        const QList<QByteArray> lines = p->readAllStandardOutput().split('\n');
-        for (const QByteArray& raw : lines) {
-            const qsizetype tab = raw.indexOf('\t');
-            if (tab <= 0)
-                continue;
-            Entry e;
-            e.id = QString::fromUtf8(raw.left(tab));
-            e.text = QString::fromUtf8(raw.mid(tab + 1));
-            if (const auto m = kBinary.match(e.text); m.hasMatch()) {
-                e.image = true;
-                e.size = m.captured(1);
-                e.format = m.captured(2);
-                e.width = m.captured(3).toInt();
-                e.height = m.captured(4).toInt();
-                if (QFile::exists(cacheFile(e)))
-                    e.thumb = QUrl::fromLocalFile(cacheFile(e)).toString();
-            }
-            fresh.push_back(std::move(e));
+    Compositor::instance()->clipboardHistory([this](bool ok, const QVariantList& list) {
+        if (ok != available_) {
+            available_ = ok;
+            emit availableChanged();
         }
-        entries_ = std::move(fresh);
-        // Thumbnails for the recent pictures that have none yet.
-        decodeQueue_.clear();
-        int pictures = 0;
-        for (const Entry& e : entries_)
-            if (e.image && pictures++ < kThumbnails && e.thumb.isEmpty())
-                decodeQueue_.push_back(e.id);
-        filter();
-        decodeNext();
-        p->deleteLater();
+        take(list);
     });
-    p->start(cliphist_, {"list"});
 }
 
-QString ClipboardHistory::cacheFile(const Entry& e) const {
-    return cacheDir_ + "/" + e.id + "." + (e.format.isEmpty() ? "png" : e.format);
+void ClipboardHistory::take(const QVariantList& list) {
+    std::vector<Entry> fresh;
+    for (const QVariant& v : list) {
+        const QVariantMap m = v.toMap();
+        Entry e;
+        e.id = m.value("id").toString();
+        e.file = m.value("file").toString();
+        const QString mime = m.value("mime").toString();
+        e.image = mime.startsWith("image/");
+        e.size = QLocale().formattedDataSize(m.value("size").toLongLong(), 0, QLocale::DataSizeIecFormat);
+        if (e.image) {
+            e.format = mime.mid(6);
+            // Its header only: cheap.
+            const QSize size = QImageReader(e.file).size();
+            e.width = size.width();
+            e.height = size.height();
+        } else {
+            e.text = m.value("preview").toString();
+        }
+        fresh.push_back(std::move(e));
+    }
+    entries_ = std::move(fresh);
+    filter();
 }
 
 const ClipboardHistory::Entry* ClipboardHistory::find(const QString& id) const {
@@ -87,42 +72,10 @@ const ClipboardHistory::Entry* ClipboardHistory::find(const QString& id) const {
     return nullptr;
 }
 
-QByteArray ClipboardHistory::lineFor(const Entry& e) const {
-    return (e.id + "\t" + e.text + "\n").toUtf8();
-}
-
-// One picture at a time, so a long history never floods the machine.
-void ClipboardHistory::decodeNext() {
-    if (decoding_ || decodeQueue_.empty())
-        return;
-    const QString id = decodeQueue_.front();
-    decodeQueue_.pop_front();
-    const Entry* e = find(id);
-    if (!e) {
-        decodeNext();
-        return;
-    }
-    decoding_ = true;
-    const QString file = cacheFile(*e);
-    auto* p = new QProcess(this);
-    p->setStandardOutputFile(file);
-    connect(p, &QProcess::finished, this, [this, p, id, file](int code) {
-        decoding_ = false;
-        for (Entry& e : entries_)
-            if (e.id == id && code == 0)
-                e.thumb = QUrl::fromLocalFile(file).toString();
-        if (code != 0)
-            QFile::remove(file);
-        filter();
-        decodeNext();
-        p->deleteLater();
-    });
-    p->start(cliphist_, {"decode", id});
-}
-
 QVariantMap ClipboardHistory::toMap(const Entry& e) const {
     return {{"id", e.id}, {"text", e.text}, {"image", e.image}, {"width", e.width},
-            {"height", e.height}, {"size", e.size}, {"format", e.format}, {"thumb", e.thumb}};
+            {"height", e.height}, {"size", e.size}, {"format", e.format},
+            {"thumb", e.image ? QUrl::fromLocalFile(e.file).toString() : QString()}};
 }
 
 void ClipboardHistory::filter() {
@@ -150,85 +103,45 @@ void ClipboardHistory::showPreview(const QString& id) {
         emit previewChanged();
         return;
     }
-    if (e->image) {
-        preview_ = toMap(*e);
-        emit previewChanged();
-        return;
-    }
-    // cliphist lists a shortened line; the preview shows all of it.
-    auto* p = new QProcess(this);
-    connect(p, &QProcess::finished, this, [this, p, id] {
-        if (const Entry* e = find(id)) {
-            QVariantMap m = toMap(*e);
-            m["full"] = QString::fromUtf8(p->readAllStandardOutput());
-            preview_ = m;
-            emit previewChanged();
-        }
-        p->deleteLater();
-    });
-    p->start(cliphist_, {"decode", id});
+    preview_ = toMap(*e);
+    // The list shows a line of it; the preview all of it (or a lot).
+    if (!e->image)
+        if (QFile f(e->file); f.open(QIODevice::ReadOnly))
+            preview_["full"] = QString::fromUtf8(f.read(kPreviewBytes));
+    emit previewChanged();
 }
 
 void ClipboardHistory::copy(const QString& id) {
     const Entry* e = find(id);
-    if (!e || wlcopy_.isEmpty())
+    if (!e)
         return;
+    Compositor* c = Compositor::instance();
     // Most apps paste pictures as PNG only (a phone's screenshots are JPEG):
-    // other pictures go back as PNG.
+    // other pictures go back as PNG, in their place in the list.
     if (e->image && e->format != "png") {
-        auto* decode = new QProcess(this);
-        connect(decode, &QProcess::finished, this, [this, decode] {
-            QByteArray png;
-            QBuffer buffer(&png);
-            buffer.open(QIODevice::WriteOnly);
-            const QImage image = QImage::fromData(decode->readAllStandardOutput());
-            decode->deleteLater();
-            if (image.isNull() || !image.save(&buffer, "PNG"))
-                return;
-            auto* copy = new QProcess(this);
-            connect(copy, &QProcess::finished, copy, &QObject::deleteLater);
-            copy->start(wlcopy_, {"--type", "image/png"});
-            copy->write(png);
-            copy->closeWriteChannel();
-        });
-        decode->start(cliphist_, {"decode", id});
-        return;
+        const QImage image(e->file);
+        auto* png = new QTemporaryFile(QDir::tempPath() + "/atrium-clip-XXXXXX.png", this);
+        if (!image.isNull() && png->open() && image.save(png, "PNG")) {
+            png->close();
+            // Gone once atrium has read it.
+            c->clipboard("set", {{"mime", "image/png"}, {"path", png->fileName()}}, [png](bool) { png->deleteLater(); });
+            c->clipboard("delete", {{"entry", id}});
+            return;
+        }
+        delete png;
     }
-    // cliphist decode | wl-copy, with the picture's type for images.
-    auto* decode = new QProcess(this);
-    auto* copy = new QProcess(this);
-    decode->setStandardOutputProcess(copy);
-    QStringList args;
-    if (e->image)
-        args << "--type" << ("image/" + e->format);
-    connect(copy, &QProcess::finished, copy, &QObject::deleteLater);
-    connect(decode, &QProcess::finished, decode, &QObject::deleteLater);
-    copy->start(wlcopy_, args);
-    decode->start(cliphist_, {"decode", id});
+    c->clipboard("copy", {{"entry", id}});
 }
 
 void ClipboardHistory::remove(const QString& id) {
-    const Entry* e = find(id);
-    if (!e)
-        return;
-    QFile::remove(cacheFile(*e));
-    auto* p = new QProcess(this);
-    connect(p, &QProcess::finished, p, &QObject::deleteLater);
-    p->start(cliphist_, {"delete"});
-    p->write(lineFor(*e));
-    p->closeWriteChannel();
+    Compositor::instance()->clipboard("delete", {{"entry", id}});
     std::erase_if(entries_, [&id](const Entry& x) { return x.id == id; });
     filter();
 }
 
 void ClipboardHistory::clear() {
-    auto* p = new QProcess(this);
-    connect(p, &QProcess::finished, p, &QObject::deleteLater);
-    p->start(cliphist_, {"wipe"});
-    QDir(cacheDir_).removeRecursively();
-    QDir().mkpath(cacheDir_);
+    Compositor::instance()->clipboard("clear");
     entries_.clear();
-    decodeQueue_.clear();
     preview_.clear();
     emit previewChanged();
     filter();

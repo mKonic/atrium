@@ -1,14 +1,12 @@
 #pragma once
-// Clipboard history for the Super+V picker, over cliphist (the store the
-// session's `wl-paste --watch cliphist store` watchers fill). Everything
-// runs asynchronously: listing, decoding pictures for thumbnails into a
-// cache, copying back, deleting.
+// Clipboard history for the Super+V picker, as atrium keeps it (the
+// compositor sees every copy: src/clipboard_history.hpp). Each entry's data
+// is a file of its own; pictures show from it directly.
 
 #include <QObject>
-#include <QProcess>
 #include <QVariant>
 
-#include <deque>
+#include <vector>
 
 namespace atrium {
 
@@ -17,7 +15,7 @@ class ClipboardHistory : public QObject {
     Q_PROPERTY(QString query READ query WRITE setQuery NOTIFY queryChanged)
     Q_PROPERTY(QVariantList results READ results NOTIFY resultsChanged)  // newest first, filtered
     Q_PROPERTY(QVariantMap preview READ preview NOTIFY previewChanged)     // { id, text | image }
-    Q_PROPERTY(bool available READ available CONSTANT)                    // cliphist is installed
+    Q_PROPERTY(bool available READ available NOTIFY availableChanged)      // atrium keeps a history
 
 public:
     explicit ClipboardHistory(QObject* parent = nullptr);
@@ -26,7 +24,7 @@ public:
     void setQuery(const QString& query);
     QVariantList results() const { return results_; }
     QVariantMap preview() const { return preview_; }
-    bool available() const { return !cliphist_.isEmpty(); }
+    bool available() const { return available_; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void showPreview(const QString& id);
@@ -38,33 +36,29 @@ signals:
     void queryChanged();
     void resultsChanged();
     void previewChanged();
+    void availableChanged();
 
 private:
     struct Entry {
         QString id;
-        QString text;   // cliphist's one-line preview
+        QString text;   // a one-line preview
         bool image = false;
         QString format; // png, jpeg...
         int width = 0, height = 0;
         QString size;   // "16 KiB"
-        QString thumb;  // file URL once decoded
+        QString file;
     };
 
+    void take(const QVariantList& list);
     void filter();
     QVariantMap toMap(const Entry& e) const;
-    QString cacheFile(const Entry& e) const;
-    void decodeNext();
     const Entry* find(const QString& id) const;
-    QByteArray lineFor(const Entry& e) const;
 
-    QString cliphist_, wlcopy_;
     QString query_;
     std::vector<Entry> entries_;
     QVariantList results_;
     QVariantMap preview_;
-    std::deque<QString> decodeQueue_;  // pictures waiting for a thumbnail
-    bool decoding_ = false;
-    QString cacheDir_;
+    bool available_ = true;
 };
 
 } // namespace atrium

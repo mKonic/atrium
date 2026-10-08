@@ -14,7 +14,7 @@ namespace atrium {
 namespace {
 
 constexpr CatalogItem kCommands[] = {
-    {"screen:clipboard", "Clipboard History", "content_paste", "copy paste history cliphist"},
+    {"screen:clipboard", "Clipboard History", "content_paste", "copy paste history"},
     {"screen:emoji", "Search Emoji & Symbols", "mood", "emoji symbols smiley picker"},
     {"screen:files", "Search Files", "folder_open", "find file folder document locate"},
     {"screen:windows", "Switch Windows", "select_window", "window switch focus alt tab"},

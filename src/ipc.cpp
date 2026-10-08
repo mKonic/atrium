@@ -1,5 +1,6 @@
 #include "ipc.hpp"
 #include "appmenu.hpp"
+#include "clipboard_history.hpp"
 #include "lock_screen.hpp"
 #include "logout.hpp"
 #ifdef ATRIUM_XWAYLAND
@@ -660,6 +661,50 @@ json Ipc::handle(Client& c, const json& req) {
             return fail("couldn't make a token");
         token->seat = server_.seat->wlr;
         return ok(std::string(wlr_xdg_activation_token_v1_get_name(token)));
+    }
+
+    // Clipboard history: the entries (each one's data in its file), copying
+    // one back, wl-copy's job (text, or a file's contents as a type), and
+    // adding to the list without copying.
+    if (cmd.starts_with("clipboard.")) {
+        ClipboardHistory* h = server_.clipboard_history.get();
+        if (!h)
+            return fail("no clipboard history here");
+        // Entries are named by "entry" ("id" belongs to the request).
+        auto id = [&]() -> std::string {
+            return req.contains("entry") && req["entry"].is_string() ? req["entry"] : "";
+        };
+        if (cmd == "clipboard.list") {
+            json list = json::array();
+            for (const ClipboardEntry& e : h->index().entries())
+                list.push_back({{"id", e.id}, {"mime", e.mime}, {"time", e.time}, {"size", e.size},
+                                {"preview", e.preview}, {"file", h->file(e).string()}});
+            return ok(list);
+        }
+        if (cmd == "clipboard.copy")
+            return h->copy(id()) ? ok() : fail("no such entry");
+        if (cmd == "clipboard.delete")
+            return h->remove(id()) ? ok() : fail("no such entry");
+        if (cmd == "clipboard.clear") {
+            h->clear();
+            return ok();
+        }
+        if (cmd == "clipboard.set") {
+            if (req.contains("text") && req["text"].is_string())
+                return h->set_text(req["text"]) ? ok() : fail("too long");
+            if (req.contains("path") && req["path"].is_string() && req.contains("mime") && req["mime"].is_string())
+                return h->set_file(req["mime"], req["path"].get<std::string>()) ? ok() : fail("can't read it");
+            return fail("clipboard.set needs \"text\", or \"mime\" and \"path\"");
+        }
+        // Into the list, the clipboard left alone.
+        if (cmd == "clipboard.add") {
+            if (req.contains("text") && req["text"].is_string())
+                return h->add("text/plain;charset=utf-8", req["text"]) ? ok() : fail("empty or too long");
+            if (req.contains("path") && req["path"].is_string() && req.contains("mime") && req["mime"].is_string())
+                return h->add_file(req["mime"], req["path"].get<std::string>()) ? ok() : fail("can't read it");
+            return fail("clipboard.add needs \"text\", or \"mime\" and \"path\"");
+        }
+        return fail("unknown clipboard command");
     }
 
     if (cmd == "windows") {

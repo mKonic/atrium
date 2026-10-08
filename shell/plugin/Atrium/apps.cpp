@@ -265,7 +265,7 @@ bool LauncherResults::activate(int row) {
     if (r.kind == "run") {
         QProcess::startDetached("sh", {"-c", r.text});
     } else if (r.kind == "calc") {
-        QProcess::startDetached("wl-copy", {"--", r.text});
+        Compositor::instance()->clipboard("set", {{"text", r.text}});
     } else if (r.kind == "app") {
         if (!r.entry)
             return false;

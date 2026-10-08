@@ -56,6 +56,8 @@ void usage() {
         "  record add TABLE FIELD=VALUE... | record set TABLE ID FIELD=VALUE... | record rm TABLE ID\n"
         "  shortcuts                 key combinations and what they do\n"
         "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
+        "  clipboard [list]          clipboard history, newest first\n"
+        "  clipboard copy|delete ID | clipboard clear | clipboard set TEXT | clipboard add MIME FILE\n"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
         "  focus|close|minimize|maximize|fullscreen [ID]   act on a window (default: focused)\n"
         "  move ID X Y | resize ID W H\n"
@@ -179,6 +181,12 @@ void print_human(const std::string& cmd, const json& r) {
                         o["refresh"].get<double>(), o["scale"].get<double>(),
                         o["enabled"].get<bool>() ? "" : " (off)", o["focused"].get<bool>() ? " (focused)" : "");
         }
+    } else if (cmd == "clipboard") {
+        for (const auto& e : r)
+            if (e.is_object() && e.contains("id"))
+                std::printf("%-18s %-24s %8llu  %s\n", e["id"].get<std::string>().c_str(),
+                            e["mime"].get<std::string>().c_str(), e["size"].get<unsigned long long>(),
+                            e["preview"].get<std::string>().c_str());
     } else if (cmd == "layers") {
         for (const auto& l : r) {
             const auto& g = l["geometry"];
@@ -297,6 +305,24 @@ int main(int argc, char** argv) {
     } else if (cmd == "reset") {
         need(1);
         req = {{"cmd", "settings.reset"}, {"key", args[0]}};
+    } else if (cmd == "clipboard") {
+        const std::string what = args.empty() ? "list" : args[0];
+        req = {{"cmd", "clipboard." + what}};
+        if (what == "copy" || what == "delete") {
+            need(2);
+            req["entry"] = args[1];
+        } else if (what == "add") {
+            // Into the history only: clipboard add MIME FILE
+            need(3);
+            req["mime"] = args[1];
+            req["path"] = fs::absolute(args[2]).string();
+        } else if (what == "set") {
+            need(2);
+            std::string text = args[1];
+            for (size_t k = 2; k < args.size(); ++k)
+                text += " " + args[k];
+            req["text"] = text;
+        }
     } else if (cmd == "action") {
         need(1);
         req = {{"cmd", "action"}, {"name", args[0]}};
