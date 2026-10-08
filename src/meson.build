@@ -8,6 +8,7 @@ atrium_sources = files(
   'idle_core.cpp',
   'logout.cpp',
   'logout_core.cpp',
+  'xsmp.cpp',
   'cairo_buffer.cpp',
   'config.cpp',
   'geometry.cpp',

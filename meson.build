@@ -60,7 +60,7 @@ if xwayland_opt.enabled() and not have_xwayland
 endif
 use_xwayland = have_xwayland and not xwayland_opt.disabled()
 
-deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info]
+deps = [scenefx, wlroots, wayland_server, xkbcommon, libinput, pixman, json, sqlite, cairo, pangocairo, libdrm, gio, display_info, dependency('sm'), dependency('ice')]
 if use_xwayland
   deps += [dependency('xcb'), dependency('xcb-icccm')]
   add_project_arguments('-DATRIUM_XWAYLAND', language: 'cpp')

@@ -14,7 +14,7 @@ url='https://github.com/mKonic/atrium'
 license=('GPL-3.0-or-later' 'OFL-1.1')
 depends=(
   # compositor
-  wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info
+  wayland libinput systemd-libs libxkbcommon pixman cairo pango libdrm glib2 sqlite libdisplay-info libsm
   xcb-util-wm libxcrypt fontconfig xorg-xwayland
   # its wlroots (built in, under /usr/lib/atrium)
   seatd libliftoff lcms2 libglvnd mesa libxcb xcb-util-errors xcb-util-renderutil

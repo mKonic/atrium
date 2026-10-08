@@ -29,6 +29,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Dim the screen, turn it off, lock, or sleep after a while without input (Power; all Never unless you set them). A playing video holds them off.
 - The power button asks before shutting down, and puts the computer to sleep from the lock screen (Power: When the power button is pressed).
 - Log Out, Restart and Shut Down ask every app to quit first; an app that won't (unsaved work) cancels it and says which.
+- X11 apps that save through a session manager (XSMP) are asked to save when you log out, and can ask about unsaved work; Cancel there cancels the logout.
 - Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
 
 ### Fixed
