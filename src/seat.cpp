@@ -133,14 +133,14 @@ Seat::Seat(Server& srv) : server(srv) {
     request_cursor_.connect(&wlr->events.request_set_cursor,
         [this](wlr_seat_pointer_request_set_cursor_event* e) {
             // While we own the pointer (move/resize) the client's image waits.
-            if (mode != Mode::Normal && mode != Mode::Pressed)
+            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
                 return;
             if (e->seat_client == wlr->pointer_state.focused_client)
                 wlr_cursor_set_surface(cursor, e->surface, e->hotspot_x, e->hotspot_y);
         });
     request_cursor_shape_.connect(&server.cursor_shape_manager->events.request_set_shape,
         [this](wlr_cursor_shape_manager_v1_request_set_shape_event* e) {
-            if (mode != Mode::Normal && mode != Mode::Pressed)
+            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
                 return;
             if (e->seat_client == wlr->pointer_state.focused_client)
                 wlr_cursor_set_xcursor(cursor, xcursor, wlr_cursor_shape_v1_name(e->shape));
@@ -238,6 +238,12 @@ Seat::~Seat() {
     keyboards_.reset();
     if (edge_timer_)
         wl_event_source_remove(edge_timer_);
+    server.animator.cancel_owner(&shake_, false);
+    if (shake_end_)
+        wl_event_source_remove(shake_end_);
+    for (wlr_xcursor_manager* m : shake_xcursor_)
+        if (m)
+            wlr_xcursor_manager_destroy(m);
     wlr_xcursor_manager_destroy(xcursor);
     wlr_cursor_destroy(cursor);
 }
@@ -269,9 +275,56 @@ void Seat::apply_cursor_theme() {
     const Config& c = server.config;
     const char* theme = c.cursor_theme.empty() ? getenv("XCURSOR_THEME") : c.cursor_theme.c_str();
     xcursor = wlr_xcursor_manager_create(theme, c.cursor_size);
+    for (int i = 0; i < kShakeLevels; ++i) {
+        if (shake_xcursor_[i])
+            wlr_xcursor_manager_destroy(shake_xcursor_[i]);
+        shake_xcursor_[i] = wlr_xcursor_manager_create(theme, uint32_t(std::lround(c.cursor_size * (1.5 + 0.5 * i))));
+    }
     setenv("XCURSOR_SIZE", std::to_string(c.cursor_size).c_str(), 1);
     if (theme)
         setenv("XCURSOR_THEME", theme, 1);
+}
+
+// --- shake to find ---------------------------------------------------------
+
+void Seat::show_shake_level(int level) {
+    shake_level_ = level;
+    wlr_cursor_set_xcursor(cursor, level ? shake_xcursor_[level - 1] : xcursor, "default");
+}
+
+// The arrow grows while the shaking goes on, and settles once it stops.
+void Seat::shake_grow() {
+    constexpr int kHoldMs = 600;  // still big this long after the last shake
+    if (!shake_end_)
+        shake_end_ = wl_event_loop_add_timer(server.loop, [](void* data) {
+            static_cast<Seat*>(data)->shake_settle();
+            return 0;
+        }, this);
+    wl_event_source_timer_update(shake_end_, kHoldMs);
+    if (shaking_)
+        return;
+    shaking_ = true;
+    server.animator.cancel_owner(&shake_, false);
+    const int from = shake_level_;
+    server.animator.start(&shake_, 150, Ease::EmphasizedDecel, [this, from](double t) {
+        show_shake_level(from + int(std::lround((kShakeLevels - from) * t)));
+    });
+}
+
+void Seat::shake_settle() {
+    shake_.reset();
+    server.animator.cancel_owner(&shake_, false);
+    const int from = shake_level_;
+    server.animator.start(&shake_, 300, Ease::Standard, [this, from](double t) {
+        show_shake_level(int(std::lround(from * (1 - t))));
+    }, [this] {
+        // The app under the pointer sets its own cursor again, as on entering.
+        shaking_ = false;
+        if (mode == Mode::Normal) {
+            wlr_seat_pointer_clear_focus(wlr);
+            refresh_pointer();
+        }
+    });
 }
 
 void Seat::set_default_cursor() {
@@ -738,6 +791,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
 
         wlr_cursor_move(cursor, device, dx, dy);
         server.note_activity();
+        if (server.config.shake_to_find && mode == Mode::Normal && shake_.feed(time, cursor->x, cursor->y))
+            shake_grow();
         if (mode == Mode::Move && grab_view_)
             push_edge(dx);
     }

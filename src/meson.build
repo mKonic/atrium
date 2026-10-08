@@ -32,6 +32,7 @@ atrium_sources = files(
   'night_light.cpp',
   'night_light_core.cpp',
   'seat.cpp',
+  'shake.cpp',
   'keyboard_conf.cpp',
   'server.cpp',
   'rules.cpp',

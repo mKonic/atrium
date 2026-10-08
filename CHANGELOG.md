@@ -22,6 +22,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Sandboxed apps' notifications, account details, email and launchers through atrium's portal, and GNOME's settings (fonts, cursor, title-bar buttons) for GTK apps.
 - The focused app's own menus in the menu bar (Qt 6, Qt 5 and X11 apps that publish them).
 - The menu bar over a shown secret space, usable without putting it away.
+- Shake the pointer to find it: it grows for a moment (Mouse & Touchpad: Shake to find the pointer).
+- Shake the pointer to find it: it grows for a moment (Mouse & Touchpad: Shake to find the pointer).
 - A lock screen (Super+L), which stays locked if it crashes and comes back.
 - Unlock with a fingerprint, next to the password (fprintd).
 - Lock Screen and Switch User in the system menu: someone else logs in through the login screen while your session stays open, locked.
