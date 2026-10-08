@@ -13,6 +13,12 @@ class Session : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString pending READ pending NOTIFY pendingChanged)  // "", "restart", "shutdown", "logout"
     Q_PROPERTY(int secondsLeft READ secondsLeft NOTIFY secondsLeftChanged)
+    // Apps that haven't quit for a confirmed log out, restart or shut down:
+    // what it is waiting to do, their names, and the seconds until it goes
+    // ahead anyway ("" and none when it isn't waiting).
+    Q_PROPERTY(QString waitingFor READ waitingFor NOTIFY waitingChanged)
+    Q_PROPERTY(QStringList holdouts READ holdouts NOTIFY waitingChanged)
+    Q_PROPERTY(int waitingSeconds READ waitingSeconds NOTIFY waitingChanged)
 
 public:
     static constexpr int kCountdown = 60;
@@ -21,6 +27,12 @@ public:
 
     QString pending() const { return pending_; }
     int secondsLeft() const { return secondsLeft_; }
+    QString waitingFor() const { return waitingFor_; }
+    QStringList holdouts() const { return holdouts_; }
+    int waitingSeconds() const { return waitingSeconds_; }
+    // The apps still open: go ahead without them, or call it off.
+    Q_INVOKABLE void goAnyway();
+    Q_INVOKABLE void stopWaiting();
 
     // "sleep" happens now; the others wait for confirm() or the countdown.
     Q_INVOKABLE void request(const QString& action);
@@ -48,6 +60,7 @@ public:
 signals:
     void pendingChanged();
     void secondsLeftChanged();
+    void waitingChanged();
 
 private:
     void run(const QString& action);
@@ -56,6 +69,9 @@ private:
     QString pending_;
     int secondsLeft_ = 0;
     QTimer tick_;
+    QString waitingFor_;
+    QStringList holdouts_;
+    int waitingSeconds_ = 0;
 };
 
 } // namespace atrium

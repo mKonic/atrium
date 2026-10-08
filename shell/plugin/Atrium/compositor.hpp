@@ -159,9 +159,17 @@ signals:
     void edgeReached(const QString& output, const QString& edge);
     // A tap of Mod over a fullscreen app on `output`: the bar comes over.
     void barSummoned(const QString& output);
+    // Logging out (or restarting, shutting down) waits on apps that haven't
+    // quit: {then, apps, seconds}; then it's over.
+    void logoutWaiting(const QVariantMap& state);
+    void logoutDone();
     // A mouse button went down: on a layer surface of this namespace, or ""
     // (a window, the desktop). Panels close on a press outside them.
     void pointerPressed(const QString& layerNamespace);
+
+public:
+    // The answer to the apps still open: go ahead anyway, or call it off.
+    void answerLogout(bool anyway) { request({{"cmd", anyway ? "logout.force" : "logout.cancel"}}); }
 
 private:
     using Reply = std::function<void(const QJsonValue&)>;

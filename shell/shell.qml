@@ -113,4 +113,6 @@ ShellRoot {
     About {}
 
     SessionConfirm {}
+
+    LogoutWaiting {}
 }

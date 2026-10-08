@@ -34,6 +34,18 @@ void logind(const char* method) {
 } // namespace
 
 Session::Session(QObject* parent) : QObject(parent) {
+    connect(Compositor::instance(), &Compositor::logoutWaiting, this, [this](const QVariantMap& state) {
+        waitingFor_ = state.value("then").toString();
+        holdouts_ = state.value("apps").toStringList();
+        waitingSeconds_ = state.value("seconds").toInt();
+        emit waitingChanged();
+    });
+    connect(Compositor::instance(), &Compositor::logoutDone, this, [this] {
+        waitingFor_.clear();
+        holdouts_.clear();
+        waitingSeconds_ = 0;
+        emit waitingChanged();
+    });
     tick_.setInterval(1000);
     connect(&tick_, &QTimer::timeout, this, [this] {
         setSecondsLeft(secondsLeft_ - 1);
@@ -53,6 +65,14 @@ void Session::request(const QString& action) {
     emit pendingChanged();
     setSecondsLeft(kCountdown);
     tick_.start();
+}
+
+void Session::goAnyway() {
+    Compositor::instance()->answerLogout(true);
+}
+
+void Session::stopWaiting() {
+    Compositor::instance()->answerLogout(false);
 }
 
 void Session::confirm() {

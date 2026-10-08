@@ -1,6 +1,7 @@
 #include "ipc.hpp"
 #include "appmenu.hpp"
 #include "lock_screen.hpp"
+#include "logout.hpp"
 #ifdef ATRIUM_XWAYLAND
 #include "xwayland_view.hpp"
 #endif
@@ -808,6 +809,15 @@ json Ipc::handle(Client& c, const json& req) {
 
     if (cmd == "keyboard")
         return ok(keyboard_json(server_));
+    if (cmd == "logout.cancel" || cmd == "logout.force") {
+        if (!server_.logout)
+            return fail("not logging out");
+        if (cmd == "logout.cancel")
+            server_.logout->cancel_now();
+        else
+            server_.logout->force();
+        return ok();
+    }
     if (cmd == "session")
         return ok({{"locked", server_.locked},
                    {"lock_screen", server_.lock_screen && server_.lock_screen->running()}});
