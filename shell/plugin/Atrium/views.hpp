@@ -43,6 +43,8 @@ signals:
     void nameChanged();
     void changed();
     void edgeChanged();
+    // A tap of Mod asked for the bar over this screen's fullscreen app.
+    void summoned();
 
 private:
     void update();

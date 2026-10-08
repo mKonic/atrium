@@ -157,6 +157,8 @@ signals:
     // The pointer reached the top or bottom of a screen with a fullscreen
     // app, where the bar and the Dock wait out of sight.
     void edgeReached(const QString& output, const QString& edge);
+    // A tap of Mod over a fullscreen app on `output`: the bar comes over.
+    void barSummoned(const QString& output);
     // A mouse button went down: on a layer surface of this namespace, or ""
     // (a window, the desktop). Panels close on a press outside them.
     void pointerPressed(const QString& layerNamespace);

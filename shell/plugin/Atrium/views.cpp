@@ -14,6 +14,10 @@ OutputState::OutputState(QObject* parent) : QObject(parent) {
             emit edgeChanged();
         }
     });
+    connect(c, &Compositor::barSummoned, this, [this](const QString& output) {
+        if (output == name_)
+            emit summoned();
+    });
 }
 
 void OutputState::setName(const QString& name) {

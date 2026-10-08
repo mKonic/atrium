@@ -37,6 +37,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ### Changed
 - A Dock icon's name shows above it, as on a Mac, instead of the Dock growing to fit it.
+- Over fullscreen apps, the bar and the Dock come only for a window you made fullscreen (green button or shortcut), after holding the pointer at the edge for a moment; over a video or game that went fullscreen itself they stay away, and a tap of Super brings the bar.
 
 ### Fixed
 - The shell's fonts and icons missing on a system without caelestia's packages.

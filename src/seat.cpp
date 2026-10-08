@@ -206,6 +206,13 @@ Seat::Seat(Server& srv) : server(srv) {
         });
 
     keyboards_ = std::make_unique<KeyboardGroup>(*this, false);
+
+    edge_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
+        auto* self = static_cast<Seat*>(data);
+        self->edge_held_ = true;
+        self->reach_edge();
+        return 0;
+    }, this);
 }
 
 Seat::~Seat() {
@@ -229,6 +236,8 @@ Seat::~Seat() {
     pointers_.clear();
     virtual_keyboards_.clear();
     keyboards_.reset();
+    if (edge_timer_)
+        wl_event_source_remove(edge_timer_);
     wlr_xcursor_manager_destroy(xcursor);
     wlr_cursor_destroy(cursor);
 }
@@ -500,6 +509,15 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
+    // A tap of Mod alone (nothing pressed or clicked with it) summons the
+    // bar over an app's own fullscreen, where the edges don't.
+    if (pressed)
+        mod_tap_ = is_mod_key(g.syms[0]) && !(g.mods & ~server.config.mod) ? e->keycode : 0;
+    else if (mod_tap_ && mod_tap_ == e->keycode) {
+        mod_tap_ = 0;
+        server.summon_bar();
+    }
+
     const Keybind* bind = nullptr;
     if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
         for (xkb_keysym_t sym : g.syms)
@@ -625,10 +643,22 @@ int Seat::key_repeat(KeyboardGroup& g) {
 
 // --- pointer -------------------------------------------------------------------
 
-// Over a fullscreen app the bar and the Dock wait under it, out of the way
-// of its pointer (and of direct scanout); pushing the pointer against the
-// top or bottom of that screen tells the shell to bring them over. Not
-// while the app holds the pointer: a confined game never reaches the edge.
+// Over a window made fullscreen with the green button (or a shortcut) the
+// bar and the Dock wait under it, out of the way of its pointer (and of
+// direct scanout); holding the pointer against the top or bottom of that
+// screen for a moment tells the shell to bring them over, as macOS does.
+// Not over fullscreen the app asked for itself (a video, a game: an RTS
+// scrolls at the edges), nor while the app holds the pointer, as Windows,
+// GNOME and KDE do; a tap of Mod brings the bar there instead.
+bool Seat::is_mod_key(xkb_keysym_t sym) const {
+    switch (server.config.mod) {
+    case WLR_MODIFIER_LOGO: return sym == XKB_KEY_Super_L || sym == XKB_KEY_Super_R;
+    case WLR_MODIFIER_ALT: return sym == XKB_KEY_Alt_L || sym == XKB_KEY_Alt_R;
+    case WLR_MODIFIER_CTRL: return sym == XKB_KEY_Control_L || sym == XKB_KEY_Control_R;
+    default: return false;
+    }
+}
+
 void Seat::reach_edge() {
     const char* edge = nullptr;
     Output* o = server.output_at(cursor->x, cursor->y);
@@ -636,17 +666,38 @@ void Seat::reach_edge() {
         // On a title bar brought out below the menu bar counts as the top:
         // both stay while it is used.
         int revealed = 0;
+        bool by_user = false;
         for (View* v : server.views)
-            if (v->output == o && v->visible())
+            if (v->output == o && v->visible()) {
                 revealed = std::max(revealed, v->revealed_titlebar_bottom());
-        if (cursor->y < o->box.y + std::max(1, revealed))
+                if (v->fullscreen_front())
+                    by_user = by_user || v->fullscreen_by_user;
+            }
+        if (by_user && cursor->y < o->box.y + std::max(1, revealed))
             edge = "top";
-        else if (cursor->y >= o->box.y + o->box.height - 1)
+        else if (by_user && cursor->y >= o->box.y + o->box.height - 1)
             edge = "bottom";
     }
     const std::string at = edge ? o->wlr->name : "";
-    if (edge == edge_reached_ && at == edge_output_)
+    if (edge == edge_reached_ && at == edge_output_) {
+        edge_pending_ = nullptr;
         return;
+    }
+    // Arriving waits a moment, so passing over the edge doesn't count; going
+    // from one revealed edge to leaving it doesn't.
+    if (edge && !edge_reached_) {
+        if (edge != edge_pending_ || at != edge_pending_output_) {
+            edge_pending_ = edge;
+            edge_pending_output_ = at;
+            wl_event_source_timer_update(edge_timer_, kEdgeHoldMs);
+            return;
+        }
+        if (!edge_held_)
+            return;
+    }
+    edge_pending_ = nullptr;
+    edge_held_ = false;
+    wl_event_source_timer_update(edge_timer_, 0);
     // Leaving says so too ("" on the screen it left), so a bar brought over
     // stays while the pointer rests on the edge.
     if (!edge_output_.empty() && at != edge_output_ && server.ipc)
@@ -833,6 +884,7 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 }
 
 void Seat::button(wlr_pointer_button_event* e) {
+    mod_tap_ = 0;  // Mod+click is no tap
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED)
         server.keywords.reset();  // a click moves the caret
     server.note_activity();
@@ -1036,7 +1088,7 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
             if (!v.fullscreen && !v.layout_owned())
                 v.set_maximized(!v.maximized);
         } else {
-            v.set_fullscreen(!v.fullscreen);
+            v.set_fullscreen(!v.fullscreen, true);
         }
         break;
     default: break;

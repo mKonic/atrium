@@ -193,6 +193,8 @@ public:
     void check_idle_inhibitors(wlr_surface* exclude = nullptr);
     // Input happened (idle clients and atrium's own idle actions start over).
     void note_activity();
+    // A tap of Mod: the bar over the focused screen's fullscreen app.
+    void summon_bar();
     // A notification from atrium itself (through the shell's server).
     void notify(const std::string& summary, const std::string& body);
     // The power button was pressed: false leaves it to logind.

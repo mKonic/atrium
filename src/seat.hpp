@@ -132,7 +132,15 @@ private:
     void push_edge(double dx);
     const char* edge_reached_ = nullptr;  // screen edge the pointer rests on over a fullscreen app
     std::string edge_output_;             // ... and its screen's name
+    // Arriving at an edge counts once the pointer has stayed there a moment.
+    static constexpr int kEdgeHoldMs = 400;
+    const char* edge_pending_ = nullptr;
+    std::string edge_pending_output_;
+    bool edge_held_ = false;
+    wl_event_source* edge_timer_ = nullptr;
     void reach_edge();
+    uint32_t mod_tap_ = 0;  // the Mod key pressed alone, a tap if released so
+    bool is_mod_key(xkb_keysym_t sym) const;
     bool overview_press_ = false;   // a button went down on the overview
     bool switcher_press_ = false;   // ... or while the window switcher was up
     void unmaximize_for_drag();

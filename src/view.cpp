@@ -135,7 +135,7 @@ void View::handle_map() {
     update_decorations();
     server.notify_window(*this, "opened");
     if (wish.fullscreen.value_or(false))
-        set_fullscreen(true);
+        set_fullscreen(true, true);  // the user's rule
     else if (wish.maximized.value_or(false))
         set_maximized(true);
     else if (const SessionWindow* w = server.sessions ? server.sessions->restoring(this) : nullptr; w && w->fullscreen)
@@ -778,9 +778,10 @@ void View::set_tile_bar_hidden(bool hidden) {
     server.seat->refresh_pointer();
 }
 
-void View::set_fullscreen(bool f) {
+void View::set_fullscreen(bool f, bool by_user) {
     if (f == fullscreen || unmanaged() || !tree)
         return;
+    fullscreen_by_user = f && by_user;
     if (f && !maximized)
         restore = geom;  // with its title bar, before it hides
     const int old_top = top();

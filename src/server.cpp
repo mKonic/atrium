@@ -1394,6 +1394,12 @@ void Server::notify(const std::string& summary, const std::string& body) {
           quoted(summary) + " " + quoted(body) + " '[]' '{}' 10000 >/dev/null 2>&1");
 }
 
+void Server::summon_bar() {
+    if (!focused_output || !focused_output->fullscreen_bg->node.enabled || !ipc)
+        return;
+    ipc->broadcast("outputs", {{"event", "output.summon"}, {"output", focused_output->wlr->name}});
+}
+
 void Server::note_activity() {
     wlr_idle_notifier_v1_notify_activity(idle_notifier, seat->wlr);
     if (idle)
@@ -1432,7 +1438,7 @@ void Server::run_action(const Keybind& b) {
     case Action::Spawn: spawn(b.arg); break;
     case Action::SpawnTerminal: spawn(config.terminal.empty() ? default_terminal_command() : config.terminal); break;
     case Action::CloseWindow: if (v) v->close(); break;
-    case Action::ToggleFullscreen: if (v) v->set_fullscreen(!v->fullscreen); break;
+    case Action::ToggleFullscreen: if (v) v->set_fullscreen(!v->fullscreen, true); break;
     case Action::ToggleMaximize: if (v && !v->fullscreen) v->set_maximized(!v->maximized); break;
     case Action::Minimize: if (v) v->set_minimized(true); break;
     case Action::FocusNext: cycle_focus(+1); break;

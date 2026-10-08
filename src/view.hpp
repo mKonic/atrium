@@ -90,7 +90,9 @@ public:
     // `restore_geometry` false drops the maximized state where the window is
     // (resizing a maximized window) instead of returning to `restore`.
     void set_maximized(bool maximized, bool restore_geometry = true);
-    void set_fullscreen(bool fullscreen);
+    // `by_user`: the green button, a shortcut, a rule (not the app asking):
+    // only then do the bar, title bar and Dock come over at the screen's edges.
+    void set_fullscreen(bool fullscreen, bool by_user = false);
     // Fill half or a quarter of the screen (geometry::snap_zone bits); TOP
     // alone maximizes.
     void snap(uint32_t zone);
@@ -152,6 +154,7 @@ public:
     uint32_t keyboard_layout = 0;  // with keyboard.per_window: the layout it was left in
     bool maximized = false;
     bool fullscreen = false;
+    bool fullscreen_by_user = false;  // see set_fullscreen
     bool covered = false;  // fullscreen, with another window brought in front of it
     int fullscreen_home = 0;  // the space it left for one of its own (windows.fullscreen_space)
     uint32_t snapped = 0;  // snap zone the window fills, 0 when free

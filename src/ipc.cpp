@@ -922,7 +922,7 @@ json Ipc::handle(Client& c, const json& req) {
         } else if (cmd == "window.maximize") {
             v->set_maximized(has_value ? req["value"].get<bool>() : !v->maximized);
         } else if (cmd == "window.fullscreen") {
-            v->set_fullscreen(has_value ? req["value"].get<bool>() : !v->fullscreen);
+            v->set_fullscreen(has_value ? req["value"].get<bool>() : !v->fullscreen, true);
         } else if (cmd == "window.pin") {
             // On every space (sticky).
             v->sticky = has_value ? req["value"].get<bool>() : !v->sticky;

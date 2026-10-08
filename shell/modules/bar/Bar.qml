@@ -61,6 +61,22 @@ PanelWindow {
             else if (!hover.hovered)
                 hideTimer.restart();
         }
+
+        // A tap of Mod: over an app's own fullscreen, where the edge doesn't
+        // bring it, the bar comes for a few seconds, and stays while used.
+        function onSummoned() {
+            if (!bar.fullscreen)
+                return;
+            bar.revealed = true;
+            summoned.restart();
+        }
+    }
+
+    Timer {
+        id: summoned
+
+        interval: 3000
+        onTriggered: if (!hover.hovered) hideTimer.restart()
     }
 
     // All of the bar's place once revealed (its content is still sliding in
@@ -79,10 +95,12 @@ PanelWindow {
         id: hover
 
         onHoveredChanged: {
-            if (hovered)
+            if (hovered) {
                 bar.revealed = true;
-            else if (bar.fullscreen)
+            } else if (bar.fullscreen) {
+                summoned.stop();
                 hideTimer.restart();
+            }
         }
     }
 
@@ -90,7 +108,7 @@ PanelWindow {
         id: hideTimer
 
         interval: 450
-        onTriggered: bar.revealed = !bar.fullscreen || hover.hovered || output.edge === "top"
+        onTriggered: bar.revealed = !bar.fullscreen || hover.hovered || output.edge === "top" || summoned.running
     }
 
     Item {
