@@ -106,6 +106,10 @@ public:
     void wobble_release();
     void wobble_stop();
     bool wobbly() const { return wobbly_ != nullptr; }
+    // Motion blur (windows.motion_blur), each frame of its screen: moved
+    // since the last one (by itself, not its space sliding), it's drawn
+    // blurred back along the way it came.
+    void motion_frame();
     void set_minimized(bool minimized);
     // Fullscreen and in front: over the panels, with the backdrop behind it.
     bool fullscreen_front() const { return fullscreen && !covered; }
@@ -255,6 +259,10 @@ protected:
     double wobbly_clock_ = 0;
     bool wobbly_resize_ = false;
     void wobble_frame();
+    std::unique_ptr<class Snapshot> motion_snap_;
+    bool motion_known_ = false;
+    int motion_x_ = 0, motion_y_ = 0;
+    void motion_clear();
     bool listed_ = false;              // in server.views (managed when it mapped)
     void glide_from(int from_x, int from_y);
     int anchor_right_ = 0, anchor_bottom_ = 0;

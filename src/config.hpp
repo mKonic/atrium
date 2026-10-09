@@ -117,7 +117,8 @@ struct Config {
     int cascade_step = 28;    // offset for a new window that would cover another exactly
     bool snapping = true;     // drag to screen edges and corners to tile
     bool wobbly = false;  // windows.wobbly: wobble while dragged
-    int wobbliness = 0;   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
+    int wobbliness = 0;
+    bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar

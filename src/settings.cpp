@@ -440,6 +440,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
     s.push_back(number("windows.wobbliness", T::Int, "Windows", "Wobbliness",
         "How much wobbly windows wobble: 0 is the stiffest, 4 the most like jelly.", &Config::wobbliness, d, 0, 4));
+    s.push_back(boolean("windows.motion_blur", "Windows", "Motion blur",
+        "Windows blur along the way as they move, like a camera sees fast motion.", &Config::motion_blur, d));
     s.push_back(choice("windows.minimize_effect", "Windows", "Minimize effect",
         "How a window goes into the Dock: Genie pours it in, as on a Mac; Scale shrinks it.",
         {"genie", "scale"}, d.minimize_genie ? "genie" : "scale",

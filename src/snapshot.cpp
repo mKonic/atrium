@@ -136,6 +136,29 @@ void Snapshot::place(const FBox& to, float alpha) {
     }
 }
 
+void Snapshot::motion(double back_x, double back_y, int samples) {
+    place(frame_box(), 1);
+    for (Part& p : parts_) {
+        if (p.kind == Kind::Rect) {
+            wlr_scene_node_set_enabled(p.node, false);
+            continue;
+        }
+        if (p.kind != Kind::Buffer)
+            continue;
+        // The node covers everything it passed over, the buffer itself
+        // where it is now.
+        const double x = frame_.x + p.box.x, y = frame_.y + p.box.y;
+        const int nx = int(std::floor(std::min(x, x + back_x))), ny = int(std::floor(std::min(y, y + back_y)));
+        const int w = int(std::ceil(std::max(x, x + back_x) + p.box.width)) - nx;
+        const int h = int(std::ceil(std::max(y, y + back_y) + p.box.height)) - ny;
+        auto* buf = wlr_scene_buffer_from_node(p.node);
+        wlr_scene_node_set_position(p.node, nx, ny);
+        wlr_scene_buffer_set_dest_size(buf, std::max(1, w), std::max(1, h));
+        const wlr_fbox box{x - nx, y - ny, p.box.width, p.box.height};
+        wlr_scene_buffer_set_motion(buf, &box, back_x, back_y, samples);
+    }
+}
+
 void Snapshot::warp(const std::function<FPoint(double, double)>& at, float alpha, double cell_w, double cell_h,
                     bool keep_shadow) {
     if (keep_shadow && !warped_)

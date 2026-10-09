@@ -297,6 +297,9 @@ void Output::render() {
     if (wlr->frame_pending)
         return;
     server.animator.tick();
+    for (View* v : server.views)
+        if (v->output == this)
+            v->motion_frame();
     // Night light's colour table, when it changed and no app sets this
     // screen's gamma itself; screens without one (nested) do without.
     const NightLight* night = server.night_light.get();

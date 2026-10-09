@@ -220,6 +220,8 @@ void View::handle_unmap() {
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&morph_old_, false);
     wobble_stop();
+    motion_clear();
+    motion_known_ = false;
     // Opening or morphing still: the real tree is what the close starts from.
     anim_snap_.reset();
     morph_old_.reset();
@@ -461,6 +463,7 @@ void View::wobble_begin(double px, double py, bool resize) {
         // Caught again while it settles: held at the new point.
         wobble_stop();
     }
+    motion_clear();
     wobbly_ = std::make_unique<Wobbly>(frame_in_layout(*this), wobbly_preset(server.config.wobbliness), FPoint{px, py},
                                        resize);
     wobbly_resize_ = resize;
@@ -521,8 +524,46 @@ void View::wobble_frame() {
         1, W / kWobblyTessellation, H / kWobblyTessellation);
 }
 
+void View::motion_clear() {
+    if (!motion_snap_)
+        return;
+    motion_snap_.reset();
+    if (tree && !wobbly_)
+        wlr_scene_node_set_hidden(&tree->node, false);
+}
+
+void View::motion_frame() {
+    // 1.0's eight samples.
+    constexpr int kSamples = 8;
+    if (!server.config.motion_blur || !server.config.animations || !mapped || !tree || !tree->node.enabled ||
+        minimized || wobbly_ || anim_snap_ || morph_pending_ || !tree->node.parent) {
+        motion_clear();
+        motion_known_ = false;
+        return;
+    }
+    const int x = tree->node.x, y = tree->node.y;
+    const int back_x = motion_x_ - x, back_y = motion_y_ - y;
+    const bool known = std::exchange(motion_known_, true);
+    motion_x_ = x;
+    motion_y_ = y;
+    // Still (or just appeared): drawn as it is, and whatever trail it left
+    // goes with the snapshot.
+    if (!known || (back_x == 0 && back_y == 0)) {
+        motion_clear();
+        return;
+    }
+    motion_snap_ = take_snapshot(tree->node.parent);
+    wlr_scene_node_place_above(&motion_snap_->tree()->node, &tree->node);
+    wlr_scene_node_set_hidden(&tree->node, true);
+    motion_snap_->motion(back_x, back_y, kSamples);
+    // A frame after this one, even if it stops here: its trail goes then.
+    if (output)
+        wlr_output_schedule_frame(output->wlr);
+}
+
 void View::begin_morph() {
     wobble_stop();
+    motion_clear();
     if (morph_pending_ || !server.config.animations || !mapped || !tree || !tree->node.enabled || fullscreen ||
         opening_ || !tree->node.parent || !visible())
         return;
@@ -963,6 +1004,7 @@ void View::set_minimized(bool m) {
     if (m == minimized || unmanaged() || !tree)
         return;
     wobble_stop();
+    motion_clear();
     minimized = m;
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&morph_old_, false);

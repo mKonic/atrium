@@ -37,6 +37,10 @@ public:
     // grid's cells are `cell_w` x `cell_h`. place() straightens it again.
     void warp(const std::function<FPoint(double, double)>& at, float alpha, double cell_w = kGenieCell,
               double cell_h = kGenieCell, bool keep_shadow = false);
+    // Where it is, its buffers blurred back along (back_x, back_y), the way
+    // it came this frame, over `samples` copies; the outline and backing
+    // left out.
+    void motion(double back_x, double back_y, int samples);
     const wlr_box& frame() const { return frame_; }
     FBox frame_box() const { return {double(frame_.x), double(frame_.y), double(frame_.width), double(frame_.height)}; }
     wlr_scene_tree* tree() const { return tree_; }
