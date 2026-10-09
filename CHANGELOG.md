@@ -16,6 +16,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Quicklinks import from and export to a JSON file in Settings > Launcher.
 - The launcher offers to search the web for what was typed, with Google, DuckDuckGo, Bing, Brave Search, Startpage or Ecosia (Settings > Launcher).
 ### Changed
+- External monitors' brightness no longer needs ddcutil: atrium talks DDC/CI to them itself, finds them faster and doesn't stall the screen while it looks.
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
 - An empty Dock, and pins lost on the next change, after running a build whose settings had another shape: atrium adds the columns its settings need on every start.

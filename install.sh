@@ -339,7 +339,6 @@ main() {
     if ! installed fcitx5 && ask "Type Chinese, Japanese or Korean (fcitx5 and CJK fonts)" n; then
         packages+=(fcitx5 fcitx5-qt fcitx5-gtk fcitx5-configtool noto-fonts-cjk)
     fi
-    if ((!laptop)) && ! installed ddcutil && ask "Set external monitors' brightness from atrium (ddcutil)" y; then packages+=(ddcutil); fi
 
     # --- the package
     step "atrium"

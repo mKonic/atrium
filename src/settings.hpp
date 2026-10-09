@@ -28,7 +28,7 @@ struct SettingSchema {
     double min = 0, max = 0;  // Int / Float
     std::vector<std::string> choices;  // Choice
     json default_value;
-    // A service or program it does nothing without ("ddcutil"); Settings
+    // A service or program it does nothing without ("cups"); Settings
     // greys it out, saying so, when that's missing.
     std::string needs;
     // Edited by a page's own view rather than a row of its own.

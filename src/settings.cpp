@@ -724,7 +724,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(number("displays.brightness", T::Int, "Displays", "Brightness",
         "Brightness of external monitors (DDC/CI). They forget it on boot, so atrium sets it again at login.",
         &Config::brightness, d, 0, 100));
-    s.back().needs = "ddcutil";
     s.push_back(make("recording.audio", SettingType::Bool, "Screen Recording", "Record sound",
         "Include what the speakers play in screen recordings.", false, [](Config&, const json&) {}));
     s.push_back(boolean("session.reopen_windows", "Session", "Reopen windows when logging back in",

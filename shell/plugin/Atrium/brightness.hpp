@@ -1,12 +1,11 @@
 #pragma once
-// Screen brightness: external monitors over DDC/CI (written straight to their
-// I2C bus), laptop panels through their backlight (logind, no root). With HDR
+// Screen brightness: external monitors over DDC/CI (straight on their I2C
+// bus, no ddcutil), laptop panels through their backlight (logind, no root). With HDR
 // on it is atrium's SDR brightness instead: the screen's backlight is fixed
 // then. DDC is slow, so a moving slider only ever has one write in flight and
 // the last value wins.
 
 #include <QObject>
-#include <QProcess>
 #include <QVariant>
 
 #include <optional>
@@ -38,14 +37,12 @@ signals:
 
 private:
     void detect();
-    void readCurrent();
     void setBacklight(int percent);
     void writeNext();
     bool hdr() const;
     std::optional<int> setting() const;
     void applySetting();
 
-    QString ddcutil_;
     std::vector<int> buses_;     // /dev/i2c-N of each monitor that answers DDC/CI
     int max_ = 100;              // the monitors' own top value
     QString backlight_;          // /sys/class/backlight/<name>

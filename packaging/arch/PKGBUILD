@@ -44,7 +44,6 @@ optdepends=(
   'cups: printing'
   "greetd: atrium's login screen under greetd instead of atrium-login (see /usr/share/atrium/greetd-config.toml)"
   'uwsm: the uwsm-managed session'
-  'ddcutil: brightness of external monitors'
   'fcitx5: input methods'
   'noto-fonts-cjk: Chinese, Japanese and Korean text (and input method candidates)'
   'xdg-terminal-exec: terminal apps started in your terminal'
