@@ -2,6 +2,7 @@
 #include "appmenu.hpp"
 #include "clipboard_history.hpp"
 #include "eis.hpp"
+#include "scene_dump.hpp"
 #include "geometry.hpp"
 #include "switcher.hpp"
 #include "lock_screen.hpp"
@@ -802,6 +803,19 @@ json Ipc::handle(Client& c, const json& req) {
         return ok(list);
     }
 
+    // What's drawn, as scene nodes (scene_dump.hpp): a window's ("window":
+    // its id), or everything.
+    if (cmd == "scene.dump") {
+        if (req.contains("window")) {
+            if (!req["window"].is_number_integer())
+                return fail("scene.dump's \"window\" is a window's id");
+            for (View* v : server_.views)
+                if (v->id == req["window"].get<uint64_t>() && v->tree)
+                    return ok(dump_scene(&v->tree->node));
+            return fail("no such window");
+        }
+        return ok(dump_scene(&server_.scene->tree.node));
+    }
     if (cmd == "outputs") {
         json list = json::array();
         for (Output* o : server_.outputs) {

@@ -28,6 +28,7 @@ void usage() {
         "\n"
         "  version                   compositor version\n"
         "  windows                   open windows\n"
+        "  scene [ID]                what's drawn, as scene nodes (a window's, or everything)\n"
         "  outputs                   monitors\n"
         "  layers                    panels, docks and overlays (layer surfaces)\n"
         "  spaces                    spaces and secret spaces\n"
@@ -280,6 +281,10 @@ int main(int argc, char** argv) {
         req = {{"cmd", "settings.schema"}};
     } else if (cmd == "spaces") {
         req = {{"cmd", "spaces"}};
+    } else if (cmd == "scene") {
+        req = {{"cmd", "scene.dump"}};
+        if (!args.empty())
+            req["window"] = std::stoull(args[0]);
     } else if (cmd == "space") {
         need(1);
         req = {{"cmd", "space.switch"}, {"number", std::stoi(args[0])}};
