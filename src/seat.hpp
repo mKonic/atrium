@@ -1,4 +1,5 @@
 #pragma once
+#include "access_keys_core.hpp"
 #include "config.hpp"
 #include "listener.hpp"
 #include "shake.hpp"
@@ -132,7 +133,13 @@ private:
     void update_capabilities();
     void configure_libinput(libinput_device* device);
 
+    // Typing aids first (sticky, slow and bounce keys), then key_through().
     void key(KeyboardGroup& group, wlr_keyboard_key_event* event);
+    void key_through(KeyboardGroup& group, wlr_keyboard_key_event* event);
+    void sticky_key(KeyboardGroup& group, uint32_t keycode, bool pressed);
+    // Sticky keys' latched and locked modifiers into the keyboard's state
+    // (and so to the focused app).
+    void apply_sticky();
     // A snippet keyword being typed; true when this key completed one (and
     // the shell was asked to type the snippet instead of it).
     bool watch_keyword(wlr_keyboard* kb, uint32_t keycode, xkb_keysym_t sym);
@@ -180,6 +187,21 @@ private:
     Listener<wlr_tablet_tool_button_event> tool_button_;
     std::vector<std::unique_ptr<KeyboardGroup>> virtual_keyboards_;
     std::array<bool, KEY_MAX + 1> consumed_{};  // keycodes whose press ran a binding
+    typing::BounceKeys bounce_;
+    typing::SlowKeys slow_;
+    typing::StickyKeys sticky_;
+    // A slow key's press, held back until it has been down long enough.
+    struct SlowPress {
+        Seat* seat;
+        KeyboardGroup* group;
+        wlr_keyboard_key_event event;
+        wl_event_source* timer = nullptr;
+        ~SlowPress() {
+            if (timer)
+                wl_event_source_remove(timer);
+        }
+    };
+    std::unordered_map<uint32_t, std::unique_ptr<SlowPress>> slow_presses_;
     std::unordered_map<uint32_t, std::string> portal_held_;  // keycode → portal shortcut held down
 
     View* grab_view_ = nullptr;

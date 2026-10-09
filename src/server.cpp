@@ -963,6 +963,11 @@ void Server::new_output(wlr_output* wlr) {
     update_outputs();
 }
 
+void Server::bell() {
+    if (system_bell_)
+        system_bell_->beep();
+}
+
 Output* Server::output_at(double lx, double ly) const {
     wlr_output* o = wlr_output_layout_output_at(output_layout, lx, ly);
     return o ? static_cast<Output*>(o->data) : nullptr;

@@ -548,6 +548,33 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Repeats per second while a key is held.", &Config::repeat_rate, d, 1, 100));
     s.push_back(number("keyboard.repeat_delay", T::Int, "Keyboard", "Delay until repeat",
         "Milliseconds a key is held before it repeats.", &Config::repeat_delay, d, 100, 2000));
+    // Accessibility: typing aids, as KWin's (Plasma's Accessibility page).
+    s.push_back(boolean("accessibility.sticky_keys", "Accessibility", "Sticky keys",
+        "Shift, Control, Alt and Super pressed and let go apply to the next key or click, so shortcuts need "
+        "one key at a time.", &Config::sticky_keys, d));
+    s.push_back(boolean("accessibility.sticky_keys_lock", "Accessibility", "Lock a modifier pressed twice",
+        "It stays on for every key until it's pressed again.", &Config::sticky_keys_lock, d));
+    s.push_back(boolean("accessibility.sticky_keys_auto_off", "Accessibility",
+        "Turn sticky keys off when two keys are pressed together",
+        "For someone else at the keyboard, who holds modifiers as usual.", &Config::sticky_keys_auto_off, d));
+    s.push_back(boolean("accessibility.sticky_keys_beep", "Accessibility", "Beep when a modifier is let go",
+        "The system bell, each time Shift, Control, Alt or Super is let go.", &Config::sticky_keys_beep, d));
+    s.push_back(boolean("accessibility.slow_keys", "Accessibility", "Slow keys",
+        "A key only counts once it's been held down a moment, so brushing one doesn't type it.",
+        &Config::slow_keys, d));
+    s.push_back(number("accessibility.slow_keys_delay", T::Int, "Accessibility", "Hold keys for",
+        "Milliseconds a key has to be held to count.", &Config::slow_keys_delay, d, 50, 2000));
+    s.push_back(boolean("accessibility.slow_keys_press_beep", "Accessibility", "Beep when a key is pressed",
+        "With slow keys: the system bell as a key goes down.", &Config::slow_keys_press_beep, d));
+    s.push_back(boolean("accessibility.slow_keys_accept_beep", "Accessibility", "Beep when a key is accepted",
+        "With slow keys: the system bell once it's been held long enough.", &Config::slow_keys_accept_beep, d));
+    s.push_back(boolean("accessibility.slow_keys_reject_beep", "Accessibility", "Beep when a key is rejected",
+        "With slow keys: the system bell for a key let go too soon.", &Config::slow_keys_reject_beep, d));
+    s.push_back(boolean("accessibility.bounce_keys", "Accessibility", "Bounce keys",
+        "A key pressed again straight away is ignored, for hands that tremble.", &Config::bounce_keys, d));
+    s.push_back(number("accessibility.bounce_keys_delay", T::Int, "Accessibility", "Ignore repeats within",
+        "Milliseconds after a key is pressed in which pressing it again is ignored.", &Config::bounce_keys_delay, d,
+        50, 2000));
     s.push_back(choice("keyboard.switch_keys", "Keyboard", "Switch layouts with",
         "Keys that go to the next layout, besides the menu bar's layout menu.",
         {"none", "alt_shift", "ctrl_shift", "caps_lock", "shift_caps_lock", "right_alt"}, "none",

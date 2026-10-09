@@ -23,6 +23,9 @@ public:
     SystemBell(const SystemBell&) = delete;
     SystemBell& operator=(const SystemBell&) = delete;
 
+    // The bell's sound alone (typing aids' beeps), at most every 100 ms.
+    void beep() { play(); }
+
 private:
     void ring(wlr_xdg_system_bell_v1_ring_event* e);
     void play();

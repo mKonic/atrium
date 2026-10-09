@@ -162,6 +162,16 @@ struct Config {
     int repeat_rate = 35;
     int repeat_delay = 250;
 
+    // Accessibility: KWin's typing aids (access_keys_core.hpp) and zoom.
+    bool sticky_keys = false, sticky_keys_lock = true, sticky_keys_auto_off = false, sticky_keys_beep = false;
+    bool slow_keys = false, slow_keys_press_beep = false, slow_keys_accept_beep = false,
+         slow_keys_reject_beep = false;
+    int slow_keys_delay = 500;
+    bool bounce_keys = false;
+    int bounce_keys_delay = 500;
+    double zoom_step = 1.2;                     // each zoom in multiplies by this
+    std::string zoom_tracking = "proportional";  // or "centered": how the zoomed view follows the pointer
+
     // Pointer
     double accel_speed = -0.5;
     libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;

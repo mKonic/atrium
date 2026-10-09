@@ -28,6 +28,7 @@ constexpr PageInfo kPages[] = {
     {"Phone", "smartphone", "#30d158"},
     {"Sound", "volume_up", "#ff375f"},
     {"Appearance", "palette", "#5e5ce6"},
+    {"Accessibility", "accessibility_new", "#0a84ff"},
     {"Menu Bar", "toolbar", "#8e8e93"},
     {"Dock", "dock_to_bottom", "#8e8e93"},
     {"Desktop", "desktop_windows", "#0a84ff"},

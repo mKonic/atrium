@@ -331,6 +331,8 @@ public:
     wlr_xwayland* xwayland = nullptr;
 #endif
 
+    // The system bell's sound (the typing aids' beeps).
+    void bell();
     std::unique_ptr<Settings> settings;
     std::unique_ptr<SnapPreview> snap_preview;
     std::unique_ptr<Overview> overview;

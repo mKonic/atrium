@@ -1,4 +1,5 @@
 #include "seat.hpp"
+#include "settings.hpp"
 
 #include "button_remap.hpp"
 #include "eis.hpp"
@@ -635,7 +636,119 @@ bool Seat::shortcuts_inhibited() const {
     return false;
 }
 
+// Typing aids, as KWin's input filters, on real keyboards (not an input
+// method's or a remote session's keys).
 void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
+    const Config& c = server.config;
+    const bool pressed = e->state == WL_KEYBOARD_KEY_STATE_PRESSED;
+    if (g.is_virtual) {
+        key_through(g, e);
+        return;
+    }
+    if (!c.bounce_keys)
+        bounce_.clear();
+    else if (bounce_.filter(e->keycode, pressed, e->time_msec, uint32_t(c.bounce_keys_delay)))
+        return;
+    if (!c.slow_keys) {
+        slow_.clear();
+        slow_presses_.clear();
+    } else if (pressed) {
+        slow_.press(e->keycode);
+        if (c.slow_keys_press_beep)
+            server.bell();
+        auto p = std::make_unique<SlowPress>(SlowPress{this, &g, *e, nullptr});
+        p->timer = wl_event_loop_add_timer(server.loop, [](void* data) {
+            auto* p = static_cast<SlowPress*>(data);
+            Seat& seat = *p->seat;
+            const uint32_t key = p->event.keycode;
+            if (seat.slow_.expire(key)) {
+                if (seat.server.config.slow_keys_accept_beep)
+                    seat.server.bell();
+                wlr_keyboard_key_event ev = p->event;
+                timespec now;
+                clock_gettime(CLOCK_MONOTONIC, &now);
+                ev.time_msec = uint32_t(now.tv_sec * 1000 + now.tv_nsec / 1000000);
+                KeyboardGroup& group = *p->group;
+                seat.slow_presses_.erase(key);  // frees p
+                seat.key_through(group, &ev);
+                seat.sticky_key(group, key, true);
+            }
+            return 0;
+        }, p.get());
+        wl_event_source_timer_update(p->timer, std::max(1, c.slow_keys_delay));
+        slow_presses_[e->keycode] = std::move(p);
+        return;
+    } else {
+        slow_presses_.erase(e->keycode);
+        if (!slow_.release(e->keycode)) {
+            if (c.slow_keys_reject_beep)
+                server.bell();
+            return;
+        }
+    }
+    key_through(g, e);
+    sticky_key(g, e->keycode, pressed);
+}
+
+// The modifier sticky keys means by each key (KWin's: Shift, Control, Alt,
+// Meta and AltGr), as an xkb mask bit; 0 for any other key.
+static uint32_t sticky_modifier(wlr_keyboard* kb, uint32_t keycode) {
+    const xkb_keysym_t sym = xkb_state_key_get_one_sym(kb->xkb_state, keycode + 8);
+    const char* name = nullptr;
+    switch (sym) {
+    case XKB_KEY_Shift_L: case XKB_KEY_Shift_R: name = XKB_MOD_NAME_SHIFT; break;
+    case XKB_KEY_Control_L: case XKB_KEY_Control_R: name = XKB_MOD_NAME_CTRL; break;
+    case XKB_KEY_Alt_L: case XKB_KEY_Alt_R: case XKB_KEY_Meta_L: case XKB_KEY_Meta_R: name = XKB_MOD_NAME_ALT; break;
+    case XKB_KEY_Super_L: case XKB_KEY_Super_R: case XKB_KEY_Hyper_L: case XKB_KEY_Hyper_R: name = XKB_MOD_NAME_LOGO; break;
+    case XKB_KEY_ISO_Level3_Shift: name = "Mod5"; break;
+    default: return 0;
+    }
+    const xkb_mod_index_t i = xkb_keymap_mod_get_index(kb->keymap, name);
+    return i == XKB_MOD_INVALID ? 0 : 1u << i;
+}
+
+void Seat::sticky_key(KeyboardGroup& g, uint32_t keycode, bool pressed) {
+    const Config& c = server.config;
+    if (!c.sticky_keys) {
+        if (sticky_.latched() || sticky_.locked()) {
+            sticky_.clear();
+            apply_sticky();
+        }
+        return;
+    }
+    sticky_.set_options({.lock = c.sticky_keys_lock, .auto_off = c.sticky_keys_auto_off});
+    if (const uint32_t mod = sticky_modifier(&g.group->keyboard, keycode)) {
+        if (pressed) {
+            sticky_.modifier_pressed(mod);
+        } else {
+            sticky_.modifier_released(mod);
+            if (c.sticky_keys_beep)
+                server.bell();
+        }
+    } else if (pressed && sticky_.key_pressed()) {
+        // Two keys at once: someone typing as usual. Off, as Settings shows.
+        server.settings->set("accessibility.sticky_keys", false);
+        server.setting_changed("accessibility.sticky_keys");
+    }
+    apply_sticky();
+}
+
+void Seat::apply_sticky() {
+    // On the keyboards themselves: the group takes its modifiers from them
+    // after every key, so one set on the group alone is gone a key later.
+    std::vector<wlr_keyboard*> kbs{physical_keyboard()};
+    for (const auto& k : physical_)
+        kbs.push_back(k->wlr);
+    for (wlr_keyboard* kb : kbs) {
+        const auto& m = kb->modifiers;
+        const uint32_t latched = (m.latched & ~sticky_.managed()) | sticky_.latched();
+        const uint32_t locked = (m.locked & ~sticky_.managed()) | sticky_.locked();
+        if (latched != m.latched || locked != m.locked)
+            wlr_keyboard_notify_modifiers(kb, m.depressed, latched, locked, m.group);
+    }
+}
+
+void Seat::key_through(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     const uint32_t keycode = e->keycode + 8;  // evdev → xkb
     wlr_keyboard* kb = &g.group->keyboard;
     xkb_layout_index_t layout = xkb_state_key_get_layout(kb->xkb_state, keycode);
@@ -765,6 +878,10 @@ wlr_keyboard* Seat::physical_keyboard() const {
 }
 
 void Seat::modifiers(KeyboardGroup& g) {
+    // xkb has had the key now: a Shift let go clears its own lock
+    // (clearLocks), so sticky keys' state goes back over it.
+    if (!g.is_virtual && (sticky_.latched() || sticky_.locked()))
+        apply_sticky();
     if (!server.input_method || !server.input_method->forward_modifiers(&g.group->keyboard, g.owner)) {
         wlr_seat_set_keyboard(wlr, &g.group->keyboard);
         wlr_seat_keyboard_notify_modifiers(wlr, &g.group->keyboard.modifiers);
@@ -1302,6 +1419,11 @@ void Seat::button_event(wlr_pointer_button_event* e) {
         mode = Mode::Normal;
     }
     wlr_seat_pointer_notify_button(wlr, e->time_msec, e->button, e->state);
+    // Sticky keys: a click with a latched modifier (Ctrl+click), then it ends.
+    if (e->state == WL_POINTER_BUTTON_STATE_RELEASED && sticky_.latched()) {
+        sticky_.button_released();
+        apply_sticky();
+    }
 }
 
 // --- title bars and frame edges -----------------------------------------------------
