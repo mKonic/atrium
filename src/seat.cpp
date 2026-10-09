@@ -1,5 +1,6 @@
 #include "seat.hpp"
 
+#include "button_remap.hpp"
 #include "eis.hpp"
 #include "keyboard_conf.hpp"
 #include "input_method.hpp"
@@ -281,6 +282,8 @@ Seat::~Seat() {
     constraints_.clear();
     pointers_.clear();
     virtual_keyboards_.clear();
+    if (remap_keyboard_)
+        wlr_keyboard_finish(remap_keyboard_.get());
     keyboards_.reset();
     if (edge_timer_)
         wl_event_source_remove(edge_timer_);
@@ -650,7 +653,7 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         !(g.syms[0] >= XKB_KEY_ISO_Lock && g.syms[0] <= XKB_KEY_ISO_Level5_Lock))
         server.last_interaction_serial = wl_display_next_serial(server.display);
     // Hyprland's hide_on_key_press: typing hides the pointer until it moves.
-    if (pressed && server.config.hide_pointer_typing && !typing_hidden_ && mode == Mode::Normal && !shaking_) {
+    if (pressed && server.config.hide_pointer_typing && !remap_typing_ && !typing_hidden_ && mode == Mode::Normal && !shaking_) {
         typing_hidden_ = true;
         wlr_cursor_unset_image(cursor);
     }
@@ -1095,6 +1098,77 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 }
 
 void Seat::button(wlr_pointer_button_event* e) {
+    // A button set to do something else (Settings > Mouse & Touchpad), as
+    // KWin's buttonrebinds filter turns it into keys, another button or
+    // nothing. A press keeps its remap until the release, even if the setting
+    // changes in between.
+    const bool down = e->state == WL_POINTER_BUTTON_STATE_PRESSED;
+    std::optional<ButtonRemap> r;
+    if (down) {
+        if (const auto it = server.config.button_remaps.find(e->button); it != server.config.button_remaps.end()) {
+            r = it->second;
+            remapped_[e->button] = *r;
+        }
+    } else if (const auto it = remapped_.find(e->button); it != remapped_.end()) {
+        r = it->second;
+        remapped_.erase(it);
+    }
+    if (!r) {
+        button_event(e);
+        return;
+    }
+    switch (r->kind) {
+    case ButtonRemap::Disabled:
+        return;
+    case ButtonRemap::Keys:
+        if (down) {
+            const auto keys = button_remap::keys_for(keyboards_->group->keyboard.keymap, layout(), r->mods, r->sym);
+            remap_keys_[e->button] = keys;
+            send_remap_keys(keys, true, e->time_msec);
+        } else {
+            send_remap_keys(remap_keys_[e->button], false, e->time_msec);
+            remap_keys_.erase(e->button);
+        }
+        return;
+    case ButtonRemap::Button: {
+        // The modifiers around the other button: down before, up after.
+        const auto mods = button_remap::modifier_keys(r->mods);
+        wlr_pointer_button_event other = *e;
+        other.button = r->to;
+        if (down)
+            send_remap_keys(mods, true, e->time_msec);
+        button_event(&other);
+        if (!down)
+            send_remap_keys(mods, false, e->time_msec);
+        return;
+    }
+    }
+}
+
+void Seat::send_remap_keys(const std::vector<uint32_t>& keys, bool pressed, uint32_t time) {
+    if (keys.empty())
+        return;
+    if (!remap_keyboard_) {
+        static const wlr_keyboard_impl impl{.name = "atrium-button-remap", .led_update = nullptr};
+        remap_keyboard_ = std::make_unique<wlr_keyboard>();
+        wlr_keyboard_init(remap_keyboard_.get(), &impl, "button remaps");
+        add_virtual(&remap_keyboard_->base);
+    }
+    remap_typing_ = true;
+    // Pressed in order (modifiers first), let go in reverse.
+    auto send = [&](uint32_t key) {
+        wlr_keyboard_key_event k{.time_msec = time, .keycode = key, .update_state = true,
+                                 .state = pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED};
+        wlr_keyboard_notify_key(remap_keyboard_.get(), &k);
+    };
+    if (pressed)
+        std::ranges::for_each(keys, send);
+    else
+        std::ranges::for_each(keys.rbegin(), keys.rend(), send);
+    remap_typing_ = false;
+}
+
+void Seat::button_event(wlr_pointer_button_event* e) {
     if (server.eis && server.eis->button(e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED))
         return;
     mod_tap_ = 0;  // Mod+click is no tap

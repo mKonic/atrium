@@ -33,6 +33,16 @@ public:
     Q_INVOKABLE QVariantList choiceOptions(const QStringList& choices) const;
     Q_INVOKABLE QString chord(int key, int modifiers, const QString& modifier) const;
 
+    // Extra mouse buttons (pointer.buttons): a pressed Qt button as evdev
+    // (0 for none), its name, what each can do, and the list with one
+    // button's remap set or taken out.
+    Q_INVOKABLE int evdevButton(int qtButton) const;
+    Q_INVOKABLE QString buttonName(int code) const;
+    Q_INVOKABLE QVariantList remapActions() const;  // [{value, label}]
+    Q_INVOKABLE QString remapAction(const QVariantMap& remap) const;  // its value among them
+    Q_INVOKABLE QVariantList remapWith(const QVariantList& remaps, int button, const QString& action, const QString& keys = {}) const;
+    Q_INVOKABLE QVariantList remapWithout(const QVariantList& remaps, int button) const;
+
 signals:
     void changed();
 

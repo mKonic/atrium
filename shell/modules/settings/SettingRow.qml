@@ -15,7 +15,7 @@ Item {
     readonly property string type: setting.type
     readonly property var value: Atrium.settings[key] ?? setting.default
     readonly property bool changed: JSON.stringify(value) !== JSON.stringify(setting.default)
-    readonly property bool wide: type === "list"
+    readonly property bool wide: type === "list" || type === "buttons"
     // Why it can't work here ("ddcutil isn't installed."), if it can't.
     readonly property string missing: Requirements.missing[setting.needs ?? ""] ?? ""
 
@@ -121,7 +121,7 @@ Item {
         width: parent.width - 32
         height: item?.implicitHeight ?? 0
         active: root.wide
-        sourceComponent: listEditor
+        sourceComponent: root.type === "buttons" ? buttonsEditor : listEditor
     }
 
     Component {
@@ -214,6 +214,15 @@ Item {
         TextControl {
             value: String(root.value ?? "")
             placeholder: root.setting.placeholder ?? ""
+            onCommitted: v => root.set(v)
+        }
+    }
+
+    Component {
+        id: buttonsEditor
+
+        ButtonsEditor {
+            value: root.value ?? []
             onCommitted: v => root.set(v)
         }
     }

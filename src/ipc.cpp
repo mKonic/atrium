@@ -50,6 +50,7 @@ const char* type_name(SettingType t) {
     case SettingType::Keybinds: return "keybinds";
     case SettingType::Rules: return "rules";
     case SettingType::StringList: return "list";
+    case SettingType::Buttons: return "buttons";
     }
     return "unknown";
 }

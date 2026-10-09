@@ -1,5 +1,6 @@
 #include "settings_pages.hpp"
 
+#include "button_names.hpp"
 #include "compositor.hpp"
 #include "search.hpp"
 
@@ -147,6 +148,58 @@ QString SettingsPages::chord(int key, int modifiers, const QString& modifier) co
             parts.push_back(m.label);
     parts.push_back(name);
     return parts.join('+');
+}
+
+int SettingsPages::evdevButton(int qtButton) const {
+    return int(button_remap::evdev_button(uint32_t(qtButton)));
+}
+
+QString SettingsPages::buttonName(int code) const {
+    return QString::fromStdString(button_remap::button_name(uint32_t(code)));
+}
+
+QVariantList SettingsPages::remapActions() const {
+    // As KWin's mouse page offers them: keys, a button, or nothing.
+    return {QVariantMap{{"value", "keys"}, {"label", "Keys"}},
+            QVariantMap{{"value", "button:273"}, {"label", "Right Click"}},
+            QVariantMap{{"value", "button:274"}, {"label", "Middle Click"}},
+            QVariantMap{{"value", "button:275"}, {"label", "Back"}},
+            QVariantMap{{"value", "button:276"}, {"label", "Forward"}},
+            QVariantMap{{"value", "disabled"}, {"label", "Nothing"}}};
+}
+
+QString SettingsPages::remapAction(const QVariantMap& remap) const {
+    const QString action = remap.value("action").toString();
+    return action == "button" ? "button:" + QString::number(remap.value("to").toInt()) : action;
+}
+
+QVariantList SettingsPages::remapWith(const QVariantList& remaps, int button, const QString& action, const QString& keys) const {
+    QVariantMap entry{{"button", button}};
+    if (action.startsWith("button:")) {
+        entry["action"] = "button";
+        entry["to"] = action.mid(7).toInt();
+    } else {
+        entry["action"] = action;
+        if (action == "keys")
+            entry["keys"] = keys;
+    }
+    QVariantList out = remapWithout(remaps, button);
+    // In its place, or at the end when it's new.
+    for (qsizetype i = 0; i < remaps.size(); ++i)
+        if (remaps[i].toMap().value("button").toInt() == button) {
+            out.insert(i, entry);
+            return out;
+        }
+    out.append(entry);
+    return out;
+}
+
+QVariantList SettingsPages::remapWithout(const QVariantList& remaps, int button) const {
+    QVariantList out;
+    for (const QVariant& r : remaps)
+        if (r.toMap().value("button").toInt() != button)
+            out.append(r);
+    return out;
 }
 
 QVariantList SettingsPages::search(const QString& query) const {

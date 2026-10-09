@@ -15,7 +15,7 @@ namespace atrium {
 
 using json = nlohmann::json;
 
-enum class SettingType { Bool, Int, Float, String, Color, Choice, Keybinds, Rules, StringList };
+enum class SettingType { Bool, Int, Float, String, Color, Choice, Keybinds, Rules, StringList, Buttons };
 
 // One setting as the Settings app sees it: enough to draw a control for it
 // and validate what comes back.

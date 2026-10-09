@@ -3,6 +3,7 @@ AboutPage 1.0 AboutPage.qml
 AccentControl 1.0 AccentControl.qml
 AppsPage 1.0 AppsPage.qml
 BluetoothPage 1.0 BluetoothPage.qml
+ButtonsEditor 1.0 ButtonsEditor.qml
 PhonePage 1.0 PhonePage.qml
 Card 1.0 Card.qml
 ChoiceControl 1.0 ChoiceControl.qml

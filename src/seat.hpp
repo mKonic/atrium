@@ -6,6 +6,7 @@
 #include <array>
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -143,7 +144,9 @@ private:
 
     void motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                 double dx_unaccel, double dy_unaccel);
+    // A button as pointer.buttons remaps it, then on to button_event.
     void button(wlr_pointer_button_event* event);
+    void button_event(wlr_pointer_button_event* event);
     void axis(wlr_pointer_axis_event* event);
     double space_scroll_ = 0;  // Mod + scroll, toward the next space step
     void pointer_focus(View* view, wlr_surface* surface, double sx, double sy, uint32_t time);
@@ -237,6 +240,15 @@ private:
     };
     std::vector<std::unique_ptr<PhysicalKeyboard>> physical_;
     uint32_t last_layout_ = 0;
+
+    // Remapped buttons held down: each keeps its remap, and the keys it
+    // pressed, until it's let go. Their keys come from a keyboard of atrium's
+    // own, so shortcuts see them as typed.
+    std::map<uint32_t, ButtonRemap> remapped_;
+    std::map<uint32_t, std::vector<uint32_t>> remap_keys_;
+    std::unique_ptr<wlr_keyboard> remap_keyboard_;
+    bool remap_typing_ = false;  // keys from a button don't hide the pointer
+    void send_remap_keys(const std::vector<uint32_t>& keys, bool pressed, uint32_t time);
 
     wlr_pointer_constraint_v1* active_constraint_ = nullptr;
     struct Constraint;

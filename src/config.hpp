@@ -4,6 +4,7 @@
 #include "rules.hpp"
 
 #include <array>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,14 @@ enum class Action {
     SwitchUser,       // lock, then the login manager's greeter beside the session
     Place,            // arg: where the window goes (geometry::named_place, maximize, restore,
                       // next-display, prev-display)
+};
+
+// A mouse button doing something else (pointer.buttons; button_remap.hpp).
+struct ButtonRemap {
+    enum Kind { Keys, Button, Disabled } kind = Disabled;
+    uint32_t mods = 0;                  // Keys: with the key; Button: held with it
+    xkb_keysym_t sym = XKB_KEY_NoSymbol;  // Keys
+    uint32_t to = 0;                    // Button
 };
 
 struct Keybind {
@@ -132,6 +141,7 @@ struct Config {
     bool dim_behind_dialogs = true;  // windows.dim_behind_dialogs: grey a window under its modal dialog
     // desktop.hot_corner_*: top left, top right, bottom left, bottom right
     std::array<std::string, 4> hot_corners{"none", "none", "none", "none"};
+    std::map<uint32_t, ButtonRemap> button_remaps;  // pointer.buttons: by evdev button
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar

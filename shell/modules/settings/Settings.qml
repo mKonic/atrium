@@ -17,7 +17,7 @@ FloatingWindow {
 
     // Types that need a whole card rather than a control at the row's end.
     function wide(type: string): bool {
-        return type === "list";
+        return type === "list" || type === "buttons";
     }
 
     function openPage(name: string): void {

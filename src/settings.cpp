@@ -1,6 +1,7 @@
 #include "settings.hpp"
 
 #include "accent.hpp"
+#include "button_remap.hpp"
 #include "hot_corners_core.hpp"
 
 #include <algorithm>
@@ -583,6 +584,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Shaking the pointer quickly makes it big for a moment, so you can see where it is.", &Config::shake_to_find, d));
     s.push_back(boolean("pointer.left_handed", "Mouse & Touchpad", "Left-handed",
         "Swap the primary and secondary buttons.", &Config::left_handed, d));
+    s.push_back(make("pointer.buttons", SettingType::Buttons, "Mouse & Touchpad", "Extra buttons",
+        "What a mouse's other buttons do: keys to press, another button, or nothing.", json::array(),
+        [](Config& c, const json& v) { c.button_remaps = button_remap::parse(v); }));
     s.push_back(boolean("pointer.middle_emulation", "Mouse & Touchpad", "Middle-click emulation",
         "Pressing left and right together is a middle click.", &Config::middle_button_emulation, d));
     s.push_back(boolean("touchpad.natural_scroll", "Mouse & Touchpad", "Natural scrolling (touchpad)",
@@ -869,6 +873,13 @@ std::optional<std::string> Settings::validate(const SettingSchema& s, json& v) c
         if (!v.is_array() || !std::ranges::all_of(v, [](const json& e) { return e.is_string(); }))
             return s.key + " is a list of text";
         break;
+    case SettingType::Buttons: {
+        std::vector<std::string> errors;
+        button_remap::parse(v, &errors);
+        if (!errors.empty())
+            return errors.front();
+        break;
+    }
     }
     return std::nullopt;
 }
