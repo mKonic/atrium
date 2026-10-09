@@ -123,6 +123,10 @@ public:
     // The serial of the last key or button press (KWin's
     // lastInteractionSerial): an activation token from before it is stale.
     uint32_t last_interaction_serial = 0;
+    // X11 apps' scale (KWin's xwaylandScale): the largest screen scale when
+    // they scale themselves, else 1. Xwayland sees everything at it.
+    double xwayland_scale = 1;
+    void update_xwayland_scale();
     // The focused window stops being focused (and IPC subscribers hear so).
     void drop_focus();
     // Fullscreen windows go over the panels only while in front: one with
@@ -414,7 +418,9 @@ private:
     Listener<wlr_ext_workspace_v1_commit_event> workspace_commit_;
     Listener<wlr_xdg_toplevel_tag_manager_v1_set_tag_event> set_tag_;
 #ifdef ATRIUM_XWAYLAND
-    Listener<> xwayland_ready_;
+    Listener<> xwayland_ready_, xwayland_start_;
+    wlr_xdg_output_manager_v1* xdg_output_manager_ = nullptr;
+    void set_x_resources();
     Listener<wlr_xwayland_surface> new_xwayland_surface_;
 #endif
 };

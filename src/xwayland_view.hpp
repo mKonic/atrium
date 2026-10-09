@@ -29,6 +29,10 @@ public:
 
     wlr_xwayland_surface* const xsurface;
 
+    // The X11 apps' scale changed (Server::xwayland_scale): say where it is
+    // again, in the new units.
+    void rescaled();
+
 protected:
     void configure(const wlr_box& frame) override;
     void send_activated(bool activated) override;

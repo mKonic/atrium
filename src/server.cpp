@@ -43,6 +43,7 @@
 #include "clipboard_history.hpp"
 
 #include <algorithm>
+#include <sstream>
 #include <csignal>
 #include <cstdlib>
 #include <ctime>
@@ -327,7 +328,7 @@ void Server::setup() {
 
     output_layout = wlr_output_layout_create(display);
     layout_change_.connect(&output_layout->events.change, [this](void*) { update_outputs(); });
-    wlr_xdg_output_manager_v1_create(display, output_layout);
+    xdg_output_manager_ = wlr_xdg_output_manager_v1_create(display, output_layout);
 
     workspace_manager = wlr_ext_workspace_manager_v1_create(display, 1);
     workspace_commit_.connect(&workspace_manager->events.commit,
@@ -434,8 +435,14 @@ void Server::setup() {
     // once Xwayland is up. A lazily started one also forgets it on restart.
     xwayland = wlr_xwayland_create(display, compositor, false);
     if (xwayland) {
+        // Its scale goes on before it looks at the outputs.
+        xwayland_start_.connect(&xwayland->server->events.start, [this](void*) {
+            wlr_client_set_scale_override(xwayland->server->client, xwayland_scale);
+            wlr_xdg_output_manager_v1_refresh(xdg_output_manager_);
+        });
         xwayland_ready_.connect(&xwayland->events.ready, [this](void*) {
             allow_root_x11(xwayland->display_name);
+            set_x_resources();
             run_startup();
             wlr_xwayland_set_seat(xwayland, seat->wlr);
             if (auto* xc = wlr_xcursor_manager_get_xcursor(seat->xcursor, "default", 1)) {
@@ -476,6 +483,7 @@ void Server::disconnect_listeners() {
     set_tag_.disconnect();
 #ifdef ATRIUM_XWAYLAND
     xwayland_ready_.disconnect();
+    xwayland_start_.disconnect();
     new_xwayland_surface_.disconnect();
 #endif
 }
@@ -505,6 +513,68 @@ void Server::allow_root_x11(const char* display) {
     xcb_disconnect(conn);
 }
 #endif
+
+// Xft.dpi (and the cursor size) in the root window's resources, as KWin's
+// plasma-setup-xwayland sets them with xrdb: X11 apps that scale themselves
+// (Qt, Chromium, Electron) read their scale from it. Other resources stay.
+void Server::set_x_resources() {
+#ifdef ATRIUM_XWAYLAND
+    if (!xwayland || !xwayland->server || !xwayland->server->ready)
+        return;
+    xcb_connection_t* conn = xcb_connect(xwayland->display_name, nullptr);
+    if (xcb_connection_has_error(conn)) {
+        xcb_disconnect(conn);
+        return;
+    }
+    xcb_screen_t* screen = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
+    xcb_intern_atom_reply_t* atom =
+        xcb_intern_atom_reply(conn, xcb_intern_atom(conn, 0, 16, "RESOURCE_MANAGER"), nullptr);
+    if (!screen || !atom) {
+        free(atom);
+        xcb_disconnect(conn);
+        return;
+    }
+    std::string kept;
+    if (auto* r = xcb_get_property_reply(conn, xcb_get_property(conn, 0, screen->root, atom->atom,
+                                                                XCB_ATOM_STRING, 0, 1 << 20), nullptr)) {
+        std::istringstream in(std::string(static_cast<const char*>(xcb_get_property_value(r)),
+                                          size_t(xcb_get_property_value_length(r))));
+        for (std::string line; std::getline(in, line);)
+            if (!line.empty() && !line.starts_with("Xft.dpi:") && !line.starts_with("Xcursor.size:"))
+                kept += line + "\n";
+        free(r);
+    }
+    kept += "Xft.dpi:\t" + std::to_string(int(std::lround(96 * xwayland_scale))) + "\n";
+    kept += "Xcursor.size:\t" + std::to_string(int(std::lround(config.cursor_size * xwayland_scale))) + "\n";
+    // Waited for: hanging up straight after a plain write sometimes lost it.
+    free(xcb_request_check(conn, xcb_change_property_checked(conn, XCB_PROP_MODE_REPLACE, screen->root, atom->atom,
+                                                             XCB_ATOM_STRING, 8, uint32_t(kept.size()), kept.data())));
+    free(atom);
+    xcb_disconnect(conn);
+#endif
+}
+
+void Server::update_xwayland_scale() {
+#ifdef ATRIUM_XWAYLAND
+    double s = 1;
+    if (config.x11_scale_themselves)
+        for (Output* o : outputs)
+            if (o->enabled())
+                s = std::max(s, double(o->wlr->scale));
+    if (s == xwayland_scale)
+        return;
+    xwayland_scale = s;
+    if (!xwayland || !xwayland->server || !xwayland->server->client)
+        return;  // set as it starts
+    wlr_client_set_scale_override(xwayland->server->client, s);
+    wlr_xdg_output_manager_v1_refresh(xdg_output_manager_);
+    set_x_resources();
+    // Every window again, in the new units.
+    for (View* v : views)
+        if (v->kind == View::Kind::X11 && v->mapped)
+            static_cast<XwaylandView*>(v)->rescaled();
+#endif
+}
 
 // Clipboard history (clipboard_history.hpp), in the state directory. A
 // nested atrium leaves it to the host session's (both would write the same
@@ -892,6 +962,7 @@ Output* Server::output_at(double lx, double ly) const {
 // mode or position. Recomputes every box that depends on outputs and publishes
 // the new state to wlr-output-management clients.
 void Server::update_outputs() {
+    update_xwayland_scale();
     if (night_light)
         night_light->update();  // a screen that can (or can't) show it came or went
     auto* config_out = wlr_output_configuration_v1_create();
@@ -1718,6 +1789,10 @@ void Server::setting_changed(const std::string& key) {
         apply_blur_settings();
     if (key == "appearance.screen_shader")
         apply_screen_shader();
+    if (key == "displays.x11_scaling" || key == "cursor.size") {
+        update_xwayland_scale();
+        set_x_resources();
+    }
     if (key == "windows.dim_behind_dialogs")
         update_blocked();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)

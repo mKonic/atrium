@@ -4,7 +4,27 @@
 #include "seat.hpp"
 #include "server.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 namespace atrium {
+
+namespace {
+
+// X11 coordinates are atrium's times the X11 apps' scale (KWin's
+// Xcb::toXNative and fromXNative).
+int to_x(const Server& s, int v) {
+    return int(std::lround(v * s.xwayland_scale));
+}
+int from_x(const Server& s, int v) {
+    return int(std::lround(v / s.xwayland_scale));
+}
+
+wlr_box from_x(const Server& s, int x, int y, int w, int h) {
+    return {from_x(s, x), from_x(s, y), std::max(1, from_x(s, w)), std::max(1, from_x(s, h))};
+}
+
+} // namespace
 
 XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Kind::X11), xsurface(xs) {
     xsurface->data = this;
@@ -93,7 +113,7 @@ XwaylandView::~XwaylandView() {
 
 void XwaylandView::map() {
     wlr_log(WLR_DEBUG, "x11: window 0x%x maps", xsurface->window_id);
-    geom = {xsurface->x, xsurface->y, xsurface->width, xsurface->height};
+    geom = from_x(server, xsurface->x, xsurface->y, xsurface->width, xsurface->height);
     handle_map();
     if (unmanaged())
         return;
@@ -127,7 +147,7 @@ std::optional<std::pair<int, int>> XwaylandView::requested_position(bool& user) 
     const bool program = h->flags & XCB_ICCCM_SIZE_HINT_P_POSITION;
     if (!user && !(program && (xsurface->x != 0 || xsurface->y != 0)))
         return std::nullopt;
-    return std::pair{int(xsurface->x), int(xsurface->y)};
+    return std::pair{from_x(server, xsurface->x), from_x(server, xsurface->y)};
 }
 
 bool XwaylandView::splash() const {
@@ -158,7 +178,7 @@ void XwaylandView::request_configure(wlr_xwayland_surface_configure_event* e) {
     if (!mapped || unmanaged()) {
         wlr_xwayland_surface_configure(xsurface, e->x, e->y, e->width, e->height);
         if (tree && unmanaged())
-            wlr_scene_node_set_position(&tree->node, e->x, e->y);
+            wlr_scene_node_set_position(&tree->node, from_x(server, e->x), from_x(server, e->y));
         return;
     }
     // A floating X11 window may move and resize itself, except while the
@@ -167,20 +187,31 @@ void XwaylandView::request_configure(wlr_xwayland_surface_configure_event* e) {
         configure(geom);
         return;
     }
-    request_geometry({e->x, e->y - top(), e->width, e->height + top()});
+    const wlr_box b = from_x(server, e->x, e->y, e->width, e->height);
+    request_geometry({b.x, b.y - top(), b.width, b.height + top()});
 }
 
 void XwaylandView::set_geometry() {
     if (!unmanaged() || !mapped)
         return;
-    geom = {xsurface->x, xsurface->y, xsurface->width, xsurface->height};
+    geom = from_x(server, xsurface->x, xsurface->y, xsurface->width, xsurface->height);
     wlr_scene_node_set_position(&tree->node, geom.x, geom.y);
 }
 
 void XwaylandView::configure(const wlr_box& frame) {
     const wlr_box box = content_box(frame);
-    wlr_xwayland_surface_configure(xsurface, int16_t(box.x), int16_t(box.y),
-                                   uint16_t(box.width), uint16_t(box.height));
+    wlr_xwayland_surface_configure(xsurface, int16_t(to_x(server, box.x)), int16_t(to_x(server, box.y)),
+                                   uint16_t(to_x(server, box.width)), uint16_t(to_x(server, box.height)));
+}
+
+void XwaylandView::rescaled() {
+    if (!mapped)
+        return;
+    if (unmanaged()) {
+        set_geometry();
+        return;
+    }
+    configure(geom);
 }
 
 wlr_scene_tree* XwaylandView::create_content(wlr_scene_tree* parent) {
@@ -216,8 +247,10 @@ View* XwaylandView::parent() const {
 void XwaylandView::size_hints(wlr_box& min, wlr_box& max) const {
     min = max = {};
     if (auto* h = xsurface->size_hints) {
-        min = {0, 0, h->min_width, h->min_height};
-        max = {0, 0, h->max_width, h->max_height};
+        // 0 (or less) is "none", which stays so.
+        auto f = [this](int v) { return v > 0 ? std::max(1, from_x(server, v)) : v; };
+        min = {0, 0, f(h->min_width), f(h->min_height)};
+        max = {0, 0, f(h->max_width), f(h->max_height)};
     }
 }
 

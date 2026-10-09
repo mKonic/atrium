@@ -480,6 +480,11 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "How much wobbly windows wobble: 0 is the stiffest, 4 the most like jelly.", &Config::wobbliness, d, 0, 4));
     s.push_back(boolean("windows.motion_blur", "Windows", "Motion blur",
         "Windows blur along the way as they move, like a camera sees fast motion.", &Config::motion_blur, d));
+    s.push_back(choice("displays.x11_scaling", "Displays", "Older (X11) apps",
+        "On a scaled screen, X11 apps can draw at the screen's scale themselves, sharp (fonts and some apps "
+        "follow it), or be drawn at normal size and stretched by atrium, which blurs them.",
+        {"scale-themselves", "stretched"}, d.x11_scale_themselves ? "scale-themselves" : "stretched",
+        [](Config& c, const json& v) { c.x11_scale_themselves = v.get<std::string>() == "scale-themselves"; }));
     s.push_back(choice("windows.switcher_style", "Windows", "Alt+Tab shows",
         "Spread: the windows themselves glide apart with their titles, as a Mac's Mission Control. Icons: each "
         "window's app icon in a row, as Command-Tab. Previews: small live pictures in a row.",
