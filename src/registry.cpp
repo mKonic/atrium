@@ -158,6 +158,7 @@ Registry::Registry(const std::string& path) {
     exec("PRAGMA synchronous=NORMAL");
     exec("PRAGMA foreign_keys=ON");
     migrate();
+    add_missing_columns();
     migrate_records();
 }
 
@@ -167,6 +168,48 @@ Registry::~Registry() {
 
 bool Registry::exec(const char* sql) const {
     return db_ && sqlite3_exec(db_, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
+}
+
+// Columns added to a table after it was first made (schemas 10-13, 15, 16).
+// Added whenever they're missing, on every open, never by the schema
+// version: a registry stamped by another build (the 1.0 branch has its own
+// 16) skipped them, and every read of the table failed (an empty Dock).
+// A new column goes here and in its CREATE TABLE.
+struct AddedColumn {
+    const char* table;
+    const char* column;
+    const char* type;
+};
+constexpr AddedColumn kAddedColumns[] = {
+    {"displays", "adaptive_sync", "TEXT NOT NULL DEFAULT 'games'"},
+    {"displays", "hdr", "INTEGER NOT NULL DEFAULT 0"},
+    {"displays", "sdr_brightness", "INTEGER NOT NULL DEFAULT 30"},
+    {"displays", "sdr_color", "INTEGER NOT NULL DEFAULT 100"},
+    {"displays", "icc", "TEXT NOT NULL DEFAULT ''"},
+    {"displays", "icc_hdr", "TEXT NOT NULL DEFAULT ''"},
+    {"apps", "follow", "INTEGER"},
+    {"apps", "floating", "INTEGER"},
+    {"apps", "keep_above", "INTEGER"},
+    {"apps", "sticky", "INTEGER"},
+    {"apps", "no_focus", "INTEGER"},
+    {"apps", "render_unfocused", "INTEGER"},
+    {"rules", "follow", "INTEGER"},
+    {"rules", "floating", "INTEGER"},
+    {"rules", "keep_above", "INTEGER"},
+    {"rules", "sticky", "INTEGER"},
+    {"rules", "no_focus", "INTEGER"},
+    {"rules", "render_unfocused", "INTEGER"},
+};
+
+void Registry::add_missing_columns() {
+    for (const AddedColumn& a : kAddedColumns) {
+        bool have = false;
+        Stmt info(db_, (std::string("PRAGMA table_info(") + a.table + ")").c_str());
+        while (info.step())
+            have = have || info.text(1) == a.column;
+        if (!have)
+            exec((std::string("ALTER TABLE ") + a.table + " ADD COLUMN " + a.column + " " + a.type).c_str());
+    }
 }
 
 void Registry::migrate() {
@@ -273,36 +316,12 @@ void Registry::migrate() {
             add.bind(1, std::string(a[0])).bind(2, std::string(a[1])).run();
         }
     }
-    // 10: variable refresh per display (a table made just now has it already).
-    if (version > 0 && version < 10)
-        exec("ALTER TABLE displays ADD COLUMN adaptive_sync TEXT NOT NULL DEFAULT 'games'");
-    // 11: HDR and SDR content brightness per display.
-    if (version > 0 && version < 11) {
-        exec("ALTER TABLE displays ADD COLUMN hdr INTEGER NOT NULL DEFAULT 0");
-        exec("ALTER TABLE displays ADD COLUMN sdr_brightness INTEGER NOT NULL DEFAULT 30");
-    }
-    // 12: SDR color intensity in HDR per display.
-    if (version > 0 && version < 12)
-        exec("ALTER TABLE displays ADD COLUMN sdr_color INTEGER NOT NULL DEFAULT 100");
-    // 13: more of how a window opens, for apps and rules (Hyprland's rules).
-    if (version > 0 && version < 13)
-        for (const char* table : {"apps", "rules"})
-            for (const char* column : {"follow", "floating", "keep_above", "sticky", "no_focus"})
-                exec((std::string("ALTER TABLE ") + table + " ADD COLUMN " + column + " INTEGER").c_str());
+    // 10-13, 15 and 16 added columns: kAddedColumns.
     // 14: the lock screen (Super+L).
     if (version >= 2 && version < 14)
         exec("INSERT INTO shortcuts (position, keys, action) "
              "SELECT COALESCE(MAX(position), 0) + 1, 'Mod+L', 'lock' FROM shortcuts "
              "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = 'Mod+L')");
-    // 15: a colour profile and an HDR calibration per display.
-    if (version > 0 && version < 15) {
-        exec("ALTER TABLE displays ADD COLUMN icc TEXT NOT NULL DEFAULT ''");
-        exec("ALTER TABLE displays ADD COLUMN icc_hdr TEXT NOT NULL DEFAULT ''");
-    }
-    // 16: drawing on out of sight (Hyprland's render_unfocused).
-    if (version > 0 && version < 16)
-        for (const char* table : {"apps", "rules"})
-            exec((std::string("ALTER TABLE ") + table + " ADD COLUMN render_unfocused INTEGER").c_str());
     // 17: window tabs, as a Mac's Show Next and Previous Tab.
     if (version >= 2 && version < 17) {
         const char* added[][2] = {{"Ctrl+Tab", "tab-next"}, {"Ctrl+Shift+Tab", "tab-prev"}};

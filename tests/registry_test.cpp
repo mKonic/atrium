@@ -226,6 +226,49 @@ TEST(Registry, MigratesAppsAndRulesToWindowFlags) {
     std::remove((path + ".v12.bak").c_str());
 }
 
+// A registry another build stamped with a schema version whose columns it
+// never added (the 1.0 branch's own 16): the columns come anyway, and the
+// Dock's pins read back instead of every read of apps failing.
+TEST(Registry, AddsColumnsAVersionStampSkipped) {
+    const std::string path = ::testing::TempDir() + "atrium-stamped.db";
+    std::remove(path.c_str());
+    {
+        sqlite3* db = nullptr;
+        ASSERT_EQ(sqlite3_open(path.c_str(), &db), SQLITE_OK);
+        sqlite3_exec(db,
+                     "CREATE TABLE apps (app_id TEXT PRIMARY KEY COLLATE NOCASE,"
+                     " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
+                     " dock INTEGER, maximized INTEGER, fullscreen INTEGER,"
+                     " place_output TEXT, place_x INTEGER, place_y INTEGER, place_w INTEGER, place_h INTEGER,"
+                     " place_maximized INTEGER, place_snapped INTEGER,"
+                     " follow INTEGER, floating INTEGER, keep_above INTEGER, sticky INTEGER, no_focus INTEGER);"
+                     "CREATE TABLE rules (id INTEGER PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0,"
+                     " app_pattern TEXT NOT NULL DEFAULT '', title_pattern TEXT NOT NULL DEFAULT '',"
+                     " secret TEXT NOT NULL DEFAULT '', space INTEGER NOT NULL DEFAULT 0, launch TEXT NOT NULL DEFAULT '',"
+                     " maximized INTEGER, fullscreen INTEGER,"
+                     " follow INTEGER, floating INTEGER, keep_above INTEGER, sticky INTEGER, no_focus INTEGER);"
+                     "INSERT INTO apps(app_id, dock) VALUES('org.kde.dolphin', 0), ('firefox', 1);"
+                     "INSERT INTO rules(app_pattern, space) VALUES('^steam_app_', 5);"
+                     "PRAGMA user_version=17;",
+                     nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    {
+        Registry r(path);
+        ASSERT_TRUE(r.ok());
+        const auto apps = r.apps();
+        ASSERT_EQ(apps.size(), 2u);
+        ASSERT_TRUE(r.app("firefox"));
+        EXPECT_EQ(r.app("firefox")->dock, 1);
+        r.set_dock({"firefox", "org.kde.dolphin"});
+        EXPECT_EQ(r.app("firefox")->dock, 0);
+        EXPECT_EQ(r.app("org.kde.dolphin")->dock, 1);
+        ASSERT_EQ(r.rules().size(), 1u);
+        EXPECT_EQ(r.rules().front().space, 5);
+    }
+    std::remove(path.c_str());
+}
+
 // A registry from before directional keys: its untouched arrow defaults
 // become caelestia's, what the user changed stays, and the new keys arrive.
 TEST(Registry, MigratesOldArrowDefaults) {
