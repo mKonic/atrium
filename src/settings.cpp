@@ -474,6 +474,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.anr_dialog", "Windows", "Not responding",
         "An app that stops answering has its windows dimmed, and you're asked whether to end it or wait.",
         &Config::anr_dialog, d));
+    s.push_back(number("windows.render_unfocused_fps", T::Int, "Windows", "Out of sight frame rate",
+        "How many times a second a window kept drawing out of sight (a rule's \"Keep drawing out of sight\") "
+        "is asked for a new frame, as Hyprland's render_unfocused_fps.", &Config::render_unfocused_fps, d, 1, 120));
     s.push_back(boolean("windows.wobbly", "Windows", "Wobbly windows",
         "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
     s.push_back(number("windows.wobbliness", T::Int, "Windows", "Wobbliness",

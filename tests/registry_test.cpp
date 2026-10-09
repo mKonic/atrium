@@ -65,7 +65,10 @@ TEST(Registry, RulesAndShortcuts) {
     EXPECT_EQ(r.rules().front().space, 3);
     rule.follow = true;
     rule.no_focus = false;
+    rule.render_unfocused = true;
     EXPECT_TRUE(r.update_rule(rule));
+    EXPECT_EQ(r.rules().front().render_unfocused, true);
+    EXPECT_EQ(rule_json(r.rules().front())["render_unfocused"], true);
     EXPECT_EQ(r.rules().front().follow, true);
     EXPECT_EQ(r.rules().front().no_focus, false);
     EXPECT_FALSE(r.rules().front().sticky);
@@ -211,8 +214,10 @@ TEST(Registry, MigratesAppsAndRulesToWindowFlags) {
         EXPECT_EQ(a->fullscreen, true);
         EXPECT_FALSE(a->follow);
         a->follow = true;
+        a->render_unfocused = true;  // a column from schema 16
         r.put_app(*a);
         EXPECT_EQ(r.app("osu!")->follow, true);
+        EXPECT_EQ(r.app("osu!")->render_unfocused, true);
         ASSERT_EQ(r.rules().size(), 1u);
         EXPECT_EQ(r.rules().front().space, 5);
         EXPECT_FALSE(r.rules().front().floating);

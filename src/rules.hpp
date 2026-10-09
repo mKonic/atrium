@@ -27,7 +27,7 @@ struct WindowRule {
     std::string secret;      // non-empty: into this secret space
     std::string launch;      // with secret: started when the space is shown and the app isn't running
     std::optional<bool> maximized, fullscreen;
-    std::optional<bool> follow, floating, keep_above, sticky, no_focus;  // window_flags.hpp
+    std::optional<bool> follow, floating, keep_above, sticky, no_focus, render_unfocused;  // window_flags.hpp
 
     bool matches(const std::string& app_id, const std::string& title) const;
 };
@@ -40,7 +40,7 @@ struct RuleResult {
     int space = 0;
     std::string secret;
     std::optional<bool> maximized, fullscreen;
-    std::optional<bool> follow, floating, keep_above, sticky, no_focus;  // window_flags.hpp
+    std::optional<bool> follow, floating, keep_above, sticky, no_focus, render_unfocused;  // window_flags.hpp
 };
 RuleResult apply_rules(const std::vector<WindowRule>& rules, const std::string& app_id,
                        const std::string& title);

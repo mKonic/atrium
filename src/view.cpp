@@ -147,6 +147,9 @@ void View::handle_map() {
     float_in_tiling = float_in_tiling || wish.floating.value_or(false);
     keep_above = keep_above || wish.keep_above.value_or(false);
     sticky = sticky || wish.sticky.value_or(false);
+    render_unfocused = wish.render_unfocused.value_or(false);
+    if (render_unfocused)
+        server.render_unfocused_arm();
 
     std::erase(server.views, this);
     server.views.insert(server.views.begin(), this);
@@ -1087,7 +1090,8 @@ void View::set_minimized(bool m) {
     } else {
         wlr_scene_node_set_enabled(&tree->node, !m);
     }
-    send_suspended(m);
+    // Kept drawing, it isn't told it's put away either.
+    send_suspended(m && !render_unfocused);
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_minimized(handle_, m);
     server.notify_window(*this, "changed");

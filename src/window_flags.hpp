@@ -14,11 +14,14 @@ namespace atrium {
 //   keep_above  over other windows ("pin", with sticky)
 //   sticky      on every space
 //   no_focus    opens without taking focus ("no_initial_focus")
+//   render_unfocused  keeps drawing while out of sight, a few times a
+//               second ("render_unfocused"): a game or video carries on
 template <class T>
 auto window_flags(T& t) {
     return std::array{std::pair{"follow", &t.follow}, std::pair{"floating", &t.floating},
                       std::pair{"keep_above", &t.keep_above}, std::pair{"sticky", &t.sticky},
-                      std::pair{"no_focus", &t.no_focus}};
+                      std::pair{"no_focus", &t.no_focus},
+                      std::pair{"render_unfocused", &t.render_unfocused}};
 }
 
 } // namespace atrium

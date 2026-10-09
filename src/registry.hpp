@@ -44,7 +44,7 @@ struct AppRecord {
     std::string launch;     // with a secret space: command started when the space is shown
     std::optional<int> dock;  // position among the Dock's pins; none: not pinned
     std::optional<bool> maximized, fullscreen;
-    std::optional<bool> follow, floating, keep_above, sticky, no_focus;  // window_flags.hpp
+    std::optional<bool> follow, floating, keep_above, sticky, no_focus, render_unfocused;  // window_flags.hpp
     std::optional<Placement> placement;  // remembered, as windows close
 
     bool operator==(const AppRecord&) const = default;
@@ -60,7 +60,7 @@ struct RuleRecord {
     int space = 0;
     std::string launch;
     std::optional<bool> maximized, fullscreen;
-    std::optional<bool> follow, floating, keep_above, sticky, no_focus;  // window_flags.hpp
+    std::optional<bool> follow, floating, keep_above, sticky, no_focus, render_unfocused;  // window_flags.hpp
 
     bool operator==(const RuleRecord&) const = default;
 };

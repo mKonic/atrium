@@ -126,11 +126,12 @@ struct Config {
     bool wobbly = false;  // windows.wobbly: wobble while dragged
     int wobbliness = 0;   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
     bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving
-    bool anr_dialog = true;
+    bool anr_dialog = true;  // windows.anr_dialog: dim an app that stops answering and offer to end it
+    int render_unfocused_fps = 15;  // windows.render_unfocused_fps: frames for out-of-sight windows a rule keeps drawing
     std::string switcher_style = "spread";  // windows.switcher_style: spread, icons or previews
     bool dim_behind_dialogs = true;  // windows.dim_behind_dialogs: grey a window under its modal dialog
     // desktop.hot_corner_*: top left, top right, bottom left, bottom right
-    std::array<std::string, 4> hot_corners{"none", "none", "none", "none"};    // windows.anr_dialog: dim an app that stops answering and offer to end it
+    std::array<std::string, 4> hot_corners{"none", "none", "none", "none"};
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar

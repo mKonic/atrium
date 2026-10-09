@@ -38,6 +38,8 @@ Rectangle {
             parts.push("on every space");
         if (r.no_focus)
             parts.push("opens without focus");
+        if (r.render_unfocused)
+            parts.push("keeps drawing out of sight");
         const text = parts.join(", ");
         return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Does nothing yet";
     }

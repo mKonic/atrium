@@ -315,6 +315,11 @@ public:
     std::unique_ptr<Overview> overview;
     std::unique_ptr<Switcher> switcher;
     std::unique_ptr<class NotResponding> not_responding;  // pings apps, dims the ones that stop answering
+    // Windows a rule keeps drawing out of sight (render_unfocused) get their
+    // frames at windows.render_unfocused_fps, as Hyprland's renderer does.
+    void render_unfocused_arm();
+    void render_unfocused_tick();
+    wl_event_source* render_unfocused_timer_ = nullptr;
     std::unique_ptr<Registry> registry;
     std::unique_ptr<ShellProcess> shell;
     std::unique_ptr<LockScreen> lock_screen;

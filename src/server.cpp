@@ -701,6 +701,8 @@ void Server::teardown() {
     clipboard_history.reset();
     system_bell_.reset();
     not_responding.reset();
+    if (render_unfocused_timer_)
+        wl_event_source_remove(std::exchange(render_unfocused_timer_, nullptr));
     gamepads_.reset();
     lease_request_.disconnect();
     idle.reset();
@@ -1452,6 +1454,42 @@ void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* ev
     } else {
         view->urgent = true;
     }
+}
+
+void Server::render_unfocused_arm() {
+    if (!render_unfocused_timer_)
+        render_unfocused_timer_ = wl_event_loop_add_timer(loop, [](void* data) {
+            static_cast<Server*>(data)->render_unfocused_tick();
+            return 0;
+        }, this);
+    if (render_unfocused_timer_)
+        wl_event_source_timer_update(render_unfocused_timer_, 1000 / std::max(1, config.render_unfocused_fps));
+}
+
+void Server::render_unfocused_tick() {
+    bool any = false;
+    timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    for (View* v : views) {
+        if (!v->render_unfocused || !v->mapped || !v->surface())
+            continue;
+        any = true;
+        // On a screen, the scene sends its frames already: only a window
+        // nothing of which is shown (another space, minimized, covered).
+        bool shown = false;
+        if (v->tree->node.enabled)
+            wlr_scene_node_for_each_buffer(&v->tree->node, [](wlr_scene_buffer* b, int, int, void* data) {
+                if (b->primary_output)
+                    *static_cast<bool*>(data) = true;
+            }, &shown);
+        if (shown)
+            continue;
+        wlr_surface_for_each_surface(v->surface(), [](wlr_surface* s, int, int, void* data) {
+            wlr_surface_send_frame_done(s, static_cast<const timespec*>(data));
+        }, &now);
+    }
+    if (any)
+        wl_event_source_timer_update(render_unfocused_timer_, 1000 / std::max(1, config.render_unfocused_fps));
 }
 
 void Server::new_toplevel_capture(

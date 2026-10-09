@@ -33,7 +33,7 @@ TEST(Rules, HowAWindowOpens) {
     std::vector<std::string> errors;
     auto rules = parse_rules(json::array({
         {{"app_id", "^steam_app_"}, {"space", 5}, {"follow", true}, {"fullscreen", true}},
-        {{"app_id", "steam"}, {"follow", false}, {"floating", true}, {"no_focus", true}},
+        {{"app_id", "steam"}, {"follow", false}, {"floating", true}, {"no_focus", true}, {"render_unfocused", true}},
         {{"title", "Picture-in-Picture"}, {"keep_above", true}, {"sticky", true}},
         {{"app_id", "x"}, {"sticky", "yes"}},
     }), &errors);
@@ -45,6 +45,7 @@ TEST(Rules, HowAWindowOpens) {
     EXPECT_EQ(game.fullscreen, true);
     EXPECT_EQ(game.floating, true);
     EXPECT_EQ(game.no_focus, true);
+    EXPECT_EQ(game.render_unfocused, true);
     EXPECT_FALSE(game.keep_above);
     RuleResult pip = apply_rules(rules, "firefox", "Picture-in-Picture");
     EXPECT_EQ(pip.keep_above, true);

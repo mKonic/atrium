@@ -119,4 +119,9 @@ Column {
         label: "Open without focus"
         field: "no_focus"
     }
+
+    Flag {
+        label: "Keep drawing out of sight"
+        field: "render_unfocused"
+    }
 }

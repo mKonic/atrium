@@ -193,6 +193,7 @@ public:
     bool keep_below = false;    // stays under them
     bool skip_taskbar = false;  // not in the Dock or the switcher
     bool sticky = false;        // follows you from space to space
+    bool render_unfocused = false;  // a rule's: keeps drawing out of sight (Server::render_unfocused_tick)
     bool float_in_tiling = false;  // stays out of the tiles on a tiled space
     // Out of the Dock, the switcher and the bar's space icons.
     bool hidden_from_lists() const { return skip_taskbar || passive(); }
