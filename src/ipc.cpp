@@ -639,9 +639,12 @@ bool Ipc::flush(Client& c) {
 void Ipc::drop(Client& c) {
     if (c.dead)
         return;
-    // Remote control and input capture end with the connection that asked.
+    // Remote control and input capture end with the connection that asked,
+    // and so does what it was sharing.
     if (server_.eis)
         server_.eis->drop_owner(&c);
+    if (casts_.erase(&c))
+        broadcast("shell", {{"event", "privacy.casts"}, {"casts", all_casts()}});
     if (c.send_fd >= 0)
         close(std::exchange(c.send_fd, -1));
     if (c.source)
@@ -651,6 +654,14 @@ void Ipc::drop(Client& c) {
     c.source = nullptr;
     c.fd = -1;
     c.dead = true;
+}
+
+json Ipc::all_casts() const {
+    json out = json::array();
+    for (const auto& [client, list] : casts_)
+        for (const json& app : list)
+            out.push_back(app);
+    return out;
 }
 
 void Ipc::reap() {
@@ -982,6 +993,14 @@ json Ipc::handle(Client& c, const json& req) {
                                                       : server_.eis->capture_create(&c, devices);
         return ok({{"cookie", cookie}});
     }
+    // The menu bar's privacy dot: which apps share the screen.
+    if (cmd == "privacy.casts") {
+        casts_[&c] = req.value("casts", json::array());
+        broadcast("shell", {{"event", "privacy.casts"}, {"casts", all_casts()}});
+        return ok();
+    }
+    if (cmd == "privacy.casts.get")
+        return ok(all_casts());
     if (cmd == "remote.input") {
         if (!server_.eis || !req.contains("event") || !server_.eis->remote_input(req.value("cookie", 0u), req["event"]))
             return fail("no such session or device");

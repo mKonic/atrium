@@ -2,6 +2,7 @@
 #include "settings.hpp"
 
 #include <list>
+#include <map>
 #include <set>
 #include <string>
 
@@ -73,6 +74,9 @@ private:
     int listen_fd_ = -1;
     wl_event_source* listen_source_ = nullptr;
     std::list<Client> clients_;
+    // What each connection (atrium-portal) says is sharing the screen.
+    std::map<const Client*, json> casts_;
+    json all_casts() const;
 };
 
 } // namespace atrium

@@ -64,6 +64,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - atrium's Open, Save, Open With and Print dialogs belong to the app window that asked for them (xdg-foreign), as on GNOME and Plasma.
 - Hide the pointer while typing, until the mouse moves (Mouse & Touchpad), and Num Lock on at start (Keyboard), as Hyprland has them.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
+- Privacy dots in the menu bar while an app shares the screen (purple), uses a camera (green) or a microphone (orange); a click says which apps.
 
 ### Changed
 - Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.

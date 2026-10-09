@@ -151,7 +151,7 @@ Rectangle {
                 hoverEnabled: true
                 enabled: item.usable
                 onClicked: {
-                    item.action.run();
+                    item.action.run?.();  // a row may only say something
                     if (!item.action.keep)
                         root.picked();
                 }

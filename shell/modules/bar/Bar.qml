@@ -281,6 +281,11 @@ PanelWindow {
                 anchors.verticalCenter: parent.verticalCenter
             }
 
+            PrivacyIndicator {
+                anchors.verticalCenter: parent.verticalCenter
+                bar: bar
+            }
+
             ControlButton {
                 anchors.verticalCenter: parent.verticalCenter
             }

@@ -1,10 +1,13 @@
 #include "screencast.hpp"
 
+#include "compositor.hpp"
 #include "portal.hpp"
 #include "share_core.hpp"
 #include "wayland_link.hpp"
 
 #include <QDBusMetaType>
+#include <QJsonArray>
+#include <QTimer>
 #include <QPoint>
 #include <QSize>
 
@@ -185,6 +188,20 @@ std::optional<cast::Choice> ScreenCastAdaptor::resolve(const cast::Choice& c) {
     return out;
 }
 
+namespace {
+
+// The apps sharing the screen now, for the menu bar's privacy dot.
+void reportCasts() {
+    QJsonArray apps;
+    for (QObject* o : PortalBackend::instance()->children())
+        if (auto* s = qobject_cast<PortalSession*>(o))
+            if (auto* st = s->findChild<CastState*>("cast", Qt::FindDirectChildrenOnly); st && st->stream)
+                apps.append(s->app());
+    Compositor::instance()->call({{"cmd", "privacy.casts"}, {"casts", apps}});
+}
+
+} // namespace
+
 std::optional<QVariantMap> ScreenCastAdaptor::begin(PortalSession* session, const cast::Choice& choice) {
     CastState* st = CastState::of(session);
     delete st->stream;
@@ -203,6 +220,8 @@ std::optional<QVariantMap> ScreenCastAdaptor::begin(PortalSession* session, cons
     }
     st->stream = stream;
     st->chosen = choice;
+    QObject::connect(stream, &QObject::destroyed, [] { QTimer::singleShot(0, reportCasts); });
+    QTimer::singleShot(0, reportCasts);
     // The window closed or the screen went: the session ends, and the app
     // hears so.
     QObject::connect(stream, &CastStream::stopped, session, [session] {

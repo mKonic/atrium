@@ -40,6 +40,8 @@ class Compositor : public QObject {
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     // {layouts: [{name: "German", code: "de"}], active: 0}
     Q_PROPERTY(QVariantMap keyboard READ keyboard NOTIFY keyboardChanged)
+    // The apps sharing the screen through atrium-portal now ("": unnamed).
+    Q_PROPERTY(QVariantList casts READ casts NOTIFY castsChanged)
     // {available, mode, active, kelvin, until, note}: note says until when
     // ("On until 7:00 AM").
     Q_PROPERTY(QVariantMap nightLight READ nightLight NOTIFY nightLightChanged)
@@ -52,6 +54,7 @@ public:
     QVariantList windows() const { return windows_; }  // most recently focused first
     QVariantList spaces() const { return spaces_; }
     QVariantMap keyboard() const { return keyboard_; }
+    QVariantList casts() const { return casts_; }
     QVariantMap nightLight() const { return nightLight_; }
     QVariantList outputs() const { return outputs_; }
     // Identify in Displays: {number, name, mode} for the screen `output`.
@@ -158,6 +161,7 @@ signals:
     // An input capture taking or giving back the input (capture.*).
     void captureEvent(const QJsonObject& event);
     void keyboardChanged();
+    void castsChanged();
     void nightLightChanged();
     void windowsChanged();
     void spacesChanged();
@@ -225,6 +229,7 @@ private:
     QVariantList windows_, spaces_, outputs_;
     QVariantMap switcher_{{"shown", false}, {"items", QVariantList{}}, {"index", 0}, {"output", QString()}};
     QVariantMap keyboard_;
+    QVariantList casts_;
     QVariantMap nightLight_;
     void takeNightLight(const QJsonObject& state);
     QVariantMap settings_;

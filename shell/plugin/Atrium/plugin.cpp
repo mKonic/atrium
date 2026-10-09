@@ -49,6 +49,7 @@
 #include "clipboard.hpp"
 #include "phone_clipboard.hpp"
 #include "phone_link.hpp"
+#include "privacy.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
@@ -149,6 +150,12 @@ public:
                 QQmlEngine::setObjectOwnership(self, QQmlEngine::CppOwnership);
                 return self;
             });
+        // The menu bar's privacy dots: `Privacy.active`, `.uses`.
+        qmlRegisterSingletonType<Privacy>(uri, 1, 0, "Privacy", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Privacy::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
         qmlRegisterSingletonType<Recorder>(uri, 1, 0, "Recorder",
             [](QQmlEngine*, QJSEngine*) -> QObject* { return new Recorder; });
         qmlRegisterSingletonType<LevelsApi>(uri, 1, 0, "Levels", [](QQmlEngine*, QJSEngine*) -> QObject* {

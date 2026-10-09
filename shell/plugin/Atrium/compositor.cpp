@@ -111,6 +111,10 @@ void Compositor::requestFull(QJsonObject req, FullReply reply) {
 }
 
 void Compositor::refreshAll() {
+    request({{"cmd", "privacy.casts.get"}}, [this](const QJsonValue& r) {
+        casts_ = r.toArray().toVariantList();
+        emit castsChanged();
+    });
     request({{"cmd", "windows"}}, [this](const QJsonValue& r) {
         windows_ = r.toArray().toVariantList();
         emit windowsChanged();
@@ -193,6 +197,9 @@ void Compositor::applyEvent(const QJsonObject& e) {
         refreshTable(e.value("table").toString());
     } else if (kind == "shortcut.activated" || kind == "shortcut.deactivated") {
         emit portalShortcut(e.value("app").toString(), e.value("id").toString(), kind == "shortcut.activated");
+    } else if (kind == "privacy.casts") {
+        casts_ = e.value("casts").toArray().toVariantList();
+        emit castsChanged();
     } else if (kind.startsWith("capture.")) {
         emit captureEvent(e);
     } else if (kind == "night_light.changed") {
