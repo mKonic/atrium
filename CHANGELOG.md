@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+
+## [v0.2.0] - 2026-10-09
 ### Added
 - Phone link: a paired phone's audio over the network, its media controls, and pairing, connecting and connecting automatically in Settings > Phone.
 - Clicking a notification raises the app's own window.
