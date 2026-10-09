@@ -1,5 +1,7 @@
 #include "output.hpp"
 
+#include "icc_core.hpp"
+
 #include "ipc.hpp"
 #include "layer_surface.hpp"
 #include "night_light.hpp"
@@ -151,8 +153,41 @@ void log_formats(wlr_output* output) {
 
 } // namespace
 
+bool Output::apply_icc(bool for_hdr, std::string* why) {
+    hdr_peak_.reset();
+    const std::string& path = for_hdr ? icc_hdr : icc;
+    if (path.empty()) {
+        wlr_scene_output_set_correction(scene_output, nullptr, nullptr, 0);
+        return true;
+    }
+    std::string error;
+    auto correction = [&]() -> std::expected<ColorCorrection, std::string> {
+        auto bytes = read_icc(path);
+        if (!bytes)
+            return std::unexpected(bytes.error());
+        return for_hdr ? icc_for_hdr(*bytes) : icc_for_sdr(*bytes);
+    }();
+    if (!correction) {
+        wlr_log(WLR_ERROR, "%s: colour profile %s: %s", wlr->name, path.c_str(), correction.error().c_str());
+        if (why)
+            *why = correction.error();
+        wlr_scene_output_set_correction(scene_output, nullptr, nullptr, 0);
+        return false;
+    }
+    const ColorCorrection& c = *correction;
+    wlr_scene_output_set_correction(scene_output, c.calibration ? c.calibration->data() : nullptr,
+                                    c.lut.empty() ? nullptr : c.lut.data(), c.lut_size);
+    if (for_hdr && c.peak_nits)
+        hdr_peak_ = *c.peak_nits;
+    wlr_log(WLR_INFO, "%s: colour profile %s", wlr->name, path.c_str());
+    return true;
+}
+
 bool Output::apply_hdr() {
     const bool want = hdr && hdr_supported();
+    // The HDR calibration first: its peak goes in the metadata.
+    if (want)
+        apply_icc(true);
     bool ok = true;
     if (want != hdr_active()) {
         wlr_output_state state;
@@ -168,7 +203,7 @@ bool Output::apply_hdr() {
                 desc.mastering_display_primaries = *wlr->default_primaries;
             else
                 wlr_color_primaries_from_named(&desc.mastering_display_primaries, WLR_COLOR_NAMED_PRIMARIES_BT2020);
-            const double max = hdr_caps && hdr_caps->max_nits > 0 ? hdr_caps->max_nits : 1000.0;
+            const double max = peak_nits() > 0 ? peak_nits() : 1000.0;
             desc.mastering_luminance.min = hdr_caps ? hdr_caps->min_nits : 0.0;
             desc.mastering_luminance.max = max;
             desc.max_cll = max;
@@ -204,6 +239,8 @@ bool Output::apply_hdr() {
             wlr_log(WLR_ERROR, "%s: refused %s HDR", wlr->name, want ? "turning on" : "turning off");
         wlr_output_state_finish(&state);
     }
+    if (!hdr_active())
+        apply_icc(false);
     wlr_scene_output_set_sdr_white_nits(scene_output, hdr_active() ? float(sdr_white_nits()) : 0.0f);
     // Out of HDR the screen spreads sRGB over its whole gamut; in HDR atrium
     // does, as far as SDR color intensity says.

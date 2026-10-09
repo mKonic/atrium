@@ -42,6 +42,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
 - Frosted blur behind menus and input-method popups when transparency is on, leaving their soft shadows clear.
 - A screen shader setting, as Hyprland's: a GLSL fragment shader file drawn over every screen (Appearance: Screen shader).
+- A color profile (ICC) per display, in Displays, applied as KWin does.
+- An HDR calibration per display, in Displays: an ICC profile with an MHC2 tag, as Windows HDR Calibration and DisplayCAL make, with its measured peak.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed

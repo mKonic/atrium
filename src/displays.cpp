@@ -2,6 +2,7 @@
 #include "registry.hpp"
 #include "server.hpp"
 #include "geometry.hpp"
+#include "icc_core.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -75,6 +76,8 @@ void Server::remember_displays() {
         d.hdr = o->hdr;
         d.sdr_brightness = o->sdr_brightness;
         d.sdr_color = o->sdr_color;
+        d.icc = o->icc;
+        d.icc_hdr = o->icc_hdr;
         if (o->wlr->enabled) {
             d.width = o->wlr->width;
             d.height = o->wlr->height;
@@ -90,6 +93,8 @@ void Server::remember_displays() {
             d.hdr = o->hdr;
             d.sdr_brightness = o->sdr_brightness;
             d.sdr_color = o->sdr_color;
+            d.icc = o->icc;
+            d.icc_hdr = o->icc_hdr;
         }
         registry->put_display(d);
     }
@@ -121,6 +126,8 @@ void Server::restore_display(Output* output) {
     output->hdr = d->hdr;
     output->sdr_brightness = d->sdr_brightness;
     output->sdr_color = d->sdr_color;
+    output->icc = d->icc;
+    output->icc_hdr = d->icc_hdr;
     wlr_output* w = output->wlr;
     wlr_output_state state;
     wlr_output_state_init(&state);
@@ -180,6 +187,28 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             return "sdr_color goes from 0 to 100";
         target->sdr_color = int(std::lround(v.get<double>()));
     }
+    // A profile is checked before it's taken; it's used while the screen is
+    // in its mode (SDR or HDR).
+    for (const bool for_hdr : {false, true}) {
+        const char* key = for_hdr ? "icc_hdr" : "icc";
+        if (!req.contains(key))
+            continue;
+        if (!req[key].is_string())
+            return for_hdr ? "icc_hdr is the path of an HDR calibration (an ICC file with an MHC2 tag), or empty for none"
+                           : "icc is the path of a colour profile, or empty for none";
+        const std::string path = req[key];
+        if (!path.empty()) {
+            auto bytes = read_icc(path);
+            if (!bytes)
+                return bytes.error();
+            auto checked = for_hdr ? icc_for_hdr(*bytes) : icc_for_sdr(*bytes);
+            if (!checked)
+                return path + ": " + checked.error();
+        }
+        (for_hdr ? target->icc_hdr : target->icc) = path;
+        if (target->enabled() && target->hdr_active() == for_hdr)
+            target->apply_icc(for_hdr);
+    }
     if (req.contains("hdr")) {
         if (!req["hdr"].is_boolean())
             return "hdr is true or false";
@@ -187,7 +216,8 @@ std::optional<std::string> Server::configure_output(const nlohmann::json& req) {
             return std::string(target->wlr->name) + " doesn't take HDR";
         target->hdr = req["hdr"];
     }
-    if ((req.contains("hdr") || req.contains("sdr_brightness") || req.contains("sdr_color")) && target->enabled() &&
+    if ((req.contains("hdr") || req.contains("sdr_brightness") || req.contains("sdr_color") || req.contains("icc_hdr")) &&
+        target->enabled() &&
         !target->apply_hdr()) {
         target->hdr = false;
         target->apply_hdr();

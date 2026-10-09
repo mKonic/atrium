@@ -70,14 +70,31 @@ public:
     // that says what it is (Chromium, HDR video) has its reference white
     // here too.
     double sdr_white_nits() const {
-        const double top = hdr_caps && hdr_caps->max_nits > 80 ? hdr_caps->max_nits : 480.0;
+        const double peak = peak_nits();
+        const double top = peak > 80 ? peak : 480.0;
         return 80.0 + (top - 80.0) * sdr_brightness / 100.0;
     }
+    // The screen's peak: an HDR calibration's measured one, else its EDID's
+    // (0: unknown).
+    double peak_nits() const {
+        if (hdr_peak_)
+            return *hdr_peak_;
+        return hdr_caps && hdr_caps->max_nits > 0 ? hdr_caps->max_nits : 0.0;
+    }
+
+    // A colour profile (ICC) for SDR, and an HDR calibration (a profile with
+    // an MHC2 tag) for HDR, as KWin applies them: paths, empty for none.
+    std::string icc, icc_hdr;
+    // The one for the mode the screen is in (or `hdr`'s), into the renderer;
+    // false, with why, when it can't be used (then none is).
+    bool apply_icc(bool for_hdr, std::string* why = nullptr);
 
     Space* active = nullptr;  // the numbered space shown here
     wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;
 
 private:
+    std::optional<double> hdr_peak_;  // the HDR calibration's
+
     void frame();
     void render();
     void send_frame_done();
