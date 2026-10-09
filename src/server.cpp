@@ -408,6 +408,7 @@ void Server::setup() {
     // pointer (pinch to zoom). Some apps also assume it's there: Gwenview
     // crashed on every next image without it.
     pointer_gestures = wlr_pointer_gestures_v1_create(display);
+    tablet_manager = wlr_tablet_v2_create(display);
     cursor_shape_manager = wlr_cursor_shape_manager_v1_create(display, 1);
     virtual_keyboard_manager = wlr_virtual_keyboard_manager_v1_create(display);
     virtual_pointer_manager = wlr_virtual_pointer_manager_v1_create(display);
@@ -963,6 +964,8 @@ Output* Server::output_at(double lx, double ly) const {
 // the new state to wlr-output-management clients.
 void Server::update_outputs() {
     update_xwayland_scale();
+    if (seat)
+        seat->map_to_outputs();
     if (night_light)
         night_light->update();  // a screen that can (or can't) show it came or went
     auto* config_out = wlr_output_configuration_v1_create();

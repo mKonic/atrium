@@ -299,6 +299,7 @@ public:
     wlr_pointer_constraints_v1* pointer_constraints = nullptr;
     wlr_relative_pointer_manager_v1* relative_pointer_manager = nullptr;
     wlr_pointer_gestures_v1* pointer_gestures = nullptr;
+    wlr_tablet_manager_v2* tablet_manager = nullptr;  // drawing tablets (touch_tablet.cpp)
     wlr_cursor_shape_manager_v1* cursor_shape_manager = nullptr;
     wlr_virtual_keyboard_manager_v1* virtual_keyboard_manager = nullptr;
     wlr_virtual_pointer_manager_v1* virtual_pointer_manager = nullptr;

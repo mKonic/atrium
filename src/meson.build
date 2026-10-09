@@ -16,6 +16,7 @@ atrium_sources = files(
   'icc_core.cpp',
   'hot_corners_core.cpp',
   'gamepads.cpp',
+  'touch_tablet.cpp',
   'not_responding.cpp',
   'system_bell.cpp',
   'snapshot.cpp',

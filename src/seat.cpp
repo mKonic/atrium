@@ -9,6 +9,7 @@
 #include "output.hpp"
 #include "overview.hpp"
 #include "switcher.hpp"
+#include "touch_tablet.hpp"
 #include "server.hpp"
 #include "space.hpp"
 #include "snap_preview.hpp"
@@ -387,8 +388,15 @@ void Seat::new_input(wlr_input_device* device) {
     case WLR_INPUT_DEVICE_SWITCH:
         add_switch(wlr_switch_from_input_device(device));
         break;
-    default:
-        break;  // touch, tablets: not yet
+    case WLR_INPUT_DEVICE_TOUCH:
+        add_touch(wlr_touch_from_input_device(device));
+        break;
+    case WLR_INPUT_DEVICE_TABLET:
+        add_tablet(wlr_tablet_from_input_device(device));
+        break;
+    case WLR_INPUT_DEVICE_TABLET_PAD:
+        add_tablet_pad(wlr_tablet_pad_from_input_device(device));
+        break;
     }
     update_capabilities();
 }
@@ -528,6 +536,9 @@ void Seat::update_capabilities() {
     uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
     if (!wl_list_empty(&keyboards_->group->devices))
         caps |= WL_SEAT_CAPABILITY_KEYBOARD;
+    for (const auto& d : mapped_)
+        if (d->device->type == WLR_INPUT_DEVICE_TOUCH)
+            caps |= WL_SEAT_CAPABILITY_TOUCH;
     wlr_seat_set_capabilities(wlr, caps);
 }
 
@@ -569,6 +580,7 @@ void Seat::keyboard_enter(wlr_surface* surface) {
     if (!wlr_seat_get_keyboard(wlr))
         wlr_seat_set_keyboard(wlr, physical_keyboard());
     wlr_keyboard* kb = wlr_seat_get_keyboard(wlr);
+    pads_enter(surface);  // a tablet's buttons go where the keys do
     if (!kb) {
         wlr_seat_keyboard_notify_enter(wlr, surface, nullptr, 0, nullptr);
         return;
@@ -582,6 +594,7 @@ void Seat::keyboard_enter(wlr_surface* surface) {
 }
 
 void Seat::clear_keyboard_focus() {
+    pads_enter(nullptr);
     wlr_seat_keyboard_notify_clear_focus(wlr);
 }
 
@@ -880,8 +893,9 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
     wlr_surface* focused = wlr->pointer_state.focused_surface;
 
-    // time == 0: an internal refresh, not real motion.
-    if (time && typing_hidden_) {
+    // time == 0: an internal refresh, not real motion. A finger driving the
+    // pointer (a touch on a window that takes no touch) leaves it hidden.
+    if (time && typing_hidden_ && !(device && device->type == WLR_INPUT_DEVICE_TOUCH)) {
         // Back, as the app under it sets it (as on entering).
         typing_hidden_ = false;
         wlr_seat_pointer_clear_focus(wlr);

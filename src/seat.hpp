@@ -100,6 +100,32 @@ private:
     void add_switch(wlr_switch* sw);
     void add_keyboard(wlr_keyboard* keyboard);
     void add_pointer(wlr_pointer* pointer);
+
+    // touch_tablet.cpp: touchscreens, drawing tablets and their pads, as
+    // labwc has them (touch.c, tablet.c, tablet-pad.c). An app that speaks
+    // touch or the tablet protocol gets them; anywhere else they work the
+    // pointer (a touch or the pen's tip is a left click).
+    void add_touch(wlr_touch* touch);
+    void add_tablet(wlr_tablet* tablet);
+    void add_tablet_pad(wlr_tablet_pad* pad);
+    void touch_down(wlr_touch_down_event* e);
+    void touch_up(wlr_touch_up_event* e);
+    void touch_motion(wlr_touch_motion_event* e);
+    void tool_proximity(wlr_tablet_tool_proximity_event* e);
+    void tool_axis(wlr_tablet_tool_axis_event* e);
+    void tool_tip(wlr_tablet_tool_tip_event* e);
+    void tool_button(wlr_tablet_tool_button_event* e);
+    void emulate_absolute(wlr_input_device* device, double x, double y, uint32_t time);
+    void emulate_button(uint32_t button, bool pressed, uint32_t time);
+    void focus_for_touch(const struct Hit& hit);
+    struct TabletTool* tool_for(wlr_tablet_tool* tool);
+    // Where a pen or a touch lands: the surface if it takes that kind of
+    // input, with the layout-to-surface offset.
+    wlr_surface* touch_target(double lx, double ly, double& ox, double& oy, bool tablet);
+public:
+    void pads_enter(wlr_surface* surface);  // keyboard focus moved
+    void map_to_outputs();  // each touchscreen to its own screen
+private:
     void update_capabilities();
     void configure_libinput(libinput_device* device);
 
@@ -127,6 +153,26 @@ private:
     friend struct KeyboardGroup;
 
     std::unique_ptr<KeyboardGroup> keyboards_;
+
+    struct TouchPoint {
+        int32_t id;
+        wlr_surface* surface;  // null: working the pointer
+        double ox, oy;         // layout minus surface coordinates at the touch
+    };
+    std::vector<TouchPoint> touch_points_;
+    std::vector<std::unique_ptr<struct InputDevice>> mapped_;  // touchscreens and tablets
+    std::vector<std::unique_ptr<struct TabletDevice>> tablets_;
+    std::vector<std::unique_ptr<struct TabletPad>> pads_;
+    std::vector<std::unique_ptr<struct TabletTool>> tools_;
+    bool pen_emulating_ = false;  // a tip or button press is working the pointer
+    Listener<wlr_touch_down_event> touch_down_;
+    Listener<wlr_touch_up_event> touch_up_;
+    Listener<wlr_touch_motion_event> touch_motion_;
+    Listener<> touch_frame_;
+    Listener<wlr_tablet_tool_proximity_event> tool_proximity_;
+    Listener<wlr_tablet_tool_axis_event> tool_axis_;
+    Listener<wlr_tablet_tool_tip_event> tool_tip_;
+    Listener<wlr_tablet_tool_button_event> tool_button_;
     std::vector<std::unique_ptr<KeyboardGroup>> virtual_keyboards_;
     std::array<bool, KEY_MAX + 1> consumed_{};  // keycodes whose press ran a binding
     std::unordered_map<uint32_t, std::string> portal_held_;  // keycode → portal shortcut held down

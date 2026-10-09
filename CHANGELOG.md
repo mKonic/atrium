@@ -56,6 +56,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Identify in Displays: each screen shows its number, name and resolution for a moment, as KDE's.
 - A game controller counts as activity, so playing with one keeps the screen awake, as in KWin.
 - Alt+Tab spreads the windows out with their titles above them, as a Mac's Mission Control, and they glide back with the one picked on top; Command-Tab's row of app icons and the row of small previews remain as choices (Windows: Alt+Tab shows).
+- Touchscreens and drawing tablets: apps that take touch get the fingers and apps that take a pen get its pressure, tilt and buttons; anywhere else a tap or the pen's tip clicks, as in labwc. A touchscreen or tablet follows the display it belongs to.
 - X11 apps are sharp on scaled screens: they draw at the screen's scale themselves, as with KDE's "Apply scaling themselves", or can be stretched instead (Displays: Older (X11) apps).
 - atrium's Open, Save, Open With and Print dialogs belong to the app window that asked for them (xdg-foreign), as on GNOME and Plasma.
 - Hide the pointer while typing, until the mouse moves (Mouse & Touchpad), and Num Lock on at start (Keyboard), as Hyprland has them.

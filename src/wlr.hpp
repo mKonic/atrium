@@ -84,6 +84,10 @@ extern "C" {
 #include <wlr/types/wlr_output_swapchain_manager.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_switch.h>
+#include <wlr/types/wlr_tablet_pad.h>
+#include <wlr/types/wlr_tablet_tool.h>
+#include <wlr/types/wlr_tablet_v2.h>
+#include <wlr/types/wlr_touch.h>
 #include <wlr/types/wlr_drm_lease_v1.h>
 #include <wlr/types/wlr_xdg_foreign_registry.h>
 #include <wlr/types/wlr_xdg_foreign_v1.h>
