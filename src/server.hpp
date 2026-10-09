@@ -260,6 +260,7 @@ public:
     void apply_blur_settings();
     // Hyprland's screen_shader: the file read and compiled into the renderer.
     void apply_screen_shader();
+    void give_backends_renderer();
     double screen_shader_since_ms = 0;
 
     wlr_output_layout* output_layout = nullptr;

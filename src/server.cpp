@@ -234,6 +234,7 @@ void Server::setup() {
         die("couldn't create renderer");
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
     apply_screen_shader();
+    give_backends_renderer();
 
     wlr_renderer_init_wl_shm(renderer, display);
     if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
@@ -984,6 +985,7 @@ void Server::gpu_reset() {
     for (Output* o : outputs)
         wlr_output_init_render(o->wlr, allocator, renderer);
 
+    give_backends_renderer();
     wlr_allocator_destroy(old_allocator);
     wlr_renderer_destroy(old_renderer);
     apply_screen_shader();
@@ -1705,6 +1707,17 @@ void Server::apply_blur_settings() {
             for (LayerSurface* l : list)
                 l->refresh_blur();
     wlr_scene_optimized_blur_mark_dirty(background_blur);
+}
+
+// A second GPU that can't take the frames drawn here gets them through the
+// CPU, read back with this renderer (wlroots fork).
+void Server::give_backends_renderer() {
+    if (!wlr_backend_is_multi(backend))
+        return;
+    wlr_multi_for_each_backend(backend, [](wlr_backend* b, void* data) {
+        if (wlr_backend_is_drm(b))
+            wlr_drm_backend_set_primary_renderer(b, static_cast<wlr_renderer*>(data));
+    }, renderer);
 }
 
 void Server::apply_screen_shader() {

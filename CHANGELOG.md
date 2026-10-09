@@ -45,6 +45,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A color profile (ICC) per display, in Displays, applied as KWin does.
 - An HDR calibration per display, in Displays: an ICC profile with an MHC2 tag, as Windows HDR Calibration and DisplayCAL make, with its measured peak.
 - Closing a laptop's lid with another display on turns the built-in screen off, and opening it brings it back as it was.
+- Displays on a second graphics card that can't take the main one's frames (no 3D of its own, a USB adapter) get them copied through the CPU instead of staying black.
 - VR headsets go to VR apps (SteamVR, Monado) instead of joining the desktop.
 - "Launch on …" another graphics card in an app's menu in the Dock and the launcher; apps that ask for the discrete GPU get it, as switcheroo-control would send them.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
