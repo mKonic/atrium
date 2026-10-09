@@ -178,7 +178,9 @@ PanelWindow {
     anchors.bottom: true
     // Away from its screen, the whole bottom edge brings it over.
     implicitWidth: home ? Math.max(shelf.width + 40, menu.width + 40) : (screen?.width ?? 0)
-    implicitHeight: shelfHeight + gap + 150
+    // Room above the shelf for the hovered app's name, magnified icons and
+    // its menu, however many rows that has.
+    implicitHeight: shelfHeight + gap + Math.max(150, menu.height + menu.anchors.bottomMargin + 16)
     exclusiveZone: autohide || empty || output.tiled || !home ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
