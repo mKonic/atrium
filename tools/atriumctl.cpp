@@ -57,7 +57,7 @@ void usage() {
         "  shortcuts                 key combinations and what they do\n"
         "  shortcut add KEYS ACTION [ARG] | shortcut rm ID | shortcut reset\n"
         "  clipboard [list]          clipboard history, newest first\n"
-        "  clipboard copy|delete ID | clipboard clear | clipboard set TEXT | clipboard add MIME FILE\n"
+        "  clipboard copy|delete|pin|unpin ID | clipboard clear | clipboard set TEXT | clipboard add MIME FILE\n"
         "  action NAME [ARG]         run an action (terminal, close, quit, spawn CMD, ...)\n"
         "  focus|close|minimize|maximize|fullscreen [ID]   act on a window (default: focused)\n"
         "  move ID X Y | resize ID W H\n"
@@ -184,8 +184,9 @@ void print_human(const std::string& cmd, const json& r) {
     } else if (cmd == "clipboard") {
         for (const auto& e : r)
             if (e.is_object() && e.contains("id"))
-                std::printf("%-18s %-24s %8llu  %s\n", e["id"].get<std::string>().c_str(),
+                std::printf("%-18s %-24s %8llu  %-5s %-6s %s\n", e["id"].get<std::string>().c_str(),
                             e["mime"].get<std::string>().c_str(), e["size"].get<unsigned long long>(),
+                            e.value("kind", "").c_str(), e.value("pinned", false) ? "pinned" : "",
                             e["preview"].get<std::string>().c_str());
     } else if (cmd == "layers") {
         for (const auto& l : r) {
@@ -311,6 +312,9 @@ int main(int argc, char** argv) {
         if (what == "copy" || what == "delete") {
             need(2);
             req["entry"] = args[1];
+        } else if (what == "pin" || what == "unpin") {
+            need(2);
+            req = {{"cmd", "clipboard.pin"}, {"entry", args[1]}, {"pinned", what == "pin"}};
         } else if (what == "add") {
             // Into the history only: clipboard add MIME FILE
             need(3);

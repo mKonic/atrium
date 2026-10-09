@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <ctime>
 #include <fcntl.h>
 #include <fstream>
 #include <sstream>
@@ -335,6 +336,7 @@ void ClipboardHistory::store(const std::string& mime, std::string data, bool) {
     for (const std::string& gone : index_.add(e, &fresh)) {
         std::error_code ec;
         std::filesystem::remove(dir_ / gone, ec);
+        kinds_.erase(gone);
     }
     if (fresh) {
         const auto path = file(e);
@@ -459,6 +461,7 @@ void ClipboardHistory::reap_writes() {
 bool ClipboardHistory::remove(const std::string& id) {
     if (!index_.remove(id))
         return false;
+    kinds_.erase(id);
     std::error_code ec;
     std::filesystem::remove(dir_ / id, ec);
     save_index();
@@ -467,13 +470,39 @@ bool ClipboardHistory::remove(const std::string& id) {
 }
 
 void ClipboardHistory::clear() {
-    for (const ClipboardEntry& e : index_.entries()) {
+    for (const std::string& id : index_.clear_unpinned()) {
         std::error_code ec;
-        std::filesystem::remove(file(e), ec);
+        std::filesystem::remove(dir_ / id, ec);
+        kinds_.erase(id);
     }
-    index_.entries().clear();
     save_index();
     changed();
+}
+
+const ClipboardHistory::Kind& ClipboardHistory::kind_of(const ClipboardEntry& e) const {
+    if (auto it = kinds_.find(e.id); it != kinds_.end())
+        return it->second;
+    // Only text needs reading, and only its start: a file list is short, a
+    // link or colour shorter still.
+    std::string data;
+    if (clipboard_is_text(e.mime)) {
+        std::ifstream in(file(e), std::ios::binary);
+        data.resize(std::min<uint64_t>(e.size, 64 * 1024));
+        in.read(data.data(), std::streamsize(data.size()));
+        data.resize(size_t(std::max<std::streamsize>(in.gcount(), 0)));
+    }
+    Kind k{clipboard_kind(e.mime, data), {}};
+    if (k.kind == ClipboardKind::Color)
+        k.color = clipboard_color_hex(*clipboard_color(data));
+    return kinds_[e.id] = std::move(k);
+}
+
+bool ClipboardHistory::pin(const std::string& id, bool pinned) {
+    if (!index_.set_pinned(id, pinned, int64_t(std::time(nullptr))))
+        return false;
+    save_index();
+    changed();
+    return true;
 }
 
 void ClipboardHistory::save_index() {

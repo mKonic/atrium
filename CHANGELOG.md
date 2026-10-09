@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Added
+- Clipboard History (Super+V): pin entries (Ctrl+.) to keep them on top, past the history limit and Clear All, and paste one with Ctrl+1..0; show only text, images, files, colours, links or emails; copied colours drawn as a swatch; its actions in Ctrl+K.
 ### Changed
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed

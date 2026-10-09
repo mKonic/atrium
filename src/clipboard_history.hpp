@@ -45,7 +45,17 @@ public:
     bool add(const std::string& mime, std::string data);
     bool add_file(const std::string& mime, const std::filesystem::path& path);
     bool remove(const std::string& id);
+    // Kept at the top, past the limit and Clear All (or let go of).
+    bool pin(const std::string& id, bool pinned);
+    // All but the pins.
     void clear();
+    // What an entry is, for the type filter, and a colour's swatch (#rrggbb):
+    // worked out once per entry, from its data.
+    struct Kind {
+        ClipboardKind kind = ClipboardKind::Text;
+        std::string color;
+    };
+    const Kind& kind_of(const ClipboardEntry& e) const;
 
     using Data = std::shared_ptr<const std::string>;
     using Contents = std::map<std::string, Data>;  // by type
@@ -77,6 +87,7 @@ private:
     Listener<> selection_;
     // The copy last read in full, its app, and whether that app went (then
     // atrium offers what was read).
+    mutable std::map<std::string, Kind> kinds_;  // by entry id
     Contents kept_;
     std::vector<std::string> order_;  // its types as offered
     wlr_data_source* kept_from_ = nullptr;

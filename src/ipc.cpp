@@ -728,7 +728,7 @@ json Ipc::handle(Client& c, const json& req) {
     }
 
     // Clipboard history: the entries (each one's data in its file), copying
-    // one back, wl-copy's job (text, or a file's contents as a type), and
+    // one back, pinning one, wl-copy's job (text, or a file's contents as a type), and
     // adding to the list without copying.
     if (cmd.starts_with("clipboard.")) {
         ClipboardHistory* h = server_.clipboard_history.get();
@@ -740,15 +740,24 @@ json Ipc::handle(Client& c, const json& req) {
         };
         if (cmd == "clipboard.list") {
             json list = json::array();
-            for (const ClipboardEntry& e : h->index().entries())
-                list.push_back({{"id", e.id}, {"mime", e.mime}, {"time", e.time}, {"size", e.size},
-                                {"preview", e.preview}, {"file", h->file(e).string()}});
+            // Pins first, in the order they were pinned; then newest first.
+            for (const ClipboardEntry* e : h->index().listed()) {
+                const ClipboardHistory::Kind& k = h->kind_of(*e);
+                list.push_back({{"id", e->id}, {"mime", e->mime}, {"time", e->time}, {"size", e->size},
+                                {"preview", e->preview}, {"file", h->file(*e).string()},
+                                {"pinned", e->pinned != 0}, {"kind", clipboard_kind_name(k.kind)},
+                                {"color", k.color}});
+            }
             return ok(list);
         }
         if (cmd == "clipboard.copy")
             return h->copy(id()) ? ok() : fail("no such entry");
         if (cmd == "clipboard.delete")
             return h->remove(id()) ? ok() : fail("no such entry");
+        if (cmd == "clipboard.pin") {
+            const bool pinned = !req.contains("pinned") || !req["pinned"].is_boolean() || req["pinned"].get<bool>();
+            return h->pin(id(), pinned) ? ok() : fail("no such entry");
+        }
         if (cmd == "clipboard.clear") {
             h->clear();
             return ok();
