@@ -1,6 +1,7 @@
 #include "ipc.hpp"
 #include "appmenu.hpp"
 #include "clipboard_history.hpp"
+#include "geometry.hpp"
 #include "lock_screen.hpp"
 #include "logout.hpp"
 #ifdef ATRIUM_XWAYLAND
@@ -743,6 +744,8 @@ json Ipc::handle(Client& c, const json& req) {
                 {"description", o->wlr->description ? o->wlr->description : ""},
                 {"make", o->wlr->make ? o->wlr->make : ""},
                 {"model", o->wlr->model ? o->wlr->model : ""},
+                {"serial", o->wlr->serial ? o->wlr->serial : ""},
+                {"built_in", geometry::internal_panel(o->wlr->name)},
                 {"enabled", o->enabled()},
                 {"geometry", box_json(o->box)},
                 {"usable", box_json(o->usable)},

@@ -52,6 +52,8 @@ public:
     QVariantMap keyboard() const { return keyboard_; }
     QVariantMap nightLight() const { return nightLight_; }
     QVariantList outputs() const { return outputs_; }
+    // Identify in Displays: {number, name, mode} for the screen `output`.
+    Q_INVOKABLE QVariantMap identify(const QString& output) const;
     QVariantMap settings() const { return settings_; }
     QVariantList schema() const { return schema_; }
     QVariantList apps() const { return apps_; }

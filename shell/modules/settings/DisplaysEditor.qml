@@ -71,6 +71,16 @@ Rectangle {
             radius: 10
             color: Theme.palette.quaternaryFill
 
+            // Which screen is which: each shows its number and name.
+            PillButton {
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 8
+                z: 1
+                text: "Identify"
+                onClicked: Atrium.action("shell", "identify-displays")
+            }
+
             Repeater {
                 model: Atrium.outputs
 

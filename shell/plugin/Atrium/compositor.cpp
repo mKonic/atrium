@@ -2,6 +2,7 @@
 
 #include "accent.hpp"
 #include "desktop_entries.hpp"
+#include "identify_core.hpp"
 #include "palette.hpp"
 #include "records.hpp"
 
@@ -638,6 +639,28 @@ void Compositor::removeShortcut(qint64 id) {
 
 void Compositor::resetShortcuts() {
     change({{"cmd", "shortcuts.reset"}});
+}
+
+QVariantMap Compositor::identify(const QString& output) const {
+    std::vector<identify::Screen> screens;
+    QStringList names;
+    for (const QVariant& v : outputs_) {
+        const QVariantMap o = v.toMap();
+        if (!o.value("enabled").toBool())
+            continue;
+        const QVariantMap mode = o.value("mode").toMap();
+        screens.push_back({o.value("name").toString().toStdString(), o.value("make").toString().toStdString(),
+                           o.value("model").toString().toStdString(), o.value("serial").toString().toStdString(),
+                           o.value("built_in").toBool(), mode.value("width").toInt(), mode.value("height").toInt(),
+                           o.value("scale").toDouble()});
+        names.push_back(o.value("name").toString());
+    }
+    const auto labels = identify::labels(screens);
+    const qsizetype i = names.indexOf(output);
+    if (i < 0)
+        return {};
+    const identify::Label& l = labels[size_t(i)];
+    return {{"number", l.number}, {"name", QString::fromStdString(l.name)}, {"mode", QString::fromStdString(l.mode)}};
 }
 
 } // namespace atrium

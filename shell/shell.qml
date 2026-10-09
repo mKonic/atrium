@@ -5,6 +5,7 @@ import shell.modules.bar
 import shell.modules.controlcenter
 import shell.modules.desktop
 import shell.modules.dock
+import shell.modules.identify
 import shell.modules.launcher
 import shell.modules.notifications
 import shell.modules.osd
@@ -66,6 +67,8 @@ ShellRoot {
     ControlCenter {}
 
     Osd {}
+
+    Identify {}
 
     Polkit {}
 
