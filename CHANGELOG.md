@@ -41,6 +41,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Blur materials, Hyprland's frost (crackled ice) and haze (a pearly sheen), in Appearance: Blur material.
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
 - Frosted blur behind menus and input-method popups when transparency is on, leaving their soft shadows clear.
+- A screen shader setting, as Hyprland's: a GLSL fragment shader file drawn over every screen (Appearance: Screen shader).
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed

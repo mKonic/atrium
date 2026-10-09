@@ -300,6 +300,28 @@ void Output::render() {
     for (View* v : server.views)
         if (v->output == this)
             v->motion_frame();
+    // The screen shader's uniforms; one that changes by itself (time, the
+    // pointer) is drawn whole every frame, as Hyprland requires.
+    {
+        timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        const double now = ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+        const wlr_cursor* cur = server.seat ? server.seat->cursor : nullptr;
+        const double px = cur && box.width > 0 ? (cur->x - box.x) / box.width : 0;
+        const double py = cur && box.height > 0 ? (cur->y - box.y) / box.height : 0;
+        int index = 0;
+        for (Output* o : server.outputs) {
+            if (o == this)
+                break;
+            index++;
+        }
+        fx_renderer_set_screen_shader_frame(server.renderer, float((now - server.screen_shader_since_ms) / 1000.0),
+                                            index, float(px), float(py));
+        if (fx_renderer_screen_shader_animates(server.renderer)) {
+            wlr_scene_output_damage_whole(scene_output);
+            wlr_output_schedule_frame(wlr);
+        }
+    }
     // Night light's colour table, when it changed and no app sets this
     // screen's gamma itself; screens without one (nested) do without.
     const NightLight* night = server.night_light.get();

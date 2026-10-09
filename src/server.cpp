@@ -231,6 +231,7 @@ void Server::setup() {
     if (!renderer)
         die("couldn't create renderer");
     gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
+    apply_screen_shader();
 
     wlr_renderer_init_wl_shm(renderer, display);
     if (wlr_renderer_get_texture_formats(renderer, WLR_BUFFER_CAP_DMABUF)) {
@@ -967,6 +968,7 @@ void Server::gpu_reset() {
 
     wlr_allocator_destroy(old_allocator);
     wlr_renderer_destroy(old_renderer);
+    apply_screen_shader();
 }
 
 // --- focus and hit testing -------------------------------------------------
@@ -1598,6 +1600,8 @@ void Server::setting_changed(const std::string& key) {
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
     if (is("appearance.blur") || is("appearance.glass") || key == "appearance.liquid_glass")
         apply_blur_settings();
+    if (key == "appearance.screen_shader")
+        apply_screen_shader();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
     if (key == "appearance.style" || key == "appearance.accent") {
@@ -1683,6 +1687,33 @@ void Server::apply_blur_settings() {
             for (LayerSurface* l : list)
                 l->refresh_blur();
     wlr_scene_optimized_blur_mark_dirty(background_blur);
+}
+
+void Server::apply_screen_shader() {
+    std::string source;
+    if (!config.screen_shader.empty()) {
+        std::string path = config.screen_shader;
+        if (path.starts_with("~/"))
+            if (const char* home = getenv("HOME"))
+                path = std::string(home) + path.substr(1);
+        std::ifstream in(path);
+        if (!in) {
+            wlr_log(WLR_ERROR, "screen shader: can't read %s", path.c_str());
+        } else {
+            source.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            if (source.empty())
+                wlr_log(WLR_ERROR, "screen shader: %s is empty", path.c_str());
+        }
+    }
+    char error[2048];
+    if (!fx_renderer_set_screen_shader(renderer, source.c_str(), error, sizeof(error)))
+        wlr_log(WLR_ERROR, "screen shader: %s", error);
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    screen_shader_since_ms = ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+    for (Output* o : outputs)
+        if (o->scene_output)
+            wlr_scene_output_damage_whole(o->scene_output);
 }
 
 void Server::show_window_menu(const View* view, double lx, double ly) {

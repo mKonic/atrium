@@ -102,6 +102,7 @@ struct Config {
     std::string accent = "multicolor";  // appearance.accent: accent::names()
     bool liquid_glass = false;           // appearance.liquid_glass: glass panels
     bool glass_tinted = false;           // appearance.glass_style: clear (false) or tinted
+    std::string screen_shader;           // appearance.screen_shader: a fragment shader file, Hyprland's
     int blur_material = 0;               // appearance.blur_material: plain (0), frost (1), haze (2)
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;

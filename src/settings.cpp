@@ -421,6 +421,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));
+    s.push_back(make("appearance.screen_shader", SettingType::String, "Appearance", "Screen shader",
+        "A GLSL ES 3.00 fragment shader file drawn over every screen, as Hyprland's screen_shader: it samples the "
+        "frame from tex at v_texcoord (time counts seconds, pointer_position is where the pointer is). Empty for none.",
+        "", [](Config& c, const json& v) { c.screen_shader = v.get<std::string>(); }));
     s.push_back(choice("appearance.blur_material", "Appearance", "Blur material",
         "What the blur behind windows looks like: plain, through frosted ice, or with a pearly haze.",
         {"plain", "frost", "haze"}, d.blur_material == 1 ? "frost" : d.blur_material == 2 ? "haze" : "plain",

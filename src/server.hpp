@@ -251,6 +251,9 @@ public:
     // panels), rendered once per frame and sampled by every window's blur.
     wlr_scene_optimized_blur* background_blur = nullptr;
     void apply_blur_settings();
+    // Hyprland's screen_shader: the file read and compiled into the renderer.
+    void apply_screen_shader();
+    double screen_shader_since_ms = 0;
 
     wlr_output_layout* output_layout = nullptr;
     wlr_box layout_box{};
