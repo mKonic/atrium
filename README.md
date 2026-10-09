@@ -37,6 +37,14 @@ It provides the latest Wayland features, has all the eyecandy and more...
 
 # Install
 
+On Arch or an Arch-based distribution:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mKonic/atrium/master/install.sh | bash
+```
+
+It installs the latest release, asks about the optional parts and sets up atrium's login screen. Run it again to update.
+
 ### From a release
 
 Download `atrium-git-*.pkg.tar.zst` from [Releases], then:
