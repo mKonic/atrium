@@ -136,16 +136,19 @@ void Snapshot::place(const FBox& to, float alpha) {
     }
 }
 
-void Snapshot::warp(const std::function<FPoint(double, double)>& at, float alpha) {
+void Snapshot::warp(const std::function<FPoint(double, double)>& at, float alpha, double cell_w, double cell_h,
+                    bool keep_shadow) {
+    if (keep_shadow && !warped_)
+        place(frame_box(), alpha);
     warped_ = true;
     std::vector<float> points;
     for (Part& p : parts_) {
         if (p.kind != Kind::Buffer) {
-            wlr_scene_node_set_enabled(p.node, false);
+            wlr_scene_node_set_enabled(p.node, keep_shadow && p.kind == Kind::Shadow);
             continue;
         }
-        const int cols = std::max(1, int(std::ceil(p.box.width / kGenieCell)));
-        const int rows = std::max(1, int(std::ceil(p.box.height / kGenieCell)));
+        const int cols = std::max(1, int(std::ceil(p.box.width / std::max(cell_w, 1.0))));
+        const int rows = std::max(1, int(std::ceil(p.box.height / std::max(cell_h, 1.0))));
         points.resize(size_t(cols + 1) * (rows + 1) * 2);
         double x0 = INFINITY, y0 = INFINITY, x1 = -INFINITY, y1 = -INFINITY;
         for (int j = 0; j <= rows; j++)

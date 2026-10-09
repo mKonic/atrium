@@ -11,6 +11,7 @@ atrium_sources = files(
   'xsmp.cpp',
   'clipboard_core.cpp',
   'snapshot_core.cpp',
+  'wobbly_core.cpp',
   'snapshot.cpp',
   'clipboard_history.cpp',
   'cairo_buffer.cpp',

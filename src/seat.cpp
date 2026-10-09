@@ -858,6 +858,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             geometry::snap(nx, ny, grab_view_->geom.width, grab_view_->geom.height, o->usable,
                            server.config.snap_distance);
         grab_view_->move_to(nx, ny);
+        if (!grab_view_->wobbly() && !grab_view_->layout_owned() && !(grab_view_->space && grab_view_->space->tiled))
+            grab_view_->wobble_begin(grab_x_, grab_y_, false);
 
         // Screen edges and corners offer to tile the window.
         Output* o = server.output_at(cursor->x, cursor->y);
@@ -882,6 +884,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             box.height -= top - box.y;
             box.y = top;
         }
+        if (!grab_view_->wobbly())
+            grab_view_->wobble_begin(grab_x_, grab_y_, true);
         grab_view_->request_geometry(box);
         return;
     }
@@ -1299,6 +1303,8 @@ void Seat::push_edge(double dx) {
 void Seat::cancel_grab() {
     if (grab_view_ && mode == Mode::Resize)
         grab_view_->end_resize();
+    if (grab_view_)
+        grab_view_->wobble_release();
     snap_zone_ = 0;
     if (server.snap_preview)
         server.snap_preview->hide();

@@ -32,9 +32,11 @@ public:
     void place(const FBox& to, float alpha);
     // Bent instead: each buffer drawn over a grid (kGenieCell), every point
     // of it where `at` takes it (both relative to the frame's top left).
-    // The shadow, outline and backing are left out meanwhile, as they don't
-    // bend. place() straightens it again.
-    void warp(const std::function<FPoint(double, double)>& at, float alpha);
+    // The outline and backing are left out meanwhile, as they don't bend,
+    // and the shadow too unless `keep_shadow` (then it stays flat). The
+    // grid's cells are `cell_w` x `cell_h`. place() straightens it again.
+    void warp(const std::function<FPoint(double, double)>& at, float alpha, double cell_w = kGenieCell,
+              double cell_h = kGenieCell, bool keep_shadow = false);
     const wlr_box& frame() const { return frame_; }
     FBox frame_box() const { return {double(frame_.x), double(frame_.y), double(frame_.width), double(frame_.height)}; }
     wlr_scene_tree* tree() const { return tree_; }

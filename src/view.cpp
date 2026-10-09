@@ -14,6 +14,7 @@
 #include "snapshot.hpp"
 #include "space.hpp"
 #include "toplevel_drag.hpp"
+#include "wobbly_core.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -48,6 +49,7 @@ View::~View() {
     server.animator.cancel_owner(&glide_dx_, false);
     server.animator.cancel_owner(&reveal_, false);
     server.animator.cancel_owner(&morph_old_, false);
+    server.animator.cancel_owner(&wobbly_, false);
     if (morph_timeout_)
         wl_event_source_remove(morph_timeout_);
     if (morph_idle_)
@@ -217,6 +219,7 @@ void View::handle_unmap() {
         server.switcher->view_unmapped(this);
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&morph_old_, false);
+    wobble_stop();
     // Opening or morphing still: the real tree is what the close starts from.
     anim_snap_.reset();
     morph_old_.reset();
@@ -433,7 +436,93 @@ void View::move_to(int x, int y) {
 // windowsMove stretches it and KWin's Maximize crossfades from the old
 // picture: the window as it was is kept now, and once the app draws the new
 // size both stretch from the old box to the new, the old fading out above.
+namespace {
+
+double wobbly_now_ms() {
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
+
+} // namespace
+
+// The frame in layout coordinates, as the springs see it.
+static FBox frame_in_layout(const View& v) {
+    int lx = 0, ly = 0;
+    wlr_scene_node_coords(&v.tree->node, &lx, &ly);
+    return {double(lx), double(ly), double(v.geom.width), double(v.geom.height)};
+}
+
+void View::wobble_begin(double px, double py, bool resize) {
+    if (!server.config.wobbly || !server.config.animations || !mapped || !tree || !tree->node.enabled ||
+        fullscreen || opening_ || morph_pending_ || !tree->node.parent || geom.width <= 0 || geom.height <= 0)
+        return;
+    if (wobbly_) {
+        // Caught again while it settles: held at the new point.
+        wobble_stop();
+    }
+    wobbly_ = std::make_unique<Wobbly>(frame_in_layout(*this), wobbly_preset(server.config.wobbliness), FPoint{px, py},
+                                       resize);
+    wobbly_resize_ = resize;
+    wobbly_clock_ = wobbly_now_ms();
+    // Open-ended: it ends itself once the window settles.
+    server.animator.start(&wobbly_, 1e12, Ease::Linear, [this](double) { wobble_frame(); });
+}
+
+void View::wobble_release() {
+    if (wobbly_ && tree)
+        wobbly_->release(frame_in_layout(*this));
+}
+
+void View::wobble_stop() {
+    if (!wobbly_)
+        return;
+    server.animator.cancel_owner(&wobbly_, false);
+    wobbly_.reset();
+    wobbly_snap_.reset();
+    if (tree)
+        wlr_scene_node_set_hidden(&tree->node, false);
+}
+
+void View::wobble_frame() {
+    if (!wobbly_ || !tree)
+        return;
+    const double now = wobbly_now_ms();
+    const double dt = std::min(now - wobbly_clock_, 100.0);  // after a stall, don't fling it
+    wobbly_clock_ = now;
+    const FBox rect = frame_in_layout(*this);
+    if (wobbly_resize_)
+        wobbly_->moved(rect);
+    if (!wobbly_->advance(rect, dt)) {
+        // wobble_stop() cancels this very animation; it's safe from a step.
+        wobble_stop();
+        return;
+    }
+    if (!wobbly_->wobbling()) {
+        // Still held, nothing bent: the window itself.
+        wobbly_snap_.reset();
+        wlr_scene_node_set_hidden(&tree->node, false);
+        return;
+    }
+    // A fresh snapshot each frame (the app keeps drawing), just above the
+    // window; the frame in its parent's coordinates.
+    wobbly_snap_ = take_snapshot(tree->node.parent);
+    wlr_scene_node_place_above(&wobbly_snap_->tree()->node, &tree->node);
+    wlr_scene_node_set_hidden(&tree->node, true);
+    const Wobbly& w = *wobbly_;
+    const double ox = rect.x - tree->node.x, oy = rect.y - tree->node.y;  // parent's origin, in layout
+    const double W = rect.width, H = rect.height;
+    const FBox frame = wobbly_snap_->frame_box();
+    wobbly_snap_->warp(
+        [&](double x, double y) {
+            const FPoint p = w.at(x / W, y / H);
+            return FPoint{p.x - ox - frame.x, p.y - oy - frame.y};
+        },
+        1, W / kWobblyTessellation, H / kWobblyTessellation);
+}
+
 void View::begin_morph() {
+    wobble_stop();
     if (morph_pending_ || !server.config.animations || !mapped || !tree || !tree->node.enabled || fullscreen ||
         opening_ || !tree->node.parent || !visible())
         return;
@@ -827,6 +916,7 @@ void View::set_tile_bar_hidden(bool hidden) {
 }
 
 void View::set_fullscreen(bool f, bool by_user) {
+    wobble_stop();
     if (f == fullscreen || unmanaged() || !tree)
         return;
     fullscreen_by_user = f && by_user;
@@ -872,6 +962,7 @@ bool View::request_minimized(bool m) {
 void View::set_minimized(bool m) {
     if (m == minimized || unmanaged() || !tree)
         return;
+    wobble_stop();
     minimized = m;
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&morph_old_, false);

@@ -99,6 +99,13 @@ public:
     void unsnap(bool restore_geometry);
     // Apply windows.tiled_titlebars to a snapped window.
     void refresh_tiled_titlebar();
+    // Wobbly windows (windows.wobbly): while dragged or resized, and until
+    // it settles, the window is drawn bent from a snapshot retaken every
+    // frame (so it stays live), the real one hidden but there for input.
+    void wobble_begin(double pointer_x, double pointer_y, bool resize);
+    void wobble_release();
+    void wobble_stop();
+    bool wobbly() const { return wobbly_ != nullptr; }
     void set_minimized(bool minimized);
     // Fullscreen and in front: over the panels, with the backdrop behind it.
     bool fullscreen_front() const { return fullscreen && !covered; }
@@ -243,6 +250,11 @@ protected:
     wl_event_source* morph_idle_ = nullptr;
     void begin_morph();
     void start_morph();
+    std::unique_ptr<class Wobbly> wobbly_;
+    std::unique_ptr<class Snapshot> wobbly_snap_;
+    double wobbly_clock_ = 0;
+    bool wobbly_resize_ = false;
+    void wobble_frame();
     bool listed_ = false;              // in server.views (managed when it mapped)
     void glide_from(int from_x, int from_y);
     int anchor_right_ = 0, anchor_bottom_ = 0;

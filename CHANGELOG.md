@@ -36,6 +36,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - X11 apps that save through a session manager (XSMP) are asked to save when you log out, and can ask about unsaved work; Cancel there cancels the logout.
 - Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
 - What you copied stays on the clipboard after the app it came from quits, with every format it offered (rich text, HTML, pictures); a password manager's copies don't.
+- Wobbly windows, off by default: windows wobble like jelly while dragged or resized and settle when let go, as KWin's do, with its five levels of wobbliness (Windows: Wobbly windows).
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed
