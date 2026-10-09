@@ -1,6 +1,8 @@
 // Ported from dwl's ime.h (Guido Cella, dwl team).
 #include "input_method.hpp"
 
+#include "popup_blur.hpp"
+
 #include "layer_surface.hpp"
 #include "output.hpp"
 #include "ipc.hpp"
@@ -297,6 +299,7 @@ void InputMethodRelay::new_popup(wlr_input_popup_surface_v2* surface) {
     auto p = std::make_unique<Popup>(surface, wlr_scene_tree_create(server_.layer(Layer::InputPopup)));
     Popup* pp = p.get();
     wlr_scene_subsurface_tree_create(pp->tree, surface->surface);
+    PopupBlur::attach(server_, pp->tree, surface->surface);
     pp->commit.connect(&surface->surface->events.commit, [this, pp](void*) { place(*pp); });
     pp->destroy.connect(&surface->events.destroy, [this, pp](void*) {
         wlr_scene_node_destroy(&pp->tree->node);

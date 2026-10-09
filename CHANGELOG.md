@@ -40,6 +40,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Motion blur for moving windows, off by default (Windows: Motion blur).
 - Blur materials, Hyprland's frost (crackled ice) and haze (a pearly sheen), in Appearance: Blur material.
 - Settings for the blur's brightness, contrast, vibrancy and grain, and Liquid Glass's tint, refraction, highlight and shadow.
+- Frosted blur behind menus and input-method popups when transparency is on, leaving their soft shadows clear.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed
