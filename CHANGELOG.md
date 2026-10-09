@@ -69,6 +69,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A mouse's extra buttons remapped in Settings > Mouse & Touchpad, as KWin's do: Add Button asks for a press, then it presses keys (atrium's own shortcuts too), acts as another button, or does nothing.
 - Window tabs, as a Mac's: Merge All Windows and the rest in the window menu, a tab bar to click, drag along, drag out of or drop another window onto, Ctrl+Tab between them, and new windows opening as tabs (Windows: Prefer tabs when opening windows).
 
+- A guided installer: `curl -fsSL https://raw.githubusercontent.com/mKonic/atrium/master/install.sh | bash` looks at the computer (graphics, login screen, network, the apps already there), asks about the rest, installs the latest release and starts atrium's login screen in place of another.
 ### Changed
 - Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.
 - A Dock icon's name shows above it, as on a Mac, instead of the Dock growing to fit it.
@@ -92,6 +93,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A secret space staying shown, empty, after its last window closed.
 - Gwenview closing on the next image: touchpad pinches and swipes now reach apps (pinch to zoom), and Gwenview's cleanup no longer meets a missing gestures protocol.
 - Super+V's Clear All, lost when the launcher was rebuilt (Ctrl+Shift+Delete, or click it in the footer).
+- atrium not starting on a new Arch install (libcanberra missing), and the Users settings, the bell sound, apps' text and emoji, real-time sound and Software Update's check missing there too.
+- Account pictures square instead of round at login, on the lock screen and in Settings > Users.
 
 ## [v0.1.0] - 2026-09-27
 ### Added
