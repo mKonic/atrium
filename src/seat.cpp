@@ -377,10 +377,27 @@ void Seat::new_input(wlr_input_device* device) {
     case WLR_INPUT_DEVICE_POINTER:
         add_pointer(wlr_pointer_from_input_device(device));
         break;
+    case WLR_INPUT_DEVICE_SWITCH:
+        add_switch(wlr_switch_from_input_device(device));
+        break;
     default:
-        break;  // touch, tablets, switches: not yet
+        break;  // touch, tablets: not yet
     }
     update_capabilities();
+}
+
+// The lid (and a tablet-mode switch, which nothing uses yet).
+void Seat::add_switch(wlr_switch* sw) {
+    struct Switch {
+        Listener<wlr_switch_toggle_event> toggle;
+        Listener<> destroy;
+    };
+    auto* s = new Switch;
+    s->toggle.connect(&sw->events.toggle, [this](wlr_switch_toggle_event* e) {
+        if (e->switch_type == WLR_SWITCH_TYPE_LID)
+            server.set_lid(e->switch_state == WLR_SWITCH_STATE_ON);
+    });
+    s->destroy.connect(&sw->base.events.destroy, [s](void*) { delete s; });
 }
 
 void Seat::add_keyboard(wlr_keyboard* keyboard) {

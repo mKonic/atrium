@@ -473,6 +473,15 @@ void DockApps::launch(const QString& appId) {
     execute(index_.byId(appId));
 }
 
+QString DockApps::otherGpu() const {
+    return shell::DesktopEntries::instance()->otherGpu();
+}
+
+void DockApps::launchOnOtherGpu(const QString& appId) {
+    if (QObject* entry = index_.byId(appId))
+        QMetaObject::invokeMethod(entry, "executeOnOtherGpu");
+}
+
 void DockApps::setPinned(const QString& appId, bool pinned) {
     Compositor::instance()->setPinned(appId, pinned);
 }

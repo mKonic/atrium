@@ -120,8 +120,10 @@ Output::~Output() {
     wlr->data = nullptr;
     wlr_scene_node_destroy(&fullscreen_bg->node);
 
-    if (!server.shutting_down)
+    if (!server.shutting_down) {
         server.update_outputs();
+        server.apply_lid_soon();  // the screen that was on may have gone
+    }
 }
 
 bool Output::hdr_supported() const {

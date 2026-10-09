@@ -407,6 +407,10 @@ bool internal_panel(std::string_view connector) {
     return connector.starts_with("eDP") || connector.starts_with("LVDS") || connector.starts_with("DSI");
 }
 
+bool lid_turns_off(bool lid_closed, bool built_in, bool another_on) {
+    return lid_closed && built_in && another_on;
+}
+
 double default_scale(int width_px, int height_px, int width_mm, int height_mm, bool built_in) {
     // Sizes an EDID leaves as an aspect ratio (16x9, 16x10 "cm"), or none.
     if (width_px <= 0 || height_px <= 0 || width_mm < 100 || height_mm < 60)

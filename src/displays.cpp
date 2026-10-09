@@ -71,6 +71,8 @@ std::string Server::display_id(const wlr_output* o) const {
 
 void Server::remember_displays() {
     for (Output* o : outputs) {
+        if (o->lid_off)
+            continue;  // off for the lid, not by choice: kept as it was
         DisplayRecord d{.id = display_id(o->wlr), .enabled = o->wlr->enabled};
         d.adaptive_sync = o->adaptive_sync;
         d.hdr = o->hdr;
@@ -157,6 +159,61 @@ void Server::restore_display(Output* output) {
     if (d->enabled)
         output->apply_hdr();
     update_outputs();
+}
+
+void Server::set_lid(bool closed) {
+    if (closed == lid_closed)
+        return;
+    lid_closed = closed;
+    wlr_log(WLR_INFO, "lid %s", closed ? "closed" : "opened");
+    apply_lid();
+}
+
+void Server::apply_lid_soon() {
+    if (lid_idle_)
+        return;
+    lid_idle_ = wl_event_loop_add_idle(wl_display_get_event_loop(display), [](void* data) {
+        auto* self = static_cast<Server*>(data);
+        self->lid_idle_ = nullptr;
+        self->apply_lid();
+    }, this);
+}
+
+void Server::apply_lid() {
+    for (Output* o : outputs) {
+        if (o->dying || !geometry::internal_panel(o->wlr->name))
+            continue;
+        const bool another_on = std::ranges::any_of(outputs, [o](const Output* other) {
+            return other != o && !other->dying && other->enabled() && !geometry::internal_panel(other->wlr->name);
+        });
+        const bool off = geometry::lid_turns_off(lid_closed, true, another_on);
+        if (off && o->enabled() && !o->lid_off) {
+            o->lid_off = true;
+            wlr_output_state state;
+            wlr_output_state_init(&state);
+            wlr_output_state_set_enabled(&state, false);
+            if (!wlr_output_commit_state(o->wlr, &state)) {
+                wlr_log(WLR_ERROR, "lid: couldn't turn %s off", o->wlr->name);
+                o->lid_off = false;
+            }
+            wlr_output_state_finish(&state);
+            update_outputs();
+        } else if (!off && o->lid_off) {
+            o->lid_off = false;
+            restore_display(o);
+            // Never set up before: back on at its preferred mode.
+            if (!o->enabled()) {
+                wlr_output_state state;
+                wlr_output_state_init(&state);
+                wlr_output_state_set_enabled(&state, true);
+                if (wlr_output_mode* m = wlr_output_preferred_mode(o->wlr))
+                    wlr_output_state_set_mode(&state, m);
+                wlr_output_commit_state(o->wlr, &state);
+                wlr_output_state_finish(&state);
+            }
+            update_outputs();
+        }
+    }
 }
 
 std::optional<std::string> Server::configure_output(const nlohmann::json& req) {

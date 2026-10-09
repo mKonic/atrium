@@ -119,6 +119,10 @@ public:
     // True if it was launched.
     Q_INVOKABLE bool activate(const QString& appId);
     Q_INVOKABLE void launch(const QString& appId);
+    // "Launch on …" the GPU apps don't start on by default ("" with one).
+    Q_PROPERTY(QString otherGpu READ otherGpu CONSTANT)
+    QString otherGpu() const;
+    Q_INVOKABLE void launchOnOtherGpu(const QString& appId);
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
     // Pin it (if it isn't) at `index` among the pinned apps.
     Q_INVOKABLE void placePin(const QString& appId, int index);

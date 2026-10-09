@@ -155,6 +155,7 @@ std::optional<Entry> parse(std::string_view text, std::string_view locale) {
     e.no_display = truthy(raw("NoDisplay"));
     e.hidden = truthy(raw("Hidden"));
     e.terminal = truthy(raw("Terminal"));
+    e.prefers_non_default_gpu = truthy(raw("PrefersNonDefaultGPU"));
     for (const std::string& id : split_list(raw("Actions"))) {
         auto a = groups.find("Desktop Action " + id);
         if (a == groups.end())

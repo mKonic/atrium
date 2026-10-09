@@ -174,6 +174,8 @@ void Server::rebuild_from_registry() {
 }
 
 Server::~Server() {
+    if (lid_idle_)
+        wl_event_source_remove(lid_idle_);
     // A clean end: the next start has nothing to report.
     if (!session_marker_.empty()) {
         std::error_code ec;
@@ -239,6 +241,15 @@ void Server::setup() {
         wlr_scene_set_linux_dmabuf_v1(scene,
             wlr_linux_dmabuf_v1_create_with_renderer(display, 5, renderer));
     }
+    // VR headsets (non-desktop screens) are offered to the apps that drive
+    // them (SteamVR, Monado), as sway and KWin do; every request that can
+    // be granted is.
+    drm_lease_manager = wlr_drm_lease_v1_manager_create(display, backend);
+    if (drm_lease_manager)
+        lease_request_.connect(&drm_lease_manager->events.request, [](wlr_drm_lease_request_v1* req) {
+            if (!wlr_drm_lease_request_v1_grant(req))
+                wlr_drm_lease_request_v1_reject(req);
+        });
     int drm_fd = wlr_renderer_get_drm_fd(renderer);
     if (drm_fd >= 0 && renderer->features.timeline && backend->features.timeline)
         wlr_linux_drm_syncobj_manager_v1_create(display, 1, drm_fd);
@@ -831,12 +842,19 @@ void Server::quit() {
 // --- outputs -----------------------------------------------------------------
 
 void Server::new_output(wlr_output* wlr) {
+    // A VR headset: not part of the desktop, offered for lease instead.
+    if (wlr->non_desktop) {
+        if (drm_lease_manager && wlr_drm_lease_v1_manager_offer_output(drm_lease_manager, wlr))
+            wlr_log(WLR_INFO, "%s is not a desktop screen: offered for lease", wlr->name);
+        return;
+    }
     if (!wlr_output_init_render(wlr, allocator, renderer))
         return;
     auto* output = new Output(*this, wlr);
     outputs.push_back(output);
     output_added(output);
     restore_display(output);
+    apply_lid_soon();
     // Joining the layout (in Output's constructor) ran update_outputs()
     // before this output was in `outputs`: its box, and the bar's and every
     // panel's room, come from here. (A nested output gets a resize from its

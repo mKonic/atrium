@@ -90,6 +90,10 @@ std::vector<wlr_box> overview_layout(std::span<const wlr_box> windows, const wlr
 
 // A laptop's own panel, by its connector's name (eDP-1, LVDS-1, DSI-1).
 bool internal_panel(std::string_view connector);
+// KWin's lid rule: with the lid closed the built-in screen goes off, unless
+// it's all there is (then the lid is logind's: sleep, or nothing). Only
+// other screens that are on count, so a closed lid never blanks everything.
+bool lid_turns_off(bool lid_closed, bool built_in, bool another_on);
 
 // The scale a screen starts at when nothing was set for it: the quarter
 // step that brings it nearest a comfortable density (a laptop's panel is

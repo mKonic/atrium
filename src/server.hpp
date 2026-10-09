@@ -197,6 +197,13 @@ public:
     std::string display_id(const wlr_output* output) const;
     void remember_displays();
     void restore_display(Output* output);
+    // The laptop lid (a libinput switch): closed, the built-in screen goes
+    // off while another is on, and comes back as it was when it opens.
+    bool lid_closed = false;
+    void set_lid(bool closed);
+    void apply_lid();
+    wl_event_source* lid_idle_ = nullptr;
+    void apply_lid_soon();
     // An output change from IPC: { output, width, height, refresh, scale,
     // transform, x, y, enabled }. The error when it didn't take.
     std::optional<std::string> configure_output(const nlohmann::json& request);
@@ -370,6 +377,8 @@ private:
     void run_startup();
 
     Listener<wlr_output> new_output_;
+    wlr_drm_lease_v1_manager* drm_lease_manager = nullptr;
+    Listener<wlr_drm_lease_request_v1> lease_request_;
     Listener<> layout_change_;
     Listener<wlr_output_configuration_v1> output_apply_, output_test_;
     Listener<wlr_output_power_v1_set_mode_event> output_power_;

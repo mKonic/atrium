@@ -378,3 +378,12 @@ TEST(Geometry, DefaultScaleFromDensity) {
     EXPECT_EQ(default_scale(1280, 800, 600, 375, false), 1.0);
     EXPECT_EQ(default_scale(7680, 4320, 300, 170, true), 3.0);
 }
+
+// KWin's lid rule, with only screens that are on counting.
+TEST(Geometry, AClosedLidTurnsTheBuiltInScreenOffWhileAnotherIsOn) {
+    using atrium::geometry::lid_turns_off;
+    EXPECT_TRUE(lid_turns_off(true, true, true));
+    EXPECT_FALSE(lid_turns_off(true, true, false));   // all there is: the lid is logind's
+    EXPECT_FALSE(lid_turns_off(false, true, true));   // open
+    EXPECT_FALSE(lid_turns_off(true, false, true));   // a monitor isn't under the lid
+}

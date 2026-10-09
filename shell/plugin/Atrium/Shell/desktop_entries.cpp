@@ -1,4 +1,12 @@
 #include "desktop_entries.hpp"
+
+#include "gpus_core.hpp"
+
+#include <QDBusArgument>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusMetaType>
+#include <QProcessEnvironment>
 #include "terminal.hpp"
 #include <QRandomGenerator>
 
@@ -81,14 +89,18 @@ QStringList DesktopEntry::argv(const std::string& exec, const QStringList& targe
 }
 
 void DesktopEntry::execute() const {
-    launch(command());
+    launch(command(), e_.prefers_non_default_gpu ? DesktopEntries::preferredGpuEnv() : gpus::Env{});
+}
+
+void DesktopEntry::executeOnOtherGpu() const {
+    launch(command(), DesktopEntries::otherGpuEnv());
 }
 
 void DesktopEntry::open(const QStringList& targets) const {
     launch(argv(e_.exec, targets));
 }
 
-void DesktopEntry::launch(QStringList argv) const {
+void DesktopEntry::launch(QStringList argv, const std::vector<std::pair<std::string, std::string>>& gpu_env) const {
     if (argv.isEmpty())
         return;
     if (e_.terminal) {
@@ -108,6 +120,12 @@ void DesktopEntry::launch(QStringList argv) const {
                            "--slice=app-graphical.slice", "--unit=" + unit, "--"} + argv;
     }
     QProcess p;
+    if (!gpu_env.empty()) {
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        for (const auto& [k, v] : gpu_env)
+            env.insert(QString::fromStdString(k), QString::fromStdString(v));
+        p.setProcessEnvironment(env);
+    }
     p.setProgram(argv.takeFirst());
     p.setArguments(argv);
     if (!e_.path.empty())
@@ -115,6 +133,63 @@ void DesktopEntry::launch(QStringList argv) const {
     else
         p.setWorkingDirectory(QDir::homePath());
     p.startDetached();
+}
+
+// --- GPUs ---------------------------------------------------------------------
+
+namespace {
+
+// switcheroo-control's list when it runs (it knows hybrid laptops best),
+// else the same rules applied here. Read once: GPUs don't come and go.
+const std::vector<gpus::Gpu>& gpu_list() {
+    static const std::vector<gpus::Gpu> list = [] {
+        QDBusInterface sw("net.hadess.SwitcherooControl", "/net/hadess/SwitcherooControl",
+                          "net.hadess.SwitcherooControl", QDBusConnection::systemBus());
+        if (sw.isValid()) {
+            const QVariant v = sw.property("GPUs");
+            const auto maps = qdbus_cast<QList<QVariantMap>>(v);
+            if (!maps.isEmpty()) {
+                std::vector<gpus::Gpu> out;
+                for (const QVariantMap& m : maps) {
+                    gpus::Gpu g;
+                    g.name = m.value("Name").toString().toStdString();
+                    std::vector<std::string> flat;
+                    for (const QString& s : m.value("Environment").toStringList())
+                        flat.push_back(s.toStdString());
+                    g.env = gpus::pairs(flat);
+                    g.is_default = m.value("Default").toBool();
+                    g.discrete = m.value("Discrete").toBool();
+                    // The marketing name in its last brackets, without the ™
+                    // switcheroo adds.
+                    QString label = QString::fromStdString(g.name);
+                    if (const int open = label.lastIndexOf('['), close = label.lastIndexOf(']'); open >= 0 && close > open + 1)
+                        label = label.mid(open + 1, close - open - 1);
+                    g.label = label.remove(QChar(0x2122)).toStdString();
+                    out.push_back(std::move(g));
+                }
+                return out;
+            }
+        }
+        return gpus::from_cards(gpus::scan());
+    }();
+    return list;
+}
+
+} // namespace
+
+QString DesktopEntries::otherGpu() const {
+    const gpus::Gpu* g = gpus::other(gpu_list());
+    return g ? QString::fromStdString(g->label) : QString();
+}
+
+std::vector<std::pair<std::string, std::string>> DesktopEntries::otherGpuEnv() {
+    const gpus::Gpu* g = gpus::other(gpu_list());
+    return g ? g->env : std::vector<std::pair<std::string, std::string>>{};
+}
+
+std::vector<std::pair<std::string, std::string>> DesktopEntries::preferredGpuEnv() {
+    const gpus::Gpu* g = gpus::preferred(gpu_list());
+    return g ? g->env : std::vector<std::pair<std::string, std::string>>{};
 }
 
 // --- DesktopEntries ----------------------------------------------------------

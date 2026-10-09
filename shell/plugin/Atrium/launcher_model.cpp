@@ -1316,6 +1316,8 @@ QVariantList LauncherModel::allActions(int row) const {
         if (auto* d = qobject_cast<shell::DesktopEntry*>(index_.byId(e.target)))
             for (int i = 0; i < d->actions().size(); ++i)
                 add("desktop-action:" + QString::number(i), d->actions()[i]->property("name").toString(), "bolt");
+        if (const QString gpu = shell::DesktopEntries::instance()->otherGpu(); !gpu.isEmpty())
+            add("other-gpu", "Launch on " + gpu, "memory");
         section();
         const bool pinned = Compositor::instance()->dockPins().contains(e.target);
         add(pinned ? "unpin" : "pin", pinned ? "Remove from Dock" : "Keep in Dock", "dock_to_bottom");
@@ -1436,6 +1438,10 @@ void LauncherModel::runAction(int row, const QString& id) {
         emit closeRequested();
         if (QObject* d = index_.byId(e.target))
             QMetaObject::invokeMethod(d, "execute");
+    } else if (id == "other-gpu") {
+        emit closeRequested();
+        if (QObject* d = index_.byId(e.target))
+            QMetaObject::invokeMethod(d, "executeOnOtherGpu");
     } else if (id.startsWith("desktop-action:")) {
         emit closeRequested();
         if (auto* d = qobject_cast<shell::DesktopEntry*>(index_.byId(e.target))) {

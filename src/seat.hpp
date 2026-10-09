@@ -97,6 +97,7 @@ private:
     wl_event_source* shake_end_ = nullptr;
 
     void new_input(wlr_input_device* device);
+    void add_switch(wlr_switch* sw);
     void add_keyboard(wlr_keyboard* keyboard);
     void add_pointer(wlr_pointer* pointer);
     void update_capabilities();

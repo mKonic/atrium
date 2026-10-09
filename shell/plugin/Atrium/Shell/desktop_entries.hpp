@@ -74,12 +74,16 @@ public:
     bool runInTerminal() const { return e_.terminal; }
     QList<QObject*> actions() const { return actions_; }
 
+    // On the GPU it prefers (PrefersNonDefaultGPU: the other one).
     Q_INVOKABLE void execute() const;
+    // "Launch on …": on the GPU that isn't the default, whatever it prefers.
+    Q_INVOKABLE void executeOnOtherGpu() const;
     // Opened with these files or addresses (its Exec's %f %u %F %U).
     Q_INVOKABLE void open(const QStringList& targets) const;
 
     QStringList argv(const std::string& exec, const QStringList& targets = {}) const;
-    void launch(QStringList argv) const;
+    // With `gpu_env`, on another GPU.
+    void launch(QStringList argv, const std::vector<std::pair<std::string, std::string>>& gpu_env = {}) const;
 
 private:
     QString id_;
@@ -117,6 +121,8 @@ class DesktopEntries : public QObject {
     // added; none picks an installed one. xdg-terminal-exec, when installed,
     // is used instead.
     Q_PROPERTY(QString terminal READ terminal WRITE setTerminal NOTIFY terminalChanged)
+    // The GPU apps don't start on by default ("Launch on …"); "" with one.
+    Q_PROPERTY(QString otherGpu READ otherGpu CONSTANT)
 
 public:
     static DesktopEntries* instance();
@@ -125,6 +131,11 @@ public:
     static QStringList inTerminal(const QStringList& argv);
 
     EntryList* applications() { return &list_; }
+    QString otherGpu() const;
+    // What an app started on the other GPU gets (empty with one).
+    static std::vector<std::pair<std::string, std::string>> otherGpuEnv();
+    // Where an app with PrefersNonDefaultGPU goes (empty: where all do).
+    static std::vector<std::pair<std::string, std::string>> preferredGpuEnv();
     QString terminal() const { return terminal_; }
     void setTerminal(const QString& t);
 

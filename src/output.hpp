@@ -47,6 +47,7 @@ public:
     Listener<> lock_surface_commit;
     Listener<> lock_surface_destroy;
 
+    bool lid_off = false;  // a built-in screen atrium turned off for the closed lid
     bool asleep = false;  // turned off through wlr-output-power-management
     // Variable refresh: "off", "games" (while a fullscreen game is in front), "on".
     std::string adaptive_sync = "games";

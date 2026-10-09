@@ -44,6 +44,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A screen shader setting, as Hyprland's: a GLSL fragment shader file drawn over every screen (Appearance: Screen shader).
 - A color profile (ICC) per display, in Displays, applied as KWin does.
 - An HDR calibration per display, in Displays: an ICC profile with an MHC2 tag, as Windows HDR Calibration and DisplayCAL make, with its measured peak.
+- Closing a laptop's lid with another display on turns the built-in screen off, and opening it brings it back as it was.
+- VR headsets go to VR apps (SteamVR, Monado) instead of joining the desktop.
+- "Launch on …" another graphics card in an app's menu in the Dock and the launcher; apps that ask for the discrete GPU get it, as switcheroo-control would send them.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed
