@@ -755,6 +755,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Show download and upload speed next to the network icon.", true, [](Config&, const json&) {}));
     s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
         "Icons grow as the pointer passes over them.", false, [](Config&, const json&) {}));
+    s.push_back(make("dock.other_gpu", SettingType::Bool, "Dock", "Launch on the other graphics card",
+        "On a computer with two graphics cards, an app's Dock menu can open it on the one it doesn't use.",
+        false, [](Config&, const json&) {}));
     s.push_back(make("dock.every_screen", SettingType::Bool, "Dock", "Dock on every screen",
         "Off, there is one Dock, as on a Mac: rest the pointer at the bottom of another screen to bring it there.",
         false, [](Config&, const json&) {}));

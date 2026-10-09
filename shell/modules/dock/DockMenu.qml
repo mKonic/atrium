@@ -20,7 +20,7 @@ Rectangle {
             list.push({ icon: "add", text: "New Window", action: "launch" });
         if (item.windowCount > 1)
             list.push({ icon: "select_window", text: "Show All Windows", action: "expose" });
-        if (item.apps.otherGpu)
+        if (item.apps.otherGpu && (Atrium.settings["dock.other_gpu"] ?? false))
             list.push({ icon: "memory", text: `Launch on ${item.apps.otherGpu}`, action: "launch-gpu" });
         list.push(item.pinned ? { icon: "keep_off", text: "Remove from Dock", action: "unpin" }
                               : { icon: "keep", text: "Keep in Dock", action: "pin" });

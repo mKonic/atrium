@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Changed
+- The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
 - An empty Dock, and pins lost on the next change, after running a build whose settings had another shape: atrium adds the columns its settings need on every start.
 
