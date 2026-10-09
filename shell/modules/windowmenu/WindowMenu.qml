@@ -68,7 +68,6 @@ PanelWindow {
         x: Math.max(0, Math.min(root.at.x, root.width - width - 8))
         y: Math.max(0, Math.min(root.at.y, root.height - height - 8))
         focus: true
-        width: 250
         title: root.live.title ?? ""
         Keys.onEscapePressed: Panels.open = ""
         actions: [

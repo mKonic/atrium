@@ -70,7 +70,6 @@ Pill {
 
             x: Math.max(8, Math.min(menu.at.x, menu.width - width - 8))
             y: menu.at.y
-            width: 240
             focus: true
             Keys.onEscapePressed: Panels.open = ""
             actions: root.layouts.map((l, i) => ({

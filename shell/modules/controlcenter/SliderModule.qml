@@ -21,7 +21,9 @@ Module {
     StyledText {
         x: 16
         y: 12
+        width: parent.width - 32
         text: root.title
+        elide: Text.ElideRight
         font.weight: Font.DemiBold
         font.pointSize: Theme.font.size.smaller
     }

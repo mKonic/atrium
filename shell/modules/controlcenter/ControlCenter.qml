@@ -207,12 +207,14 @@ PanelWindow {
                 id: rounds
 
                 visible: !cc.greeter
+                z: 1
                 x: main.playing ? 0 : main.span2 + main.gap
                 y: main.playing ? 2 * (main.cell + main.gap) : 0
                 columns: main.playing ? 4 : 2
                 spacing: main.gap
 
                 CircleToggle {
+                    edge: rounds.x + x === 0 ? -1 : rounds.x + x + width >= main.width - 1 ? 1 : 0
                     width: main.cell
                     height: main.cell
                     icon: cc.dnd ? "do_not_disturb_on" : "do_not_disturb_off"
@@ -222,6 +224,7 @@ PanelWindow {
                 }
 
                 CircleToggle {
+                    edge: rounds.x + x === 0 ? -1 : rounds.x + x + width >= main.width - 1 ? 1 : 0
                     width: main.cell
                     height: main.cell
                     icon: "nightlight"
@@ -231,6 +234,7 @@ PanelWindow {
                 }
 
                 CircleToggle {
+                    edge: rounds.x + x === 0 ? -1 : rounds.x + x + width >= main.width - 1 ? 1 : 0
                     width: main.cell
                     height: main.cell
                     icon: Recorder.recording ? "stop_circle" : "screen_record"
@@ -243,6 +247,7 @@ PanelWindow {
                 }
 
                 CircleToggle {
+                    edge: rounds.x + x === 0 ? -1 : rounds.x + x + width >= main.width - 1 ? 1 : 0
                     width: main.cell
                     height: main.cell
                     icon: cc.profiles[cc.profile]?.icon ?? "bolt"

@@ -50,7 +50,6 @@ PanelWindow {
         // Under the icon, kept on the screen.
         x: Math.max(8, Math.min(root.at.x, root.width - width - 8))
         y: root.at.y
-        width: 240
         focus: true
         title: root.heading || (root.item?.title ?? "")
         Keys.onEscapePressed: Panels.open = ""

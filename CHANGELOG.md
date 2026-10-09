@@ -76,6 +76,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, with cliphist's rules (750 entries, a copy's text and its picture each kept); what cliphist had is brought over the first time.
 
 ### Fixed
+- Long names cut off at the right in Control Center (the sound output, button names on hover) and in bar menus.
 - A Dock menu with many rows cut off at the top (its app's name).
 - The shell's fonts and icons missing on a system without caelestia's packages.
 - A window launched or switched to over a fullscreen app staying hidden behind it.

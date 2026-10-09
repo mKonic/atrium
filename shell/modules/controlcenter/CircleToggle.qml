@@ -10,8 +10,13 @@ Module {
     property string icon
     property string title
     property bool on
+    // Which way its name may spill: -1 at the panel's left edge, 1 at its
+    // right, 0 centred under it.
+    property int edge: 0
     signal toggled
 
+    // Its name over the buttons and sliders below it.
+    z: area.containsMouse ? 1 : 0
     radius: width / 2
     color: on ? "white" : Theme.material.regular
 
@@ -40,7 +45,7 @@ Module {
 
     // Name on hover, under the button.
     Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
+        x: root.edge < 0 ? 0 : root.edge > 0 ? root.width - width : (root.width - width) / 2
         anchors.top: parent.bottom
         anchors.topMargin: 4
         z: 2
