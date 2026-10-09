@@ -23,7 +23,6 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The focused app's own menus in the menu bar (Qt 6, Qt 5 and X11 apps that publish them).
 - The menu bar over a shown secret space, usable without putting it away.
 - Shake the pointer to find it: it grows for a moment (Mouse & Touchpad: Shake to find the pointer).
-- Shake the pointer to find it: it grows for a moment (Mouse & Touchpad: Shake to find the pointer).
 - A lock screen (Super+L), which stays locked if it crashes and comes back.
 - Unlock with a fingerprint, next to the password (fprintd).
 - Lock Screen and Switch User in the system menu: someone else logs in through the login screen while your session stays open, locked.
@@ -37,8 +36,10 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - X11 apps that save through a session manager (XSMP) are asked to save when you log out, and can ask about unsaved work; Cancel there cancels the logout.
 - Reopen windows when logging back in, as on a Mac (in the Log Out dialog, and Session settings).
 - What you copied stays on the clipboard after the app it came from quits, with every format it offered (rich text, HTML, pictures); a password manager's copies don't.
+- The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed
+- Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.
 - A Dock icon's name shows above it, as on a Mac, instead of the Dock growing to fit it.
 - Over fullscreen apps, the bar and the Dock come only for a window you made fullscreen (green button or shortcut), after holding the pointer at the edge for a moment; over a video or game that went fullscreen itself they stay away, and a tap of Super brings the bar.
 - Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, with cliphist's rules (750 entries, a copy's text and its picture each kept); what cliphist had is brought over the first time.

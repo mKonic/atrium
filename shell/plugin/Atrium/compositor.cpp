@@ -580,6 +580,10 @@ void Compositor::setDock(const QStringList& appIds) {
     change({{"cmd", "dock.set"}, {"apps", QJsonArray::fromStringList(appIds)}});
 }
 
+void Compositor::setDockIcons(const QString& output, const QVariantList& icons) {
+    change({{"cmd", "dock.icons"}, {"output", output}, {"icons", QJsonArray::fromVariantList(icons)}});
+}
+
 void Compositor::setPinned(const QString& appId, bool pinned) {
     QStringList pins = dockPins();
     if (pinned == pins.contains(appId))

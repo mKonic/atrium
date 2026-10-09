@@ -10,6 +10,8 @@ atrium_sources = files(
   'logout_core.cpp',
   'xsmp.cpp',
   'clipboard_core.cpp',
+  'snapshot_core.cpp',
+  'snapshot.cpp',
   'clipboard_history.cpp',
   'cairo_buffer.cpp',
   'config.cpp',

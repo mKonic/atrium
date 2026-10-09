@@ -1217,6 +1217,29 @@ void Server::keyboard_layout_changed() {
         ipc->broadcast("keyboard", {{"event", "keyboard.changed"}, {"keyboard", Ipc::keyboard_json(*this)}});
 }
 
+std::optional<Server::DockTarget> Server::dock_icon_of(const View& view) const {
+    if (!view.output)
+        return std::nullopt;
+    auto it = dock_icons.find(view.output->wlr->name);
+    if (it == dock_icons.end())
+        return std::nullopt;
+    // The Dock's own surface, where its icons were measured.
+    const LayerSurface* dock = nullptr;
+    for (const auto& list : view.output->layers)
+        for (const LayerSurface* l : list)
+            if (l->mapped && l->wlr->namespace_ && std::string_view(l->wlr->namespace_) == "atrium-dock")
+                dock = l;
+    if (!dock || !dock->tree)
+        return std::nullopt;
+    int lx = 0, ly = 0;
+    wlr_scene_node_coords(&dock->tree->node, &lx, &ly);
+    for (const DockIcon& icon : it->second)
+        if (std::ranges::find(icon.windows, view.id) != icon.windows.end())
+            return DockTarget{{lx + icon.box.x, ly + icon.box.y, icon.box.width, icon.box.height},
+                              {lx, ly, int(dock->wlr->current.actual_width), int(dock->wlr->current.actual_height)}};
+    return std::nullopt;
+}
+
 // As on Windows, macOS and KDE: a fullscreen window is over everything only
 // while it's the front window of its screen and space.
 void Server::restack_fullscreen() {

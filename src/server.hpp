@@ -8,6 +8,7 @@
 
 #include <filesystem>
 
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -116,6 +117,19 @@ public:
     // another window brought over it (alt-tab, an app launched) drops back
     // among the windows, under that one.
     void restack_fullscreen();
+    // Where the Dock shows each app's icon (Dock surface pixels), with the
+    // windows it stands for: minimising shrinks a window into its own icon.
+    struct DockIcon {
+        wlr_box box;
+        std::vector<uint64_t> windows;
+    };
+    std::map<std::string, std::vector<DockIcon>> dock_icons;  // by output name
+    // The icon a window minimises into, if the Dock shows one, and the Dock
+    // (layout boxes).
+    struct DockTarget {
+        wlr_box icon, dock;
+    };
+    std::optional<DockTarget> dock_icon_of(const View& view) const;
     View* top_view(Output* output) const;
     void cycle_focus(int direction);
 

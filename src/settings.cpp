@@ -436,6 +436,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "1 is normal; 2 is twice as fast.", &Config::animation_speed, d, 0.25, 4));
 
     // Windows
+    s.push_back(choice("windows.minimize_effect", "Windows", "Minimize effect",
+        "How a window goes into the Dock: Genie pours it in, as on a Mac; Scale shrinks it.",
+        {"genie", "scale"}, d.minimize_genie ? "genie" : "scale",
+        [](Config& c, const json& v) { c.minimize_genie = v.get<std::string>() == "genie"; }));
     s.push_back(number("windows.snap_distance", T::Int, "Windows", "Edge snapping",
         "Distance from a screen edge at which a dragged window sticks to it.", &Config::snap_distance, d, 0, 200));
     s.push_back(color("windows.secret_backdrop", "Windows", "Secret space backdrop",

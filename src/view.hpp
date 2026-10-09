@@ -233,6 +233,16 @@ protected:
     int anim_dx_ = 0, anim_dy_ = 0;
     int glide_dx_ = 0, glide_dy_ = 0;  // on its way to where atrium put it
     bool opening_ = false;             // its open animation is running
+    // What an animation draws in the window's place meanwhile (opening,
+    // morphing): gone with the window.
+    std::unique_ptr<class Snapshot> anim_snap_, morph_old_;
+    // Maximize, snap, restore: the window as it was, waiting for the app to
+    // draw the new size (see begin_morph).
+    bool morph_pending_ = false;
+    wl_event_source* morph_timeout_ = nullptr;
+    wl_event_source* morph_idle_ = nullptr;
+    void begin_morph();
+    void start_morph();
     bool listed_ = false;              // in server.views (managed when it mapped)
     void glide_from(int from_x, int from_y);
     int anchor_right_ = 0, anchor_bottom_ = 0;
@@ -240,6 +250,7 @@ protected:
 private:
     void place();
     void animate_close();
+    std::unique_ptr<class Snapshot> take_snapshot(wlr_scene_tree* parent);
     void set_output(Output* output);
     void create_toplevel_handles();
     void destroy_toplevel_handles();

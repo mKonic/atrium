@@ -11,6 +11,7 @@
 #include "seat.hpp"
 #include "server.hpp"
 #include "session_management.hpp"
+#include "snapshot.hpp"
 #include "space.hpp"
 #include "toplevel_drag.hpp"
 
@@ -22,6 +23,16 @@
 namespace atrium {
 
 namespace {
+
+// caelestia's windowsOut (Hyprland's popin with no percentage): shrinking
+// to a point at its centre as it fades, 300 ms, emphasized accelerate.
+constexpr int kCloseMs = 300;
+// windowsIn: growing from that point, 500 ms, emphasized decelerate.
+constexpr int kOpenMs = 500;
+// windowsMove: 600 ms on the standard curve (maximize, snap, restore).
+constexpr int kMorphMs = 600;
+// KWin's Squash and Magic Lamp: 250 ms.
+constexpr int kMinimizeMs = 250;
 
 // Behind window content when transparency is off.
 constexpr Color kBacking{0.07f, 0.07f, 0.08f, 1.0f};
@@ -36,6 +47,11 @@ View::~View() {
     server.animator.cancel_owner(&ring_, false);
     server.animator.cancel_owner(&glide_dx_, false);
     server.animator.cancel_owner(&reveal_, false);
+    server.animator.cancel_owner(&morph_old_, false);
+    if (morph_timeout_)
+        wl_event_source_remove(morph_timeout_);
+    if (morph_idle_)
+        wl_event_source_remove(morph_idle_);
     destroy_toplevel_handles();
     std::erase(server.views, this);
 }
@@ -166,13 +182,25 @@ void View::handle_map() {
     else
         server.spaces_changed();
 
-    // Fade in, rising into place (caelestia's windowsIn: 500 ms, emphasized
-    // decelerate).
-    opening_ = true;
-    server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
-        set_alpha(float(t));
-        set_anim_offset(0, int(std::lround((1 - t) * 14)));
-    }, [this] { opening_ = false; });
+    // caelestia's windowsIn: Hyprland's popin, growing from a point at its
+    // centre as it fades in. The snapshot of its first frame does it, the
+    // window itself waiting hidden till it lands.
+    if (server.config.animations && tree->node.parent) {
+        opening_ = true;
+        anim_snap_ = take_snapshot(tree->node.parent);
+        wlr_scene_node_set_enabled(&tree->node, false);
+        Snapshot* snap = anim_snap_.get();
+        const FBox frame = snap->frame_box(), point = popin_box(frame, 0);
+        snap->place(point, 0);
+        server.animator.start(this, kOpenMs, Ease::EmphasizedDecel, [snap, frame, point](double t) {
+            snap->place(lerp(point, frame, t), float(t));
+        }, [this] {
+            anim_snap_.reset();
+            opening_ = false;
+            if (tree && !minimized)
+                wlr_scene_node_set_enabled(&tree->node, true);
+        });
+    }
     server.overview->view_mapped(this);
 }
 
@@ -188,6 +216,14 @@ void View::handle_unmap() {
     if (server.switcher)
         server.switcher->view_unmapped(this);
     server.animator.cancel_owner(this, false);
+    server.animator.cancel_owner(&morph_old_, false);
+    // Opening or morphing still: the real tree is what the close starts from.
+    anim_snap_.reset();
+    morph_old_.reset();
+    morph_pending_ = false;
+    opening_ = false;
+    if (tree)
+        wlr_scene_node_set_enabled(&tree->node, !minimized);
     if (managed && visible())
         animate_close();
     alpha_ = 1.0f;
@@ -335,99 +371,39 @@ void View::place() {
 
 // --- closing ---------------------------------------------------------------------
 
-namespace {
-
-// What stays on screen for a moment after a window is gone: copies of its last
-// buffers, shadow and outline, fading out on their own.
-struct Ghost {
-    wlr_scene_tree* tree = nullptr;
-    int origin_x = 0, origin_y = 0;  // for_each_buffer counts the root's own position
-    std::vector<wlr_scene_buffer*> buffers;
-    std::vector<float> opacity;  // each buffer's own opacity at close
-    wlr_scene_shadow* shadow = nullptr;
-    wlr_scene_rect* outline = nullptr;
-    wlr_scene_rect* backing = nullptr;
-    Color shadow_color{}, outline_color{};
-    int x = 0, y = 0;
-};
-
-void copy_into_ghost(wlr_scene_buffer* src, int sx, int sy, void* data) {
-    auto* g = static_cast<Ghost*>(data);
-    if (!src->buffer)
-        return;
-    wlr_scene_buffer* dst = wlr_scene_buffer_create(g->tree, src->buffer);
-    wlr_scene_node_set_position(&dst->node, sx - g->origin_x, sy - g->origin_y);
-    wlr_scene_buffer_set_source_box(dst, &src->src_box);
-    wlr_scene_buffer_set_dest_size(dst, src->dst_width, src->dst_height);
-    wlr_scene_buffer_set_transform(dst, src->transform);
-    wlr_scene_buffer_set_corner_radii(dst, src->corners);
-    g->buffers.push_back(dst);
-    g->opacity.push_back(src->opacity);
+// The window as drawn now, in a snapshot under `parent` (its frame in
+// `parent`'s coordinates), to animate while the real one waits.
+std::unique_ptr<Snapshot> View::take_snapshot(wlr_scene_tree* parent) {
+    auto snap = std::make_unique<Snapshot>(parent, wlr_box{tree->node.x, tree->node.y, geom.width, geom.height});
+    const Config& c = server.config;
+    snap->add_shadow(shadow, activated ? c.shadow_color : c.shadow_color_inactive);
+    snap->add_rect(outline, activated ? c.outline_color : c.outline_color_inactive);
+    snap->add_rect(backing, kBacking);
+    // The buffer walk skips disabled trees (a minimized window's).
+    const bool was = tree->node.enabled;
+    wlr_scene_node_set_enabled(&tree->node, true);
+    snap->add_buffers(&tree->node);
+    wlr_scene_node_set_enabled(&tree->node, was);
+    return snap;
 }
 
-} // namespace
 
 // Called while the window's scene is still intact, just before it goes.
 void View::animate_close() {
     if (!tree || !server.config.animations)
         return;
-    auto* g = new Ghost;
     // Straight under the layer, not the space: the space may be pruned while
-    // the ghost is still fading.
-    g->tree = wlr_scene_tree_create(server.layer(fullscreen_front() ? Layer::Fullscreen : Layer::Views));
-    g->x = tree->node.x;
-    g->y = tree->node.y;
-    wlr_scene_node_set_position(&g->tree->node, g->x, g->y);
-
-    const Config& c = server.config;
-    if (shadow && shadow->node.enabled) {
-        g->shadow_color = activated ? c.shadow_color : c.shadow_color_inactive;
-        g->shadow = wlr_scene_shadow_create(g->tree, shadow->width, shadow->height, shadow->corner_radius,
-                                            shadow->blur_sigma, g->shadow_color.data());
-        wlr_scene_node_set_position(&g->shadow->node, shadow->node.x, shadow->node.y);
-        wlr_scene_shadow_set_clipped_region(g->shadow, shadow->clipped_region);
-    }
-    if (outline && outline->node.enabled) {
-        g->outline_color = activated ? c.outline_color : c.outline_color_inactive;
-        g->outline = wlr_scene_rect_create(g->tree, outline->width, outline->height, premultiplied(g->outline_color).data());
-        g->outline->accepts_input = false;
-        wlr_scene_node_set_position(&g->outline->node, outline->node.x, outline->node.y);
-        wlr_scene_rect_set_corner_radii(g->outline, outline->corners);
-        wlr_scene_rect_set_clipped_region(g->outline, outline->clipped_region);
-    }
-    if (backing && backing->node.enabled) {
-        g->backing = wlr_scene_rect_create(g->tree, backing->width, backing->height, premultiplied(kBacking).data());
-        wlr_scene_node_set_position(&g->backing->node, backing->node.x, backing->node.y);
-        wlr_scene_rect_set_corner_radii(g->backing, backing->corners);
-    }
-    g->origin_x = tree->node.x;
-    g->origin_y = tree->node.y;
-    wlr_scene_node_for_each_buffer(&tree->node, copy_into_ghost, g);
-
-    server.animator.start(g, 300, Ease::EmphasizedAccel, [g](double t) {
-        const float a = float(1 - t);
-        for (size_t i = 0; i < g->buffers.size(); ++i)
-            wlr_scene_buffer_set_opacity(g->buffers[i], g->opacity[i] * a);
-        if (g->shadow) {
-            Color sc = g->shadow_color;
-            sc[3] *= a;
-            wlr_scene_shadow_set_color(g->shadow, sc.data());
-        }
-        if (g->outline) {
-            Color oc = g->outline_color;
-            oc[3] *= a;
-            wlr_scene_rect_set_color(g->outline, premultiplied(oc).data());
-        }
-        if (g->backing) {
-            Color bc = kBacking;
-            bc[3] *= a;
-            wlr_scene_rect_set_color(g->backing, premultiplied(bc).data());
-        }
-        wlr_scene_node_set_position(&g->tree->node, g->x, g->y + int(std::lround(t * 10)));
-    }, [g] {
-        wlr_scene_node_destroy(&g->tree->node);
-        delete g;
-    });
+    // it is still going.
+    wlr_scene_tree* layer = server.layer(fullscreen_front() ? Layer::Fullscreen : Layer::Views);
+    int lx = 0, ly = 0;
+    wlr_scene_node_coords(&tree->node, &lx, &ly);
+    Snapshot* snap = take_snapshot(layer).release();
+    wlr_scene_node_set_position(&snap->tree()->node, lx - tree->node.x, ly - tree->node.y);
+    const FBox frame = snap->frame_box(), point = popin_box(frame, 0);
+    snap->place(frame, 1);
+    server.animator.start(snap, kCloseMs, Ease::EmphasizedAccel, [snap, frame, point](double t) {
+        snap->place(lerp(frame, point, t), float(1 - t));
+    }, [snap] { delete snap; });
 }
 
 // --- geometry ------------------------------------------------------------------
@@ -453,6 +429,61 @@ void View::move_to(int x, int y) {
 // Placed by atrium (a tile, a snap, full screen, back into a secret frame),
 // a window glides there rather than jumps: caelestia's windowsMove, 600 ms
 // on the standard curve. Its size lands when the app draws it.
+// Maximize, snap, restore morph the window into its new size, as Hyprland's
+// windowsMove stretches it and KWin's Maximize crossfades from the old
+// picture: the window as it was is kept now, and once the app draws the new
+// size both stretch from the old box to the new, the old fading out above.
+void View::begin_morph() {
+    if (morph_pending_ || !server.config.animations || !mapped || !tree || !tree->node.enabled || fullscreen ||
+        opening_ || !tree->node.parent || !visible())
+        return;
+    server.animator.cancel_owner(&morph_old_, true);
+    morph_old_ = take_snapshot(tree->node.parent);
+    wlr_scene_node_set_enabled(&morph_old_->tree()->node, false);
+    morph_pending_ = true;
+    // An app that never draws the size it's given: no morph.
+    if (!morph_timeout_)
+        morph_timeout_ = wl_event_loop_add_timer(server.loop, [](void* d) {
+            auto* self = static_cast<View*>(d);
+            if (self->morph_pending_) {
+                self->morph_pending_ = false;
+                self->morph_old_.reset();
+            }
+            return 0;
+        }, this);
+    wl_event_source_timer_update(morph_timeout_, 500);
+}
+
+void View::start_morph() {
+    morph_pending_ = false;
+    wl_event_source_timer_update(morph_timeout_, 0);
+    if (!morph_old_ || !tree || !tree->node.parent || !tree->node.enabled)
+        return;
+    // Straight to where it's going: the morph moves it there.
+    server.animator.cancel_owner(&glide_dx_, false);
+    glide_dx_ = glide_dy_ = 0;
+    place_tree();
+    anim_snap_ = take_snapshot(tree->node.parent);
+    wlr_scene_node_raise_to_top(&morph_old_->tree()->node);
+    wlr_scene_node_set_enabled(&morph_old_->tree()->node, true);
+    wlr_scene_node_set_enabled(&tree->node, false);
+    Snapshot* before = morph_old_.get();
+    Snapshot* after = anim_snap_.get();
+    const FBox from = before->frame_box(), to = after->frame_box();
+    after->place(from, 1);
+    before->place(from, 1);
+    server.animator.start(&morph_old_, kMorphMs, Ease::Standard, [before, after, from, to](double t) {
+        const FBox box = lerp(from, to, t);
+        after->place(box, 1);
+        before->place(box, float(1 - t));
+    }, [this] {
+        morph_old_.reset();
+        anim_snap_.reset();
+        if (tree && !minimized)
+            wlr_scene_node_set_enabled(&tree->node, true);
+    });
+}
+
 void View::glide_from(int from_x, int from_y) {
     const Seat::Mode m = server.seat->mode;
     if (!mapped || !tree || opening_ || minimized || m == Seat::Mode::Move || m == Seat::Mode::Resize ||
@@ -539,10 +570,22 @@ void View::handle_size(int width, int height) {
         geom.x = anchor_right_ - width;
     if (anchored() && (resize_edges_ & WLR_EDGE_TOP))
         geom.y = anchor_bottom_ - height;
+    // Resized again while morphing: it lands at once (KWin cancels too).
+    if (morph_old_ && !morph_pending_)
+        server.animator.cancel_owner(&morph_old_, true);
     geom.width = width;
     geom.height = height;
     place_tree();
     update_decorations();
+    // Once every listener has seen this commit (the scene takes the new
+    // buffer from it too).
+    if (morph_pending_ && !morph_idle_)
+        morph_idle_ = wl_event_loop_add_idle(server.loop, [](void* d) {
+            auto* self = static_cast<View*>(d);
+            self->morph_idle_ = nullptr;
+            if (self->morph_pending_)
+                self->start_morph();
+        }, this);
     // A size that was asked for (a snap, a window command) has landed: the
     // shell hears where the window is now. A drag says so once, as it ends.
     if (!resize_edges_)
@@ -721,9 +764,11 @@ void View::set_maximized(bool m, bool restore_geometry) {
         if (!snapped)
             restore = geom;  // a snapped window already remembers where it was
         snapped = 0;
+        begin_morph();
         set_tile_bar_hidden(false);
         request_geometry(usable_area());
     } else if (restore_geometry) {
+        begin_morph();
         request_geometry(restore);
     }
     server.retile(space);
@@ -740,6 +785,7 @@ void View::snap(uint32_t zone) {
         set_maximized(false, false);
     else if (!snapped)
         restore = geom;
+    begin_morph();
     snapped = zone;
     set_tile_bar_hidden(!server.config.tiled_titlebars);
     request_geometry(geometry::snap_box(usable_area(), zone, server.config.snap_gap));
@@ -750,6 +796,8 @@ void View::unsnap(bool restore_geometry) {
     if (!snapped)
         return;
     snapped = 0;
+    if (restore_geometry)
+        begin_morph();
     set_tile_bar_hidden(false);
     if (restore_geometry)
         request_geometry(restore);
@@ -825,25 +873,63 @@ void View::set_minimized(bool m) {
     if (m == minimized || unmanaged() || !tree)
         return;
     minimized = m;
-    // Sink and fade toward the bottom of the screen, or come back from it. The
-    // tree stays enabled while it animates out.
     server.animator.cancel_owner(this, false);
-    wlr_scene_node_set_enabled(&tree->node, true);
-    if (m) {
-        server.animator.start(this, 300, Ease::EmphasizedAccel, [this](double t) {
-            set_alpha(float(1 - t));
-            set_anim_offset(0, int(std::lround(t * 40)));
-        }, [this] {
-            if (minimized && tree)
-                wlr_scene_node_set_enabled(&tree->node, false);
-            set_alpha(1.0f);
-            set_anim_offset(0, 0);
-        });
+    server.animator.cancel_owner(&morph_old_, false);
+    morph_old_.reset();
+    morph_pending_ = false;
+    anim_snap_.reset();
+    opening_ = false;
+    set_alpha(1.0f);
+    set_anim_offset(0, 0);
+    // Into its Dock icon and back out, from a snapshot (the window itself is
+    // hidden meanwhile), 250 ms: KWin's Magic Lamp (Genie on a Mac), on a
+    // straight timeline, or its Squash (Scale), cubic. With no icon to go
+    // into, it just goes, as in KWin.
+    const auto target = server.config.animations ? server.dock_icon_of(*this) : std::nullopt;
+    if (target && tree->node.parent && mapped && (!space || space->shown())) {
+        anim_snap_ = take_snapshot(tree->node.parent);
+        Snapshot* snap = anim_snap_.get();
+        // The icon in the snapshot's coordinates (the space's, which may be
+        // sliding).
+        int px = 0, py = 0;
+        wlr_scene_node_coords(&tree->node.parent->node, &px, &py);
+        auto local = [px, py](const wlr_box& b) {
+            return FBox{double(b.x - px), double(b.y - py), double(b.width), double(b.height)};
+        };
+        const FBox frame = snap->frame_box();
+        const FBox into = local(target->icon);
+        wlr_scene_node_set_enabled(&tree->node, false);
+        auto restored = [this] {
+            anim_snap_.reset();
+            if (tree && !minimized)
+                wlr_scene_node_set_enabled(&tree->node, true);
+        };
+        if (server.config.minimize_genie) {
+            wlr_box screen{};
+            if (output)
+                wlr_output_layout_get_box(server.output_layout, output->wlr, &screen);
+            const GenieEdge edge = genie_edge(local(screen), local(target->dock), into);
+            auto bend = [snap, frame, into, edge](double progress) {
+                snap->warp([&](double x, double y) { return genie_point(edge, frame, into, progress, x, y); }, 1);
+            };
+            bend(m ? 0 : 1);
+            if (m)
+                server.animator.start(this, kMinimizeMs, Ease::Linear, bend, [this] { anim_snap_.reset(); });
+            else
+                server.animator.start(this, kMinimizeMs, Ease::Linear, [bend](double t) { bend(1 - t); }, restored);
+        } else if (m) {
+            snap->place(frame, 1);
+            server.animator.start(this, kMinimizeMs, Ease::InCubic, [snap, frame, into](double t) {
+                snap->place(lerp(frame, into, t), float(1 - t));
+            }, [this] { anim_snap_.reset(); });
+        } else {
+            snap->place(into, 0);
+            server.animator.start(this, kMinimizeMs, Ease::OutCubic, [snap, frame, into](double t) {
+                snap->place(lerp(into, frame, t), float(t));
+            }, restored);
+        }
     } else {
-        server.animator.start(this, 500, Ease::EmphasizedDecel, [this](double t) {
-            set_alpha(float(t));
-            set_anim_offset(0, int(std::lround((1 - t) * 40)));
-        });
+        wlr_scene_node_set_enabled(&tree->node, !m);
     }
     send_suspended(m);
     if (handle_)

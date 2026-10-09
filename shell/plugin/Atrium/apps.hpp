@@ -4,6 +4,7 @@
 // hear when the installed apps change.
 
 #include <QAbstractListModel>
+#include <QQuickItem>
 #include <QTimer>
 #include <QPointer>
 #include <QVariant>
@@ -125,6 +126,10 @@ public:
     Q_INVOKABLE void closeAll(const QString& appId);
     // App exposé: the overview with only this app's windows.
     Q_INVOKABLE void expose(const QString& appId);
+    // Tells atrium where `row`'s icons (children with an appId) are in the
+    // Dock's window, with the windows each stands for, when that changed:
+    // minimised windows shrink into their own icon.
+    Q_INVOKABLE void reportIcons(QQuickItem* row, const QString& output);
 
 signals:
     void entriesChanged();
@@ -146,6 +151,8 @@ private:
 
     void rebuild();
     const App* find(const QString& id) const;
+    QVariantList reported_;  // the icons atrium last heard of
+    QString reported_output_;
 
     EntryIndex index_;
     std::vector<App> apps_;
