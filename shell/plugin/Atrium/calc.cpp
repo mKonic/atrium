@@ -1360,7 +1360,7 @@ std::optional<Answer> dates(std::string_view query, const Context& ctx) {
         size_t k = 0;
         if (auto s = span_of(w, k)) {
             if (k + 2 == w.size() && w[k] == "from" && (w[k + 1] == "now" || w[k + 1] == "today")) {
-                if (w[k + 1] == "today" || std::string_view(s->unit) != "hours" && std::string_view(s->unit) != "minutes")
+                if (w[k + 1] == "today" || (std::string_view(s->unit) != "hours" && std::string_view(s->unit) != "minutes"))
                     return date_answer(floor<days>(shift(floor<days>(now) + minutes(0), *s)), input, ctx);
                 const auto t = shift(now, *s);
                 Answer a = *date_answer(floor<days>(t), input, ctx);
