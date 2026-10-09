@@ -209,6 +209,7 @@ private:
     Listener<wlr_pointer_pinch_end_event> pinch_end_;
     Listener<wlr_pointer_hold_begin_event> hold_begin_;
     Listener<wlr_pointer_hold_end_event> hold_end_;
+    bool typing_hidden_ = false;  // pointer.hide_while_typing
     Listener<wlr_seat_pointer_request_set_cursor_event> request_cursor_;
     Listener<wlr_cursor_shape_manager_v1_request_set_shape_event> request_cursor_shape_;
     Listener<wlr_seat_request_set_selection_event> request_selection_;

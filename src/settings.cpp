@@ -507,6 +507,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         &Config::xkb_variant, d));
     // Both edited as the Keyboard page's list of layouts.
     s[s.size() - 2].custom = s.back().custom = true;
+    s.push_back(boolean("keyboard.numlock", "Keyboard", "Num Lock on at start",
+        "The number pad types numbers from the moment atrium starts.", &Config::numlock, d));
     s.push_back(number("keyboard.repeat_rate", T::Int, "Keyboard", "Key repeat rate",
         "Repeats per second while a key is held.", &Config::repeat_rate, d, 1, 100));
     s.push_back(number("keyboard.repeat_delay", T::Int, "Keyboard", "Delay until repeat",
@@ -554,6 +556,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         }));
     s.push_back(boolean("pointer.natural_scroll", "Mouse & Touchpad", "Natural scrolling (mouse)",
         "Content follows the wheel, like a touchscreen.", &Config::natural_scroll, d));
+    s.push_back(boolean("pointer.hide_while_typing", "Mouse & Touchpad", "Hide the pointer while typing",
+        "A key press hides the pointer until the mouse moves.", &Config::hide_pointer_typing, d));
     s.push_back(boolean("pointer.shake_to_find", "Mouse & Touchpad", "Shake to find the pointer",
         "Shaking the pointer quickly makes it big for a moment, so you can see where it is.", &Config::shake_to_find, d));
     s.push_back(boolean("pointer.left_handed", "Mouse & Touchpad", "Left-handed",

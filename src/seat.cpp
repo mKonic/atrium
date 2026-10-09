@@ -76,6 +76,13 @@ KeyboardGroup::KeyboardGroup(Seat& s, bool virt) : seat(s), is_virtual(virt) {
     xkb_keymap* keymap = compile_keymap(seat.server.config);
     wlr_keyboard_set_keymap(&group->keyboard, keymap);
     xkb_keymap_unref(keymap);
+    // Num Lock on from the start, as Hyprland's numlock_by_default and
+    // Plasma's NumLock setting do.
+    if (seat.server.config.numlock && !virt) {
+        const xkb_mod_index_t num = xkb_keymap_mod_get_index(group->keyboard.keymap, XKB_MOD_NAME_NUM);
+        if (num != XKB_MOD_INVALID)
+            wlr_keyboard_notify_modifiers(&group->keyboard, 0, 0, 1u << num, 0);
+    }
     wlr_keyboard_set_repeat_info(&group->keyboard, seat.server.config.repeat_rate,
                                  seat.server.config.repeat_delay);
 
@@ -161,14 +168,14 @@ Seat::Seat(Server& srv) : server(srv) {
     request_cursor_.connect(&wlr->events.request_set_cursor,
         [this](wlr_seat_pointer_request_set_cursor_event* e) {
             // While we own the pointer (move/resize) the client's image waits.
-            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
+            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_ || typing_hidden_)
                 return;
             if (e->seat_client == wlr->pointer_state.focused_client)
                 wlr_cursor_set_surface(cursor, e->surface, e->hotspot_x, e->hotspot_y);
         });
     request_cursor_shape_.connect(&server.cursor_shape_manager->events.request_set_shape,
         [this](wlr_cursor_shape_manager_v1_request_set_shape_event* e) {
-            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_)
+            if ((mode != Mode::Normal && mode != Mode::Pressed) || shaking_ || typing_hidden_)
                 return;
             if (e->seat_client == wlr->pointer_state.focused_client)
                 wlr_cursor_set_xcursor(cursor, xcursor, wlr_cursor_shape_v1_name(e->shape));
@@ -402,6 +409,14 @@ void Seat::add_switch(wlr_switch* sw) {
 
 void Seat::add_keyboard(wlr_keyboard* keyboard) {
     wlr_keyboard_set_keymap(keyboard, keyboards_->group->keyboard.keymap);
+    // Num Lock on, per keyboard as Hyprland does it: the group takes its
+    // members' state.
+    if (server.config.numlock) {
+        const xkb_mod_index_t num = xkb_keymap_mod_get_index(keyboard->keymap, XKB_MOD_NAME_NUM);
+        if (num != XKB_MOD_INVALID)
+            wlr_keyboard_notify_modifiers(keyboard, keyboard->modifiers.depressed, keyboard->modifiers.latched,
+                                          keyboard->modifiers.locked | (1u << num), keyboard->modifiers.group);
+    }
     wlr_keyboard_group_add_keyboard(keyboards_->group, keyboard);
     auto kb = std::make_unique<PhysicalKeyboard>(keyboard);
     PhysicalKeyboard* raw = kb.get();
@@ -610,6 +625,11 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 
     // The power button, atrium's to handle while it holds logind's say on it.
     const bool pressed = e->state == WL_KEYBOARD_KEY_STATE_PRESSED;
+    // Hyprland's hide_on_key_press: typing hides the pointer until it moves.
+    if (pressed && server.config.hide_pointer_typing && !typing_hidden_ && mode == Mode::Normal && !shaking_) {
+        typing_hidden_ = true;
+        wlr_cursor_unset_image(cursor);
+    }
     if (e->keycode == KEY_POWER && (consumed_[e->keycode] || (pressed && server.power_button()))) {
         consumed_[e->keycode] = pressed;
         return;
@@ -819,6 +839,11 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     wlr_surface* focused = wlr->pointer_state.focused_surface;
 
     // time == 0: an internal refresh, not real motion.
+    if (time && typing_hidden_) {
+        // Back, as the app under it sets it (as on entering).
+        typing_hidden_ = false;
+        wlr_seat_pointer_clear_focus(wlr);
+    }
     if (time) {
         wlr_relative_pointer_manager_v1_send_relative_motion(server.relative_pointer_manager, wlr,
             uint64_t(time) * 1000, dx, dy, dx_unaccel, dy_unaccel);
