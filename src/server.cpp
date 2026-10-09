@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "system_bell.hpp"
 #include "terminal.hpp"
 #include "input_method.hpp"
 #include "background_effect.hpp"
@@ -245,6 +246,15 @@ void Server::setup() {
     // VR headsets (non-desktop screens) are offered to the apps that drive
     // them (SteamVR, Monado), as sway and KWin do; every request that can
     // be granted is.
+    // Dialogs of other processes (a portal's file chooser) parented to an
+    // app's window; the system bell; small protocol fixes; and what the
+    // renderer can say about YUV content (nothing but RGB yet).
+    foreign_registry_ = wlr_xdg_foreign_registry_create(display);
+    wlr_xdg_foreign_v1_create(display, foreign_registry_);
+    wlr_xdg_foreign_v2_create(display, foreign_registry_);
+    system_bell_ = std::make_unique<SystemBell>(*this);
+    wlr_fixes_create(display, 1);
+    wlr_color_representation_manager_v1_create_with_renderer(display, 1, renderer);
     drm_lease_manager = wlr_drm_lease_v1_manager_create(display, backend);
     if (drm_lease_manager)
         lease_request_.connect(&drm_lease_manager->events.request, [](wlr_drm_lease_request_v1* req) {
@@ -612,6 +622,8 @@ void Server::teardown() {
     logout.reset();
     xsmp.reset();
     clipboard_history.reset();
+    system_bell_.reset();
+    lease_request_.disconnect();
     idle.reset();
     logind.reset();
     lock_screen.reset();

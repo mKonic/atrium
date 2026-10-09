@@ -48,6 +48,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Displays on a second graphics card that can't take the main one's frames (no 3D of its own, a USB adapter) get them copied through the CPU instead of staying black.
 - VR headsets go to VR apps (SteamVR, Monado) instead of joining the desktop.
 - "Launch on …" another graphics card in an app's menu in the Dock and the launcher; apps that ask for the discrete GPU get it, as switcheroo-control would send them.
+- Apps can ring a bell (a terminal on a Tab with nothing to complete): the sound theme's bell, and the window marked as wanting attention when it isn't in front (Windows: Alert sound).
+- atrium's Open, Save, Open With and Print dialogs belong to the app window that asked for them (xdg-foreign), as on GNOME and Plasma.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 
 ### Changed

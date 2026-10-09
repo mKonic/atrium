@@ -32,7 +32,7 @@ public slots:
                const QDBusUnixFileDescriptor& fd, const QVariantMap& options, QVariantMap& results);
 
 private:
-    void ask(const QDBusObjectPath& handle, const QString& title, const QVariantMap& settings,
+    void ask(const QDBusObjectPath& handle, const QString& window, const QString& title, const QVariantMap& settings,
              const QVariantMap& pageSetup, const QVariantMap& options,
              std::function<QVariantList(const QJsonObject& job, QVariantMap results)> done);
 

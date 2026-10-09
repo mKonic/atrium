@@ -379,6 +379,8 @@ private:
 
     Listener<wlr_output> new_output_;
     wlr_drm_lease_v1_manager* drm_lease_manager = nullptr;
+    wlr_xdg_foreign_registry* foreign_registry_ = nullptr;
+    std::unique_ptr<class SystemBell> system_bell_;
     Listener<wlr_drm_lease_request_v1> lease_request_;
     Listener<> layout_change_;
     Listener<wlr_output_configuration_v1> output_apply_, output_test_;

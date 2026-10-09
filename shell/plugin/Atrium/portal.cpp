@@ -370,7 +370,7 @@ PortalRequest::~PortalRequest() {
 }
 
 QProcess* askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
-                   Answer answer, bool keepInput) {
+                   Answer answer, bool keepInput, const QString& parentWindow) {
     PortalBackend* backend = PortalBackend::instance();
     const QDBusMessage call = backend->delayReply();
     auto* request = new PortalRequest(handle, backend);
@@ -396,6 +396,10 @@ QProcess* askShell(const QString& handle, const QString& file, const QByteArray&
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     if (!mode.isEmpty())
         env.insert("ATRIUM_CAPTURE_MODE", mode);
+    if (parentWindow.startsWith("wayland:"))
+        env.insert("ATRIUM_PARENT_WINDOW", parentWindow);
+    else
+        env.remove("ATRIUM_PARENT_WINDOW");
     dialog->setProcessEnvironment(env);
     dialog->start(shellProgram(), {shellFile(file)});
     dialog->write(input);

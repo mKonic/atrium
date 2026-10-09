@@ -68,8 +68,10 @@ using Answer = std::function<QVariantList(const std::optional<QByteArray>& out)>
 // its stdin and `mode` in ATRIUM_CAPTURE_MODE, until it exits or the portal
 // closes the request. `keepInput`: stdin stays open for more (the process
 // returned, while it runs).
+// `parentWindow`: the app's window ("wayland:HANDLE"), which the dialog is
+// made a child of (xdg-foreign).
 QProcess* askShell(const QString& handle, const QString& file, const QByteArray& input, const QString& mode,
-                   Answer answer, bool keepInput = false);
+                   Answer answer, bool keepInput = false, const QString& parentWindow = {});
 
 // A session the portal made for an app: its object, closed by either side.
 class PortalSession : public QObject {

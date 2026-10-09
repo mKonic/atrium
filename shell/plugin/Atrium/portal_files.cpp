@@ -73,26 +73,26 @@ FileChooserAdaptor::FileChooserAdaptor(PortalBackend* parent) : QDBusAbstractAda
     qDBusRegisterMetaType<PortalFilters>();
 }
 
-uint FileChooserAdaptor::OpenFile(const QDBusObjectPath& handle, const QString& app, const QString&,
+uint FileChooserAdaptor::OpenFile(const QDBusObjectPath& handle, const QString& app, const QString& window,
                                   const QString& title, const QVariantMap& options, QVariantMap&) {
-    ask("open", handle, app, title, options);
+    ask("open", handle, app, title, options, window);
     return 2;  // unused: the reply goes later
 }
 
-uint FileChooserAdaptor::SaveFile(const QDBusObjectPath& handle, const QString& app, const QString&,
+uint FileChooserAdaptor::SaveFile(const QDBusObjectPath& handle, const QString& app, const QString& window,
                                   const QString& title, const QVariantMap& options, QVariantMap&) {
-    ask("save", handle, app, title, options);
+    ask("save", handle, app, title, options, window);
     return 2;
 }
 
-uint FileChooserAdaptor::SaveFiles(const QDBusObjectPath& handle, const QString& app, const QString&,
+uint FileChooserAdaptor::SaveFiles(const QDBusObjectPath& handle, const QString& app, const QString& window,
                                    const QString& title, const QVariantMap& options, QVariantMap&) {
-    ask("saveFiles", handle, app, title, options);
+    ask("saveFiles", handle, app, title, options, window);
     return 2;
 }
 
 void FileChooserAdaptor::ask(const QString& mode, const QDBusObjectPath& handle, const QString& app,
-                             const QString& title, const QVariantMap& options) {
+                             const QString& title, const QVariantMap& options, const QString& window) {
     // The filters offered, and which is on: the app's current one is among
     // them, or the only one when it gave no list.
     PortalFilters filters = read<PortalFilters>(options.value("filters"));
@@ -162,7 +162,8 @@ void FileChooserAdaptor::ask(const QString& mode, const QDBusObjectPath& handle,
                  if (open)
                      results.insert("writable", true);
                  return {uint(0), results};
-             });
+             },
+             false, window);
 }
 
 } // namespace atrium

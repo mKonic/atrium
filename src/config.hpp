@@ -121,6 +121,7 @@ struct Config {
     int snap_distance = 16;   // px from a screen edge where a dragged window sticks
     int cascade_step = 28;    // offset for a new window that would cover another exactly
     bool snapping = true;     // drag to screen edges and corners to tile
+    bool system_bell = true;  // windows.system_bell: an app's bell plays a sound
     bool wobbly = false;  // windows.wobbly: wobble while dragged
     int wobbliness = 0;
     bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4

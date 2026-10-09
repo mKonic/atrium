@@ -463,6 +463,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "1 is normal; 2 is twice as fast.", &Config::animation_speed, d, 0.25, 4));
 
     // Windows
+    s.push_back(boolean("windows.system_bell", "Windows", "Alert sound",
+        "Apps can ring a bell (a terminal does on a Tab with nothing to complete). Off, it only marks "
+        "the window as wanting attention.", &Config::system_bell, d));
     s.push_back(boolean("windows.wobbly", "Windows", "Wobbly windows",
         "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
     s.push_back(number("windows.wobbliness", T::Int, "Windows", "Wobbliness",

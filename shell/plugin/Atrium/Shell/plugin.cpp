@@ -6,6 +6,7 @@
 #include "screens.hpp"
 #include "scope.hpp"
 #include "shell_api.hpp"
+#include "foreign_parent.hpp"
 #include "glass_shape.hpp"
 #include "shortcut_inhibitor.hpp"
 #include "system_clock.hpp"
@@ -42,6 +43,7 @@ class ShellPlugin : public QQmlExtensionPlugin {
 
 public:
     void initializeEngine(QQmlEngine* engine, const char*) override {
+        installForeignParent();  // a portal's dialog, onto the app's window
         if (!engine->imageProvider("icon"))
             engine->addImageProvider("icon", new IconProvider);
     }

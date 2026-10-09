@@ -158,7 +158,7 @@ uint EmailAdaptor::ComposeEmail(const QDBusObjectPath&, const QString&, const QS
 
 // --- AppChooser ----------------------------------------------------------------
 
-uint AppChooserAdaptor::ChooseApplication(const QDBusObjectPath& handle, const QString&, const QString&,
+uint AppChooserAdaptor::ChooseApplication(const QDBusObjectPath& handle, const QString&, const QString& window,
                                           const QStringList& choices, const QVariantMap& options, QVariantMap&) {
     const QJsonObject question{
         {"choices", QJsonArray::fromStringList(choices)},
@@ -182,7 +182,7 @@ uint AppChooserAdaptor::ChooseApplication(const QDBusObjectPath& handle, const Q
                 results.insert("activation_token", token);
             return {uint(0), results};
         },
-        true);
+        true, window);
     open_.insert(handle.path(), dialog);
     connect(dialog, &QObject::destroyed, this, [this, path = handle.path()] { open_.remove(path); });
     return 2;  // unused: the reply goes later

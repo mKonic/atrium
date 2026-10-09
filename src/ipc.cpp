@@ -381,6 +381,7 @@ json Ipc::window_json(const View& v) {
         {"tag", v.tag},
         {"content_type", content_type_name(v.server, v)},
         {"modal", v.modal()},
+        {"parent", v.parent() ? json(v.parent()->id) : json(nullptr)},
         {"skip_taskbar", v.hidden_from_lists()},
         {"keep_above", v.keep_above},
         {"sticky", v.sticky},

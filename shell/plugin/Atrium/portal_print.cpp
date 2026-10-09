@@ -76,8 +76,8 @@ bool sendPrintJob(const QJsonObject& job, const QString& title, const QByteArray
     return true;
 }
 
-void PrintAdaptor::ask(const QDBusObjectPath& handle, const QString& title, const QVariantMap& settings,
-                       const QVariantMap& pageSetup, const QVariantMap& options,
+void PrintAdaptor::ask(const QDBusObjectPath& handle, const QString& window, const QString& title,
+                       const QVariantMap& settings, const QVariantMap& pageSetup, const QVariantMap& options,
                        std::function<QVariantList(const QJsonObject&, QVariantMap)> done) {
     const QJsonObject question{
         {"title", title},
@@ -96,13 +96,14 @@ void PrintAdaptor::ask(const QDBusObjectPath& handle, const QString& title, cons
                  QVariantMap results{{"settings", settingsOf(reply.value("settings").toObject())},
                                      {"page-setup", pageSetupOf(reply.value("pageSetup").toObject())}};
                  return done(reply.value("job").toObject(), results);
-             });
+             },
+             false, window);
 }
 
-uint PrintAdaptor::PreparePrint(const QDBusObjectPath& handle, const QString&, const QString&,
+uint PrintAdaptor::PreparePrint(const QDBusObjectPath& handle, const QString&, const QString& window,
                                 const QString& title, const QVariantMap& settings, const QVariantMap& pageSetup,
                                 const QVariantMap& options, QVariantMap&) {
-    ask(handle, title, settings, pageSetup, options, [this](const QJsonObject& job, QVariantMap results) {
+    ask(handle, window, title, settings, pageSetup, options, [this](const QJsonObject& job, QVariantMap results) {
         const uint token = next_++;
         jobs_.insert(token, job);
         results.insert("token", token);
@@ -111,14 +112,14 @@ uint PrintAdaptor::PreparePrint(const QDBusObjectPath& handle, const QString&, c
     return 2;  // unused: the reply goes later
 }
 
-uint PrintAdaptor::Print(const QDBusObjectPath& handle, const QString&, const QString&, const QString& title,
+uint PrintAdaptor::Print(const QDBusObjectPath& handle, const QString&, const QString& window, const QString& title,
                          const QDBusUnixFileDescriptor& fd, const QVariantMap& options, QVariantMap&) {
     const QByteArray document = readAll(fd);
     const uint token = options.value("token").toUInt();
     if (jobs_.contains(token))
         return sendPrintJob(jobs_.take(token), title, document) ? 0 : 2;
     // Not prepared: asked now.
-    ask(handle, title, {}, {}, options, [title, document](const QJsonObject& job, const QVariantMap&) {
+    ask(handle, window, title, {}, {}, options, [title, document](const QJsonObject& job, const QVariantMap&) {
         return QVariantList{uint(sendPrintJob(job, title, document) ? 0 : 2), QVariantMap()};
     });
     return 2;  // unused: the reply goes later

@@ -49,7 +49,7 @@ public slots:
 
 private:
     void ask(const QString& mode, const QDBusObjectPath& handle, const QString& app, const QString& title,
-             const QVariantMap& options);
+             const QVariantMap& options, const QString& window);
 };
 
 } // namespace atrium
