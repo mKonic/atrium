@@ -32,13 +32,22 @@ struct BufferWalk {
 
 } // namespace
 
-Snapshot::Snapshot(wlr_scene_tree* parent, wlr_box frame) : tree_(wlr_scene_tree_create(parent)), frame_(frame) {}
+Snapshot::Snapshot(wlr_scene_tree* parent, wlr_box frame) : tree_(wlr_scene_tree_create(parent)), frame_(frame) {
+    tree_destroy_.connect(&tree_->node.events.destroy, [this](void*) {
+        tree_destroy_.disconnect();
+        tree_ = nullptr;
+        parts_.clear();
+    });
+}
 
 Snapshot::~Snapshot() {
-    wlr_scene_node_destroy(&tree_->node);
+    if (tree_)
+        wlr_scene_node_destroy(&tree_->node);
 }
 
 void Snapshot::add_buffers(wlr_scene_node* root) {
+    if (!tree_)
+        return;
     std::vector<std::pair<wlr_scene_buffer*, wlr_scene_buffer*>> made;
     BufferWalk walk{this, tree_, root->x, root->y, &made};
     wlr_scene_node_for_each_buffer(root, [](wlr_scene_buffer* src, int sx, int sy, void* data) {
@@ -63,6 +72,8 @@ void Snapshot::add_buffers(wlr_scene_node* root) {
 }
 
 void Snapshot::add_shadow(const wlr_scene_shadow* s, const Color& color) {
+    if (!tree_)
+        return;
     if (!s || !s->node.enabled)
         return;
     wlr_scene_shadow* dst = wlr_scene_shadow_create(tree_, s->width, s->height, s->corner_radius, s->blur_sigma,
@@ -77,6 +88,8 @@ void Snapshot::add_shadow(const wlr_scene_shadow* s, const Color& color) {
 }
 
 void Snapshot::add_rect(const wlr_scene_rect* r, const Color& color) {
+    if (!tree_)
+        return;
     if (!r || !r->node.enabled)
         return;
     wlr_scene_rect* dst = wlr_scene_rect_create(tree_, r->width, r->height, premultiplied(color).data());

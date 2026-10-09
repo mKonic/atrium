@@ -5,6 +5,7 @@
 // another box (scaled each way) at an opacity: zooming in on open, out on
 // close, morphing between sizes, shrinking into the Dock. See snapshot_core.
 #include "config.hpp"
+#include "listener.hpp"
 #include "snapshot_core.hpp"
 #include "wlr.hpp"
 
@@ -26,6 +27,9 @@ public:
     void add_buffers(wlr_scene_node* root);
     void add_shadow(const wlr_scene_shadow* shadow, const Color& color);
     void add_rect(const wlr_scene_rect* rect, const Color& straight_color);
+
+    // Its tree is under someone else's (a space's), which may be destroyed
+    // while it still animates: it's empty then, and these draw nothing.
 
     // The frame drawn into `to` (layout coordinates), at `alpha` of its own
     // opacity.
@@ -58,7 +62,8 @@ private:
         clipped_region clip{};
     };
 
-    wlr_scene_tree* tree_;
+    wlr_scene_tree* tree_;  // null once destroyed from above (its space went)
+    Listener<> tree_destroy_;
     wlr_box frame_;
     std::vector<Part> parts_;
     bool warped_ = false;
