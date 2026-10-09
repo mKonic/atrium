@@ -83,3 +83,10 @@ executable('atriumctl',
   dependencies: [json],
   install: true,
 )
+
+# atrium's own grim (tools/screenshot).
+executable('atrium-screenshot', '../tools/screenshot/main.cpp', '../tools/screenshot/shot_core.cpp', capture_client_protocols,
+  include_directories: include_directories('../protocols'),
+  dependencies: [dependency('wayland-client'), pixman, dependency('libpng'), dependency('libjpeg')],
+  install: true,
+)

@@ -1,7 +1,7 @@
 #pragma once
 // Screenshots (capture.qml, its own process). Every screen is frozen as it
-// was when it started (grim), and the picking happens over those pictures:
-// a region, a window (grim takes it whole, even behind others) or a screen.
+// was when it started (atrium-screenshot), and the picking happens over those pictures:
+// a region, a window (atrium-screenshot takes it whole, even behind others) or a screen.
 // The shot goes to ~/Pictures/Screenshots and the clipboard. Started by the
 // Screenshot portal it answers on stdout instead: the file's URI, or a
 // picked colour.
@@ -57,7 +57,7 @@ public:
     Q_INVOKABLE void takeRegion(const QString& screen, int x0, int y0, int x1, int y1);
     Q_INVOKABLE void takeScreen(const QString& screen);  // "" all of them, side by side
     // The window by itself; where the app's buffer can't be copied (a format
-    // grim doesn't read), cut from the frozen screen at x, y, width, height.
+    // atrium-screenshot doesn't read), cut from the frozen screen at x, y, width, height.
     Q_INVOKABLE void takeWindow(const QString& identifier, const QString& screen = {}, int x = 0, int y = 0,
                                 int width = 0, int height = 0);
     Q_INVOKABLE void pickColor(const QString& screen, int x, int y);
@@ -81,7 +81,7 @@ private:
 
     QString mode_, kind_;
     bool ready_ = false;
-    bool busy_ = false;  // grim taking a window
+    bool busy_ = false;  // atrium-screenshot taking a window
     bool done_ = false;
     QTemporaryDir dir_;
     QHash<QString, QString> frozen_;  // screen name → file

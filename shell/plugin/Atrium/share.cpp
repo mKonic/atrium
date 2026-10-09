@@ -1,6 +1,7 @@
 #include "share.hpp"
 
 #include "compositor.hpp"
+#include "capture_core.hpp"
 #include "share_core.hpp"
 
 #include <QCoreApplication>
@@ -35,7 +36,7 @@ ShareChooser::ShareChooser(QObject* parent) : QObject(parent) {
     }
     matchApps();
     connect(Compositor::instance(), &Compositor::windowsChanged, this, &ShareChooser::matchApps);
-    if (dir_.isValid() && !QStandardPaths::findExecutable("grim").isEmpty())
+    if (dir_.isValid())
         for (int i = 0; i < sources_.size(); ++i)
             takeThumbnail(i);
 }
@@ -88,9 +89,9 @@ void ShareChooser::takeThumbnail(int i) {
     const QVariantMap m = sources_[i].toMap();
     const QString file = dir_.filePath(QString::number(i) + ".png");
     const bool screen = m.value("kind") == "screen";
-    auto* grim = new QProcess(this);
-    connect(grim, &QProcess::finished, this, [this, grim, i, file](int code) {
-        grim->deleteLater();
+    auto* shot = new QProcess(this);
+    connect(shot, &QProcess::finished, this, [this, shot, i, file](int code) {
+        shot->deleteLater();
         if (code != 0 || !QFile::exists(file))
             return;
         QVariantMap m = sources_[i].toMap();
@@ -98,7 +99,7 @@ void ShareChooser::takeThumbnail(int i) {
         sources_[i] = m;
         emit changed();
     });
-    grim->start("grim", {"-s", screen ? "0.2" : "0.35", "-l", "1", screen ? "-o" : "-T", m.value("name").toString(), file});
+    shot->start(QString::fromStdString(capture::screenshot_program(QCoreApplication::applicationDirPath().toStdString())), {"-s", screen ? "0.2" : "0.35", "-l", "1", screen ? "-o" : "-T", m.value("name").toString(), file});
 }
 
 void ShareChooser::choose(const QString& line) {

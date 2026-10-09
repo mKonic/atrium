@@ -51,14 +51,14 @@ void Capture::setKind(const QString& kind) {
 void Capture::freeze() {
     // Not interactive: the whole desktop as one picture, at once.
     if (mode_ == "portal") {
-        auto* grim = new QProcess(this);
+        auto* shot = new QProcess(this);
         const QString file = dir_.filePath("all.png");
-        connect(grim, &QProcess::finished, this, [this, file](int code) {
+        connect(shot, &QProcess::finished, this, [this, file](int code) {
             if (code != 0)
                 return answer({});
             deliver(QImage(file));
         });
-        grim->start("grim", {"-l", "1", file});
+        shot->start(QString::fromStdString(capture::screenshot_program(QCoreApplication::applicationDirPath().toStdString())), {"-l", "1", file});
         return;
     }
     const QList<QScreen*> screens = QGuiApplication::screens();
@@ -66,9 +66,9 @@ void Capture::freeze() {
     for (QScreen* s : screens) {
         const QString name = s->name();
         const QString file = dir_.filePath(name + ".png");
-        auto* grim = new QProcess(this);
-        connect(grim, &QProcess::finished, this, [this, grim, name, file, pending](int code) {
-            grim->deleteLater();
+        auto* shot = new QProcess(this);
+        connect(shot, &QProcess::finished, this, [this, shot, name, file, pending](int code) {
+            shot->deleteLater();
             if (code == 0)
                 frozen_.insert(name, file);
             if (--*pending == 0) {
@@ -79,7 +79,7 @@ void Capture::freeze() {
                     takeScreen({});
             }
         });
-        grim->start("grim", {"-l", "0", "-o", name, file});
+        shot->start(QString::fromStdString(capture::screenshot_program(QCoreApplication::applicationDirPath().toStdString())), {"-l", "0", "-o", name, file});
     }
 }
 
@@ -197,18 +197,18 @@ void Capture::takeScreen(const QString& screen) {
 
 void Capture::takeWindow(const QString& identifier, const QString& screen, int x, int y, int width, int height) {
     const QString file = dir_.filePath("window.png");
-    auto* grim = new QProcess(this);
+    auto* shot = new QProcess(this);
     busy_ = true;
     pickingMayChange();
-    connect(grim, &QProcess::finished, this, [=, this](int code) {
-        grim->deleteLater();
+    connect(shot, &QProcess::finished, this, [=, this](int code) {
+        shot->deleteLater();
         busy_ = false;
         const QImage image = code == 0 ? QImage(file) : QImage();
         if (!image.isNull()) {
             deliver(image);
         } else {
-            qWarning("capture: grim couldn't copy window %s: %s", qPrintable(identifier),
-                     grim->readAllStandardError().trimmed().constData());
+            qWarning("capture: atrium-screenshot couldn't copy window %s: %s", qPrintable(identifier),
+                     shot->readAllStandardError().trimmed().constData());
             if (!screen.isEmpty() && width > 1 && height > 1)
                 takeRegion(screen, x, y, x + width, y + height);
             else
@@ -216,7 +216,7 @@ void Capture::takeWindow(const QString& identifier, const QString& screen, int x
         }
         pickingMayChange();
     });
-    grim->start("grim", {"-l", "0", "-T", identifier, file});
+    shot->start(QString::fromStdString(capture::screenshot_program(QCoreApplication::applicationDirPath().toStdString())), {"-l", "0", "-T", identifier, file});
 }
 
 void Capture::deliver(const QImage& image) {

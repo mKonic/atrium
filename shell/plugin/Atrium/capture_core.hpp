@@ -26,4 +26,8 @@ Box to_pixels(Box b, int screen_w, int screen_h, int image_w, int image_h);
 // The rectangle between two corners, either way round.
 Box between(int x0, int y0, int x1, int y1);
 
+// atrium-screenshot (atrium's grim): the build tree's for a shell run from
+// there (`app_dir` its program's folder), else the installed one.
+std::string screenshot_program(const std::string& app_dir);
+
 } // namespace atrium::capture

@@ -59,3 +59,20 @@ foreach xml : own_protocol_xmls
     command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
   )
 endforeach
+
+# For atrium's own Wayland clients (atrium-portal's screen sharing,
+# atrium-screenshot, atrium-record): capture, windows and buffers.
+client_protocol_xmls = [
+  wl_protocol_dir / 'staging/ext-image-capture-source/ext-image-capture-source-v1.xml',
+  wl_protocol_dir / 'staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml',
+  wl_protocol_dir / 'staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml',
+  wl_protocol_dir / 'stable/linux-dmabuf/linux-dmabuf-v1.xml',
+  wl_protocol_dir / 'unstable/xdg-output/xdg-output-unstable-v1.xml',
+]
+capture_client_protocols = []
+foreach xml : client_protocol_xmls
+  capture_client_protocols += custom_target(xml.underscorify() + '_client_h', input: xml, output: '@BASENAME@-client-protocol.h',
+    command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'])
+  capture_client_protocols += custom_target(xml.underscorify() + '_client_code', input: xml, output: '@BASENAME@-client-protocol.c',
+    command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
+endforeach
