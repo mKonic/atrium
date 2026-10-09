@@ -78,6 +78,11 @@ public:
     static std::optional<cast::Choice> chosen(const QByteArray& out, bool cursor);
     // What a remembered choice means now, if it's still there.
     static std::optional<cast::Choice> resolve(const cast::Choice& c);
+    // Restore data: the a{sv} inside ours ("atrium", 1, a{sv}), and back.
+    static std::optional<QVariantMap> restored(const QVariant& restoreData);
+    static QVariant restoreData(const QVariantMap& m);
+    static QVariantMap encode(const cast::Choice& c);
+    static std::optional<cast::Choice> decode(const QVariantMap& m);
     // Starts the session's stream for `choice`; Start's results (the
     // streams, restore data), or nothing when it couldn't.
     static std::optional<QVariantMap> begin(PortalSession* session, const cast::Choice& choice);

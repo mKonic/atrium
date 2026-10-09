@@ -36,15 +36,27 @@ FloatingWindow {
             anchors.top: parent.top
             anchors.topMargin: 26
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "Choose what to share"
+            text: ShareChooser.heading
             font.pointSize: 18
             font.weight: Font.Bold
+        }
+
+        StyledText {
+            id: note
+
+            anchors.top: heading.bottom
+            anchors.topMargin: 6
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: text.length > 0
+            height: visible ? implicitHeight : 0
+            text: ShareChooser.note
+            opacity: 0.7
         }
 
         ChoiceControl {
             id: tabs
 
-            anchors.top: heading.bottom
+            anchors.top: note.bottom
             anchors.topMargin: 14
             anchors.horizontalCenter: parent.horizontalCenter
             visible: ShareChooser.screens.length > 0 && ShareChooser.windows.length > 0
@@ -65,7 +77,7 @@ FloatingWindow {
 
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: tabs.visible ? tabs.bottom : heading.bottom
+            anchors.top: tabs.visible ? tabs.bottom : note.bottom
             anchors.bottom: footer.top
             anchors.margins: 24
             clip: true

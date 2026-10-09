@@ -18,6 +18,7 @@ namespace atrium {
 
 struct Interface;  // theme.hpp
 
+class Eis;
 class Ipc;
 class LayerSurface;
 class Output;
@@ -330,6 +331,8 @@ public:
     std::unique_ptr<ClipboardHistory> clipboard_history;  // and what's on the clipboard after its app quits
     std::unique_ptr<Ipc> ipc;
     std::unique_ptr<Seat> seat;
+    // Remote control and input capture (libei's EIS end).
+    std::unique_ptr<Eis> eis;
     std::unique_ptr<InputMethodRelay> input_method;
     std::unique_ptr<BackgroundEffects> background_effects;
     std::unique_ptr<GlassShapes> glass_shapes;

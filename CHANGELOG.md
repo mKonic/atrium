@@ -56,6 +56,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Identify in Displays: each screen shows its number, name and resolution for a moment, as KDE's.
 - A game controller counts as activity, so playing with one keeps the screen awake, as in KWin.
 - Alt+Tab spreads the windows out with their titles above them, as a Mac's Mission Control, and they glide back with the one picked on top; Command-Tab's row of app icons and the row of small previews remain as choices (Windows: Alt+Tab shows).
+- Remote control: an app allowed to (a remote desktop tool, or one sharing the screen) can use the keyboard, pointer and touchscreen through libei or the portal, as on KDE and GNOME; the screen chooser says so when control comes with the share.
+- Sharing the keyboard and mouse with another computer (Deskflow, Input Leap, through the Input Capture portal): pushing the pointer off the screen's edge hands them to the app until it gives them back, or Super+Shift+Escape takes them back.
 - A window rule (or an app's window options) can keep a window drawing while out of sight, on another space, minimized or covered, a few times a second (Windows: Out of sight frame rate), as Hyprland's render_unfocused: a game or video carries on in the background.
 - Touchscreens and drawing tablets: apps that take touch get the fingers and apps that take a pen get its pressure, tilt and buttons; anywhere else a tap or the pen's tip clicks, as in labwc. A touchscreen or tablet follows the display it belongs to.
 - X11 apps are sharp on scaled screens: they draw at the screen's scale themselves, as with KDE's "Apply scaling themselves", or can be stretched instead (Displays: Older (X11) apps).

@@ -40,6 +40,22 @@ ShareChooser::ShareChooser(QObject* parent) : QObject(parent) {
             takeThumbnail(i);
 }
 
+namespace {
+
+bool remote() {
+    return qgetenv("ATRIUM_CAPTURE_MODE") == "remote";
+}
+
+} // namespace
+
+QString ShareChooser::heading() const {
+    return remote() ? QStringLiteral("Choose what to share and control") : QStringLiteral("Choose what to share");
+}
+
+QString ShareChooser::note() const {
+    return remote() ? QStringLiteral("The app will also be able to use your keyboard and pointer.") : QString();
+}
+
 QVariantList ShareChooser::list(const QString& kind) const {
     QVariantList out;
     for (const QVariant& v : sources_)

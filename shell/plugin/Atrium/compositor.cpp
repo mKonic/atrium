@@ -193,6 +193,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
         refreshTable(e.value("table").toString());
     } else if (kind == "shortcut.activated" || kind == "shortcut.deactivated") {
         emit portalShortcut(e.value("app").toString(), e.value("id").toString(), kind == "shortcut.activated");
+    } else if (kind.startsWith("capture.")) {
+        emit captureEvent(e);
     } else if (kind == "night_light.changed") {
         takeNightLight(e.value("night_light").toObject());
     } else if (kind == "keyboard.changed") {

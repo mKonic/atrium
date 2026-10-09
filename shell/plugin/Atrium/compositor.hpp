@@ -144,9 +144,19 @@ public:
     // left_handed; an undefined/null value hands it back to the shared one.
     Q_INVOKABLE void setDevice(const QString& name, const QVariantMap& fields);
 
+    // A request for atrium-portal's own work (remote control, input
+    // capture): the whole answer, failures too.
+    void call(const QJsonObject& req, std::function<void(const QJsonObject&)> reply = {}) {
+        requestFull(req, reply ? std::move(reply) : [](const QJsonObject&) {});
+    }
+    // The IPC socket, for a connection of one's own (one that takes an fd).
+    QString socket() const { return path_; }
+
 signals:
     // An app's global shortcut (bound through the portal) pressed or let go.
     void portalShortcut(const QString& app, const QString& id, bool pressed);
+    // An input capture taking or giving back the input (capture.*).
+    void captureEvent(const QJsonObject& event);
     void keyboardChanged();
     void nightLightChanged();
     void windowsChanged();

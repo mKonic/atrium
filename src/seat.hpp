@@ -77,6 +77,8 @@ public:
     std::vector<wlr_pointer*> pointer_devices() const;
     void apply_cursor_theme();
     void set_default_cursor();
+    // A device atrium makes itself (remote control's), taken as if plugged in.
+    void add_virtual(wlr_input_device* device) { new_input(device); }
 
     Server& server;
     wlr_seat* wlr = nullptr;

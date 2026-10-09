@@ -1,6 +1,7 @@
 #include "ipc.hpp"
 #include "appmenu.hpp"
 #include "clipboard_history.hpp"
+#include "eis.hpp"
 #include "geometry.hpp"
 #include "switcher.hpp"
 #include "lock_screen.hpp"
@@ -578,6 +579,37 @@ bool Ipc::read_client(Client& c) {
 void Ipc::send(Client& c, const json& msg) {
     if (c.dead)
         return;
+    if (c.send_fd >= 0) {
+        // The fd rides on the reply's first byte, so what's queued goes first.
+        const int fd = std::exchange(c.send_fd, -1);
+        std::string line = msg.dump() + '\n';
+        if (flush(c) && c.out.empty()) {
+            iovec iov{line.data(), line.size()};
+            alignas(cmsghdr) char control[CMSG_SPACE(sizeof(int))] = {};
+            msghdr m{};
+            m.msg_iov = &iov;
+            m.msg_iovlen = 1;
+            m.msg_control = control;
+            m.msg_controllen = sizeof control;
+            cmsghdr* cm = CMSG_FIRSTHDR(&m);
+            cm->cmsg_level = SOL_SOCKET;
+            cm->cmsg_type = SCM_RIGHTS;
+            cm->cmsg_len = CMSG_LEN(sizeof(int));
+            std::memcpy(CMSG_DATA(cm), &fd, sizeof fd);
+            const ssize_t n = sendmsg(c.fd, &m, MSG_NOSIGNAL);
+            close(fd);
+            if (n < 0) {
+                drop(c);
+                return;
+            }
+            line.erase(0, size_t(n));
+        } else {
+            close(fd);
+        }
+        c.out += line;
+        flush(c);
+        return;
+    }
     c.out += msg.dump();
     c.out += '\n';
     if (c.out.size() > kMaxBacklog) {
@@ -607,6 +639,11 @@ bool Ipc::flush(Client& c) {
 void Ipc::drop(Client& c) {
     if (c.dead)
         return;
+    // Remote control and input capture end with the connection that asked.
+    if (server_.eis)
+        server_.eis->drop_owner(&c);
+    if (c.send_fd >= 0)
+        close(std::exchange(c.send_fd, -1));
     if (c.source)
         wl_event_source_remove(c.source);
     if (c.fd >= 0)
@@ -932,6 +969,71 @@ json Ipc::handle(Client& c, const json& req) {
         if (!req.contains("name") || !req["name"].is_string() || req["name"].get<std::string>().empty())
             return fail("secret.toggle needs a \"name\"");
         server_.toggle_secret(req["name"]);
+        return ok();
+    }
+
+    // Remote control and input capture, for atrium-portal (eis.hpp). The
+    // devices are the portal's bits: 1 keyboard, 2 pointer, 4 touchscreen.
+    if (cmd == "remote.start" || cmd == "capture.create") {
+        if (!server_.eis)
+            return fail("no input sessions here");
+        const uint32_t devices = req.value("devices", 0u) & 7u;
+        const uint32_t cookie = cmd == "remote.start" ? server_.eis->remote_start(&c, devices)
+                                                      : server_.eis->capture_create(&c, devices);
+        return ok({{"cookie", cookie}});
+    }
+    if (cmd == "remote.input") {
+        if (!server_.eis || !req.contains("event") || !server_.eis->remote_input(req.value("cookie", 0u), req["event"]))
+            return fail("no such session or device");
+        return ok();
+    }
+    if (cmd == "eis.connect") {
+        const int fd = server_.eis ? server_.eis->connect(req.value("cookie", 0u)) : -1;
+        if (fd < 0)
+            return fail("no such session");
+        c.send_fd = fd;  // sent with this reply
+        return ok();
+    }
+    if (cmd == "eis.close") {
+        if (server_.eis)
+            server_.eis->close(req.value("cookie", 0u));
+        return ok();
+    }
+    if (cmd == "capture.barriers") {
+        if (!server_.eis)
+            return fail("no input sessions here");
+        // Each must run along a screen's outer edge; the others are refused.
+        std::vector<eis::Zone> zones;
+        for (Output* o : server_.outputs)
+            if (o->enabled()) {
+                wlr_box b;
+                wlr_output_layout_get_box(server_.output_layout, o->wlr, &b);
+                zones.push_back({b.x, b.y, b.width, b.height});
+            }
+        std::vector<eis::Barrier> kept;
+        json failed = json::array();
+        for (const json& b : req.value("barriers", json::array())) {
+            const eis::Barrier barrier{b.value("id", 0u), b.value("x1", 0), b.value("y1", 0), b.value("x2", 0), b.value("y2", 0)};
+            if (eis::valid(barrier, zones))
+                kept.push_back(barrier);
+            else
+                failed.push_back(barrier.id);
+        }
+        if (!server_.eis->capture_barriers(req.value("cookie", 0u), kept))
+            return fail("no such session");
+        return ok({{"failed", failed}});
+    }
+    if (cmd == "capture.enable" || cmd == "capture.disable") {
+        if (!server_.eis || !server_.eis->capture_enable(req.value("cookie", 0u), cmd == "capture.enable"))
+            return fail("no such session");
+        return ok();
+    }
+    if (cmd == "capture.release") {
+        std::optional<std::pair<double, double>> at;
+        if (req.contains("x") && req.contains("y"))
+            at = std::pair{req["x"].get<double>(), req["y"].get<double>()};
+        if (!server_.eis || !server_.eis->capture_release(req.value("cookie", 0u), at))
+            return fail("not capturing");
         return ok();
     }
 

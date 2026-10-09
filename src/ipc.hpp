@@ -54,6 +54,7 @@ private:
         wl_event_source* source = nullptr;
         std::string in, out;
         std::set<std::string> topics;
+        int send_fd = -1;  // goes along with the next reply (SCM_RIGHTS)
     };
 
     static int on_accept(int fd, uint32_t mask, void* data);

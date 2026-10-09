@@ -16,12 +16,17 @@ class ShareChooser : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList screens READ screens NOTIFY changed)
     Q_PROPERTY(QVariantList windows READ windows NOTIFY changed)
+    // Asked for remote control too (ATRIUM_CAPTURE_MODE=remote): it says so.
+    Q_PROPERTY(QString heading READ heading CONSTANT)
+    Q_PROPERTY(QString note READ note CONSTANT)
 
 public:
     explicit ShareChooser(QObject* parent = nullptr);
 
     QVariantList screens() const { return list("screen"); }
     QVariantList windows() const { return list("window"); }
+    QString heading() const;
+    QString note() const;
 
     Q_INVOKABLE void choose(const QString& line);
     Q_INVOKABLE void cancel();

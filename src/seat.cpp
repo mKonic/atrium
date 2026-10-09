@@ -1,4 +1,6 @@
 #include "seat.hpp"
+
+#include "eis.hpp"
 #include "keyboard_conf.hpp"
 #include "input_method.hpp"
 
@@ -311,6 +313,8 @@ void Seat::apply_keyboard_config() {
     // A new keymap starts at its first layout, and the names may differ.
     last_layout_ = layout();
     server.keyboard_layout_changed();
+    if (server.eis)
+        server.eis->keymap_changed();
 }
 
 void Seat::apply_cursor_theme() {
@@ -635,6 +639,8 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
     g.mods = wlr_keyboard_get_modifiers(kb);
 
     server.note_activity();
+    if (server.eis && server.eis->key(e->keycode, e->state == WL_KEYBOARD_KEY_STATE_PRESSED, g.mods, g.syms[0]))
+        return;
 
     // The power button, atrium's to handle while it holds logind's say on it.
     const bool pressed = e->state == WL_KEYBOARD_KEY_STATE_PRESSED;
@@ -893,6 +899,11 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
     wlr_surface* focused = wlr->pointer_state.focused_surface;
 
+    // An app capturing input (Deskflow) takes the pointer once it's pushed
+    // through one of its barriers.
+    if (time && server.eis && server.eis->motion(cursor->x, cursor->y, dx, dy, dx_unaccel, dy_unaccel))
+        return;
+
     // time == 0: an internal refresh, not real motion. A finger driving the
     // pointer (a touch on a window that takes no touch) leaves it hidden.
     if (time && typing_hidden_ && !(device && device->type == WLR_INPUT_DEVICE_TOUCH)) {
@@ -1084,6 +1095,8 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 }
 
 void Seat::button(wlr_pointer_button_event* e) {
+    if (server.eis && server.eis->button(e->button, e->state == WL_POINTER_BUTTON_STATE_PRESSED))
+        return;
     mod_tap_ = 0;  // Mod+click is no tap
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
         server.keywords.reset();  // a click moves the caret
@@ -1307,6 +1320,8 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
 }
 
 void Seat::axis(wlr_pointer_axis_event* e) {
+    if (server.eis && server.eis->axis(*e))
+        return;
     server.note_activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a

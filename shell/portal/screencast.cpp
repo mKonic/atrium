@@ -38,9 +38,7 @@ const QDBusArgument& operator>>(const QDBusArgument& arg, CastStreamInfo& s) {
     return arg;
 }
 
-namespace {
-
-QVariantMap encode(const cast::Choice& c) {
+QVariantMap ScreenCastAdaptor::encode(const cast::Choice& c) {
     QVariantMap m{{"type", c.type}, {"cursor", c.cursor}};
     if (c.type == cast::Monitor) {
         m.insert("output", QString::fromStdString(c.output));
@@ -51,7 +49,7 @@ QVariantMap encode(const cast::Choice& c) {
     return m;
 }
 
-std::optional<cast::Choice> decode(const QVariant& v) {
+std::optional<QVariantMap> ScreenCastAdaptor::restored(const QVariant& v) {
     if (!v.canConvert<QDBusArgument>())
         return std::nullopt;
     RestoreData r;
@@ -59,7 +57,16 @@ std::optional<cast::Choice> decode(const QVariant& v) {
     if (r.vendor != cast::kRestoreVendor || r.version != cast::kRestoreVersion)
         return std::nullopt;  // another portal's, or an older form
     const QVariant inner = r.data.variant();
-    const QVariantMap m = inner.canConvert<QDBusArgument>() ? qdbus_cast<QVariantMap>(inner) : inner.toMap();
+    return inner.canConvert<QDBusArgument>() ? qdbus_cast<QVariantMap>(inner) : inner.toMap();
+}
+
+QVariant ScreenCastAdaptor::restoreData(const QVariantMap& m) {
+    return QVariant::fromValue(RestoreData{cast::kRestoreVendor, cast::kRestoreVersion, QDBusVariant(m)});
+}
+
+std::optional<cast::Choice> ScreenCastAdaptor::decode(const QVariantMap& m) {
+    if (!m.contains("type"))
+        return std::nullopt;
     cast::Choice c;
     c.type = m.value("type").toUInt();
     c.cursor = m.value("cursor", true).toBool();
@@ -70,8 +77,6 @@ std::optional<cast::Choice> decode(const QVariant& v) {
         return std::nullopt;
     return c;
 }
-
-} // namespace
 
 // --- CastState -----------------------------------------------------------------
 
@@ -116,7 +121,8 @@ uint ScreenCastAdaptor::SelectSources(const QDBusObjectPath&, const QDBusObjectP
     const uint cursor = options.value("cursor_mode", uint(cast::Embedded)).toUInt();
     st->cursor = cursor == cast::Hidden ? cast::Hidden : cast::Embedded;
     st->persist = std::min(options.value("persist_mode", 0u).toUInt(), uint(cast::PersistPermanent));
-    st->restored = options.contains("restore_data") ? decode(options.value("restore_data")) : std::nullopt;
+    const auto kept = options.contains("restore_data") ? restored(options.value("restore_data")) : std::nullopt;
+    st->restored = kept ? decode(*kept) : std::nullopt;
     st->selected = true;
     return 0;
 }
@@ -219,8 +225,7 @@ std::optional<QVariantMap> ScreenCastAdaptor::begin(PortalSession* session, cons
         {"persist_mode", st->persist},
     };
     if (st->persist != cast::PersistNone) {
-        results.insert("restore_data", QVariant::fromValue(RestoreData{
-            cast::kRestoreVendor, cast::kRestoreVersion, QDBusVariant(encode(choice))}));
+        results.insert("restore_data", restoreData(encode(choice)));
     }
     return results;
 }

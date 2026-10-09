@@ -19,11 +19,11 @@ foreach xml : portal_wl_xmls
   portal_wl += custom_target(xml.underscorify() + '_portal_code', input: xml, output: '@BASENAME@-portal-protocol.c',
     command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'])
 endforeach
-portal_moc += qt6.compile_moc(headers: ['screencast.hpp', 'cast_stream.hpp', 'wayland_link.hpp'],
+portal_moc += qt6.compile_moc(headers: ['screencast.hpp', 'cast_stream.hpp', 'wayland_link.hpp', 'remote.hpp'],
   include_directories: include_directories('../plugin/Atrium'),
   dependencies: [portal_qt, dependency('libpipewire-0.3')])
 
-executable('atrium-portal', 'main.cpp', 'screencast.cpp', 'cast_stream.cpp', 'cast_core.cpp', 'wayland_link.cpp', portal_wl, '../plugin/Atrium/portal.cpp', '../plugin/Atrium/portal_secret.cpp', '../plugin/Atrium/portal_extras.cpp', '../plugin/Atrium/portal_files.cpp', '../plugin/Atrium/portal_print.cpp', '../plugin/Atrium/printers_core.cpp', '../plugin/Atrium/portal_core.cpp', '../plugin/Atrium/share_core.cpp', '../plugin/Atrium/compositor.cpp', '../plugin/Atrium/identify_core.cpp',
+executable('atrium-portal', 'main.cpp', 'screencast.cpp', 'remote.cpp', 'ipc_link.cpp', 'cast_stream.cpp', 'cast_core.cpp', 'wayland_link.cpp', portal_wl, '../plugin/Atrium/portal.cpp', '../plugin/Atrium/portal_secret.cpp', '../plugin/Atrium/portal_extras.cpp', '../plugin/Atrium/portal_files.cpp', '../plugin/Atrium/portal_print.cpp', '../plugin/Atrium/printers_core.cpp', '../plugin/Atrium/portal_core.cpp', '../plugin/Atrium/share_core.cpp', '../plugin/Atrium/compositor.cpp', '../plugin/Atrium/identify_core.cpp',
   '../../src/accent.cpp', '../../src/palette.cpp', '../../src/records.cpp', portal_moc, paths_h,
   dependencies: [portal_qt, atrium_runtime_dep, json, dependency('gio-2.0'), dependency('gio-unix-2.0'),
     dependency('libpipewire-0.3'), dependency('wayland-client'), dependency('gbm'), dependency('libdrm')],

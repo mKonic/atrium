@@ -16,6 +16,7 @@
 #include <fstream>
 #include "registry.hpp"
 
+#include "eis.hpp"
 #include "ipc.hpp"
 #include "night_light.hpp"
 #include "layer_surface.hpp"
@@ -415,6 +416,7 @@ void Server::setup() {
     setup_window_hints();
 
     seat = std::make_unique<Seat>(*this);
+    eis = std::make_unique<Eis>(*this);
     input_method = std::make_unique<InputMethodRelay>(*this);
     background_effects = std::make_unique<BackgroundEffects>(*this);
     glass_shapes = std::make_unique<GlassShapes>(*this);
@@ -689,6 +691,7 @@ void Server::teardown() {
     if (wrapped_fd_ >= 0)
         shutdown(wrapped_fd_, SHUT_RDWR);
     night_light.reset();
+    eis.reset();  // its devices are the seat's
     ipc.reset();
     disconnect_listeners();
 #ifdef ATRIUM_XWAYLAND
@@ -968,6 +971,8 @@ void Server::update_outputs() {
     update_xwayland_scale();
     if (seat)
         seat->map_to_outputs();
+    if (eis)
+        eis->outputs_changed();  // remote control's screens
     if (night_light)
         night_light->update();  // a screen that can (or can't) show it came or went
     auto* config_out = wlr_output_configuration_v1_create();
