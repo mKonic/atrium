@@ -51,7 +51,7 @@ optdepends=(
   'packagekit: software updates in Settings'
   'qtengine: Qt apps in atrium'"'"'s colours with your own Qt style'
   # The apps around it: atrium recommends these rather than shipping its own.
-  'ghostty: a terminal (or foot, kitty, konsole: the first installed is used)'
+  'ghostty: a terminal (or kitty, foot, alacritty, wezterm, konsole and others: the first installed is used)'
   'dolphin: a file manager (the Dock'"'"'s first app)'
   'kate: a text editor'
 )
