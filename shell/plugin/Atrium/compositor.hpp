@@ -35,6 +35,8 @@ class Compositor : public QObject {
     Q_PROPERTY(QVariant focusedWindow READ focusedWindow NOTIFY windowsChanged)
     Q_PROPERTY(QVariant focusedOutput READ focusedOutput NOTIFY outputsChanged)
     Q_PROPERTY(QVariant shownSecret READ shownSecret NOTIFY spacesChanged)
+    // Alt+Tab with icons: {shown, items: [{id, app_id, title, icon}], index, output}.
+    Q_PROPERTY(QVariantMap switcher READ switcher NOTIFY switcherChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     // {layouts: [{name: "German", code: "de"}], active: 0}
     Q_PROPERTY(QVariantMap keyboard READ keyboard NOTIFY keyboardChanged)
@@ -103,6 +105,10 @@ public:
     // "minimize", "maximize", "fullscreen", "pin", "to_space" ({number}), ...
     Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
+    QVariantMap switcher() const { return switcher_; }
+    // The pointer over an icon of the switcher, and a click on one.
+    Q_INVOKABLE void switcherHover(int index);
+    Q_INVOKABLE void switcherPick(int index);
     Q_INVOKABLE void setKeyboardLayout(int index);
     Q_INVOKABLE void setNightLight(bool on);
     Q_INVOKABLE void setSetting(const QString& key, const QVariant& value);
@@ -166,6 +172,7 @@ signals:
     void snippetTyped(qint64 snippet, int before);
     void windowMenu(const QVariantMap& window, const QString& output, int x, int y);
     void shellAction(const QString& name);
+    void switcherChanged();
     // The pointer reached the top or bottom of a screen with a fullscreen
     // app, where the bar and the Dock wait out of sight.
     void edgeReached(const QString& output, const QString& edge);
@@ -206,6 +213,7 @@ private:
     std::map<qint64, Reply> pending_;
 
     QVariantList windows_, spaces_, outputs_;
+    QVariantMap switcher_{{"shown", false}, {"items", QVariantList{}}, {"index", 0}, {"output", QString()}};
     QVariantMap keyboard_;
     QVariantMap nightLight_;
     void takeNightLight(const QJsonObject& state);

@@ -11,6 +11,7 @@ import shell.modules.notifications
 import shell.modules.osd
 import shell.modules.polkit
 import shell.modules.session
+import shell.modules.switcher
 import shell.modules.windowmenu
 import shell.services
 
@@ -69,6 +70,8 @@ ShellRoot {
     Osd {}
 
     Identify {}
+
+    Switcher {}
 
     Polkit {}
 

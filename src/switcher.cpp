@@ -1,6 +1,7 @@
 #include "switcher.hpp"
 
 #include "cairo_buffer.hpp"
+#include "ipc.hpp"
 #include "output.hpp"
 #include "overview.hpp"
 #include "server.hpp"
@@ -126,6 +127,39 @@ void Switcher::button(double lx, double ly, bool pressed) {
     }
 }
 
+bool Switcher::icons() const {
+    return server_.config.switcher_icons;
+}
+
+void Switcher::hover(int index) {
+    if (active_ && pointer_moved_ && index >= 0 && index < int(views_.size()) && index != index_)
+        select(index);
+}
+
+void Switcher::pick(int index) {
+    if (!active_ || index < 0 || index >= int(views_.size()))
+        return;
+    select(index);
+    commit();
+}
+
+// The panel as the shell draws it: each window's id, app, icon and title,
+// which is picked, and on which screen.
+void Switcher::announce(const char* what) {
+    if (!server_.ipc)
+        return;
+    json event{{"event", what}, {"index", index_}};
+    if (std::string_view(what) == "switcher.show") {
+        json items = json::array();
+        for (View* v : views_)
+            items.push_back({{"id", v->id}, {"app_id", v->app_id() ? v->app_id() : ""},
+                             {"title", v->title() ? v->title() : ""}, {"icon", v->icon}});
+        event["items"] = items;
+        event["output"] = server_.focused_output ? server_.focused_output->wlr->name : "";
+    }
+    server_.ipc->broadcast("shell", event);
+}
+
 void Switcher::commit() {
     View* pick = (index_ >= 0 && index_ < int(views_.size())) ? views_[index_] : nullptr;
     cancel();
@@ -147,11 +181,17 @@ void Switcher::cancel() {
 // --- the panel -------------------------------------------------------------------
 
 void Switcher::show() {
-    if (!active_ || shown_)
+    if (!active_ || shown_ || icons_shown_)
         return;
     Output* o = server_.focused_output;
     if (!o)
         return;
+    if (icons()) {
+        icons_shown_ = true;
+        pointer_moved_ = false;
+        announce("switcher.show");
+        return;
+    }
     shown_ = true;
     root_ = wlr_scene_tree_create(server_.layer(Layer::Overview));
     blur_ = wlr_scene_blur_create(root_, 0, 0);
@@ -175,6 +215,10 @@ void Switcher::show() {
 }
 
 void Switcher::hide() {
+    if (icons_shown_) {
+        icons_shown_ = false;
+        announce("switcher.hide");
+    }
     if (!shown_)
         return;
     shown_ = false;
@@ -253,6 +297,8 @@ void Switcher::layout() {
 
 void Switcher::select(int index) {
     index_ = index;
+    if (icons_shown_)
+        announce("switcher.select");
     if (!shown_ || index < 0 || index >= int(items_.size()))
         return;
     const wlr_box& b = items_[index]->box;
@@ -320,7 +366,7 @@ void Switcher::view_unmapped(View* view) {
     if (!active_ || std::ranges::find(views_, view) == views_.end())
         return;
     // Simplest honest answer: start over without it.
-    const bool was_shown = shown_;
+    const bool was_shown = shown_ || icons_shown_;
     View* current = views_[index_];
     hide();
     std::erase(views_, view);

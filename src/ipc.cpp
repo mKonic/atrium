@@ -2,6 +2,7 @@
 #include "appmenu.hpp"
 #include "clipboard_history.hpp"
 #include "geometry.hpp"
+#include "switcher.hpp"
 #include "lock_screen.hpp"
 #include "logout.hpp"
 #ifdef ATRIUM_XWAYLAND
@@ -774,6 +775,16 @@ json Ipc::handle(Client& c, const json& req) {
             });
         }
         return ok(list);
+    }
+
+    if (cmd == "switcher.hover" || cmd == "switcher.pick") {
+        if (!req.contains("index") || !req["index"].is_number_integer())
+            return fail(cmd + " needs an \"index\"");
+        if (cmd == "switcher.hover")
+            server_.switcher->hover(req["index"]);
+        else
+            server_.switcher->pick(req["index"]);
+        return ok();
     }
 
     if (cmd == "output.create") {

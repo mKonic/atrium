@@ -176,6 +176,16 @@ void Compositor::applyEvent(const QJsonObject& e) {
     const QString kind = e.value("event").toString();
     if (kind == "shell.action") {
         emit shellAction(e.value("name").toString());
+    } else if (kind == "switcher.show") {
+        switcher_ = {{"shown", true}, {"items", e.value("items").toArray().toVariantList()},
+                     {"index", e.value("index").toInt()}, {"output", e.value("output").toString()}};
+        emit switcherChanged();
+    } else if (kind == "switcher.select") {
+        switcher_["index"] = e.value("index").toInt();
+        emit switcherChanged();
+    } else if (kind == "switcher.hide") {
+        switcher_["shown"] = false;
+        emit switcherChanged();
     } else if (kind == "spaces.changed") {
         spaces_ = e.value("spaces").toArray().toVariantList();
         emit spacesChanged();
@@ -428,6 +438,14 @@ void Compositor::action(const QString& name, const QVariant& arg) {
     if (arg.isValid() && !arg.isNull())
         req["arg"] = arg.toString();
     request(req);
+}
+
+void Compositor::switcherHover(int index) {
+    request(QJsonObject{{"cmd", "switcher.hover"}, {"index", index}});
+}
+
+void Compositor::switcherPick(int index) {
+    request(QJsonObject{{"cmd", "switcher.pick"}, {"index", index}});
 }
 
 void Compositor::takeNightLight(const QJsonObject& state) {

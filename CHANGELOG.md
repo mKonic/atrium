@@ -55,6 +55,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - A window with a modal dialog open over it is greyed and darkened until the dialog closes, as KWin's Dim Parent Window (Windows: Dim behind dialogs).
 - Identify in Displays: each screen shows its number, name and resolution for a moment, as KDE's.
 - A game controller counts as activity, so playing with one keeps the screen awake, as in KWin.
+- Alt+Tab as a Mac's Command-Tab: the windows' app icons in a row on glass, a square gliding to the one picked and its name under it; live previews remain a choice (Windows: Alt+Tab shows).
 - atrium's Open, Save, Open With and Print dialogs belong to the app window that asked for them (xdg-foreign), as on GNOME and Plasma.
 - Hide the pointer while typing, until the mouse moves (Mouse & Touchpad), and Num Lock on at start (Keyboard), as Hyprland has them.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).

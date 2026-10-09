@@ -31,6 +31,14 @@ public:
     void button(double lx, double ly, bool pressed);
     void motion(double lx, double ly);
     void cancel();
+    // With app icons the shell draws the panel (switcher.* events) and takes
+    // the pointer over it; these are its hover and click.
+    bool icons() const;
+    void hover(int index);
+    // The pointer really moved (not the panel appearing under it): only then
+    // does hovering pick.
+    void pointer_moved() { pointer_moved_ = true; }
+    void pick(int index);
 
     void view_changed(View* view);
     void view_unmapped(View* view);
@@ -50,6 +58,9 @@ private:
     void select(int index);
     void render_title();
     int item_at(double lx, double ly) const;
+    void announce(const char* what);  // tell the shell (icons)
+    bool icons_shown_ = false;         // the shell's panel is up
+    bool pointer_moved_ = false;
 
     Server& server_;
     bool active_ = false;

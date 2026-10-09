@@ -925,7 +925,10 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         server.overview->motion(cursor->x, cursor->y);
         return;
     }
-    if (server.switcher->active()) {
+    // With icons the shell's panel takes the pointer like any surface.
+    if (time && server.switcher->active())
+        server.switcher->pointer_moved();
+    if (server.switcher->active() && !server.switcher->icons()) {
         // Only the pointer really moving picks: the panel opening under a
         // resting pointer (its refresh, time 0) mustn't pick what's beneath.
         if (time)
@@ -1082,7 +1085,14 @@ void Seat::button(wlr_pointer_button_event* e) {
         server.overview->button(cursor->x, cursor->y, e->button, pressed);
         return;
     }
-    if (server.switcher->active() || (!pressed && switcher_press_)) {
+    if (server.switcher->active() && server.switcher->icons()) {
+        // A click on the shell's panel is its own; anywhere else puts the
+        // switcher away and goes on through.
+        const Hit hit = server.hit_test(cursor->x, cursor->y);
+        const char* ns = hit.layer ? hit.layer->wlr->namespace_ : nullptr;
+        if (pressed && !(ns && std::string_view(ns) == "atrium-switcher"))
+            server.switcher->cancel();
+    } else if (server.switcher->active() || (!pressed && switcher_press_)) {
         switcher_press_ = pressed;
         server.switcher->button(cursor->x, cursor->y, pressed);
         return;
