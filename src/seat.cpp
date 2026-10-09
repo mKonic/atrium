@@ -625,6 +625,11 @@ void Seat::key(KeyboardGroup& g, wlr_keyboard_key_event* e) {
 
     // The power button, atrium's to handle while it holds logind's say on it.
     const bool pressed = e->state == WL_KEYBOARD_KEY_STATE_PRESSED;
+    // KWin's lastInteractionSerial: any press but a modifier's (Alt+Tab's
+    // Tab too) makes older activation tokens stale.
+    if (pressed && !(g.syms[0] >= XKB_KEY_Shift_L && g.syms[0] <= XKB_KEY_Hyper_R) &&
+        !(g.syms[0] >= XKB_KEY_ISO_Lock && g.syms[0] <= XKB_KEY_ISO_Level5_Lock))
+        server.last_interaction_serial = wl_display_next_serial(server.display);
     // Hyprland's hide_on_key_press: typing hides the pointer until it moves.
     if (pressed && server.config.hide_pointer_typing && !typing_hidden_ && mode == Mode::Normal && !shaking_) {
         typing_hidden_ = true;
@@ -921,7 +926,10 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         return;
     }
     if (server.switcher->active()) {
-        server.switcher->motion(cursor->x, cursor->y);
+        // Only the pointer really moving picks: the panel opening under a
+        // resting pointer (its refresh, time 0) mustn't pick what's beneath.
+        if (time)
+            server.switcher->motion(cursor->x, cursor->y);
         return;
     }
 
@@ -1060,8 +1068,10 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
 
 void Seat::button(wlr_pointer_button_event* e) {
     mod_tap_ = 0;  // Mod+click is no tap
-    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED)
+    if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
         server.keywords.reset();  // a click moves the caret
+        server.last_interaction_serial = wl_display_next_serial(server.display);
+    }
     server.note_activity();
 
     // A press on the overview is the overview's, and so is its release, even

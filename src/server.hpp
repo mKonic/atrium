@@ -120,6 +120,9 @@ public:
     void hot_corner(const std::string& what);
     // Grey the windows with a modal dialog open over them (View::blocks).
     void update_blocked();
+    // The serial of the last key or button press (KWin's
+    // lastInteractionSerial): an activation token from before it is stale.
+    uint32_t last_interaction_serial = 0;
     // The focused window stops being focused (and IPC subscribers hear so).
     void drop_focus();
     // Fullscreen windows go over the panels only while in front: one with

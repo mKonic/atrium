@@ -1365,8 +1365,13 @@ void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* ev
     }
 
     // A token minted from real user input (a click on a link, a notification)
-    // may take focus; anything else only marks the window as wanting attention.
-    if (event->token && event->token->seat) {
+    // may take focus, as long as nothing was pressed since (KWin's
+    // mayActivate): a tab that wakes up holding an old token can't pull focus
+    // back mid-Alt+Tab. Anything else only marks the window as wanting
+    // attention.
+    const bool fresh = event->token && event->token->seat &&
+                       int32_t(event->token->serial - last_interaction_serial) >= 0;
+    if (!focused_view || fresh) {
         if (view->minimized)
             view->set_minimized(false);
         focus_view(view);
