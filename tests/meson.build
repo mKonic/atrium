@@ -76,6 +76,9 @@ if gtest.found()
 endif
 
 
+# install.sh's look at the machine, against made-up ones.
+test('install', find_program('bash'), args: files('install_test.sh'))
+
 # The box tests (tests/box: a whole session in a vc box, and the probe apps
 # they drive) are local-only, not part of the repository.
 if import('fs').is_dir('box')
