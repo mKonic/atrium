@@ -123,8 +123,9 @@ struct Config {
     bool snapping = true;     // drag to screen edges and corners to tile
     bool system_bell = true;  // windows.system_bell: an app's bell plays a sound
     bool wobbly = false;  // windows.wobbly: wobble while dragged
-    int wobbliness = 0;
-    bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
+    int wobbliness = 0;   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
+    bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving
+    bool anr_dialog = true;    // windows.anr_dialog: dim an app that stops answering and offer to end it
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar

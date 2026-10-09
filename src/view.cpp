@@ -260,6 +260,7 @@ void View::handle_unmap() {
     outline = nullptr;
     blur = nullptr;
     backing = nullptr;
+    not_responding_ = nullptr;
     surface()->data = nullptr;
     mapped = false;
     // A window that comes back starts fresh; only its last geometry survives.
@@ -1241,7 +1242,27 @@ void View::update_decorations() {
         titlebar->update();
         wlr_scene_buffer_set_opacity(titlebar->node(), alpha_);
     }
+    if (not_responding_) {
+        wlr_scene_rect_set_size(not_responding_, geom.width, geom.height);
+        wlr_scene_rect_set_corner_radius(not_responding_, radius);
+        wlr_scene_node_raise_to_top(&not_responding_->node);
+    }
     update_corners();
+}
+
+// Hyprland multiplies the window by 0.8; a black veil at 20% is the same.
+void View::set_not_responding(bool on) {
+    if (!tree || unmanaged() || on == (not_responding_ != nullptr))
+        return;
+    if (on) {
+        const float veil[4] = {0, 0, 0, 0.2f};
+        not_responding_ = wlr_scene_rect_create(tree, geom.width, geom.height, veil);
+        not_responding_->accepts_input = false;
+        update_decorations();
+    } else {
+        wlr_scene_node_destroy(&not_responding_->node);
+        not_responding_ = nullptr;
+    }
 }
 
 void View::update_corners() {

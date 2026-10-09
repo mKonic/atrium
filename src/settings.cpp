@@ -466,6 +466,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.system_bell", "Windows", "Alert sound",
         "Apps can ring a bell (a terminal does on a Tab with nothing to complete). Off, it only marks "
         "the window as wanting attention.", &Config::system_bell, d));
+    s.push_back(boolean("windows.anr_dialog", "Windows", "Not responding",
+        "An app that stops answering has its windows dimmed, and you're asked whether to end it or wait.",
+        &Config::anr_dialog, d));
     s.push_back(boolean("windows.wobbly", "Windows", "Wobbly windows",
         "Windows wobble like jelly while you drag them, and settle when let go.", &Config::wobbly, d));
     s.push_back(number("windows.wobbliness", T::Int, "Windows", "Wobbliness",

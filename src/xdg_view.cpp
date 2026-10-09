@@ -2,6 +2,7 @@
 #include "popup_blur.hpp"
 #include "layer_surface.hpp"
 #include "seat.hpp"
+#include "not_responding.hpp"
 #include "server.hpp"
 #include "view.hpp"
 #include "geometry.hpp"
@@ -70,6 +71,10 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
         });
     set_title_.connect(&toplevel->events.set_title, [this](void*) { update_title(); });
     set_app_id_.connect(&toplevel->events.set_app_id, [this](void*) { update_title(); });
+    pong_.connect(&toplevel->base->events.pong, [this](void*) {
+        if (server.not_responding)
+            server.not_responding->pong(wl_resource_get_client(toplevel->base->resource));
+    });
 
     // A KDE decoration announced before this toplevel existed.
     wlr_server_decoration* d;

@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "not_responding.hpp"
 #include "system_bell.hpp"
 #include "terminal.hpp"
 #include "input_method.hpp"
@@ -253,6 +254,7 @@ void Server::setup() {
     wlr_xdg_foreign_v1_create(display, foreign_registry_);
     wlr_xdg_foreign_v2_create(display, foreign_registry_);
     system_bell_ = std::make_unique<SystemBell>(*this);
+    not_responding = std::make_unique<NotResponding>(*this);
     wlr_fixes_create(display, 1);
     wlr_color_representation_manager_v1_create_with_renderer(display, 1, renderer);
     drm_lease_manager = wlr_drm_lease_v1_manager_create(display, backend);
@@ -623,6 +625,7 @@ void Server::teardown() {
     xsmp.reset();
     clipboard_history.reset();
     system_bell_.reset();
+    not_responding.reset();
     lease_request_.disconnect();
     idle.reset();
     logind.reset();

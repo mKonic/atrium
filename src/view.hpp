@@ -172,6 +172,8 @@ public:
     bool placed = false;   // put somewhere by a window command; restore takes it back
     std::string last_place;  // that command's name: the same one again cycles halves
     bool urgent = false;
+    // Its app stopped answering (NotResponding): the window is dimmed.
+    void set_not_responding(bool on);
     bool keep_above = false;    // stays over other windows (X11 _NET_WM_STATE_ABOVE)
     bool keep_below = false;    // stays under them
     bool skip_taskbar = false;  // not in the Dock or the switcher
@@ -241,6 +243,7 @@ protected:
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;
     float alpha_ = 1.0f;
+    wlr_scene_rect* not_responding_ = nullptr;  // the dimming over it
     int anim_dx_ = 0, anim_dy_ = 0;
     int glide_dx_ = 0, glide_dy_ = 0;  // on its way to where atrium put it
     bool opening_ = false;             // its open animation is running
@@ -350,7 +353,7 @@ private:
     Listener<wlr_xdg_toplevel_move_event> request_move_;
     Listener<wlr_xdg_toplevel_resize_event> request_resize_;
     Listener<wlr_xdg_toplevel_show_window_menu_event> request_window_menu_;
-    Listener<> set_title_, set_app_id_;
+    Listener<> set_title_, set_app_id_, pong_;
     Listener<> decoration_request_, decoration_destroy_;
     Listener<> kde_mode_, kde_destroy_;
 };
