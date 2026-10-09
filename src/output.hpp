@@ -1,5 +1,6 @@
 #pragma once
 #include "edid.hpp"
+#include "handoff.hpp"
 #include "hot_corners_core.hpp"
 #include "listener.hpp"
 
@@ -15,7 +16,8 @@ class Space;
 
 class Output {
 public:
-    Output(Server& server, wlr_output* wlr);
+    // `handoff`: what the screen showed before atrium (handoff.hpp).
+    Output(Server& server, wlr_output* wlr, Scanout handoff = {});
     ~Output();
     Output(const Output&) = delete;
     Output& operator=(const Output&) = delete;
@@ -95,8 +97,19 @@ public:
     Space* active = nullptr;  // the numbered space shown here
     wlr_ext_workspace_group_handle_v1* workspace_group = nullptr;
 
+    // The screen's last frame from before atrium, over everything until the
+    // shell's first picture (wallpaper or greeter) is up, then faded out.
+    void place_handoff();
+    // A shell surface mapped here (its layer-shell namespace).
+    void handoff_mapped(std::string_view name_space);
+
 private:
     std::optional<double> hdr_peak_;  // the HDR calibration's
+
+    void fade_handoff();
+    wlr_scene_buffer* handoff_ = nullptr;
+    wl_event_source* handoff_timer_ = nullptr;
+    std::string handoff_awaits_;  // the shell surface that replaces it
 
     void frame();
     void render();

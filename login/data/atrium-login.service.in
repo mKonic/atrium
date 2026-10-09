@@ -2,7 +2,12 @@
 Description=atrium login
 Documentation=file:///usr/share/atrium/login.conf
 Conflicts=getty@tty1.service
-After=systemd-user-sessions.service getty@tty1.service plymouth-quit.service systemd-logind.service
+After=systemd-user-sessions.service getty@tty1.service systemd-logind.service plymouth-start.service
+# GDM's: it quits Plymouth itself once the greeter has drawn over the splash,
+# and if it fails Plymouth still goes.
+Conflicts=plymouth-quit.service
+After=plymouth-quit.service
+OnFailure=plymouth-quit.service
 PartOf=graphical.target
 StartLimitIntervalSec=30
 StartLimitBurst=2

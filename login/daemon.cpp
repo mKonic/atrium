@@ -14,6 +14,8 @@
 #include <cstring>
 #include <fcntl.h>
 #include <ftw.h>
+#include <dirent.h>
+#include <linux/kd.h>
 #include <linux/vt.h>
 #include <poll.h>
 #include <pwd.h>
@@ -32,6 +34,10 @@ using nlohmann::json;
 namespace {
 
 constexpr auto kGreeterGrace = std::chrono::seconds(5);   // to quit after starting a session
+// GDM's REGISTER_DISPLAY_TIMEOUT: Plymouth goes regardless after this long.
+constexpr auto kPlymouthWait = std::chrono::seconds(10);
+// DRM_IOCTL_DROP_MASTER, without libdrm.
+constexpr unsigned long kDropMaster = _IO('d', 0x1f);
 constexpr auto kCrashWindow = std::chrono::seconds(30);   // this many greeter starts in it...
 constexpr size_t kCrashLimit = 5;
 constexpr auto kCrashPause = std::chrono::seconds(10);    // ...and it waits this long
@@ -83,6 +89,56 @@ Daemon::~Daemon() {
     }
     if (signal_fd_ >= 0)
         close(signal_fd_);
+    for (int fd : display_fds_)
+        close(fd);
+}
+
+// Closing the last handle on a card makes the kernel restore its console
+// (fbdev), which is a flash of text between the splash, the greeter and the
+// session. Held here, the screen keeps the last frame (wlroots leaves it
+// with CLOSEFB) until the next compositor draws.
+void Daemon::hold_displays() {
+    DIR* dir = opendir("/dev/dri");
+    if (!dir)
+        return;
+    while (const dirent* e = readdir(dir)) {
+        if (std::string_view(e->d_name).substr(0, 4) != "card")
+            continue;
+        const int fd = open(("/dev/dri/" + std::string(e->d_name)).c_str(), O_RDWR | O_CLOEXEC);
+        if (fd < 0)
+            continue;
+        // The first to open a card becomes its master; the greeter must be.
+        ioctl(fd, kDropMaster, 0);
+        display_fds_.push_back(fd);
+    }
+    closedir(dir);
+}
+
+// GDM's: `plymouth quit --retain-splash` once something has drawn over the
+// splash, a plain quit when nothing will.
+void Daemon::quit_plymouth(bool keep_splash) {
+    if (!plymouth_)
+        return;
+    plymouth_ = false;
+    plymouth_deadline_.reset();
+    const pid_t pid = fork();
+    if (pid == 0) {
+        sigset_t none;
+        sigemptyset(&none);
+        sigprocmask(SIG_SETMASK, &none, nullptr);
+        if (keep_splash)
+            execlp("plymouth", "plymouth", "quit", "--retain-splash", nullptr);
+        else
+            execlp("plymouth", "plymouth", "quit", nullptr);
+        _exit(127);
+    }
+}
+
+std::vector<int> Daemon::session_vts() const {
+    std::vector<int> vts;
+    for (const auto& s : sessions_)
+        vts.push_back(s->vt);
+    return vts;
 }
 
 Daemon::WorkerPtr Daemon::spawn(const std::string& service, const std::string& user, const std::string& cls,
@@ -123,6 +179,10 @@ Daemon::WorkerPtr Daemon::spawn(const std::string& service, const std::string& u
 
 void Daemon::start(Worker& w, const std::vector<std::string>& cmd, const std::vector<std::string>& env,
                    bool profile) {
+    // In graphics mode before it's in front, so the kernel doesn't draw the
+    // console over what's on screen until the compositor takes the VT.
+    if (w.tty >= 0 && ioctl(w.tty, KDSETMODE, KD_GRAPHICS) != 0)
+        say("can't set VT %d to graphics: %s", w.vt, strerror(errno));
     activate_vt(w.vt);
     send_message(w.fd, {{"t", "start"}, {"cmd", cmd}, {"env", env}, {"profile", profile}});
     w.running = true;
@@ -134,8 +194,12 @@ void Daemon::end(WorkerPtr& w) {
     if (!w)
         return;
     close(w->fd);
-    if (w->tty >= 0)
+    if (w->tty >= 0) {
+        // Back to text for a getty or a console later; only out of sight.
+        if (active_vt() != w->vt)
+            ioctl(w->tty, KDSETMODE, KD_TEXT);
         close(w->tty);
+    }
     w.reset();
 }
 
@@ -303,7 +367,8 @@ void Daemon::back_from_greeter() {
 
 // The session asked for, once the greeter is gone.
 void Daemon::start_pending() {
-    if (!to_start_ || greeter_ || !pending_ || !pending_->authenticated) {
+    const bool waits_for_greeter = greeter_ && pending_ && pending_->vt == greeter_->vt;
+    if (!to_start_ || waits_for_greeter || !pending_ || !pending_->authenticated) {
         if (!greeter_ && to_start_ && !pending_) {
             to_start_.reset();
             back_from_greeter();
@@ -320,6 +385,7 @@ void Daemon::start_pending() {
         return;
     }
     sessions_.push_back(std::move(pending_));
+    started_beside_ = greeter_ != nullptr;
     start(*sessions_.back(), cmd, env, config_.source_profile);
 }
 
@@ -364,6 +430,10 @@ void Daemon::on_worker(WorkerPtr& w) {
         }
     } else if (t == "started") {
         w->session_id = m->value("session", "");
+        // An autologin session over the splash: Plymouth goes once it has
+        // surely drawn (GDM's wait for a display that registers).
+        if (plymouth_ && &w != &greeter_ && !plymouth_deadline_)
+            plymouth_deadline_ = Clock::now() + kPlymouthWait;
     } else if (t == "done") {
         on_worker_gone(w);
     }
@@ -383,10 +453,12 @@ void Daemon::on_worker_gone(WorkerPtr& w) {
         end(w);
         greeter_deadline_.reset();
         drop_client();
+        quit_plymouth(false);  // it never came up
         if (to_start_)
             start_pending();
-        else
+        else if (!started_beside_)
             back_from_greeter();
+        started_beside_ = false;
     } else {
         for (size_t i = 0; i < sessions_.size(); ++i)
             if (&sessions_[i] == &w) {
@@ -549,8 +621,8 @@ void Daemon::handle(const Request& r) {
             reply(error(true, "no such user"));
             return;
         }
-        // The session starts where its greeter was.
-        pending_ = spawn("atrium-login", r.username, "user", true, greeter_ ? greeter_->vt : config_.vt);
+        pending_ = spawn("atrium-login", r.username, "user", true,
+                         session_vt(greeter_ ? greeter_->vt : config_.vt, session_vts(), free_vt()));
         if (!pending_)
             reply(error(false, "couldn't start the login"));
         return;
@@ -571,8 +643,7 @@ void Daemon::handle(const Request& r) {
         reply(success());
         // greetd's way: the greeter quits on its own; past the grace it's stopped.
         greeter_deadline_ = Clock::now() + kGreeterGrace;
-        if (!greeter_)
-            start_pending();
+        start_pending();
         return;
     case Request::Type::CancelSession:
         end(pending_);
@@ -595,6 +666,15 @@ int Daemon::run() {
     // Once a boot: logging out, or this daemon restarting, shows the greeter.
     constexpr const char* kAutologinDone = "/run/atrium-login/autologin-done";
     mkdir("/run/atrium-login", 0711);
+    hold_displays();
+    // GDM's: the splash stays up, Plymouth letting go of the screen, until
+    // the greeter has drawn over it.
+    plymouth_ = system("plymouth --ping >/dev/null 2>&1") == 0;
+    if (plymouth_) {
+        if (system("plymouth deactivate") != 0)
+            say("couldn't deactivate plymouth");
+        plymouth_deadline_ = Clock::now() + kPlymouthWait;
+    }
     if (!config_.autologin_user.empty() && access(kAutologinDone, F_OK) != 0 &&
         getpwnam(config_.autologin_user.c_str())) {
         close(open(kAutologinDone, O_WRONLY | O_CREAT | O_CLOEXEC, 0600));
@@ -621,7 +701,7 @@ int Daemon::run() {
             fds.push_back({c.fd, POLLIN, 0});
         int timeout = -1;
         const auto now = Clock::now();
-        for (const auto& d : {greeter_deadline_, greeter_restart_})
+        for (const auto& d : {greeter_deadline_, greeter_restart_, plymouth_deadline_})
             if (d) {
                 const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(*d - now).count();
                 timeout = timeout < 0 ? int(std::max<long long>(ms, 0)) : std::min(timeout, int(std::max<long long>(ms, 0)));
@@ -637,6 +717,8 @@ int Daemon::run() {
                 send_message(greeter_->fd, {{"t", "stop"}});
             }
         }
+        if (plymouth_deadline_ && Clock::now() >= *plymouth_deadline_)
+            quit_plymouth(!sessions_.empty());  // a session has drawn; a greeter that never connected hasn't
         if (greeter_restart_ && Clock::now() >= *greeter_restart_) {
             greeter_restart_.reset();
             if (sessions_.empty())
@@ -687,6 +769,7 @@ int Daemon::run() {
                 end(pending_);
                 to_start_.reset();
                 client_fd_ = c;
+                quit_plymouth(true);  // the greeter is up
             }
         }
         if (fds[kClient].revents && client_fd_ >= 0 && client_fd_ == fds[kClient].fd)

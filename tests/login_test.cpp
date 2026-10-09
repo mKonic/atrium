@@ -98,6 +98,15 @@ TEST(LoginSeats, GreeterTakesTheConfiguredVtWhileItsFree) {
     EXPECT_EQ(greeter_vt(1, {1}, 0), 0);
 }
 
+TEST(LoginSeats, SessionStartsBesideTheGreeter) {
+    EXPECT_EQ(session_vt(1, {}, 2), 2);
+    EXPECT_EQ(session_vt(1, {2}, 3), 3);
+    // Nothing free, or the kernel naming one that's taken: the greeter's.
+    EXPECT_EQ(session_vt(1, {}, 0), 1);
+    EXPECT_EQ(session_vt(1, {}, 1), 1);
+    EXPECT_EQ(session_vt(1, {2}, 2), 1);
+}
+
 TEST(LoginSeats, ParsesControlLines) {
     EXPECT_EQ(parse_control("switch-to-greeter"), Control::SwitchToGreeter);
     EXPECT_EQ(parse_control("switch-to-greeter\r\n"), Control::SwitchToGreeter);

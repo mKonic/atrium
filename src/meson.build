@@ -44,6 +44,7 @@ atrium_sources = files(
   'displays.cpp',
   'edid.cpp',
   'output.cpp',
+  'handoff.cpp',
   'night_light.cpp',
   'night_light_core.cpp',
   'seat.cpp',

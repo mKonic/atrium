@@ -67,6 +67,9 @@ private:
     void back_from_greeter();
     void on_control(size_t index);
     void switch_to_greeter(uid_t asker);
+    void hold_displays();
+    void quit_plymouth(bool keep_splash);
+    std::vector<int> session_vts() const;
 
     Config config_;
     WorkerPtr greeter_, pending_;
@@ -86,6 +89,15 @@ private:
     // it closes without a login (0: none, it's the only thing running).
     int return_vt_ = 0;
     bool quitting_ = false;
+    // Plymouth, deactivated, still shows the boot splash until the greeter
+    // (or an autologin session) has drawn over it; then it quits.
+    bool plymouth_ = false;
+    std::optional<Clock::time_point> plymouth_deadline_;
+    // A session started beside its greeter, which is still on the way out.
+    bool started_beside_ = false;
+    // The graphics cards, held open (not as master) so the kernel never puts
+    // its console back up between one compositor going and the next.
+    std::vector<int> display_fds_;
 };
 
 } // namespace atrium::login

@@ -139,6 +139,9 @@ void LayerSurface::commit() {
         return;
     const bool was_mapped = mapped;
     mapped = wlr->surface->mapped;
+    // The shell's first picture: what was on screen before atrium can go.
+    if (mapped && !was_mapped && wlr->namespace_)
+        output->handoff_mapped(wlr->namespace_);
     // Liquid Glass comes in by bending light more and more, not by fading.
     if (mapped && !was_mapped && server.config.liquid_glass) {
         lensing_ = 0;

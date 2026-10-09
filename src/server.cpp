@@ -950,7 +950,8 @@ void Server::new_output(wlr_output* wlr) {
     }
     if (!wlr_output_init_render(wlr, allocator, renderer))
         return;
-    auto* output = new Output(*this, wlr);
+    // Before atrium's first commit replaces it.
+    auto* output = new Output(*this, wlr, capture_scanout(wlr));
     outputs.push_back(output);
     output_added(output);
     restore_display(output);
@@ -1012,6 +1013,7 @@ void Server::update_outputs() {
 
         wlr_output_layout_get_box(output_layout, o->wlr, &o->box);
         o->usable = o->box;
+        o->place_handoff();
         if (o->scene_output)
             wlr_scene_output_set_position(o->scene_output, o->box.x, o->box.y);
         wlr_scene_node_set_position(&o->fullscreen_bg->node, o->box.x, o->box.y);

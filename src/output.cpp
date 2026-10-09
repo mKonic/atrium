@@ -1,4 +1,5 @@
 #include "output.hpp"
+#include "registry.hpp"
 
 #include "icc_core.hpp"
 
@@ -22,15 +23,51 @@
 
 namespace atrium {
 
-Output::Output(Server& srv, wlr_output* output) : server(srv), wlr(output) {
+Output::Output(Server& srv, wlr_output* output, Scanout handoff) : server(srv), wlr(output) {
     wlr->data = this;
 
-    wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_mode(&state, wlr_output_preferred_mode(wlr));
-    wlr_output_state_set_enabled(&state, true);
-    wlr_output_commit_state(wlr, &state);
-    wlr_output_state_finish(&state);
+    // On with what it already shows, in the mode it's in: no modeset, and
+    // no black frame (wlroots lights a screen without a buffer black).
+    bool on = false;
+    if (handoff.buffer && handoff.mode && handoff.buffer->width == handoff.mode->width &&
+        handoff.buffer->height == handoff.mode->height) {
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        wlr_output_state_set_mode(&state, handoff.mode);
+        wlr_output_state_set_enabled(&state, true);
+        wlr_output_state_set_buffer(&state, handoff.buffer);
+        on = wlr_output_commit_state(wlr, &state);
+        wlr_output_state_finish(&state);
+        if (!on)
+            wlr_log(WLR_INFO, "%s: can't show what was on screen, starting black", wlr->name);
+    }
+    if (!on) {
+        wlr_output_state state;
+        wlr_output_state_init(&state);
+        wlr_output_state_set_mode(&state, wlr_output_preferred_mode(wlr));
+        wlr_output_state_set_enabled(&state, true);
+        wlr_output_commit_state(wlr, &state);
+        wlr_output_state_finish(&state);
+    }
+    if (handoff.buffer) {
+        handoff_ = wlr_scene_buffer_create(server.layer(Layer::Lock), handoff.buffer);
+        wlr_buffer_drop(handoff.buffer);  // the scene holds it now
+        // Up to this long for the shell, then it goes anyway.
+        handoff_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
+            static_cast<Output*>(data)->fade_handoff();
+            return 0;
+        }, this);
+        wl_event_source_timer_update(handoff_timer_, 5000);
+        // What the shell draws first that fills the screen: the wallpaper
+        // when there is one, else the menu bar over the plain background.
+        bool wallpaper = false;
+        if (server.registry) {
+            const auto settings = server.registry->settings();
+            const auto it = settings.find("appearance.wallpaper");
+            wallpaper = it != settings.end() && it->second.is_string() && !it->second.get<std::string>().empty();
+        }
+        handoff_awaits_ = wallpaper ? "atrium-wallpaper" : "atrium-bar";
+    }
 
     frame_.connect(&wlr->events.frame, [this](void*) { frame(); });
     // Compositing waits for this timer: just before the screen's next vblank.
@@ -79,6 +116,10 @@ Output::~Output() {
     wlr_scene_output_destroy(scene_output);
     scene_output = nullptr;
     server.animator.cancel_owner(this, true);
+    if (handoff_timer_)
+        wl_event_source_remove(handoff_timer_);
+    if (handoff_)
+        wlr_scene_node_destroy(&handoff_->node);
     if (server.overview)
         server.overview->output_removed(this);
     if (!server.shutting_down)
@@ -505,6 +546,39 @@ void Output::refit_views() {
         std::ranges::any_of(server.views, [this](View* v) {
             return v->output == this && v->fullscreen_front() && v->visible();
         }));
+}
+
+void Output::place_handoff() {
+    if (!handoff_)
+        return;
+    wlr_scene_node_set_position(&handoff_->node, box.x, box.y);
+    wlr_scene_buffer_set_dest_size(handoff_, box.width, box.height);
+}
+
+// The shell's first picture is mapped here (the greeter's is the greeter):
+// a moment for it to settle (an image still loading), then the fade.
+void Output::handoff_mapped(std::string_view name_space) {
+    if (handoff_timer_ && (name_space == handoff_awaits_ || name_space == "atrium-greeter"))
+        wl_event_source_timer_update(handoff_timer_, 250);
+}
+
+void Output::fade_handoff() {
+    if (handoff_timer_) {
+        wl_event_source_remove(handoff_timer_);
+        handoff_timer_ = nullptr;
+    }
+    if (!handoff_)
+        return;
+    server.animator.start(this, 400, Ease::Standard,
+        [this](double t) {
+            if (handoff_)
+                wlr_scene_buffer_set_opacity(handoff_, float(1.0 - t));
+        },
+        [this] {
+            if (handoff_)
+                wlr_scene_node_destroy(&handoff_->node);
+            handoff_ = nullptr;
+        });
 }
 
 } // namespace atrium

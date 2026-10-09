@@ -70,6 +70,12 @@ std::vector<std::string> session_env(const std::vector<std::string>& pam_env, co
 // else `free_vt` (the kernel's first unused one), else none (0).
 int greeter_vt(int configured, const std::vector<int>& session_vts, int free_vt);
 
+// The VT a session logged in from the greeter on `greeter` starts on: a free
+// one, so it's in front before the greeter goes and the greeter's last frame
+// stays up until the session draws (as GDM keeps them apart). With none free,
+// the greeter's own, once the greeter has quit (greetd's way).
+int session_vt(int greeter, const std::vector<int>& session_vts, int free_vt);
+
 // What a logged-in session may ask of the daemon on its control socket, a
 // line each: "switch-to-greeter" (a greeter on a VT of its own, the asking
 // session left running).

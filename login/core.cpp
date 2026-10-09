@@ -186,6 +186,12 @@ int greeter_vt(int configured, const std::vector<int>& session_vts, int free_vt)
     return 0;
 }
 
+int session_vt(int greeter, const std::vector<int>& session_vts, int free_vt) {
+    if (free_vt > 0 && free_vt != greeter && std::ranges::find(session_vts, free_vt) == session_vts.end())
+        return free_vt;
+    return greeter;
+}
+
 std::optional<Control> parse_control(std::string_view line) {
     while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' '))
         line.remove_suffix(1);
