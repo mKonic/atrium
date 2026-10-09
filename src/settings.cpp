@@ -1,6 +1,7 @@
 #include "settings.hpp"
 
 #include "accent.hpp"
+#include "hot_corners_core.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -77,6 +78,7 @@ constexpr ActionName kActions[] = {
     {Action::SnapRight, "snap-right"},
     {Action::Restore, "restore"},
     {Action::Overview, "overview"},
+    {Action::ShowDesktop, "show-desktop"},
     {Action::AppExpose, "app-expose"},
     {Action::SwitchNext, "switch-next"},
     {Action::SwitchPrev, "switch-prev"},
@@ -651,6 +653,16 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.back().custom = true;
 
     // Desktop (read by the shell)
+    {
+        static const char* const titles[] = {"Top-left corner", "Top-right corner", "Bottom-left corner",
+                                             "Bottom-right corner"};
+        for (size_t i = 0; i < 4; i++)
+            s.push_back(choice(std::string("desktop.hot_corner_") + hot_corners::kCornerKeys[i], "Desktop", titles[i],
+                "Push the pointer into this corner of a screen to do this, as a Mac's hot corners.",
+                {"none", "overview", "app-windows", "desktop", "launcher", "notification-center", "quick-note",
+                 "lock-screen"},
+                d.hot_corners[i], [i](Config& c, const json& v) { c.hot_corners[i] = v.get<std::string>(); }));
+    }
     s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
         "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));
 

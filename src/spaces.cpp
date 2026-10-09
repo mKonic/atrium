@@ -84,6 +84,7 @@ void Server::switch_space(Output* output, int number, View* carry) {
     if (!output || locked)
         return;
     overview->close_now();
+    set_showing_desktop(false);  // as KWin on a desktop change
     // Finish any switch still in flight on this output first: its end
     // prunes the space it left, which may be the one asked for now.
     animator.cancel_owner(output, true);

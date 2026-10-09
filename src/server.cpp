@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "hot_corners_core.hpp"
 #include "not_responding.hpp"
 #include "system_bell.hpp"
 #include "terminal.hpp"
@@ -1166,6 +1167,12 @@ void Server::focus_top() {
 void Server::focus_view(View* view, bool raise) {
     if (locked || (view && !view->mapped))
         return;
+    // Choosing a window ends Show Desktop (KWin's activateWindow).
+    if (view && !view->unmanaged() && showing_desktop) {
+        showing_desktop = false;
+        for (View* v : views)
+            v->show_desktop(false);
+    }
     // A window waiting on a modal dialog hands focus to the dialog (the
     // newest one, and on down a chain of them), raised along with it.
     for (bool found = true; view && found;) {
@@ -1499,6 +1506,62 @@ void Server::change_vt(unsigned vt) {
         wlr_session_change_vt(session, vt);
 }
 
+void Server::set_showing_desktop(bool on) {
+    if (on == showing_desktop || (on && locked))
+        return;
+    showing_desktop = on;
+    if (!on) {
+        for (View* v : views)
+            v->show_desktop(false);
+        focus_top();
+        seat->refresh_pointer();
+        return;
+    }
+    // Each screen's windows to its own corners (KWin, with one desktop for
+    // all screens, uses the whole layout's), bottom of the stack first.
+    for (Output* o : outputs) {
+        std::vector<View*> going;
+        std::vector<hot_corners::Rect> boxes;
+        for (auto it = views.rbegin(); it != views.rend(); ++it) {
+            View* v = *it;
+            if (v->output == o && v->visible() && !v->unmanaged() && !v->passive()) {
+                going.push_back(v);
+                boxes.push_back({v->geom.x, v->geom.y, v->geom.width, v->geom.height});
+            }
+        }
+        const hot_corners::Rect screen{o->box.x, o->box.y, o->box.width, o->box.height};
+        const auto corners = hot_corners::aperture_corners(screen, boxes);
+        for (size_t i = 0; i < going.size(); i++) {
+            int x, y;
+            hot_corners::aperture_target(screen, boxes[i], corners[i], x, y);
+            going[i]->show_desktop(true, x, y);
+        }
+    }
+    // Nothing has the keys while the windows are away.
+    drop_focus();
+    seat->clear_keyboard_focus();
+    seat->refresh_pointer();
+}
+
+void Server::hot_corner(const std::string& what) {
+    Keybind b{};
+    if (what == "overview")
+        b.action = Action::Overview;
+    else if (what == "app-windows")
+        b.action = Action::AppExpose;
+    else if (what == "desktop")
+        b.action = Action::ShowDesktop;
+    else if (what == "lock-screen")
+        b.action = Action::Lock;
+    else if (what == "launcher" || what == "quick-note")
+        b = {.action = Action::Shell, .arg = what == "launcher" ? "launcher" : "notes"};
+    else if (what == "notification-center")
+        b = {.action = Action::Shell, .arg = "notifications"};
+    else
+        return;
+    run_action(b);
+}
+
 void Server::run_action(const Keybind& b) {
     View* v = focused_view;
     switch (b.action) {
@@ -1605,6 +1668,7 @@ void Server::run_action(const Keybind& b) {
         if (focused_output && focused_output->active && !(shown_secret && shown_secret->output == focused_output))
             toggle_tiling(focused_output->active);
         break;
+    case Action::ShowDesktop: set_showing_desktop(!showing_desktop); break;
     case Action::Shell:
         // The shell listens on the IPC socket; it decides what "launcher" means.
         if (ipc)

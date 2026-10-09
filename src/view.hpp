@@ -172,6 +172,10 @@ public:
     bool placed = false;   // put somewhere by a window command; restore takes it back
     std::string last_place;  // that command's name: the same one again cycles halves
     bool urgent = false;
+    // Put away by Show Desktop: gone past a corner of its screen to (x, y)
+    // (KWin's Window Aperture), or back.
+    bool hidden_by_show_desktop = false;
+    void show_desktop(bool hide, int x = 0, int y = 0);
     // Its app stopped answering (NotResponding): the window is dimmed.
     void set_not_responding(bool on);
     bool keep_above = false;    // stays over other windows (X11 _NET_WM_STATE_ABOVE)

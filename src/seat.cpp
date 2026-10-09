@@ -834,6 +834,43 @@ void Seat::reach_edge() {
         server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", at}, {"edge", edge}});
 }
 
+// KWin's Edge::activatesForPointer and checkBlocking: not while the pointer
+// is held by an app, a button is down (but a drag and drop may still show
+// the desktop or the launcher), or over a fullscreen window in front.
+void Seat::hot_corner(uint32_t time) {
+    Output* o = server.output_at(cursor->x, cursor->y);
+    if (!o || server.locked)
+        return;
+    const hot_corners::Rect screen{o->box.x, o->box.y, o->box.width, o->box.height};
+    const auto at = hot_corners::corner_at(screen, cursor->x, cursor->y);
+    for (size_t i = 0; i < 4; i++) {
+        const std::string& what = server.config.hot_corners[i];
+        bool armed = at && size_t(*at) == i && what != "none" && !active_constraint_;
+        if (armed && wlr->drag)
+            armed = what == "desktop" || what == "launcher";
+        else if (armed)
+            armed = mode == Mode::Normal && wlr->pointer_state.button_count == 0;
+        if (armed && server.focused_view && server.focused_view->fullscreen && server.focused_view->output == o)
+            armed = false;
+        switch (o->corners[i].check(armed, cursor->x, cursor->y, double(time))) {
+        case hot_corners::Result::Nothing: break;
+        case hot_corners::Result::PushBack: {
+            double x = cursor->x, y = cursor->y;
+            hot_corners::push_back(*at, x, y);
+            wlr_cursor_warp_closest(cursor, nullptr, x, y);
+            break;
+        }
+        case hot_corners::Result::Trigger:
+            // Pushed back too, so it doesn't sit in the corner.
+            double x = cursor->x, y = cursor->y;
+            hot_corners::push_back(*at, x, y);
+            wlr_cursor_warp_closest(cursor, nullptr, x, y);
+            server.hot_corner(what);
+            break;
+        }
+    }
+}
+
 void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
                   double dx_unaccel, double dy_unaccel) {
     wlr_surface* focused = wlr->pointer_state.focused_surface;
@@ -868,6 +905,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         }
 
         wlr_cursor_move(cursor, device, dx, dy);
+        hot_corner(time);
         server.note_activity();
         if (server.config.shake_to_find && mode == Mode::Normal && shake_.feed(time, cursor->x, cursor->y))
             shake_grow();

@@ -111,6 +111,13 @@ public:
     void focus_view(View* view, bool raise = true);
     void focus_layer(LayerSurface* layer);
     void focus_top();
+    // Show Desktop: every window on the screens' shown spaces goes off past
+    // a corner, until it's toggled again or a window is focused, opened, or
+    // the space changes (KWin's Workspace::setShowingDesktop).
+    bool showing_desktop = false;
+    void set_showing_desktop(bool on);
+    // What a hot corner was set to do (desktop.hot_corner_*).
+    void hot_corner(const std::string& what);
     // The focused window stops being focused (and IPC subscribers hear so).
     void drop_focus();
     // Fullscreen windows go over the panels only while in front: one with

@@ -143,6 +143,7 @@ private:
     double edge_push_ = 0;
     bool edge_carried_ = false;
     void push_edge(double dx);
+    void hot_corner(uint32_t time);
     const char* edge_reached_ = nullptr;  // screen edge the pointer rests on over a fullscreen app
     std::string edge_output_;             // ... and its screen's name
     // Arriving at an edge counts once the pointer has stayed there a moment.

@@ -137,6 +137,7 @@ void Overview::open(bool animate) {
     }
     server_.seat->cancel_grab();
     server_.hide_secret();
+    server_.set_showing_desktop(false);  // the windows it shows are the ones put away
 
     root_ = wlr_scene_tree_create(server_.layer(Layer::Overview));
     for (Output* o : server_.outputs) {

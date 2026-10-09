@@ -38,6 +38,7 @@ enum class Action {
     SnapRight,
     Restore,          // out of fullscreen, maximized or snapped
     Overview,         // every window of the space, side by side
+    ShowDesktop,      // every window out of the way, and back
     AppExpose,        // the overview with one app's windows; arg: app id, or
                       // "window:ID" for that window's app; none: the focused one's
     SwitchNext,       // Alt+Tab: hold the modifier, tap to walk the windows
@@ -125,7 +126,9 @@ struct Config {
     bool wobbly = false;  // windows.wobbly: wobble while dragged
     int wobbliness = 0;   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
     bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving
-    bool anr_dialog = true;    // windows.anr_dialog: dim an app that stops answering and offer to end it
+    bool anr_dialog = true;
+    // desktop.hot_corner_*: top left, top right, bottom left, bottom right
+    std::array<std::string, 4> hot_corners{"none", "none", "none", "none"};    // windows.anr_dialog: dim an app that stops answering and offer to end it
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar

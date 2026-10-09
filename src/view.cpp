@@ -83,7 +83,7 @@ wlr_scene_tree* View::home_tree() const {
 }
 
 bool View::visible() const {
-    return mapped && !minimized && (!space || space->shown());
+    return mapped && !minimized && !hidden_by_show_desktop && (!space || space->shown());
 }
 
 wlr_box View::usable_area() const {
@@ -116,6 +116,9 @@ void View::handle_map() {
             server.focus_view(this);
         return;
     }
+
+    // A new window brings the others back, as in KWin.
+    server.set_showing_desktop(false);
 
     const Config& c = server.config;
     shadow = wlr_scene_shadow_create(tree, 0, 0, c.corner_radius, c.shadow_sigma,
@@ -263,6 +266,7 @@ void View::handle_unmap() {
     not_responding_ = nullptr;
     surface()->data = nullptr;
     mapped = false;
+    hidden_by_show_desktop = false;
     // A window that comes back starts fresh; only its last geometry survives.
     minimized = maximized = fullscreen = covered = activated = activate_on_map = false;
     snapped = 0;
@@ -1248,6 +1252,31 @@ void View::update_decorations() {
         wlr_scene_node_raise_to_top(&not_responding_->node);
     }
     update_corners();
+}
+
+// windowaperture's 250 ms, cubic both ways, from wherever it is now, so a
+// change of mind mid-way turns it round.
+void View::show_desktop(bool hide, int x, int y) {
+    if (hide == hidden_by_show_desktop || !tree || unmanaged())
+        return;
+    hidden_by_show_desktop = hide;
+    wobble_stop();
+    motion_clear();
+    server.animator.cancel_owner(this, false);
+    const int from_dx = anim_dx_, from_dy = anim_dy_;
+    const float from_alpha = alpha_;
+    const int to_dx = hide ? x - geom.x : 0, to_dy = hide ? y - geom.y : 0;
+    const float to_alpha = hide ? 0.0f : 1.0f;
+    wlr_scene_node_set_enabled(&tree->node, !minimized);
+    server.animator.start(this, 250, Ease::InOutCubic, [=, this](double t) {
+        set_anim_offset(from_dx + int(std::lround((to_dx - from_dx) * t)),
+                        from_dy + int(std::lround((to_dy - from_dy) * t)));
+        set_alpha(from_alpha + float((to_alpha - from_alpha) * t));
+    }, [this, hide] {
+        // Out of reach too, left past the corner to come back from.
+        if (hide && tree)
+            wlr_scene_node_set_enabled(&tree->node, false);
+    });
 }
 
 // Hyprland multiplies the window by 0.8; a black veil at 20% is the same.
