@@ -4,12 +4,17 @@
 // still waiting for this backend to start, and both hang.
 
 #include "portal.hpp"
+#include "screencast.hpp"
 
 #include <QCoreApplication>
+
+#include <pipewire/pipewire.h>
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("atrium-portal"));
+    pw_init(&argc, &argv);
+    new atrium::ScreenCastAdaptor(atrium::PortalBackend::instance());
     if (!atrium::PortalBackend::instance()->start())
         return 1;  // another backend already has the name
     return app.exec();

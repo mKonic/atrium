@@ -104,8 +104,6 @@ portal_service.set('DATADIR', get_option('prefix') / get_option('datadir'))
 configure_file(input: 'data/share/dbus-1/services/org.freedesktop.impl.portal.desktop.atrium.service.in',
   output: 'org.freedesktop.impl.portal.desktop.atrium.service', configuration: portal_service,
   install_dir: get_option('datadir') / 'dbus-1' / 'services')
-# Sharing the screen: xdg-desktop-portal-wlr asks atrium's chooser (share.qml).
-subdir('data/etc/xdg/xdg-desktop-portal-wlr')
 # Sessions for the display manager (plain, and under uwsm).
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # sudo -A and ssh ask for passwords through the shell (SUDO_ASKPASS).

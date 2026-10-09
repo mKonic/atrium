@@ -66,6 +66,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.
 - A Dock icon's name shows above it, as on a Mac, instead of the Dock growing to fit it.
 - Over fullscreen apps, the bar and the Dock come only for a window you made fullscreen (green button or shortcut), after holding the pointer at the edge for a moment; over a video or game that went fullscreen itself they stay away, and a tap of Super brings the bar.
+- Sharing a screen or a window goes through atrium itself instead of xdg-desktop-portal-wlr, and an app that asks to remember the choice shares the same screen, or the same app's window, next time without asking.
 - Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, with cliphist's rules (750 entries, a copy's text and its picture each kept); what cliphist had is brought over the first time.
 
 ### Fixed

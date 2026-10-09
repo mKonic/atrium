@@ -1,6 +1,6 @@
 #pragma once
-// The lines xdg-desktop-portal-wlr hands a dmenu-style chooser when an app
-// asks to share the screen, without Qt:
+// The lines atrium-portal hands the chooser when an app asks to share the
+// screen (as xdg-desktop-portal-wlr hands a dmenu-style one), without Qt:
 //   Monitor: DP-1 Dell Inc. DELL U2720Q 1234
 //   Window: Some title (identifier)
 // The chooser answers with one of the lines as it came.
