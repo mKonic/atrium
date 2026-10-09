@@ -48,4 +48,13 @@ std::optional<size_t> cursor_from_end(const std::string& text, const Values& val
 std::string url_encode(const std::string& s);
 std::string shell_quote(const std::string& s);
 
+// The palette's "Search the web" fallback (Raycast's Search Google): the
+// engines launcher.web_search names, their row's title and the address a
+// query goes to. Nothing for "off" or an engine it doesn't know.
+struct WebSearch {
+    std::string title;  // "Search Google"
+    std::string url;
+};
+std::optional<WebSearch> web_search(const std::string& engine, const std::string& query);
+
 } // namespace atrium::placeholders

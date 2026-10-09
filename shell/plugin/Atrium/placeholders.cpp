@@ -142,4 +142,24 @@ std::string shell_quote(const std::string& s) {
     return out + "'";
 }
 
+std::optional<WebSearch> web_search(const std::string& engine, const std::string& query) {
+    struct Engine {
+        const char* id;
+        const char* name;
+        const char* address;  // the query goes after it, encoded
+    };
+    static constexpr Engine kEngines[] = {
+        {"google", "Google", "https://www.google.com/search?q="},
+        {"duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q="},
+        {"bing", "Bing", "https://www.bing.com/search?q="},
+        {"brave", "Brave", "https://search.brave.com/search?q="},
+        {"startpage", "Startpage", "https://www.startpage.com/do/search?q="},
+        {"ecosia", "Ecosia", "https://www.ecosia.org/search?q="},
+    };
+    for (const Engine& e : kEngines)
+        if (engine == e.id)
+            return WebSearch{std::string("Search ") + e.name, e.address + url_encode(query)};
+    return std::nullopt;
+}
+
 } // namespace atrium::placeholders

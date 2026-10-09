@@ -564,6 +564,11 @@ void LauncherModel::rebuildRows(bool keepSelection) {
 
         // What nothing recognised goes to: under "Use “…” with".
         const QString with = QString("Use “%1” with").arg(trimmed.size() > 24 ? trimmed.left(23) + "…" : trimmed);
+        // The web first, as Raycast's Search Google.
+        if (const auto web = placeholders::web_search(c->setting("launcher.web_search", "google").toString().toStdString(),
+                                                      trimmed.toStdString()))
+            rows.push_back({.kind = "fallback", .section = with, .title = QString::fromStdString(web->title),
+                            .glyph = "travel_explore", .label = "Web", .target = "web"});
         rows.push_back({.kind = "fallback", .section = with, .title = "Search Files", .glyph = "folder_open",
                         .label = "Command", .target = "files"});
         for (const QVariant& v : c->records("quicklinks")) {
@@ -729,6 +734,13 @@ void LauncherModel::runRow(const Row& r, const QVariantList&) {
             runCustom({{"name", q}, {"command", q}, {"output", true}}, {});
         } else if (r.target.startsWith("quicklink:")) {
             openQuicklink(record("quicklinks", r.target.mid(10)), {q});
+        } else if (r.target == "web") {
+            if (const auto web = placeholders::web_search(
+                    Compositor::instance()->setting("launcher.web_search", "google").toString().toStdString(),
+                    q.toStdString())) {
+                emit closeRequested();
+                QDesktopServices::openUrl(QUrl(QString::fromStdString(web->url)));
+            }
         }
     }
 }

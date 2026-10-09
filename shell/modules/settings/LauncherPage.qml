@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import QtCore
 import QtQuick
 import Atrium.Shell
 import shell.components
@@ -15,6 +16,9 @@ Column {
 
     required property var window
     property string tab: "Quicklinks"
+    // What the last import or export did.
+    property string quicklinkNote: ""
+    property bool quicklinkFailed: false
     property string itemQuery: ""
     // The key being given a shortcut ("" none).
     property string recording: ""
@@ -104,6 +108,23 @@ Column {
                     "Windows": "Sizes of your own for the focused window, as a share of the screen, centered."
                 })[root.tab] ?? ""
 
+                // Tinycast's Import and Export Quicklinks: a JSON file of them.
+                PillButton {
+                    visible: root.tab === "Quicklinks"
+                    text: "Import…"
+                    onClicked: quicklinkImport.open()
+                }
+
+                PillButton {
+                    visible: root.tab === "Quicklinks"
+                    text: QuicklinkFiles.busy ? "Exporting…" : "Export…"
+                    enabled: !QuicklinkFiles.busy && records.list.length > 0
+                    onClicked: {
+                        root.quicklinkNote = "";
+                        QuicklinkFiles.exportAll();
+                    }
+                }
+
                 PillButton {
                     text: "Add"
                     icon: "add"
@@ -124,6 +145,15 @@ Column {
             Item {
                 width: 1
                 height: 8
+            }
+
+            StyledText {
+                width: parent.width
+                visible: root.tab === "Quicklinks" && root.quicklinkNote !== ""
+                text: root.quicklinkNote
+                wrapMode: Text.WordWrap
+                font.pointSize: Theme.font.size.small
+                color: root.quicklinkFailed ? Theme.palette.red : Theme.palette.secondaryLabel
             }
 
             StyledText {
@@ -967,6 +997,27 @@ Column {
                 value: Math.round(sizeSheet.h * 100)
                 onCommitted: v => sizeSheet.h = v / 100
             }
+        }
+    }
+
+    FilePicker {
+        id: quicklinkImport
+
+        title: "Import Quicklinks"
+        folder: StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+        nameFilter: "Quicklinks (*.json)"
+        onPicked: file => {
+            root.quicklinkNote = "";
+            QuicklinkFiles.importFile(file);
+        }
+    }
+
+    Connections {
+        target: QuicklinkFiles
+
+        function onFinished(note: string, failed: bool): void {
+            root.quicklinkNote = note;
+            root.quicklinkFailed = failed;
         }
     }
 }

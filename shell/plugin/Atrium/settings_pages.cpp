@@ -91,8 +91,14 @@ void SettingsPages::rebuild() {
 }
 
 QVariantList SettingsPages::choiceOptions(const QStringList& choices) const {
+    // Names that aren't their words capitalised.
+    static const QMap<QString, QString> kNames = {{"duckduckgo", "DuckDuckGo"}, {"brave", "Brave Search"}};
     QVariantList out;
     for (const QString& c : choices) {
+        if (kNames.contains(c)) {
+            out.append(QVariantMap{{"value", c}, {"label", kNames[c]}});
+            continue;
+        }
         QStringList words = c.split(QRegularExpression("[-_]"), Qt::SkipEmptyParts);
         for (QString& w : words)
             w[0] = w[0].toUpper();

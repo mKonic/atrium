@@ -768,6 +768,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         {"low", "medium", "high"}, "medium", [](Config&, const json&) {}));
     s.push_back(make("launcher.suggestions", SettingType::Bool, "Launcher", "Show suggestions",
         "With nothing typed, list what you open most above everything else.", true, [](Config&, const json&) {}));
+    s.push_back(choice("launcher.web_search", "Launcher", "Search the web with",
+        "What you type in the launcher can be searched on the web: the first row under Use \u201c\u2026\u201d with.",
+        {"off", "google", "duckduckgo", "bing", "brave", "startpage", "ecosia"}, "google", [](Config&, const json&) {}));
     s.push_back(boolean("launcher.snippet_expansion", "Launcher", "Expand snippet keywords",
         "Typing a snippet's keyword in any app replaces it with the snippet.", &Config::snippet_expansion, d));
     s.push_back(make("notes.folder", SettingType::String, "Launcher", "Notes folder",

@@ -35,3 +35,14 @@ TEST(Placeholders, Cursor) {
     EXPECT_EQ(cursor_from_end("é{cursor}é", v), 1u);
     EXPECT_FALSE(cursor_from_end("none", v));
 }
+
+TEST(Placeholders, WebSearch) {
+    const auto g = web_search("google", "a b&c ü");
+    ASSERT_TRUE(g);
+    EXPECT_EQ(g->title, "Search Google");
+    EXPECT_EQ(g->url, "https://www.google.com/search?q=a%20b%26c%20%C3%BC");
+    EXPECT_EQ(web_search("duckduckgo", "x")->url, "https://duckduckgo.com/?q=x");
+    EXPECT_EQ(web_search("brave", "x")->title, "Search Brave");
+    EXPECT_FALSE(web_search("off", "x"));
+    EXPECT_FALSE(web_search("altavista", "x"));
+}

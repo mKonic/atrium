@@ -51,6 +51,7 @@
 #include "phone_link.hpp"
 #include "privacy.hpp"
 #include "vpn.hpp"
+#include "quicklink_files.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
@@ -203,6 +204,12 @@ public:
             return o;
         });
         qmlRegisterUncreatableType<VpnTunnel>(uri, 1, 0, "VpnTunnel", "from Vpn.tunnels");
+        // Settings > Launcher's Import and Export Quicklinks.
+        qmlRegisterSingletonType<QuicklinkFiles>(uri, 1, 0, "QuicklinkFiles", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = QuicklinkFiles::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
         // Networks: `Network.networks`, `Network.wifiEnabled`.
         qmlRegisterSingletonType<Network>(uri, 1, 0, "Network", [](QQmlEngine*, QJSEngine*) -> QObject* {
             QObject* o = Network::instance();
