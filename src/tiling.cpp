@@ -13,7 +13,7 @@
 namespace atrium {
 
 bool Server::tileable(const View* v) const {
-    return v->mapped && !v->unmanaged() && !v->minimized && !v->fullscreen && !v->maximized && !v->parent() &&
+    return v->mapped && !v->unmanaged() && !v->minimized && !v->tab_hidden() && !v->fullscreen && !v->maximized && !v->parent() &&
            !v->float_in_tiling &&
            !v->is_dialog() && !v->splash() && !v->passive() && v->space && !v->space->secret;
 }

@@ -3,6 +3,7 @@
 #include "cairo_buffer.hpp"
 #include "output.hpp"
 #include "server.hpp"
+#include "tabs.hpp"
 #include "view.hpp"
 
 #include <cairo.h>
@@ -53,6 +54,17 @@ constexpr Rgba kMinimize = hex(0xfebc2e);
 constexpr Rgba kMaximize = hex(0x28c840);
 constexpr Rgba kGlyph = hex(0x000000, 0.55);
 
+// The tab bar: a recessed strip, the shown tab raised out of it in the
+// bar's own colour, as a Mac draws window tabs.
+struct TabChrome {
+    Rgba strip, strip_inactive, hover, divider, title, title_dim, close_hover, glyph;
+};
+constexpr TabChrome kDarkTabs{hex(0x1a1b1f), hex(0x17181b), hex(0xffffff, 0.05), hex(0xffffff, 0.09),
+                              hex(0xe8e8ec), hex(0x8a8b92), hex(0xffffff, 0.12), hex(0xd0d0d6)};
+constexpr TabChrome kLightTabs{hex(0xd9d9dc), hex(0xe6e6e8), hex(0x000000, 0.05), hex(0x000000, 0.12),
+                               hex(0x2a2a2e), hex(0x7c7c82), hex(0x000000, 0.10), hex(0x4a4a50)};
+constexpr Rgba kDropLine = hex(0x0a84ff);
+
 // Buttons sit at the top right: minimize, maximize, close, with close outermost.
 // `index` is 0 = close, 1 = minimize, 2 = maximize; returns the left edge.
 double button_x(int index, double width) {
@@ -78,9 +90,43 @@ Titlebar::~Titlebar() {
         wlr_buffer_unlock(held_);
 }
 
-Titlebar::Part Titlebar::part_at(double x, double y) const {
-    if (y < 0 || y >= kHeight || x < 0 || x >= view_.geom.width)
+int Titlebar::title_height() const {
+    if (view_.fullscreen)
+        return chrome_ ? kHeight : 0;  // only ever shown brought out under the menu bar
+    return view_.top() - (view_.tabs ? kTabHeight : 0);
+}
+
+void Titlebar::set_chrome(bool on) {
+    if (chrome_ != on) {
+        chrome_ = on;
+        update();
+    }
+}
+
+void Titlebar::set_drop(int slot) {
+    if (drop_ != slot) {
+        drop_ = slot;
+        update();
+    }
+}
+
+Titlebar::Part Titlebar::part_at(double x, double y, int* tab) const {
+    if (tab)
+        *tab = -1;
+    const int title = title_height();
+    if (x < 0 || x >= view_.geom.width || y < 0)
         return Part::None;
+    if (y >= title) {
+        if (!view_.tabs || view_.fullscreen || y >= title + kTabHeight)
+            return Part::None;
+        const size_t n = view_.tabs->size();
+        const auto i = tabs::tab_at(x, view_.geom.width, n);
+        if (!i)
+            return Part::None;
+        if (tab)
+            *tab = int(*i);
+        return tabs::on_close(x, y - title, *i, view_.geom.width, n, kTabHeight) ? Part::TabClose : Part::Tab;
+    }
     const double cy = kHeight / 2.0;
     const Part parts[] = {Part::Close, Part::Minimize, Part::Maximize};
     for (int i = 0; i < 3; ++i) {
@@ -91,16 +137,18 @@ Titlebar::Part Titlebar::part_at(double x, double y) const {
     return Part::Bar;
 }
 
-void Titlebar::set_hover(Part part) {
-    if (hover_ != part) {
+void Titlebar::set_hover(Part part, int tab) {
+    if (hover_ != part || hover_tab_ != tab) {
         hover_ = part;
+        hover_tab_ = tab;
         update();
     }
 }
 
-void Titlebar::set_pressed(Part part) {
-    if (pressed_ != part) {
+void Titlebar::set_pressed(Part part, int tab) {
+    if (pressed_ != part || pressed_tab_ != tab) {
         pressed_ = part;
+        pressed_tab_ = tab;
         update();
     }
 }
@@ -109,7 +157,17 @@ void Titlebar::update() {
     const float scale = view_.output ? view_.output->wlr->scale : 1.0f;
     Drawn want;
     want.width = view_.geom.width;
-    want.height = kHeight;
+    want.title_height = title_height();
+    want.height = want.title_height;
+    if (view_.tabs && !view_.fullscreen) {
+        want.height += kTabHeight;
+        for (const View* v : view_.tabs->items)
+            want.tabs.push_back(v->title() ? v->title() : "");
+        want.current = int(view_.tabs->current);
+        want.hover_tab = hover_tab_;
+        want.pressed_tab = pressed_tab_;
+        want.drop = drop_;
+    }
     want.scale = scale;
     want.title = view_.title();
     want.active = view_.activated;
@@ -117,25 +175,20 @@ void Titlebar::update() {
     want.pressed = pressed_;
     want.style = uint64_t(view_.server.config.corner_radius) << 2 | (view_.server.config.light ? 2 : 0) |
                  (view_.fullscreen ? 1 : 0);
-    if (want == drawn_ || want.width <= 0)
+    if (want == drawn_ || want.width <= 0 || want.height <= 0)
         return;
     drawn_ = want;
     render(want.width, want.height, scale);
 }
 
-void Titlebar::render(int width, int height, float scale) {
-    const int pw = int(std::ceil(width * scale));
-    const int ph = int(std::ceil(height * scale));
-    cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, pw, ph);
-    cairo_t* cr = cairo_create(surface);
-    cairo_scale(cr, scale, scale);
-
+void Titlebar::draw_title(cairo_t* cr, int width, int height) {
     const bool active = drawn_.active;
     const Chrome& c = view_.server.config.light ? kLight : kDark;
 
     // Bar. The window's top corners are rounded by the renderer, not here.
     set(cr, active ? c.bar_active : c.bar_inactive);
-    cairo_paint(cr);
+    cairo_rectangle(cr, 0, 0, width, height);
+    cairo_fill(cr);
     set(cr, c.highlight);
     cairo_rectangle(cr, 0, 0, width, 1);
     cairo_fill(cr);
@@ -220,6 +273,113 @@ void Titlebar::render(int width, int height, float scale) {
         pango_cairo_show_layout(cr, layout);
         g_object_unref(layout);
     }
+
+}
+
+void Titlebar::draw_tabs(cairo_t* cr, int width, int top) {
+    const bool light = view_.server.config.light;
+    const Chrome& c = light ? kLight : kDark;
+    const TabChrome& t = light ? kLightTabs : kDarkTabs;
+    const bool active = drawn_.active;
+    const size_t n = drawn_.tabs.size();
+    const double h = kTabHeight;
+
+    cairo_save(cr);
+    cairo_translate(cr, 0, top);
+    set(cr, active ? t.strip : t.strip_inactive);
+    cairo_rectangle(cr, 0, 0, width, h);
+    cairo_fill(cr);
+
+    PangoLayout* layout = pango_cairo_create_layout(cr);
+    PangoFontDescription* font = pango_font_description_from_string("Sans 9.5");
+    pango_layout_set_font_description(layout, font);
+    pango_font_description_free(font);
+    pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
+    pango_layout_set_single_paragraph_mode(layout, true);
+
+    for (size_t i = 0; i < n; ++i) {
+        const double x0 = std::round(tabs::tab_left(i, width, n));
+        const double x1 = std::round(tabs::tab_left(i + 1, width, n));
+        const bool shown = int(i) == drawn_.current;
+        const bool hovered = int(i) == drawn_.hover_tab;
+        if (shown) {
+            // Raised out of the strip in the title bar's colour.
+            set(cr, active ? c.bar_active : c.bar_inactive);
+            cairo_rectangle(cr, x0, 0, x1 - x0, h);
+            cairo_fill(cr);
+        } else if (hovered) {
+            set(cr, t.hover);
+            cairo_rectangle(cr, x0, 0, x1 - x0, h);
+            cairo_fill(cr);
+        }
+        // Dividers between tabs, none beside the shown one.
+        if (i > 0 && !shown && int(i) - 1 != drawn_.current) {
+            set(cr, t.divider);
+            cairo_rectangle(cr, x0, 6, 1, h - 12);
+            cairo_fill(cr);
+        }
+
+        // The title, centered, clear of the close button on both sides.
+        const double reserve = tabs::kCloseInset + tabs::kCloseSize + 4;
+        const double avail = (x1 - x0) - 2 * reserve;
+        if (avail > 8 && !drawn_.tabs[i].empty()) {
+            pango_layout_set_text(layout, drawn_.tabs[i].c_str(), -1);
+            pango_layout_set_width(layout, int(avail * PANGO_SCALE));
+            int tw, th;
+            pango_layout_get_pixel_size(layout, &tw, &th);
+            set(cr, shown && active ? t.title : t.title_dim);
+            cairo_move_to(cr, std::round(x0 + (x1 - x0 - tw) / 2.0), std::round((h - th) / 2.0));
+            pango_cairo_show_layout(cr, layout);
+        }
+
+        // Close, on the tab under the pointer.
+        if (hovered) {
+            const double cx = x0 + tabs::kCloseInset + tabs::kCloseSize / 2, cy = h / 2;
+            const bool on = hover_ == Part::TabClose;
+            if (on) {
+                cairo_new_path(cr);
+                cairo_arc(cr, cx, cy, tabs::kCloseSize / 2, 0, 2 * M_PI);
+                set(cr, pressed_ == Part::TabClose && pressed_tab_ == int(i) ? darker(t.close_hover, 0.6) : t.close_hover);
+                cairo_fill(cr);
+            }
+            set(cr, t.glyph);
+            cairo_set_line_width(cr, 1.2);
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+            const double g = 3.2;
+            cairo_move_to(cr, cx - g, cy - g);
+            cairo_line_to(cr, cx + g, cy + g);
+            cairo_move_to(cr, cx + g, cy - g);
+            cairo_line_to(cr, cx - g, cy + g);
+            cairo_stroke(cr);
+        }
+    }
+    g_object_unref(layout);
+
+    // Where a tab dragged here would go in.
+    if (drawn_.drop >= 0) {
+        const double x = std::round(tabs::tab_left(size_t(drawn_.drop), width, n));
+        set(cr, kDropLine);
+        cairo_rectangle(cr, std::clamp(x - 1, 0.0, width - 2.0), 3, 2, h - 6);
+        cairo_fill(cr);
+    }
+
+    set(cr, c.separator);
+    cairo_rectangle(cr, 0, h - 1, width, 1);
+    cairo_fill(cr);
+    cairo_restore(cr);
+}
+
+void Titlebar::render(int width, int height, float scale) {
+    const int pw = int(std::ceil(width * scale));
+    const int ph = int(std::ceil(height * scale));
+    cairo_surface_t* surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, pw, ph);
+    cairo_t* cr = cairo_create(surface);
+    cairo_scale(cr, scale, scale);
+
+    if (drawn_.title_height > 0)
+        draw_title(cr, width, drawn_.title_height);
+    if (!drawn_.tabs.empty())
+        draw_tabs(cr, width, drawn_.title_height);
 
     cairo_destroy(cr);
     cairo_surface_flush(surface);

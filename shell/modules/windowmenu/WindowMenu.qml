@@ -83,6 +83,16 @@ PanelWindow {
             { icon: "arrow_back", text: "Move to Previous Space", run: () => Atrium.action("move-to-space-prev") },
             { icon: "arrow_forward", text: "Move to Next Space", run: () => Atrium.action("move-to-space-next") },
             "-",
+            // Window tabs, as a Mac's Window menu has them.
+            { icon: "tab", text: "Show Previous Tab", enabled: !!root.live.tabs,
+              run: () => Atrium.windowRequest(root.windowId, "tab_prev") },
+            { icon: "tab", text: "Show Next Tab", enabled: !!root.live.tabs,
+              run: () => Atrium.windowRequest(root.windowId, "tab_next") },
+            { icon: "tab_move", text: "Move Tab to New Window", enabled: !!root.live.tabs,
+              run: () => Atrium.windowRequest(root.windowId, "tab_out") },
+            { icon: "tab_group", text: "Merge All Windows", enabled: Atrium.canMergeAll(root.windowId),
+              run: () => Atrium.windowRequest(root.windowId, "merge_all") },
+            "-",
             { icon: "close", text: "Close", danger: true, run: () => Atrium.closeWindow(root.windowId) }
         ]
         onPicked: if (Panels.open === "window-menu") Panels.open = ""

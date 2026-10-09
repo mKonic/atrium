@@ -46,6 +46,7 @@ class Logout;
 class Xsmp;
 class ClipboardHistory;
 class Space;
+struct TabGroup;
 class Settings;
 class View;
 
@@ -170,6 +171,25 @@ public:
     // windows.fullscreen_space: into a space of its own on fullscreen, and
     // back home after.
     void fullscreen_space(View* view);
+    // Window tabs (tabs.cpp), as a Mac's: windows sharing one frame, one
+    // shown. Switching hands the frame and its state (fullscreen, maximized,
+    // snapped, its tile) on to the tab coming forward, as Hyprland's group.
+    std::vector<std::unique_ptr<TabGroup>> tab_groups;
+    wlr_scene_tree* tab_stash = nullptr;  // never drawn: where the tabs behind wait
+    // `v` (and its own tabs) in as tabs of `into`'s window, at `index` on
+    // its bar or after the one shown; `v` is shown.
+    void merge_tab(View* into, View* v, std::optional<size_t> index = std::nullopt);
+    void select_tab(View* v);
+    void step_tab(View* v, bool next);
+    void move_tab(View* v, size_t to);
+    // Out into a window of its own (Move Tab to New Window), its frame at
+    // `frame` when given, else a step down and right of the tabs'.
+    void detach_tab(View* v, std::optional<wlr_box> frame = std::nullopt);
+    void tab_closed(View* v);
+    // Merge All Windows: the app's other windows on its space as its tabs.
+    void merge_all_windows(View* v);
+    // windows.prefer_tabs: a new window of the app in front opens as its tab.
+    bool open_as_tab(View* v, View* front);
     // Tiling (tiling.cpp).
     void toggle_tiling(Space* space);
     void retile(Space* space);         // lay a tiled space out again; nothing if it floats

@@ -31,6 +31,7 @@
 #include "switcher.hpp"
 #include "snap_preview.hpp"
 #include "theme.hpp"
+#include "tabs.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
 #include "xwayland_view.hpp"
@@ -226,6 +227,8 @@ void Server::setup() {
     for (auto& tree : layers_)
         tree = wlr_scene_tree_create(&scene->tree);
     drag_icons = wlr_scene_tree_create(&scene->tree);
+    tab_stash = wlr_scene_tree_create(&scene->tree);
+    wlr_scene_node_set_enabled(&tab_stash->node, false);
     wlr_scene_node_place_below(&drag_icons->node, &layer(Layer::Lock)->node);
     snap_preview = std::make_unique<SnapPreview>(*this);
     overview = std::make_unique<Overview>(*this);
@@ -1272,6 +1275,14 @@ void Server::focus_view(View* view, bool raise) {
             }
     }
 
+    // A tab behind: it comes forward, taking the frame (and the focus, when
+    // the one shown had it).
+    if (view && view->tab_hidden()) {
+        select_tab(view);
+        if (focused_view == view)
+            return;
+    }
+
     // Focusing a window on another space goes there, like macOS.
     if (view && view->space && !view->space->shown())
         reveal(view->space);
@@ -1791,6 +1802,11 @@ void Server::run_action(const Keybind& b) {
     case Action::Place:
         if (v)
             place_window(v, b.arg);
+        break;
+    case Action::TabNext:
+    case Action::TabPrev:
+        if (v)
+            step_tab(v, b.action == Action::TabNext);
         break;
     case Action::TogglePin:
         if (v) {

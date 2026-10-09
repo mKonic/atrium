@@ -323,6 +323,30 @@ QVariantList Compositor::windowsOn(const QString& output, int space) const {
     return out;
 }
 
+bool Compositor::canMergeAll(int id) const {
+    QVariantMap self;
+    for (const QVariant& v : windows_)
+        if (v.toMap().value("id").toInt() == id)
+            self = v.toMap();
+    const QString app = self.value("app_id").toString();
+    if (app.isEmpty() || self.value("modal").toBool() || !self.value("parent").isNull())
+        return false;
+    QList<qlonglong> tabs;
+    for (const QVariant& t : self.value("tabs").toList())
+        tabs.push_back(t.toLongLong());
+    for (const QVariant& v : windows_) {
+        const QVariantMap w = v.toMap();
+        const qlonglong wid = w.value("id").toLongLong();
+        if (wid == id || tabs.contains(wid) || w.value("tab_hidden").toBool() || w.value("modal").toBool() ||
+            !w.value("parent").isNull() || w.value("skip_taskbar").toBool())
+            continue;
+        if (w.value("app_id").toString() == app && w.value("space").toString() == self.value("space").toString() &&
+            w.value("secret").toBool() == self.value("secret").toBool())
+            return true;
+    }
+    return false;
+}
+
 bool Compositor::fullscreenOn(const QString& output) const {
     const QString label = QString::number(activeSpace(output));
     for (const QVariant& v : windows_) {

@@ -19,6 +19,7 @@
 
 #include "output.hpp"
 #include "server.hpp"
+#include "tabs.hpp"
 #include "space.hpp"
 #include "version.hpp"
 #include "view.hpp"
@@ -355,6 +356,15 @@ json pid_json(const View& v) {
 }
 
 // An X11 window's id (what its app registers its menus under).
+json tabs_json(const View& v) {
+    if (!v.tabs)
+        return nullptr;
+    json ids = json::array();
+    for (const View* t : v.tabs->items)
+        ids.push_back(t->id);
+    return ids;
+}
+
 json x11_window_json(const View& v) {
 #ifdef ATRIUM_XWAYLAND
     if (v.kind == View::Kind::X11)
@@ -391,7 +401,9 @@ json Ipc::window_json(const View& v) {
         {"sticky", v.sticky},
         {"tiled", v.tiled()},
         {"identifier", v.toplevel_identifier()},
-        {"title_bar", v.top()},  // the geometry's top rows that are atrium's title bar
+        {"title_bar", v.top()},  // the geometry's top rows that are atrium's title bar (and tab bar)
+        {"tabs", tabs_json(v)},   // its tabs' window ids in bar order, null on its own
+        {"tab_hidden", v.tab_hidden()},
         {"menu", menu_json(v)},
         {"x11_window", x11_window_json(v)},
         {"pid", pid_json(v)},
@@ -1128,6 +1140,28 @@ json Ipc::handle(Client& c, const json& req) {
             server_.focus_view(v);
         } else if (cmd == "window.close") {
             v->close();
+        } else if (cmd == "window.tab_next" || cmd == "window.tab_prev") {
+            server_.step_tab(v, cmd == "window.tab_next");
+        } else if (cmd == "window.tab_out") {
+            // Move Tab to New Window.
+            if (!v->tabs)
+                return fail("the window has no tabs");
+            server_.detach_tab(v);
+        } else if (cmd == "window.merge_all") {
+            server_.merge_all_windows(v);
+        } else if (cmd == "window.tab_into") {
+            // In as a tab of another window ("into": its id; "index": where on its bar).
+            View* into = nullptr;
+            if (req.contains("into") && req["into"].is_number_unsigned())
+                for (View* w : server_.views)
+                    if (w->id == req["into"].get<uint64_t>())
+                        into = w;
+            if (!into || into == v)
+                return fail("window.tab_into needs another window's id as \"into\"");
+            std::optional<size_t> index;
+            if (req.contains("index") && req["index"].is_number_unsigned())
+                index = req["index"].get<size_t>();
+            server_.merge_tab(into, v, index);
         } else if (cmd == "window.minimize") {
             v->set_minimized(has_value ? req["value"].get<bool>() : true);
         } else if (cmd == "window.maximize") {

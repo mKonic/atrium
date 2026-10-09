@@ -67,6 +67,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Privacy dots in the menu bar while an app shares the screen (purple), uses a camera (green) or a microphone (orange); a click says which apps.
 - VPN: WireGuard configurations imported in Settings > Wi-Fi & Network (a .conf, or a provider's .zip such as Mullvad's, which becomes one VPN with its servers); in Control Center it turns on and off and its location is chosen by country or city, the recently used first; a default location in Settings; a key in the menu bar while it's on; Toggle VPN in the launcher.
 - A mouse's extra buttons remapped in Settings > Mouse & Touchpad, as KWin's do: Add Button asks for a press, then it presses keys (atrium's own shortcuts too), acts as another button, or does nothing.
+- Window tabs, as a Mac's: Merge All Windows and the rest in the window menu, a tab bar to click, drag along, drag out of or drop another window onto, Ctrl+Tab between them, and new windows opening as tabs (Windows: Prefer tabs when opening windows).
 
 ### Changed
 - Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.

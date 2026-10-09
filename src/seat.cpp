@@ -17,6 +17,7 @@
 #include "space.hpp"
 #include "snap_preview.hpp"
 #include "toplevel_drag.hpp"
+#include "tabs.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
 
@@ -616,6 +617,10 @@ const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
     // so there is always a way out.
     if (bind->action != Action::SwitchVt && shortcuts_inhibited())
         return nullptr;
+    // Ctrl+Tab is the app's, unless its window has tabs of ours.
+    if ((bind->action == Action::TabNext || bind->action == Action::TabPrev) &&
+        !(server.focused_view && server.focused_view->tabs))
+        return nullptr;
     return bind;
 }
 
@@ -977,13 +982,16 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             geometry::snap(nx, ny, grab_view_->geom.width, grab_view_->geom.height, o->usable,
                            server.config.snap_distance);
         grab_view_->move_to(nx, ny);
+        // Over another window's tab bar: in there, if dropped.
+        const TabDrop drop = tab_drop_at(grab_view_);
+        show_tab_drop(grab_view_, drop.into ? drop.into->titlebar.get() : nullptr, int(drop.slot));
         if (!grab_view_->wobbly() && !grab_view_->layout_owned() && !(grab_view_->space && grab_view_->space->tiled))
             grab_view_->wobble_begin(grab_x_, grab_y_, false);
 
         // Screen edges and corners offer to tile the window.
         Output* o = server.output_at(cursor->x, cursor->y);
         const bool tiling = (grab_view_->space && grab_view_->space->tiled) || grab_view_->layout_owned();
-        const uint32_t zone = (o && server.config.snapping && !tiling && !edge_carried_)
+        const uint32_t zone = (o && server.config.snapping && !tiling && !edge_carried_ && !drop.into)
             ? geometry::snap_zone(o->box, cursor->x, cursor->y, 4, 80) : 0;
         if (zone != snap_zone_) {
             snap_zone_ = zone;
@@ -1034,8 +1042,14 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     // A title-bar button held down: it shows pressed only while the pointer
     // stays on it, and nothing else gets the pointer meanwhile.
     if (press_bar_) {
-        const auto part = hit.titlebar == press_bar_ ? int(press_bar_->part_at(hit.sx, hit.sy)) : 0;
-        press_bar_->set_pressed(part == press_part_ ? Titlebar::Part(press_part_) : Titlebar::Part::None);
+        int tab = -1;
+        const auto part = hit.titlebar == press_bar_ ? int(press_bar_->part_at(hit.sx, hit.sy, &tab)) : 0;
+        const bool on = part == press_part_ && tab == press_tab_;
+        press_bar_->set_pressed(on ? Titlebar::Part(press_part_) : Titlebar::Part::None, on ? press_tab_ : -1);
+        return;
+    }
+    if (tab_drag_) {
+        tab_drag_motion();
         return;
     }
 
@@ -1053,7 +1067,9 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             return;
         }
         if (hit.titlebar) {
-            set_titlebar_hover(hit.titlebar, int(hit.titlebar->part_at(hit.sx, hit.sy)));
+            int tab = -1;
+            const auto part = hit.titlebar->part_at(hit.sx, hit.sy, &tab);
+            set_titlebar_hover(hit.titlebar, int(part), tab);
             wlr_seat_pointer_notify_clear_focus(wlr);
             set_default_cursor();
             return;
@@ -1256,13 +1272,23 @@ void Seat::button_event(wlr_pointer_button_event* e) {
             titlebar_button(e, server.hit_test(cursor->x, cursor->y));
             return;
         }
+        if (tab_drag_) {
+            tab_drag_ = nullptr;
+            mode = Mode::Normal;
+            set_default_cursor();
+            refresh_pointer();
+            return;
+        }
         if (!server.locked && (mode == Mode::Move || mode == Mode::Resize)) {
             // The grab ate the press; the release ends it and is ours too.
             // Dropped over a snap zone, the window takes it.
             View* dropped = mode == Mode::Move ? grab_view_ : nullptr;
             const uint32_t zone = snap_zone_;
+            const TabDrop drop = dropped ? tab_drop_at(dropped) : TabDrop{};
             cancel_grab();
-            if (dropped && dropped->tiled())
+            if (drop.into)
+                server.merge_tab(drop.into, dropped, drop.slot);
+            else if (dropped && dropped->tiled())
                 server.tile_drop(dropped, cursor->x, cursor->y);  // trade places, or back to its slot
             else if (dropped && dropped->layout_owned())
                 dropped->fit_secret(false);  // back to its frame
@@ -1319,23 +1345,41 @@ Seat::ResizeZone Seat::resize_zone(double lx, double ly, const Hit& hit) const {
     return {};
 }
 
-void Seat::set_titlebar_hover(Titlebar* bar, int part) {
+void Seat::set_titlebar_hover(Titlebar* bar, int part, int tab) {
     if (hover_bar_ && hover_bar_ != bar)
         hover_bar_->set_hover(Titlebar::Part::None);
     hover_bar_ = bar;
     if (bar)
-        bar->set_hover(Titlebar::Part(part));
+        bar->set_hover(Titlebar::Part(part), tab);
 }
 
 // Returns true when the event was the title bar's.
 bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
     using Part = Titlebar::Part;
     if (e->state == WL_POINTER_BUTTON_STATE_PRESSED) {
-        const Part part = hit.titlebar->part_at(hit.sx, hit.sy);
+        int tab = -1;
+        const Part part = hit.titlebar->part_at(hit.sx, hit.sy, &tab);
+        const TabGroup* tabs = hit.view->tabs;
+        View* tab_view = tabs && tab >= 0 && size_t(tab) < tabs->size() ? tabs->items[size_t(tab)] : nullptr;
+        // A middle click closes a tab, on release over it.
+        if (e->button == BTN_MIDDLE && tab_view) {
+            press_bar_ = hit.titlebar;
+            press_part_ = int(Part::Tab);
+            press_tab_ = tab;
+            wlr_seat_pointer_clear_focus(wlr);
+            return true;
+        }
         if (e->button != BTN_LEFT) {
-            server.focus_view(hit.view);
-            if (e->button == BTN_RIGHT && part == Part::Bar)
-                server.show_window_menu(hit.view, cursor->x, cursor->y);
+            server.focus_view(tab_view ? tab_view : hit.view);
+            if (e->button == BTN_RIGHT && (part == Part::Bar || tab_view))
+                server.show_window_menu(tab_view ? tab_view : hit.view, cursor->x, cursor->y);
+            return true;
+        }
+        // A tab comes forward as it's pressed, then can be dragged.
+        if (part == Part::Tab && tab_view) {
+            server.focus_view(tab_view);
+            tab_drag_ = tab_view;
+            wlr_seat_pointer_clear_focus(wlr);
             return true;
         }
         if (part == Part::Bar) {
@@ -1358,23 +1402,35 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
         // Buttons act on release, and only if still over them.
         press_bar_ = hit.titlebar;
         press_part_ = int(part);
-        press_bar_->set_pressed(part);
+        press_tab_ = tab;
+        press_bar_->set_pressed(part, tab);
         wlr_seat_pointer_clear_focus(wlr);
         return true;
     }
 
     Titlebar* bar = press_bar_;
     const Part part = Part(press_part_);
+    const int pressed_tab = press_tab_;
     press_bar_ = nullptr;
     press_part_ = 0;
+    press_tab_ = -1;
     mode = Mode::Normal;
     bar->set_pressed(Part::None);
-    if (hit.titlebar != bar || bar->part_at(hit.sx, hit.sy) != part) {
+    int tab = -1;
+    const Part released = hit.titlebar == bar ? bar->part_at(hit.sx, hit.sy, &tab) : Part::None;
+    // A middle click closes the tab anywhere on it.
+    const bool same = part == Part::Tab ? (released == Part::Tab || released == Part::TabClose) : released == part;
+    if (!same || tab != pressed_tab) {
         refresh_pointer();
         return true;
     }
     View& v = bar->view();
     switch (part) {
+    case Part::Tab:
+    case Part::TabClose:
+        if (v.tabs && pressed_tab >= 0 && size_t(pressed_tab) < v.tabs->size())
+            v.tabs->items[size_t(pressed_tab)]->close();
+        break;
     case Part::Close: v.close(); break;
     case Part::Minimize: if (!v.layout_owned()) v.set_minimized(true); break;
     // Green is full screen, as on a Mac: the window takes the whole screen,
@@ -1418,6 +1474,23 @@ void Seat::axis(wlr_pointer_axis_event* e) {
         return;
     }
     space_scroll_ = 0;
+    // Over a tab bar, scrolling steps through the tabs (Hyprland's groupbar
+    // scrolling): a wheel once a notch, a touchpad once per stretch.
+    if (!server.locked && mode == Mode::Normal && e->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+        const Hit hit = server.hit_test(cursor->x, cursor->y);
+        const auto part = hit.titlebar ? hit.titlebar->part_at(hit.sx, hit.sy) : Titlebar::Part::None;
+        if (hit.view && hit.view->tabs && (part == Titlebar::Part::Tab || part == Titlebar::Part::TabClose)) {
+            const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->delta_discrete != 0;
+            tab_scroll_ += wheel ? e->delta_discrete / 120.0 : e->delta / 40.0;
+            while (std::abs(tab_scroll_) >= 1) {
+                const int step = tab_scroll_ > 0 ? 1 : -1;
+                tab_scroll_ -= step;
+                server.step_tab(hit.view->tabs->now(), step > 0);
+            }
+            return;
+        }
+    }
+    tab_scroll_ = 0;
     wlr_seat_pointer_notify_axis(wlr, e->time_msec, e->orientation, e->delta, e->delta_discrete,
                                  e->source, e->relative_direction);
 }
@@ -1503,6 +1576,7 @@ void Seat::push_edge(double dx) {
 }
 
 void Seat::cancel_grab() {
+    show_tab_drop(grab_view_, nullptr, -1);
     if (grab_view_ && mode == Mode::Resize)
         grab_view_->end_resize();
     if (grab_view_)
@@ -1516,9 +1590,62 @@ void Seat::cancel_grab() {
     mode = Mode::Normal;
 }
 
+// --- tabs ------------------------------------------------------------------------------
+
+void Seat::tab_drag_motion() {
+    View* t = tab_drag_;
+    if (!t->tabs || !t->titlebar || t->fullscreen) {
+        tab_drag_ = nullptr;
+        return;
+    }
+    const wlr_box& g = t->geom;
+    const double top = g.y + t->titlebar->title_height();
+    // How far off the bar the pointer has gone.
+    const double off = std::max({top - cursor->y, cursor->y - (top + Titlebar::kTabHeight), g.x - cursor->x,
+                                 cursor->x - (g.x + g.width)});
+    constexpr double kTearOff = 20;
+    if (off > kTearOff) {
+        // A window of its own now, under the pointer, held by its title bar.
+        const int bar = t->wants_ssd() ? Titlebar::kHeight : 0;
+        const wlr_box frame{int(cursor->x) - std::min(g.width / 2, 120), int(cursor->y) - (bar ? bar / 2 : 8), g.width,
+                            g.height - Titlebar::kTabHeight};
+        tab_drag_ = nullptr;
+        server.detach_tab(t, frame);
+        begin_move(t);
+        return;
+    }
+    // Along the bar: it takes the place of the tab it's over.
+    const auto at = tabs::tab_at(cursor->x - g.x, g.width, t->tabs->size());
+    if (at && *at != *t->tabs->index_of(t))
+        server.move_tab(t, *at);
+}
+
+Seat::TabDrop Seat::tab_drop_at(View* dragged) const {
+    const Hit hit = server.hit_test(cursor->x, cursor->y, dragged);
+    if (!hit.titlebar || !hit.view || hit.view == dragged || !hit.view->tabs ||
+        (dragged->tabs && dragged->tabs == hit.view->tabs))
+        return {};
+    const auto part = hit.titlebar->part_at(hit.sx, hit.sy);
+    if (part != Titlebar::Part::Tab && part != Titlebar::Part::TabClose)
+        return {};
+    return {hit.view, tabs::drop_slot(hit.sx, hit.view->geom.width, hit.view->tabs->size())};
+}
+
+void Seat::show_tab_drop(View* dragged, Titlebar* bar, int slot) {
+    if (drop_bar_ && drop_bar_ != bar)
+        drop_bar_->set_drop(-1);
+    if (dragged && bool(drop_bar_) != bool(bar))
+        dragged->set_alpha(bar ? 0.5f : 1.0f);
+    drop_bar_ = bar;
+    if (bar)
+        bar->set_drop(slot);
+}
+
 void Seat::titlebar_gone(Titlebar* bar) {
     if (hover_bar_ == bar)
         hover_bar_ = nullptr;
+    if (drop_bar_ == bar)
+        drop_bar_ = nullptr;
     if (press_bar_ == bar) {
         press_bar_ = nullptr;
         mode = Mode::Normal;
@@ -1528,6 +1655,12 @@ void Seat::titlebar_gone(Titlebar* bar) {
 void Seat::view_unmapped(View* view) {
     if (grab_view_ == view)
         cancel_grab();
+    if (tab_drag_ == view) {
+        tab_drag_ = nullptr;
+        mode = Mode::Normal;
+    }
+    if (drop_bar_ && &drop_bar_->view() == view)
+        drop_bar_ = nullptr;
     if (hover_bar_ && &hover_bar_->view() == view)
         hover_bar_ = nullptr;
     if (press_bar_ && &press_bar_->view() == view) {

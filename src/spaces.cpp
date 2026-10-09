@@ -9,6 +9,7 @@
 #include "seat.hpp"
 #include "server.hpp"
 #include "space.hpp"
+#include "tabs.hpp"
 #include "view.hpp"
 
 #include <algorithm>
@@ -170,7 +171,7 @@ bool Server::carry_to_space(View* view, int direction) {
     if (!view || !view->space || view->space->secret || !view->output || view->space != view->output->active)
         return false;
     const int n = view->space->number + direction;
-    const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space; });
+    const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space && !(view->tabs && v->tabs == view->tabs); });
     if (n < 1 || (direction > 0 && alone && !find_space(view->output, n)))
         return false;  // nowhere to go, or it would only trade one empty space for another
     switch_space(view->output, n, view);
@@ -183,14 +184,14 @@ void Server::fullscreen_space(View* view) {
         return;
     if (!view->fullscreen) {
         const int home = std::exchange(view->fullscreen_home, 0);
-        const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space; });
+        const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space && !(view->tabs && v->tabs == view->tabs); });
         if (home && alone && home != view->space->number)
             switch_space(o, home, view);
         return;
     }
     if (!config.fullscreen_space || view->space->tiled || view->fullscreen_home)
         return;
-    const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space; });
+    const bool alone = std::ranges::none_of(views, [&](View* v) { return v != view && v->space == view->space && !(view->tabs && v->tabs == view->tabs); });
     if (alone)
         return;  // it has the space to itself already
     int n = view->space->number + 1;
@@ -254,6 +255,11 @@ void Server::move_to_space(View* view, Space* space) {
         view->leave_secret();
     view->update_decorations();
 
+    // Its tabs go with it.
+    if (view->tabs && view->tabs->now() == view)
+        for (View* m : std::vector<View*>(view->tabs->items))
+            if (m != view)
+                move_to_space(m, space);
     if (was_focused && !space->shown()) {
         drop_focus();
         focus_top();

@@ -77,6 +77,9 @@ public:
     Q_INVOKABLE int activeSpace(const QString& output) const;
     Q_INVOKABLE QVariantList spacesOn(const QString& output) const;
     Q_INVOKABLE QVariantList windowsOn(const QString& output, int space) const;
+    // Merge All Windows has something to merge: the app has other windows
+    // on the window's space, not among its tabs.
+    Q_INVOKABLE bool canMergeAll(int id) const;
     // A fullscreen window is showing on the output: panels get out of the way.
     Q_INVOKABLE bool fullscreenOn(const QString& output) const;
     Q_INVOKABLE QVariant setting(const QString& key, const QVariant& fallback) const;

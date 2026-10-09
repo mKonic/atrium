@@ -62,7 +62,7 @@ void Switcher::step(int direction, uint32_t hold) {
         for (View* v : server_.views) {
             // A window's dialogs go with it (focusing it hands over to its
             // modal one), as on Windows: one entry per window, not per sheet.
-            if (v->unmanaged() || !v->mapped || v->output != o || !v->space || v->hidden_from_lists() || v->parent())
+            if (v->unmanaged() || !v->mapped || v->tab_hidden() || v->output != o || !v->space || v->hidden_from_lists() || v->parent())
                 continue;
             if (only ? v->space != only : !v->space->shown())
                 continue;

@@ -29,6 +29,7 @@ Rectangle {
             "focus-direction": "Focus the window beside", "move-direction": "Move window",
             "move-to-space-prev": "Move window to previous space", "move-to-space-next": "Move window to next space",
             "toggle-floating": "Float out of the tiles", "toggle-pin": "Show on every space",
+            "tab-next": "Show next tab", "tab-prev": "Show previous tab",
             "next_layout": "Next keyboard layout", "portal": "An app's shortcut",
             "lock": "Lock screen", "switch-user": "Switch user", "place": "Place window"
         })

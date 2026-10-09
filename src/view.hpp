@@ -13,6 +13,7 @@ namespace atrium {
 class Output;
 class Server;
 class Space;
+struct TabGroup;
 
 // A top-level application window: an xdg_toplevel or an X11 window.
 //
@@ -55,10 +56,18 @@ public:
     // Whether the client leaves decorating to atrium. Every window that allows
     // it gets atrium's title bar, so all windows look alike.
     virtual bool wants_ssd() const { return false; }
-    // Add or drop the title bar after the client changed its mind.
+    // Add or drop the title bar after the client changed its mind, or the
+    // tab bar as it joins or leaves tabs.
     void refresh_decoration_mode();
-    // Height of atrium's title bar above the content; 0 without one or fullscreen.
+    // Height of atrium's title bar (and tab bar) above the content; 0
+    // without one or fullscreen.
     int top() const;
+
+    // Window tabs (tabs.cpp): the windows it shares its frame with, one of
+    // them shown, a tab for each on the bar above. Null when on its own.
+    TabGroup* tabs = nullptr;
+    // A tab behind the one shown: out of sight (under Server::tab_stash).
+    bool tab_hidden() const;
 
     // --- window management -------------------------------------------------
     void move_to(int x, int y);
@@ -248,6 +257,8 @@ protected:
     double reveal_ = 0;  // the title bar over fullscreen: 0 hidden, 1 out (animated)
     int reveal_y_ = 0;
     bool tile_bar_hidden_ = false;
+    int laid_top_ = 0;  // top() as layout_frame() last laid the frame out
+    bool framed_tabs_ = false;  // the tab bar is counted in geom and restore
 
     // Where the app's last window was, claimed for this one (see Server::placement_for).
     std::optional<Placement> remembered_;

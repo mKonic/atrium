@@ -8,6 +8,7 @@
 #include "palette.hpp"
 #include "overview.hpp"
 #include "switcher.hpp"
+#include "tabs.hpp"
 #include "seat.hpp"
 #include "server.hpp"
 #include "session_management.hpp"
@@ -78,13 +79,19 @@ void View::set_alpha(float a) {
 }
 
 wlr_scene_tree* View::home_tree() const {
+    if (tab_hidden())
+        return server.tab_stash;
     if (fullscreen_front())
         return space ? space->fullscreen_tree : server.layer(Layer::Fullscreen);
     return space ? space->tree : server.layer(Layer::Views);
 }
 
 bool View::visible() const {
-    return mapped && !minimized && !hidden_by_show_desktop && (!space || space->shown());
+    return mapped && !minimized && !hidden_by_show_desktop && !tab_hidden() && (!space || space->shown());
+}
+
+bool View::tab_hidden() const {
+    return tabs && tabs->now() != this;
 }
 
 wlr_box View::usable_area() const {
@@ -117,6 +124,7 @@ void View::handle_map() {
             server.focus_view(this);
         return;
     }
+    View* const front = server.focused_view;  // before this one takes over
 
     // A new window brings the others back, as in KWin.
     server.set_showing_desktop(false);
@@ -173,6 +181,9 @@ void View::handle_map() {
     else if (remembered_ && remembered_->snapped && !(space && space->tiled))
         snap(remembered_->snapped);
     remembered_.reset();
+    // A new window of the app in front, with tabs preferred, opens as its tab.
+    if (!wish.fullscreen.value_or(false) && !wish.maximized.value_or(false))
+        server.open_as_tab(this, front);
     // A window a rule sent to a space you aren't looking at opens quietly,
     // unless the rule says to follow it there (Hyprland's "workspace N" to
     // its "workspace N silent"); so do splash screens, notifications and
@@ -225,6 +236,9 @@ void View::handle_unmap() {
         server.overview->view_unmapped(this);
     if (server.switcher)
         server.switcher->view_unmapped(this);
+    // Its tabs carry on without it, the next one shown in its place.
+    if (tabs)
+        server.tab_closed(this);
     server.animator.cancel_owner(this, false);
     server.animator.cancel_owner(&morph_old_, false);
     wobble_stop();
@@ -280,6 +294,8 @@ void View::handle_unmap() {
     minimized = maximized = fullscreen = covered = activated = activate_on_map = false;
     snapped = 0;
     tile_bar_hidden_ = false;
+    laid_top_ = 0;
+    framed_tabs_ = false;
     resize_edges_ = 0;
     resize_settling_ = false;
 
@@ -784,13 +800,17 @@ void View::set_output(Output* o) {
 }
 
 int View::top() const {
-    return (titlebar && !fullscreen && !tile_bar_hidden_) ? titlebar->height() : 0;
+    if (!titlebar || fullscreen)
+        return 0;
+    // The title bar (gone from a tile when tiled_titlebars is off), then the tabs.
+    return (titlebar->chrome() && !tile_bar_hidden_ ? Titlebar::kHeight : 0) + (tabs ? Titlebar::kTabHeight : 0);
 }
 
 // Content and popups sit below the title bar.
 void View::layout_frame() {
     if (!tree)
         return;
+    laid_top_ = top();
     wlr_scene_node_set_position(&content->node, 0, top());
     wlr_scene_node_set_position(&popups->node, 0, top());
     if (titlebar) {
@@ -806,7 +826,7 @@ void View::layout_frame() {
 }
 
 void View::reveal_titlebar(bool on, int y) {
-    if (!titlebar || (on && !fullscreen))
+    if (!titlebar || !titlebar->chrome() || (on && !fullscreen))
         return;
     reveal_y_ = y;
     const double from = reveal_;
@@ -824,24 +844,45 @@ void View::reveal_titlebar(bool on, int y) {
 }
 
 int View::revealed_titlebar_bottom() const {
-    return fullscreen && reveal_ > 0 && titlebar ? reveal_y_ + Titlebar::kHeight : 0;
+    return fullscreen && reveal_ > 0 && titlebar && titlebar->chrome() ? reveal_y_ + Titlebar::kHeight : 0;
 }
 
 void View::refresh_decoration_mode() {
     if (!mapped || unmanaged())
         return;
-    const bool want = wants_ssd();
-    if (want == bool(titlebar))
+    // A window drawing its own title bar still gets the tab bar.
+    const bool ssd = wants_ssd();
+    const bool want = ssd || tabs;
+    if (want == bool(titlebar) && (!titlebar || titlebar->chrome() == ssd) && top() == laid_top_ &&
+        bool(tabs) == framed_tabs_)
         return;
-    // The content keeps its size; the frame grows or shrinks by the bar.
-    const int old_top = top();
-    if (want) {
+    const int old_top = laid_top_;
+    if (want && !titlebar) {
         titlebar = std::make_unique<Titlebar>(*this, tree);
-    } else {
+    } else if (!want && titlebar) {
         server.seat->titlebar_gone(titlebar.get());
         titlebar.reset();
     }
-    geom.height += top() - old_top;
+    if (titlebar)
+        titlebar->set_chrome(ssd);
+    // The size it goes back to (from fullscreen, maximized, snapped) gains
+    // or loses the tab bar too.
+    if (bool(tabs) != framed_tabs_) {
+        framed_tabs_ = bool(tabs);
+        if (fullscreen || maximized || snapped || tiled_)
+            restore.height += tabs ? Titlebar::kTabHeight : -Titlebar::kTabHeight;
+    }
+    // The content keeps its size and the frame grows or shrinks by the bar,
+    // unless the frame is the layout's (maximized, snapped, a tile): then
+    // the content gives way.
+    if (top() != old_top && (maximized || snapped || tiled_) && !fullscreen) {
+        wlr_box frame = geom;
+        geom.height += top() - old_top;
+        layout_frame();
+        request_geometry(frame);
+    } else {
+        geom.height += top() - old_top;
+    }
     layout_frame();
     update_decorations();
     server.seat->refresh_pointer();
@@ -1045,7 +1086,7 @@ void View::set_minimized(bool m) {
     // straight timeline, or its Squash (Scale), cubic. With no icon to go
     // into, it just goes, as in KWin.
     const auto target = server.config.animations ? server.dock_icon_of(*this) : std::nullopt;
-    if (target && tree->node.parent && mapped && (!space || space->shown())) {
+    if (target && tree->node.parent && mapped && (!space || space->shown()) && !tab_hidden()) {
         anim_snap_ = take_snapshot(tree->node.parent);
         Snapshot* snap = anim_snap_.get();
         // The icon in the snapshot's coordinates (the space's, which may be

@@ -63,7 +63,7 @@ private:
     sqlite3_stmt* stmt_ = nullptr;
 };
 
-constexpr int kSchemaVersion = 16;
+constexpr int kSchemaVersion = 17;
 
 constexpr const char* kApps =
     "SELECT app_id, secret, space, launch, dock, maximized, fullscreen,"
@@ -303,6 +303,16 @@ void Registry::migrate() {
     if (version > 0 && version < 16)
         for (const char* table : {"apps", "rules"})
             exec((std::string("ALTER TABLE ") + table + " ADD COLUMN render_unfocused INTEGER").c_str());
+    // 17: window tabs, as a Mac's Show Next and Previous Tab.
+    if (version >= 2 && version < 17) {
+        const char* added[][2] = {{"Ctrl+Tab", "tab-next"}, {"Ctrl+Shift+Tab", "tab-prev"}};
+        for (const auto& a : added) {
+            Stmt add(db_, "INSERT INTO shortcuts (position, keys, action, arg) "
+                          "SELECT COALESCE(MAX(position), 0) + 1, ?1, ?2, '' FROM shortcuts "
+                          "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = ?1)");
+            add.bind(1, std::string(a[0])).bind(2, std::string(a[1])).run();
+        }
+    }
     exec(("PRAGMA user_version=" + std::to_string(kSchemaVersion)).c_str());
     exec("COMMIT");
 }

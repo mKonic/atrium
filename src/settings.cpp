@@ -94,6 +94,8 @@ constexpr ActionName kActions[] = {
     {Action::MoveToSpaceNext, "move-to-space-next"},
     {Action::ToggleFloating, "toggle-floating"},
     {Action::TogglePin, "toggle-pin"},
+    {Action::TabNext, "tab-next"},
+    {Action::TabPrev, "tab-prev"},
     {Action::Place, "place"},
     {Action::Lock, "lock"},
     {Action::SwitchUser, "switch-user"},
@@ -216,6 +218,9 @@ json default_keybinds() {
         {{"keys", "Mod+Ctrl+Shift+Right"}, {"action", "move-to-space-next"}},
         {{"keys", "Mod+Alt+Space"}, {"action", "toggle-floating"}},
         {{"keys", "Mod+P"}, {"action", "toggle-pin"}},
+        // Show Next and Previous Tab, as on a Mac; the app keeps the keys when its window has no tabs.
+        {{"keys", "Ctrl+Tab"}, {"action", "tab-next"}},
+        {{"keys", "Ctrl+Shift+Tab"}, {"action", "tab-prev"}},
         {{"keys", "Mod+Page_Up"}, {"action", "space-prev"}},
         {{"keys", "Mod+Page_Down"}, {"action", "space-next"}},
         {{"keys", "Mod+Ctrl+Left"}, {"action", "space-prev"}},
@@ -516,6 +521,14 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.fullscreen_space", "Windows", "Fullscreen apps get their own space",
         "As on a Mac: a window going fullscreen moves to a new space next to its own, and comes back when it leaves fullscreen.",
         &Config::fullscreen_space, d));
+    s.push_back(choice("windows.prefer_tabs", "Windows", "Prefer tabs when opening windows",
+        "As on a Mac: a new window of the app in front opens as a tab of its window. In Fullscreen does it only while that window is fullscreen.",
+        {"never", "in-fullscreen", "always"},
+        d.prefer_tabs == tabs::Prefer::Always ? "always" : d.prefer_tabs == tabs::Prefer::Never ? "never" : "in-fullscreen",
+        [](Config& c, const json& v) {
+            const std::string p = v.get<std::string>();
+            c.prefer_tabs = p == "always" ? tabs::Prefer::Always : p == "never" ? tabs::Prefer::Never : tabs::Prefer::Fullscreen;
+        }));
     s.push_back(boolean("windows.remember_placement", "Windows", "Reopen windows where they were",
         "An app's first window comes back at the size and place it had when it last closed.",
         &Config::remember_placement, d));

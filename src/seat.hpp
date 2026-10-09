@@ -217,12 +217,29 @@ private:
         uint32_t edges = 0;
     };
     ResizeZone resize_zone(double lx, double ly, const Hit& hit) const;
-    void set_titlebar_hover(Titlebar* bar, int part);
+    void set_titlebar_hover(Titlebar* bar, int part, int tab = -1);
     bool titlebar_button(wlr_pointer_button_event* e, const Hit& hit);
 
     Titlebar* hover_bar_ = nullptr;   // title bar showing hover state
     Titlebar* press_bar_ = nullptr;   // title bar whose button is held
     int press_part_ = 0;              // Titlebar::Part held down
+    int press_tab_ = -1;              // ... on this tab (a tab's close button)
+
+    // A tab held on its bar: dragged along it, it moves among the tabs;
+    // pulled off it, it tears off into a window of its own, being moved.
+    View* tab_drag_ = nullptr;
+    double tab_scroll_ = 0;
+    void tab_drag_motion();
+    // A window being moved over another window's tab bar goes in there
+    // when dropped: the bar shows where.
+    struct TabDrop {
+        View* into = nullptr;
+        size_t slot = 0;
+    };
+    TabDrop tab_drop_at(View* dragged) const;
+    Titlebar* drop_bar_ = nullptr;
+    // The bar shows where; the window carried there fades, so it can be seen.
+    void show_tab_drop(View* dragged, Titlebar* bar, int slot);
     View* last_bar_click_view_ = nullptr;
     uint32_t last_bar_click_ms_ = 0;
 

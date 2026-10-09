@@ -1,4 +1,5 @@
 #pragma once
+#include "tabs_core.hpp"
 #include "wlr.hpp"
 
 #include "rules.hpp"
@@ -55,6 +56,8 @@ enum class Action {
     MoveToSpaceNext,
     ToggleFloating,   // on a tiled space: out of the tiles and back
     TogglePin,        // on every space (sticky)
+    TabNext,          // the window's next tab (only a window with tabs takes the keys)
+    TabPrev,
     NextLayout,       // the next keyboard layout
     Portal,           // arg: "APP/ID", an app's global shortcut (the portal): held and let go
     Lock,             // the lock screen
@@ -145,6 +148,7 @@ struct Config {
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale
     int snap_gap = 8;         // between and around snapped windows
     bool tiled_titlebars = true;  // snapped/tiled windows keep their title bar
+    tabs::Prefer prefer_tabs = tabs::Prefer::Fullscreen;  // a new window of the app in front opens as its tab
     bool fullscreen_space = false;  // a window going fullscreen gets a space of its own
     bool remember_placement = true;  // an app reopens where its window last closed
 

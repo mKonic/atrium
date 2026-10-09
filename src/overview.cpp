@@ -81,7 +81,7 @@ Color Overview::ring_color() const {
 bool Overview::included(View* v) const {
     if (switching_ && std::ranges::find(only_, v) == only_.end())
         return false;
-    return v->mapped && !v->minimized && !v->unmanaged() && v->space && !v->space->secret &&
+    return v->mapped && !v->minimized && !v->tab_hidden() && !v->unmanaged() && v->space && !v->space->secret &&
            v->space->shown() && v->output && v->tree && (app_.empty() || app_ == v->app_id());
 }
 
@@ -723,7 +723,7 @@ void Overview::build_strip(Screen& sc) {
         // Its windows, bottom of the stack first.
         for (auto it = server_.views.rbegin(); it != server_.views.rend(); ++it) {
             View* v = *it;
-            if (v->space != sp || v->minimized || !v->mapped || !v->tree)
+            if (v->space != sp || v->minimized || v->tab_hidden() || !v->mapped || !v->tree)
                 continue;
             if (!c.transparency) {
                 auto* back = wlr_scene_rect_create(mini, std::max(1, round_i(v->geom.width * s)),
