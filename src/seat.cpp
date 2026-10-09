@@ -921,13 +921,13 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     wlr_scene_node_set_position(&server.drag_icons->node, int(std::lround(cursor->x)),
                                 int(std::lround(cursor->y)));
 
+    if (time && server.switcher->active())
+        server.switcher->pointer_moved();  // only real moves pick (Alt+Tab)
     if (server.overview->active()) {
         server.overview->motion(cursor->x, cursor->y);
         return;
     }
     // With icons the shell's panel takes the pointer like any surface.
-    if (time && server.switcher->active())
-        server.switcher->pointer_moved();
     if (server.switcher->active() && !server.switcher->icons()) {
         // Only the pointer really moving picks: the panel opening under a
         // resting pointer (its refresh, time 0) mustn't pick what's beneath.

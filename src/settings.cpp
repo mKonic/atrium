@@ -481,9 +481,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.motion_blur", "Windows", "Motion blur",
         "Windows blur along the way as they move, like a camera sees fast motion.", &Config::motion_blur, d));
     s.push_back(choice("windows.switcher_style", "Windows", "Alt+Tab shows",
-        "Icons: each window's app icon in a row, as a Mac's Command-Tab. Previews: a live picture of each window.",
-        {"icons", "previews"}, d.switcher_icons ? "icons" : "previews",
-        [](Config& c, const json& v) { c.switcher_icons = v.get<std::string>() == "icons"; }));
+        "Spread: the windows themselves glide apart with their titles, as a Mac's Mission Control. Icons: each "
+        "window's app icon in a row, as Command-Tab. Previews: small live pictures in a row.",
+        {"spread", "icons", "previews"}, d.switcher_style,
+        [](Config& c, const json& v) { c.switcher_style = v.get<std::string>(); }));
     s.push_back(choice("windows.minimize_effect", "Windows", "Minimize effect",
         "How a window goes into the Dock: Genie pours it in, as on a Mac; Scale shrinks it.",
         {"genie", "scale"}, d.minimize_genie ? "genie" : "scale",

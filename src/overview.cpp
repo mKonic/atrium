@@ -7,6 +7,7 @@
 #include "output.hpp"
 #include "seat.hpp"
 #include "server.hpp"
+#include "switcher.hpp"
 #include "space.hpp"
 #include "view.hpp"
 #include "window_copy.hpp"
@@ -78,6 +79,8 @@ Color Overview::ring_color() const {
 }
 
 bool Overview::included(View* v) const {
+    if (switching_ && std::ranges::find(only_, v) == only_.end())
+        return false;
     return v->mapped && !v->minimized && !v->unmanaged() && v->space && !v->space->secret &&
            v->space->shown() && v->output && v->tree && (app_.empty() || app_ == v->app_id());
 }
@@ -126,6 +129,30 @@ void Overview::open_app(const std::string& app_id) {
     close_now();
     app_ = app_id;
     open(!switching);
+}
+
+void Overview::open_switcher(const std::vector<View*>& views) {
+    if (state_ != State::Closed)
+        close_now();
+    switching_ = true;
+    only_ = views;
+    open(true);
+    if (state_ != State::Open) {
+        switching_ = false;
+        only_.clear();
+        return;
+    }
+    // Every window says what it is, above it, as in Mission Control.
+    for (auto& t : thumbs_) {
+        render_label(*t);
+        wlr_scene_node_set_enabled(&t->label->node, true);
+        place(*t, t->cur);
+    }
+}
+
+void Overview::highlight_view(View* view) {
+    if (switching())
+        set_highlight(thumb_for(view));
 }
 
 void Overview::open(bool animate) {
@@ -214,6 +241,8 @@ void Overview::finish_close() {
     destroy_all();
     state_ = State::Closed;
     app_.clear();
+    switching_ = false;
+    only_.clear();
     for (View* v : views)
         v->set_alpha(1.0f);
     server_.seat->refresh_pointer();
@@ -328,7 +357,9 @@ void Overview::place(Thumb& t, const wlr_box& box) {
     wlr_scene_rect_set_size(t.backing, box.width, box.height);
     wlr_scene_rect_set_corner_radius(t.backing, radius);
 
-    wlr_scene_node_set_position(&t.label->node, (box.width - t.label_w) / 2, box.height + kLabelGap);
+    // Under it in the overview; above it in Alt+Tab's spread.
+    wlr_scene_node_set_position(&t.label->node, (box.width - t.label_w) / 2,
+                                switching_ ? -kLabelGap - kLabelHeight : box.height + kLabelGap);
 }
 
 void Overview::relayout(bool animate) {
@@ -363,7 +394,8 @@ void Overview::set_highlight(Thumb* t) {
         return;
     if (highlight_) {
         wlr_scene_node_set_enabled(&highlight_->ring->node, false);
-        wlr_scene_node_set_enabled(&highlight_->label->node, false);
+        if (!switching_)  // the switcher titles them all
+            wlr_scene_node_set_enabled(&highlight_->label->node, false);
     }
     highlight_ = t;
     if (!t)
@@ -438,6 +470,11 @@ void Overview::render_label(Thumb& t) {
 void Overview::motion(double lx, double ly) {
     if (state_ != State::Open)
         return;
+    if (switching_) {
+        if (Thumb* t = thumb_at(lx, ly))
+            server_.switcher->hover_view(t->view);
+        return;
+    }
     if (press_thumb_ && !drag_ && std::hypot(lx - press_x_, ly - press_y_) >= kDragThreshold) {
         drag_ = press_thumb_;
         drag_rx_ = (press_x_ - drag_->cur.x) / std::max(1, drag_->cur.width);
@@ -477,6 +514,16 @@ void Overview::motion(double lx, double ly) {
 void Overview::button(double lx, double ly, uint32_t button, bool pressed) {
     if (state_ != State::Open || button != BTN_LEFT)
         return;
+    if (switching_) {
+        // A click on a window picks it; anywhere else lets go of them all.
+        if (pressed) {
+            if (Thumb* t = thumb_at(lx, ly))
+                server_.switcher->pick_view(t->view);
+            else
+                server_.switcher->cancel();
+        }
+        return;
+    }
     if (pressed) {
         pressed_ = true;
         press_x_ = lx;
@@ -618,6 +665,8 @@ void Overview::build_strip(Screen& sc) {
         wlr_scene_node_destroy(&sc.strip->node);
     sc.strip = wlr_scene_tree_create(sc.tree);
     wlr_scene_node_place_above(&sc.strip->node, &sc.dim->node);
+    if (switching_)
+        return;  // Alt+Tab is about windows, not spaces
 
     Output* o = sc.output;
     std::vector<Space*> spaces;

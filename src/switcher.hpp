@@ -34,6 +34,10 @@ public:
     // With app icons the shell draws the panel (switcher.* events) and takes
     // the pointer over it; these are its hover and click.
     bool icons() const;
+    // With the spread the overview shows the windows and reports these.
+    bool spread() const;
+    void hover_view(View* view);
+    void pick_view(View* view);
     void hover(int index);
     // The pointer really moved (not the panel appearing under it): only then
     // does hovering pick.
@@ -61,6 +65,7 @@ private:
     void announce(const char* what);  // tell the shell (icons)
     bool icons_shown_ = false;         // the shell's panel is up
     bool pointer_moved_ = false;
+    bool spread_shown_ = false;        // the overview is open for us
 
     Server& server_;
     bool active_ = false;

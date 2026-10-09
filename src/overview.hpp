@@ -34,6 +34,11 @@ public:
     void open(bool animate = true);
     // Only `app_id`'s windows (app exposé). Again for the same app closes it.
     void open_app(const std::string& app_id);
+    // Alt+Tab's spread: just these windows, each titled, no spaces strip;
+    // the switcher moves the highlight and hears hovers and clicks.
+    void open_switcher(const std::vector<View*>& views);
+    bool switching() const { return switching_ && state_ == State::Open; }
+    void highlight_view(View* view);
     // Animate back; `pick` (if any) is focused and raised first.
     void close(View* pick = nullptr);
     // Drop everything at once (space switch, lock, teardown).
@@ -112,6 +117,8 @@ private:
     Server& server_;
     State state_ = State::Closed;
     std::string app_;  // app exposé: only this app's windows
+    bool switching_ = false;     // open for Alt+Tab
+    std::vector<View*> only_;    // its windows
     wlr_scene_tree* root_ = nullptr;
     std::vector<std::unique_ptr<Screen>> screens_;
     std::vector<std::unique_ptr<Thumb>> thumbs_;

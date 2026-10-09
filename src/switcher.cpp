@@ -49,9 +49,11 @@ Switcher::~Switcher() {
 }
 
 void Switcher::step(int direction, uint32_t hold) {
-    if (server_.locked || server_.overview->active())
+    if (server_.locked)
         return;
     if (!active_) {
+        if (server_.overview->active())
+            return;
         // Windows of what is on screen here: the shown space, or the secret
         // space over it.
         Output* o = server_.focused_output;
@@ -128,7 +130,21 @@ void Switcher::button(double lx, double ly, bool pressed) {
 }
 
 bool Switcher::icons() const {
-    return server_.config.switcher_icons;
+    return server_.config.switcher_style == "icons";
+}
+
+bool Switcher::spread() const {
+    return server_.config.switcher_style == "spread";
+}
+
+void Switcher::hover_view(View* view) {
+    if (auto it = std::ranges::find(views_, view); it != views_.end())
+        hover(int(it - views_.begin()));
+}
+
+void Switcher::pick_view(View* view) {
+    if (auto it = std::ranges::find(views_, view); it != views_.end())
+        pick(int(it - views_.begin()));
 }
 
 void Switcher::hover(int index) {
@@ -162,12 +178,17 @@ void Switcher::announce(const char* what) {
 
 void Switcher::commit() {
     View* pick = (index_ >= 0 && index_ < int(views_.size())) ? views_[index_] : nullptr;
+    const bool spread = spread_shown_;
+    spread_shown_ = false;  // the overview goes back on its own, onto the pick
     cancel();
     if (!pick)
         return;
     if (pick->minimized)
         pick->set_minimized(false);
-    server_.focus_view(pick);
+    if (spread && server_.overview->switching())
+        server_.overview->close(pick);  // the windows glide home, the pick on top
+    else
+        server_.focus_view(pick);
 }
 
 void Switcher::cancel() {
@@ -181,11 +202,18 @@ void Switcher::cancel() {
 // --- the panel -------------------------------------------------------------------
 
 void Switcher::show() {
-    if (!active_ || shown_ || icons_shown_)
+    if (!active_ || shown_ || icons_shown_ || spread_shown_)
         return;
     Output* o = server_.focused_output;
     if (!o)
         return;
+    if (spread()) {
+        spread_shown_ = true;
+        pointer_moved_ = false;
+        server_.overview->open_switcher(views_);
+        server_.overview->highlight_view(views_[index_]);
+        return;
+    }
     if (icons()) {
         icons_shown_ = true;
         pointer_moved_ = false;
@@ -215,6 +243,11 @@ void Switcher::show() {
 }
 
 void Switcher::hide() {
+    if (spread_shown_) {
+        spread_shown_ = false;
+        if (server_.overview->switching())
+            server_.overview->close();
+    }
     if (icons_shown_) {
         icons_shown_ = false;
         announce("switcher.hide");
@@ -297,6 +330,8 @@ void Switcher::layout() {
 
 void Switcher::select(int index) {
     index_ = index;
+    if (spread_shown_ && index >= 0 && index < int(views_.size()))
+        server_.overview->highlight_view(views_[index]);
     if (icons_shown_)
         announce("switcher.select");
     if (!shown_ || index < 0 || index >= int(items_.size()))
@@ -365,6 +400,18 @@ void Switcher::view_changed(View* view) {
 void Switcher::view_unmapped(View* view) {
     if (!active_ || std::ranges::find(views_, view) == views_.end())
         return;
+    if (spread_shown_) {
+        // The overview drops its window itself.
+        View* current = views_[index_];
+        std::erase(views_, view);
+        if (views_.size() < 2) {
+            cancel();
+            return;
+        }
+        auto it = std::ranges::find(views_, current);
+        select(it == views_.end() ? 0 : int(it - views_.begin()));
+        return;
+    }
     // Simplest honest answer: start over without it.
     const bool was_shown = shown_ || icons_shown_;
     View* current = views_[index_];
