@@ -1,12 +1,15 @@
 pragma ComponentBehavior: Bound
 
+import QtCore
 import QtQuick
 import Atrium
 import shell.components
 import shell.services
 
 // Wired and Wi-Fi: what is connected, networks to join (a password asked
-// for right here), and known ones to forget.
+// for right here), and known ones to forget. VPNs: WireGuard configurations
+// imported, a provider's whole download (Mullvad's zip) as one with its
+// servers.
 Column {
     id: root
 
@@ -14,6 +17,8 @@ Column {
     readonly property var networks: Network.networks
     property var joining: null
     property string error: ""
+    property string vpnNote: ""
+    property bool vpnFailed: false
 
     spacing: 20
 
@@ -178,6 +183,110 @@ Column {
                     }
                 }
             }
+        }
+    }
+
+    Group {
+        visible: Vpn.available
+        title: "VPN"
+        headerActions: [
+            PillButton {
+                text: Vpn.importing ? "Importing…" : "Import…"
+                enabled: !Vpn.importing
+                onClicked: vpnPicker.open()
+            }
+        ]
+
+        StyledText {
+            visible: Vpn.tunnels.length === 0
+            width: parent.width
+            padding: 10
+            text: "Import a WireGuard configuration: a .conf file, or a provider's .zip of them, as Mullvad gives."
+            wrapMode: Text.Wrap
+            color: Theme.palette.secondaryLabel
+        }
+
+        Repeater {
+            model: Vpn.tunnels
+
+            DeviceRow {
+                required property VpnTunnel modelData
+
+                glyph: "vpn_key"
+                name: modelData.name
+                note: modelData.error ? modelData.error
+                      : modelData.busy ? "Connecting…"
+                      : modelData.connected ? (modelData.location ? `Connected · ${modelData.location}` : "Connected")
+                      : modelData.hasServers ? `${modelData.serverCount} servers · ${modelData.location}` : "Not connected"
+                active: modelData.connected
+                busy: modelData.busy
+
+                PillButton {
+                    text: modelData.connected || modelData.busy ? "Disconnect" : "Connect"
+                    onClicked: modelData.toggle()
+                }
+
+                PillButton {
+                    text: "Remove"
+                    onClicked: modelData.remove()
+                }
+            }
+        }
+
+        // Where turning one with servers on goes.
+        Repeater {
+            model: Vpn.tunnels
+
+            ControlRow {
+                required property VpnTunnel modelData
+
+                visible: modelData.hasServers
+                title: Vpn.tunnels.length > 1 ? `${modelData.name}: Default Location` : "Default Location"
+                note: "Where it connects when turned on."
+
+                Dropdown {
+                    fieldWidth: 260
+                    options: modelData.places
+                    value: modelData.defaultPlace
+                    placeholder: "Last Used"
+                    onPicked: v => modelData.defaultPlace = v
+                }
+            }
+        }
+
+        StyledText {
+            visible: root.vpnNote !== ""
+            width: parent.width
+            padding: 10
+            text: root.vpnNote
+            wrapMode: Text.Wrap
+            color: root.vpnFailed ? Theme.palette.red : Theme.palette.secondaryLabel
+        }
+    }
+
+    FilePicker {
+        id: vpnPicker
+
+        title: "Import a VPN Configuration"
+        folder: StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+        nameFilter: "WireGuard configurations (*.conf *.zip)"
+        onPicked: file => {
+            root.vpnNote = "";
+            Vpn.importFile(file);
+        }
+    }
+
+    Connections {
+        target: Vpn
+
+        function onImported(name: string, servers: int): void {
+            root.vpnFailed = false;
+            root.vpnNote = servers > 1 ? `${name} imported, with ${servers} servers to choose from in Control Center.` : `${name} imported.`;
+        }
+
+        function onImportFailed(error: string): void {
+            root.vpnFailed = true;
+            root.vpnNote = `Couldn't import it: ${error}`;
         }
     }
 }

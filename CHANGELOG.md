@@ -65,6 +65,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Hide the pointer while typing, until the mouse moves (Mouse & Touchpad), and Num Lock on at start (Keyboard), as Hyprland has them.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).
 - Privacy dots in the menu bar while an app shares the screen (purple), uses a camera (green) or a microphone (orange); a click says which apps.
+- VPN: WireGuard configurations imported in Settings > Wi-Fi & Network (a .conf, or a provider's .zip such as Mullvad's, which becomes one VPN with its servers); in Control Center it turns on and off and its location is chosen by country or city, the recently used first; a default location in Settings; a key in the menu bar while it's on; Toggle VPN in the launcher.
 
 ### Changed
 - Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.

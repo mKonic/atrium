@@ -8,23 +8,25 @@ import shell.components
 import shell.services
 
 // Control Center: the switches and sliders people reach for, one click from
-// the bar. Wi-Fi and Bluetooth open their lists in place.
+// the bar. Wi-Fi, Bluetooth and VPN open their lists in place.
 PanelWindow {
     id: cc
 
     // At the login screen: only what works before anyone logs in (Wi-Fi,
     // Bluetooth, the display's brightness), over the login screen.
     property bool greeter: false
-    property string page: ""  // "", "wifi", "bluetooth", "media"
+    property string page: ""  // "", "wifi", "bluetooth", "vpn", "media"
     property Item pageTile: null  // the tile the page grew out of
     property real open: 0         // 0: the tiles, 1: the page, between: growing
     property var joining: null    // a Wi-Fi network asking for its password
     property string joinError: ""
     property bool showOthers: false  // "Other Networks" / "Other Devices" disclosed
+    property string openCountry: ""  // a VPN country showing its cities
 
     readonly property WifiNetwork wifiNetwork: Network.current
     readonly property BluetoothAdapter adapter: Bluetooth.adapter
     readonly property AudioNode sink: Audio.sink
+    readonly property VpnTunnel tunnel: Vpn.current
     readonly property var player: Mpris.current
     readonly property bool dnd: Atrium.settings["notifications.dnd"] ?? false
     readonly property string profile: Atrium.settings["power.profile"] ?? "performance"
@@ -44,9 +46,15 @@ PanelWindow {
         pageTile = tile;
         joining = null;
         showOthers = false;
+        openCountry = "";
         grow.to = 1;
         grow.duration = Theme.anim.normal * 0.8;
         grow.restart();
+    }
+
+    function openSettings(page: string): void {
+        Atrium.action("shell", page);
+        Panels.open = "";
     }
 
     function collapse(): void {
@@ -179,7 +187,7 @@ PanelWindow {
                 icon: !Network.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
                 title: "Wi-Fi"
                 subtitle: !Network.hasWifi ? "No Wi-Fi" : !Network.wifiEnabled ? "Off" : cc.wifiNetwork?.name ?? "Not connected"
-                on: Network.wifiEnabled
+                on: Network.hasWifi && Network.wifiEnabled
                 expandable: Network.hasWifi
                 onToggled: Network.wifiEnabled = !Network.wifiEnabled
                 onExpand: cc.expand("wifi", wifiTile)
@@ -367,10 +375,38 @@ PanelWindow {
                 }
             }
 
+            // VPN: on and off at the disc, its servers in the rest. With
+            // none set up, the rest goes to where one is imported.
+            CapsuleToggle {
+                id: vpnTile
+
+                visible: !cc.greeter && Vpn.available
+                y: main.playing ? rounds.y + main.cell + main.gap : 2 * (main.cell + main.gap)
+                width: parent.width
+                height: main.cell
+                icon: "vpn_key"
+                title: cc.tunnel ? `VPN · ${cc.tunnel.name}` : "VPN"
+                subtitle: !cc.tunnel ? "Not set up"
+                          : cc.tunnel.error ? cc.tunnel.error
+                          : cc.tunnel.busy ? "Connecting…"
+                          : cc.tunnel.connected ? (cc.tunnel.location || "Connected")
+                          : cc.tunnel.location ? `Off · ${cc.tunnel.location}` : "Off"
+                on: cc.tunnel?.connected ?? false
+                expandable: true
+                onToggled: {
+                    if (cc.tunnel)
+                        cc.tunnel.toggle();
+                    else
+                        cc.openSettings("settings:Wi-Fi & Network");
+                }
+                onExpand: cc.tunnel ? cc.expand("vpn", vpnTile) : cc.openSettings("settings:Wi-Fi & Network")
+            }
+
             Column {
                 id: sliders
 
-                y: main.playing ? rounds.y + main.cell + main.gap : 2 * (main.cell + main.gap)
+                y: vpnTile.visible ? vpnTile.y + main.cell + main.gap
+                                   : main.playing ? rounds.y + main.cell + main.gap : 2 * (main.cell + main.gap)
                 width: parent.width
                 spacing: main.gap
 
@@ -450,7 +486,7 @@ PanelWindow {
 
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: cc.page === "wifi" ? "Wi-Fi" : cc.page === "media" ? "Now Playing" : "Bluetooth"
+                        text: cc.page === "wifi" ? "Wi-Fi" : cc.page === "media" ? "Now Playing" : cc.page === "vpn" ? "VPN" : "Bluetooth"
                         font.pointSize: Theme.font.size.larger
                         font.weight: Font.DemiBold
                     }
@@ -460,10 +496,13 @@ PanelWindow {
                         anchors.right: parent.right
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
-                        checked: cc.page === "wifi" ? Network.wifiEnabled : (cc.adapter?.enabled ?? false)
+                        checked: cc.page === "wifi" ? Network.wifiEnabled : cc.page === "vpn" ? (cc.tunnel?.connected || cc.tunnel?.busy) ?? false
+                                                                                       : (cc.adapter?.enabled ?? false)
                         onToggled: {
                             if (cc.page === "wifi")
                                 Network.wifiEnabled = !Network.wifiEnabled;
+                            else if (cc.page === "vpn")
+                                cc.tunnel?.toggle();
                             else if (cc.adapter)
                                 cc.adapter.enabled = !cc.adapter.enabled;
                         }
@@ -557,6 +596,98 @@ PanelWindow {
                     }
                 }
 
+                // --- VPN ---
+                // More than one: which is on.
+                SectionLabel {
+                    visible: cc.page === "vpn" && Vpn.tunnels.length > 1
+                    text: "VPNs"
+                }
+
+                Repeater {
+                    model: cc.page === "vpn" && Vpn.tunnels.length > 1 ? Vpn.tunnels : []
+
+                    Entry {
+                        required property VpnTunnel modelData
+
+                        glyph: "vpn_key"
+                        name: modelData.name
+                        connected: modelData.connected
+                        busy: modelData.busy
+                        onClicked: modelData.toggle()
+                    }
+                }
+
+                StyledText {
+                    visible: cc.page === "vpn" && !!cc.tunnel?.error
+                    x: 14
+                    width: list.width - 28
+                    topPadding: 4
+                    bottomPadding: 4
+                    text: cc.tunnel?.error ?? ""
+                    wrapMode: Text.Wrap
+                    font.pointSize: Theme.font.size.small
+                    color: Theme.palette.red
+                }
+
+                // Its servers: a country, or a city in it.
+                SectionLabel {
+                    visible: cc.page === "vpn" && (cc.tunnel?.hasServers ?? false) && !cc.tunnel.countries[0]?.header
+                    text: "Location"
+                }
+
+                ListView {
+                    id: places
+
+                    visible: cc.page === "vpn" && (cc.tunnel?.hasServers ?? false)
+                    width: list.width
+                    height: visible ? Math.min(contentHeight, 320) : 0
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: visible ? cc.tunnel.countries : []
+
+                    delegate: Column {
+                        id: country
+
+                        required property var modelData
+                        required property int index
+                        readonly property bool open: cc.openCountry === modelData.code
+                        readonly property bool here: cc.tunnel?.country === modelData.code
+
+                        width: places.width
+                        // Opened: its cities brought into sight.
+                        onHeightChanged: if (open) places.positionViewAtIndex(index, ListView.Contain)
+
+                        SectionLabel {
+                            visible: text !== ""
+                            text: country.modelData.header
+                        }
+
+                        Place {
+                            name: country.modelData.name
+                            chosen: country.here
+                            note: country.modelData.cities.length > 1 ? `${country.modelData.cities.length} cities` : country.modelData.cities[0]?.name ?? ""
+                            disclosable: country.modelData.cities.length > 1
+                            disclosed: country.open
+                            onClicked: cc.tunnel.choose(country.modelData.code)
+                            onDisclose: cc.openCountry = country.open ? "" : country.modelData.code
+                        }
+
+                        Repeater {
+                            model: country.open ? country.modelData.cities : []
+
+                            Place {
+                                required property var modelData
+
+                                indent: 24
+                                name: modelData.name
+                                chosen: country.here && cc.tunnel?.city === modelData.code
+                                note: modelData.servers > 1 ? `${modelData.servers} servers` : ""
+                                onClicked: cc.tunnel.choose(country.modelData.code, modelData.code)
+                            }
+                        }
+                    }
+                }
+
                 Separator {
                     visible: !cc.greeter
                 }
@@ -572,7 +703,8 @@ PanelWindow {
                     StyledText {
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: cc.page === "wifi" ? "Wi-Fi Settings…" : cc.page === "media" ? "Sound Settings…" : "Bluetooth Settings…"
+                        text: cc.page === "wifi" ? "Wi-Fi Settings…" : cc.page === "media" ? "Sound Settings…"
+                              : cc.page === "vpn" ? "VPN Settings…" : "Bluetooth Settings…"
                     }
 
                     MouseArea {
@@ -581,9 +713,8 @@ PanelWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: {
-                            Atrium.action("shell", cc.page === "wifi" ? "settings:Wi-Fi & Network"
-                                                 : cc.page === "media" ? "settings:Sound" : "settings:Bluetooth");
-                            Panels.open = "";
+                            cc.openSettings(cc.page === "wifi" || cc.page === "vpn" ? "settings:Wi-Fi & Network"
+                                            : cc.page === "media" ? "settings:Sound" : "settings:Bluetooth");
                         }
                     }
                 }
@@ -822,6 +953,97 @@ PanelWindow {
             anchors.fill: parent
             hoverEnabled: true
             onClicked: entry.clicked()
+        }
+    }
+
+    // A VPN location: a check on the one in use, a note, and a chevron that
+    // shows its cities.
+    component Place: Rectangle {
+        id: place
+
+        property string name
+        property string note
+        property bool chosen
+        property bool disclosable
+        property bool disclosed
+        property real indent: 0
+        signal clicked
+        signal disclose
+
+        width: list.width
+        height: 36
+        radius: 12
+        color: placeArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+
+        MaterialIcon {
+            id: check
+
+            x: 10 + place.indent
+            anchors.verticalCenter: parent.verticalCenter
+            text: "check"
+            opacity: place.chosen ? 1 : 0
+            font.pointSize: Theme.font.size.normal
+            color: Theme.palette.accent
+        }
+
+        StyledText {
+            anchors.left: check.right
+            anchors.leftMargin: 6
+            anchors.right: placeNote.left
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: place.name
+            elide: Text.ElideRight
+            font.weight: place.chosen ? Font.DemiBold : Font.Normal
+        }
+
+        StyledText {
+            id: placeNote
+
+            anchors.right: chevron.left
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            text: place.note
+            font.pointSize: Theme.font.size.small
+            color: Theme.palette.secondaryLabel
+        }
+
+        MouseArea {
+            id: placeArea
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: place.clicked()
+        }
+
+        MaterialIcon {
+            id: chevron
+
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            width: place.disclosable ? implicitWidth : 0
+            visible: place.disclosable
+            text: "chevron_right"
+            rotation: place.disclosed ? 90 : 0
+            color: chevronArea.containsMouse ? Theme.palette.label : Theme.palette.secondaryLabel
+
+            Behavior on rotation {
+                Anim {
+                    duration: Theme.anim.small
+                }
+            }
+
+            MouseArea {
+                id: chevronArea
+
+                anchors.fill: parent
+                anchors.margins: -8
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: place.disclose()
+            }
         }
     }
 

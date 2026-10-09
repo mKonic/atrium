@@ -4,7 +4,8 @@ import shell.components
 import shell.services
 
 // Network and Bluetooth at a glance, as the menu bar shows them on a Mac:
-// wired or Wi-Fi strength, and Bluetooth while something is connected.
+// wired or Wi-Fi strength, a key while a VPN is on, and Bluetooth while
+// something is connected.
 // Opens the Control Center.
 Pill {
     id: root
@@ -51,6 +52,13 @@ Pill {
         Rate {
             glyph: "arrow_upward"
             text: speed.upText
+        }
+
+        MaterialIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Vpn.connected
+            text: "vpn_key"
+            font.pointSize: Theme.font.size.normal
         }
 
         MaterialIcon {

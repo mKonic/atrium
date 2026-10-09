@@ -50,6 +50,7 @@
 #include "phone_clipboard.hpp"
 #include "phone_link.hpp"
 #include "privacy.hpp"
+#include "vpn.hpp"
 #include "recorder.hpp"
 #include "compositor.hpp"
 #include "notifications.hpp"
@@ -195,6 +196,13 @@ public:
         qmlRegisterUncreatableType<BluetoothDevice>(uri, 1, 0, "BluetoothDevice", "from an adapter");
         qmlRegisterUncreatableType<BluetoothDeviceState>(uri, 1, 0, "BluetoothDeviceState", "an enum");
         qmlRegisterType<KeyedModel>(uri, 1, 0, "KeyedModel");
+        // VPNs: `Vpn.tunnels`, `Vpn.current`, `Vpn.importFile(url)`.
+        qmlRegisterSingletonType<Vpn>(uri, 1, 0, "Vpn", [](QQmlEngine*, QJSEngine*) -> QObject* {
+            QObject* o = Vpn::instance();
+            QQmlEngine::setObjectOwnership(o, QQmlEngine::CppOwnership);
+            return o;
+        });
+        qmlRegisterUncreatableType<VpnTunnel>(uri, 1, 0, "VpnTunnel", "from Vpn.tunnels");
         // Networks: `Network.networks`, `Network.wifiEnabled`.
         qmlRegisterSingletonType<Network>(uri, 1, 0, "Network", [](QQmlEngine*, QJSEngine*) -> QObject* {
             QObject* o = Network::instance();

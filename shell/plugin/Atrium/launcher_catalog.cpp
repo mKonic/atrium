@@ -4,6 +4,7 @@
 #include "compositor.hpp"
 #include "disks.hpp"
 #include "network.hpp"
+#include "vpn.hpp"
 
 #include <QDir>
 #include <QProcess>
@@ -49,6 +50,7 @@ constexpr CatalogItem kSystem[] = {
     {"light", "Light Appearance", "light_mode", "light mode theme"},
     {"toggle-bluetooth", "Toggle Bluetooth", "bluetooth", "bt wireless"},
     {"toggle-wifi", "Toggle Wi-Fi", "wifi", "wireless network wlan"},
+    {"toggle-vpn", "Toggle VPN", "vpn_key", "wireguard mullvad tunnel"},
     {"toggle-mute", "Toggle Mute", "volume_off", "sound audio silence"},
     {"volume-up", "Volume Up", "volume_up", "sound louder"},
     {"volume-down", "Volume Down", "volume_down", "sound quieter"},
@@ -197,6 +199,16 @@ QString runSystemAction(const QString& id, bool* noop) {
         const bool on = !n->wifiEnabled();
         n->setWifiEnabled(on);
         return on ? "Wi-Fi On" : "Wi-Fi Off";
+    }
+    if (id == "toggle-vpn") {
+        VpnTunnel* t = Vpn::instance()->current();
+        if (!t) {
+            *noop = true;
+            return "No VPN Set Up";
+        }
+        const bool on = !(t->connected() || t->busy());
+        t->toggle();
+        return on ? t->name() + " On" : t->name() + " Off";
     }
     // The media keys' own handlers show the volume and brightness OSD.
     if (id == "toggle-mute") return shell("volume-mute"), QString();
