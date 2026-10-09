@@ -127,6 +127,7 @@ struct Config {
     int wobbliness = 0;   // windows.wobbliness: KWin's levels, 0 (stiffest) to 4
     bool motion_blur = false;  // windows.motion_blur: blurred along the way while moving
     bool anr_dialog = true;
+    bool dim_behind_dialogs = true;  // windows.dim_behind_dialogs: grey a window under its modal dialog
     // desktop.hot_corner_*: top left, top right, bottom left, bottom right
     std::array<std::string, 4> hot_corners{"none", "none", "none", "none"};    // windows.anr_dialog: dim an app that stops answering and offer to end it
     bool minimize_genie = true;  // windows.minimize_effect: genie (true) or scale

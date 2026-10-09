@@ -118,6 +118,8 @@ public:
     void set_showing_desktop(bool on);
     // What a hot corner was set to do (desktop.hot_corner_*).
     void hot_corner(const std::string& what);
+    // Grey the windows with a modal dialog open over them (View::blocks).
+    void update_blocked();
     // The focused window stops being focused (and IPC subscribers hear so).
     void drop_focus();
     // Fullscreen windows go over the panels only while in front: one with

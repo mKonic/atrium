@@ -176,6 +176,13 @@ public:
     // (KWin's Window Aperture), or back.
     bool hidden_by_show_desktop = false;
     void show_desktop(bool hide, int x = 0, int y = 0);
+    // A modal dialog of its own is open: greyed and darkened under it, as
+    // KWin's Dim Parent Window (dialogparent/main.js).
+    void set_blocked(bool on);
+    // The id of the window this one blocks while open (a modal dialog's
+    // parent), else 0; refresh_blocking() tells the server when it changes.
+    uint64_t blocks = 0;
+    void refresh_blocking();
     // Its app stopped answering (NotResponding): the window is dimmed.
     void set_not_responding(bool on);
     bool keep_above = false;    // stays over other windows (X11 _NET_WM_STATE_ABOVE)
@@ -247,6 +254,8 @@ protected:
     uint32_t resize_edges_ = 0;
     bool resize_settling_ = false;
     float alpha_ = 1.0f;
+    double blocked_ = 0;  // set_blocked: 0 as it is, 1 greyed (animated)
+    bool blocked_on_ = false;
     wlr_scene_rect* not_responding_ = nullptr;  // the dimming over it
     int anim_dx_ = 0, anim_dy_ = 0;
     int glide_dx_ = 0, glide_dy_ = 0;  // on its way to where atrium put it

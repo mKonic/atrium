@@ -132,6 +132,7 @@ void XdgView::commit() {
     if (resize_settling_ && !awaiting_configure())
         settle_resize();
     update_corners();
+    refresh_blocking();  // xdg-dialog's set_modal, or a new parent
 }
 
 bool XdgView::awaiting_configure() const {

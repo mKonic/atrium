@@ -52,6 +52,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - An app that stops responding has its windows dimmed, and a dialog offers to terminate it or wait (Windows: Not responding).
 - Show Desktop (the show-desktop shortcut action): the windows move off past the screen corners until it is used again, a window is chosen or opened, or the space changes.
 - Hot corners: pushing the pointer into a screen corner opens the overview, the app's windows, the desktop, the launcher, the notification center or a quick note, or locks the screen (Desktop: Top-left corner and the rest).
+- A window with a modal dialog open over it is greyed and darkened until the dialog closes, as KWin's Dim Parent Window (Windows: Dim behind dialogs).
 - atrium's Open, Save, Open With and Print dialogs belong to the app window that asked for them (xdg-foreign), as on GNOME and Plasma.
 - Hide the pointer while typing, until the mouse moves (Mouse & Touchpad), and Num Lock on at start (Keyboard), as Hyprland has them.
 - The Genie minimize effect, as on a Mac: a window pours into its app's Dock icon and back out (Windows: Minimize effect; Scale is the other).

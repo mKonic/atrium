@@ -1543,6 +1543,14 @@ void Server::set_showing_desktop(bool on) {
     seat->refresh_pointer();
 }
 
+void Server::update_blocked() {
+    for (View* v : views) {
+        const bool blocked = config.dim_behind_dialogs && v->mapped &&
+                             std::ranges::any_of(views, [v](const View* d) { return d->blocks == v->id; });
+        v->set_blocked(blocked);
+    }
+}
+
 void Server::hot_corner(const std::string& what) {
     Keybind b{};
     if (what == "overview")
@@ -1701,6 +1709,8 @@ void Server::setting_changed(const std::string& key) {
         apply_blur_settings();
     if (key == "appearance.screen_shader")
         apply_screen_shader();
+    if (key == "windows.dim_behind_dialogs")
+        update_blocked();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
     if (key == "appearance.style" || key == "appearance.accent") {

@@ -48,6 +48,7 @@ View::~View() {
     server.animator.cancel_owner(&ring_, false);
     server.animator.cancel_owner(&glide_dx_, false);
     server.animator.cancel_owner(&reveal_, false);
+    server.animator.cancel_owner(&blocked_, false);
     server.animator.cancel_owner(&morph_old_, false);
     server.animator.cancel_owner(&wobbly_, false);
     if (morph_timeout_)
@@ -149,6 +150,7 @@ void View::handle_map() {
 
     std::erase(server.views, this);
     server.views.insert(server.views.begin(), this);
+    refresh_blocking();  // a modal dialog greys its parent
     listed_ = true;
     create_toplevel_handles();
     place();
@@ -267,6 +269,10 @@ void View::handle_unmap() {
     surface()->data = nullptr;
     mapped = false;
     hidden_by_show_desktop = false;
+    refresh_blocking();
+    server.animator.cancel_owner(&blocked_, false);
+    blocked_ = 0;
+    blocked_on_ = false;
     // A window that comes back starts fresh; only its last geometry survives.
     minimized = maximized = fullscreen = covered = activated = activate_on_map = false;
     snapped = 0;
@@ -1099,6 +1105,7 @@ struct RoundCtx {
     int radius;
     bool round_top;     // false under atrium's title bar, which carries the top corners
     float alpha;
+    float saturation, brightness;
 };
 
 // Round exactly the buffer corners that sit on a corner of the window. Clients
@@ -1125,6 +1132,15 @@ void round_window_corners(wlr_scene_buffer* buffer, int sx, int sy, void* data) 
     wlr_scene_buffer_set_corner_radii(buffer, corner_radii_new(
         top && left ? r : 0, top && right ? r : 0, bottom && right ? r : 0, bottom && left ? r : 0));
     wlr_scene_buffer_set_opacity(buffer, ctx->alpha);
+    wlr_scene_buffer_set_tint(buffer, ctx->saturation, ctx->brightness);
+}
+
+// dialogparent's saturation 0.4 and brightness 0.6.
+float blocked_saturation(double t) {
+    return float(1 - 0.6 * t);
+}
+float blocked_brightness(double t) {
+    return float(1 - 0.4 * t);
 }
 
 } // namespace
@@ -1245,6 +1261,7 @@ void View::update_decorations() {
     if (titlebar) {
         titlebar->update();
         wlr_scene_buffer_set_opacity(titlebar->node(), alpha_);
+        wlr_scene_buffer_set_tint(titlebar->node(), blocked_saturation(blocked_), blocked_brightness(blocked_));
     }
     if (not_responding_) {
         wlr_scene_rect_set_size(not_responding_, geom.width, geom.height);
@@ -1252,6 +1269,29 @@ void View::update_decorations() {
         wlr_scene_node_raise_to_top(&not_responding_->node);
     }
     update_corners();
+}
+
+// 300 ms, linear, as dialogparent; from wherever it is, so a dialog closed
+// as it opens turns it round.
+void View::set_blocked(bool on) {
+    if (on == blocked_on_ || !tree)
+        return;
+    blocked_on_ = on;
+    server.animator.cancel_owner(&blocked_, false);
+    const double from = blocked_, to = on ? 1 : 0;
+    server.animator.start(&blocked_, 300, Ease::Linear, [this, from, to](double t) {
+        blocked_ = from + (to - from) * t;
+        update_decorations();
+    });
+}
+
+void View::refresh_blocking() {
+    const View* p = mapped && modal() ? parent() : nullptr;
+    const uint64_t now = p ? p->id : 0;
+    if (now == blocks)
+        return;
+    blocks = now;
+    server.update_blocked();
 }
 
 // windowaperture's 250 ms, cubic both ways, from wherever it is now, so a
@@ -1298,7 +1338,7 @@ void View::update_corners() {
     if (!content || unmanaged())
         return;
     RoundCtx ctx{content->node.x, content->node.y, geom.width, geom.height - top(), fullscreen ? 0 : server.config.corner_radius,
-                 top() == 0, alpha_};
+                 top() == 0, alpha_, blocked_saturation(blocked_), blocked_brightness(blocked_)};
     wlr_scene_node_for_each_buffer(&content->node, round_window_corners, &ctx);
     if (server.overview)
         server.overview->view_changed(this);

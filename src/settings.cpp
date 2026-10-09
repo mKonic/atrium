@@ -468,6 +468,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(boolean("windows.system_bell", "Windows", "Alert sound",
         "Apps can ring a bell (a terminal does on a Tab with nothing to complete). Off, it only marks "
         "the window as wanting attention.", &Config::system_bell, d));
+    s.push_back(boolean("windows.dim_behind_dialogs", "Windows", "Dim behind dialogs",
+        "A window waiting on a dialog of its own is greyed and darkened until the dialog closes.",
+        &Config::dim_behind_dialogs, d));
     s.push_back(boolean("windows.anr_dialog", "Windows", "Not responding",
         "An app that stops answering has its windows dimmed, and you're asked whether to end it or wait.",
         &Config::anr_dialog, d));
