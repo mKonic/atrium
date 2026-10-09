@@ -69,6 +69,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Windows zoom in from a point as they open and out as they close, maximizing, snapping and restoring morph them into their new size, and Scale minimizes them into their app's Dock icon rather than the Dock's middle.
 - A Dock icon's name shows above it, as on a Mac, instead of the Dock growing to fit it.
 - Over fullscreen apps, the bar and the Dock come only for a window you made fullscreen (green button or shortcut), after holding the pointer at the edge for a moment; over a video or game that went fullscreen itself they stay away, and a tap of Super brings the bar.
+- Screen recordings are made by atrium itself (atrium-record, which takes gpu-screen-recorder's options) on the graphics card's encoder (NVIDIA's, or VA-API on AMD and Intel) or the CPU, with what the speakers play, instead of gpu-screen-recorder.
 - Screenshots are taken by atrium itself (atrium-screenshot, which takes grim's options, so scripts written for grim work with it) instead of grim.
 - Sharing a screen or a window goes through atrium itself instead of xdg-desktop-portal-wlr, and an app that asks to remember the choice shares the same screen, or the same app's window, next time without asking.
 - Clipboard history (Super+V) is kept by atrium itself, without cliphist or wl-clipboard, with cliphist's rules (750 entries, a copy's text and its picture each kept); what cliphist had is brought over the first time.

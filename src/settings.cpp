@@ -710,7 +710,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.back().needs = "ddcutil";
     s.push_back(make("recording.audio", SettingType::Bool, "Screen Recording", "Record sound",
         "Include what the speakers play in screen recordings.", false, [](Config&, const json&) {}));
-    s.back().needs = "gpu-screen-recorder";
     s.push_back(boolean("session.reopen_windows", "Session", "Reopen windows when logging back in",
         "The apps open when you log out, restart or shut down open again at the next login.",
         &Config::reopen_windows, d));

@@ -90,3 +90,11 @@ executable('atrium-screenshot', '../tools/screenshot/main.cpp', '../tools/screen
   dependencies: [dependency('wayland-client'), pixman, dependency('libpng'), dependency('libjpeg')],
   install: true,
 )
+
+# atrium's own gpu-screen-recorder (tools/record).
+executable('atrium-record', '../tools/record/main.cpp', '../tools/record/record_core.cpp', capture_client_protocols,
+  include_directories: include_directories('../protocols'),
+  dependencies: [dependency('wayland-client'), dependency('libavcodec'), dependency('libavformat'), dependency('libavutil'),
+    dependency('libswscale'), dependency('libswresample'), dependency('libpipewire-0.3')],
+  install: true,
+)

@@ -26,8 +26,8 @@ depends=(
   # what the shell fronts
   pipewire-pulse wireplumber polkit networkmanager bluez bluez-libs power-profiles-daemon udisks2
   xdg-desktop-portal
-  # atrium-screenshot
-  libpng libjpeg-turbo
+  # atrium-screenshot, atrium-record
+  libpng libjpeg-turbo ffmpeg
   # the shell's icons and monospace font (Rubik comes with it)
   ttf-material-symbols-variable ttf-cascadia-code-nerd
   # apps looking at home
@@ -38,7 +38,6 @@ optdepends=(
   'cups: printing'
   "greetd: atrium's login screen under greetd instead of atrium-login (see /usr/share/atrium/greetd-config.toml)"
   'uwsm: the uwsm-managed session'
-  'gpu-screen-recorder: screen recording'
   'ddcutil: brightness of external monitors'
   'fcitx5: input methods'
   'noto-fonts-cjk: Chinese, Japanese and Korean text (and input method candidates)'

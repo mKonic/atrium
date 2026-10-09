@@ -1,7 +1,9 @@
 #include "recorder.hpp"
 
+#include "capture_core.hpp"
 #include "compositor.hpp"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QStandardPaths>
@@ -11,7 +13,7 @@
 namespace atrium {
 
 Recorder::Recorder(QObject* parent) : QObject(parent) {
-    gsr_ = QStandardPaths::findExecutable("gpu-screen-recorder");
+    program_ = QString::fromStdString(capture::atrium_program(QCoreApplication::applicationDirPath().toStdString(), "atrium-record"));
     tick_.setInterval(1000);
     connect(&tick_, &QTimer::timeout, this, &Recorder::secondsChanged);
 }
@@ -40,11 +42,11 @@ void Recorder::start(const QString& output, int fps, bool audio) {
         tick_.stop();
         emit recordingChanged();
         if (early && code != 0)
-            emit failed(QString("gpu-screen-recorder stopped at once (exit %1)").arg(code));
+            emit failed(QString("atrium-record stopped at once (exit %1)").arg(code));
         else
             emit saved(file_);
     });
-    process_->start(gsr_, args);
+    process_->start(program_, args);
     clock_.start();
     tick_.start();
     emit recordingChanged();

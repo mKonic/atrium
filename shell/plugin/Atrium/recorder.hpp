@@ -1,5 +1,6 @@
 #pragma once
-// Screen recording with gpu-screen-recorder, into ~/Videos/Recordings.
+// Screen recording with atrium-record (atrium's own gpu-screen-recorder),
+// into ~/Videos/Recordings.
 
 #include <QElapsedTimer>
 #include <QObject>
@@ -19,7 +20,7 @@ public:
     explicit Recorder(QObject* parent = nullptr);
     ~Recorder() override;
 
-    bool available() const { return !gsr_.isEmpty(); }
+    bool available() const { return !program_.isEmpty(); }
     bool recording() const { return process_ != nullptr; }
     int seconds() const { return recording() ? int(clock_.elapsed() / 1000) : 0; }
     QString lastFile() const { return file_; }
@@ -38,7 +39,7 @@ signals:
     void saved(const QString& file);
 
 private:
-    QString gsr_;
+    QString program_;
     QProcess* process_ = nullptr;
     QString file_;
     QElapsedTimer clock_;

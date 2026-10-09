@@ -44,12 +44,12 @@ Box between(int x0, int y0, int x1, int y1) {
     return {std::min(x0, x1), std::min(y0, y1), std::abs(x1 - x0), std::abs(y1 - y0)};
 }
 
-std::string screenshot_program(const std::string& app_dir) {
+std::string atrium_program(const std::string& app_dir, const std::string& name) {
     const std::string build = ATRIUM_BUILD_DIR;
-    const std::string built = build + "/src/atrium-screenshot";
+    const std::string built = build + "/src/" + name;
     if (app_dir.starts_with(build + "/") && access(built.c_str(), X_OK) == 0)
         return built;
-    return ATRIUM_BINDIR "/atrium-screenshot";
+    return std::string(ATRIUM_BINDIR) + "/" + name;
 }
 
 } // namespace atrium::capture
