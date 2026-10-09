@@ -102,11 +102,15 @@ struct Config {
     std::string accent = "multicolor";  // appearance.accent: accent::names()
     bool liquid_glass = false;           // appearance.liquid_glass: glass panels
     bool glass_tinted = false;           // appearance.glass_style: clear (false) or tinted
+    int blur_material = 0;               // appearance.blur_material: plain (0), frost (1), haze (2)
     bool transparency = false;  // translucent windows show through; off backs them with a solid fill
     bool blur = true;
     std::vector<std::string> blurred_panels{"atrium-*"};  // layer namespaces frosted behind (with transparency)
     int blur_radius = 6;
     int blur_passes = 3;
+    // Against each style's own look (1).
+    float blur_noise = 1, blur_brightness = 1, blur_contrast = 1, blur_saturation = 1;
+    float glass_tint = 1, glass_refraction = 1, glass_highlight = 1, glass_shadow = 1;
 
     // Motion
     bool animations = true;

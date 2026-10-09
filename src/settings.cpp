@@ -421,6 +421,13 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     // Blur
     s.push_back(boolean("appearance.blur", "Appearance", "Blur",
         "Frosted glass behind translucent windows, panels and secret spaces.", &Config::blur, d));
+    s.push_back(choice("appearance.blur_material", "Appearance", "Blur material",
+        "What the blur behind windows looks like: plain, through frosted ice, or with a pearly haze.",
+        {"plain", "frost", "haze"}, d.blur_material == 1 ? "frost" : d.blur_material == 2 ? "haze" : "plain",
+        [](Config& c, const json& v) {
+            const std::string m = v.get<std::string>();
+            c.blur_material = m == "frost" ? 1 : m == "haze" ? 2 : 0;
+        }));
     s.push_back(make("appearance.blurred_panels", SettingType::StringList, "Appearance", "Frosted panels",
         "Panels (by layer namespace; a trailing * matches the rest) that get blur behind them when transparency is on.",
         json(d.blurred_panels), [](Config& c, const json& v) { c.blurred_panels = v.get<std::vector<std::string>>(); }));
@@ -428,6 +435,22 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "How far each blur pass reaches.", &Config::blur_radius, d, 1, 20));
     s.push_back(number("appearance.blur_passes", T::Int, "Appearance", "Blur strength",
         "More passes give a softer blur.", &Config::blur_passes, d, 1, 8));
+    s.push_back(number("appearance.blur_brightness", T::Float, "Appearance", "Blur brightness",
+        "How bright what shows through the blur is, against the style's own look (1).", &Config::blur_brightness, d, 0.5, 1.5));
+    s.push_back(number("appearance.blur_contrast", T::Float, "Appearance", "Blur contrast",
+        "How much contrast what shows through keeps, against the style's own look (1).", &Config::blur_contrast, d, 0.5, 1.5));
+    s.push_back(number("appearance.blur_saturation", T::Float, "Appearance", "Blur vibrancy",
+        "How colourful what shows through is, against the style's own look (1); 0 is grey.", &Config::blur_saturation, d, 0, 2));
+    s.push_back(number("appearance.blur_noise", T::Float, "Appearance", "Blur grain",
+        "The fine noise over the blur that hides banding, against the style's own (1); 0 for none.", &Config::blur_noise, d, 0, 4));
+    s.push_back(number("appearance.glass_tint", T::Float, "Appearance", "Glass tint",
+        "How much of the palette colours Liquid Glass, against its own look (1).", &Config::glass_tint, d, 0, 2));
+    s.push_back(number("appearance.glass_refraction", T::Float, "Appearance", "Glass refraction",
+        "How far Liquid Glass bends what is behind at its edge (1: as designed, 0: flat).", &Config::glass_refraction, d, 0, 2));
+    s.push_back(number("appearance.glass_highlight", T::Float, "Appearance", "Glass highlight",
+        "The light caught by Liquid Glass's rim (1: as designed, 0: none).", &Config::glass_highlight, d, 0, 2));
+    s.push_back(number("appearance.glass_shadow", T::Float, "Appearance", "Glass shadow",
+        "The soft shadow Liquid Glass casts (1: as designed, 0: none).", &Config::glass_shadow, d, 0, 2));
 
     // Motion
     s.push_back(boolean("appearance.animations", "Appearance", "Animations",

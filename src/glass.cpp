@@ -59,19 +59,20 @@ void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& given, flo
     // Control Center thick), and the slab's height, which sets how far light
     // bends in it: grown in from flat as the glass materializes.
     const float bevel = std::clamp(0.3f * float(std::min(width, height)), 8.0f, 20.0f);
-    wlr_scene_blur_set_refraction(blur, std::max(0.01f, bevel * float(lensing)), bevel);
+    wlr_scene_blur_set_refraction(blur, std::max(0.01f, bevel * float(lensing) * c.glass_refraction), bevel);
     const uint32_t bg = palette::make(c.light, c.accent).window_background;
     wlr_scene_glass glass{};
     glass.tint[0] = float((bg >> 24) & 0xff) / 255;
     glass.tint[1] = float((bg >> 16) & 0xff) / 255;
     glass.tint[2] = float((bg >> 8) & 0xff) / 255;
     glass.tint[3] = c.glass_tinted ? (c.light ? 0.6f : 0.55f) : pane ? (c.light ? 0.45f : 0.4f) : (c.light ? 0.2f : 0.12f);
+    glass.tint[3] = std::min(1.0f, glass.tint[3] * c.glass_tint);
     glass.adapt = c.glass_tinted ? 0.2f : 0.3f;
     glass.saturation = c.glass_tinted ? 1.2f : 1.35f;
-    glass.highlight = c.light ? 0.6f : 0.5f;
+    glass.highlight = (c.light ? 0.6f : 0.5f) * c.glass_highlight;
     glass.light_dir[0] = 0.7071f;
     glass.light_dir[1] = 0.7071f;
-    glass.shadow = c.light ? 0.16f : 0.3f;
+    glass.shadow = (c.light ? 0.16f : 0.3f) * c.glass_shadow;
     wlr_scene_blur_set_glass(blur, &glass);
 
     // Its exact shapes, in the glass node's coordinates: drawn from their

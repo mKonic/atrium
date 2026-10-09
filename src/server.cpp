@@ -1596,7 +1596,7 @@ void Server::setting_changed(const std::string& key) {
     rebuild_from_registry();  // the modifier key changes what shortcuts mean
 
     auto is = [&](const char* prefix) { return key.starts_with(prefix); };
-    if (is("appearance.blur") || key == "appearance.liquid_glass")
+    if (is("appearance.blur") || is("appearance.glass") || key == "appearance.liquid_glass")
         apply_blur_settings();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
@@ -1666,13 +1666,22 @@ void Server::setting_changed(const std::string& key) {
 void Server::apply_blur_settings() {
     // Liquid Glass lets the colours behind through, brighter and richer;
     // frosted glass dims and greys them a little.
-    if (config.liquid_glass)
-        wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.01f, 1.02f, 0.95f, 1.45f);
+    // The settings adjust the style's own look.
+    const Config& c = config;
+    if (c.liquid_glass)
+        wlr_scene_set_blur_data(scene, c.blur_passes, c.blur_radius, 0.01f * c.blur_noise, 1.02f * c.blur_brightness,
+                                0.95f * c.blur_contrast, 1.45f * c.blur_saturation);
     else
-        wlr_scene_set_blur_data(scene, config.blur_passes, config.blur_radius, 0.02f, 0.9f, 0.9f, 1.1f);
+        wlr_scene_set_blur_data(scene, c.blur_passes, c.blur_radius, 0.02f * c.blur_noise, 0.9f * c.blur_brightness,
+                                0.9f * c.blur_contrast, 1.1f * c.blur_saturation);
+    wlr_scene_set_blur_material(scene, c.blur_material);
     wlr_scene_node_set_enabled(&background_blur->node, config.blur);
     for (View* v : views)
         v->update_decorations();
+    for (Output* o : outputs)
+        for (auto& list : o->layers)
+            for (LayerSurface* l : list)
+                l->refresh_blur();
     wlr_scene_optimized_blur_mark_dirty(background_blur);
 }
 
