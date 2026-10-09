@@ -1332,8 +1332,7 @@ void Seat::unmaximize_for_drag() {
         view->unsnap(true);
     const int nx = int(std::lround(grab_x_ - fx * view->restore.width));
     view->move_to(nx, before.y);
-    view->geom.width = view->restore.width;  // grab math uses the size it is heading to
-    view->geom.height = view->restore.height;
+    view->adopt_size(view->restore.width, view->restore.height);  // grab math uses the size it is heading to
     grab_geom_ = view->geom;
 }
 

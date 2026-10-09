@@ -97,6 +97,10 @@ public:
     // alone maximizes.
     void snap(uint32_t zone);
     void unsnap(bool restore_geometry);
+    // Pulled out of maximized or snapped by a drag: the size it's heading to
+    // at once (the drag's math needs it), no morph, its frame redrawn; the
+    // app's commit of that size then changes nothing.
+    void adopt_size(int width, int height);
     // Apply windows.tiled_titlebars to a snapped window.
     void refresh_tiled_titlebar();
     // Wobbly windows (windows.wobbly): while dragged or resized, and until

@@ -933,6 +933,18 @@ void View::snap(uint32_t zone) {
     server.notify_window(*this, "changed");
 }
 
+void View::adopt_size(int width, int height) {
+    if (morph_pending_) {
+        morph_pending_ = false;
+        wl_event_source_timer_update(morph_timeout_, 0);
+        morph_old_.reset();
+    }
+    geom.width = width;
+    geom.height = height;
+    place_tree();
+    update_decorations();
+}
+
 void View::unsnap(bool restore_geometry) {
     if (!snapped)
         return;
