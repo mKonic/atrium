@@ -99,6 +99,9 @@ constexpr ActionName kActions[] = {
     {Action::Place, "place"},
     {Action::Lock, "lock"},
     {Action::SwitchUser, "switch-user"},
+    {Action::ZoomIn, "zoom-in"},
+    {Action::ZoomOut, "zoom-out"},
+    {Action::ZoomToggle, "zoom-toggle"},
 };
 
 } // namespace
@@ -239,6 +242,10 @@ json default_keybinds() {
         {{"keys", "Shift+Print"}, {"action", "shell"}, {"arg", "screenshot-screen"}},
         {{"keys", "Alt+Print"}, {"action", "shell"}, {"arg", "screenshot-window"}},
         {{"keys", "Mod+Shift+S"}, {"action", "shell"}, {"arg", "screenshot-region"}},
+        // Zoom, on macOS's keys (Super+0 is a space's).
+        {{"keys", "Mod+Alt+equal"}, {"action", "zoom-in"}},
+        {{"keys", "Mod+Alt+minus"}, {"action", "zoom-out"}},
+        {{"keys", "Mod+Alt+8"}, {"action", "zoom-toggle"}},
     });
     // Media keys go to the shell, which holds the audio and display
     // connections and shows what changed. Shift makes the steps finer.
@@ -575,6 +582,13 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(number("accessibility.bounce_keys_delay", T::Int, "Accessibility", "Ignore repeats within",
         "Milliseconds after a key is pressed in which pressing it again is ignored.", &Config::bounce_keys_delay, d,
         50, 2000));
+    s.push_back(number("accessibility.zoom_step", T::Float, "Accessibility", "Zoom step",
+        "How much each zoom in (Super+Alt+=, or Super+Ctrl and scroll) magnifies the screen: 1.2 is a fifth more.",
+        &Config::zoom_step, d, 1.05, 3));
+    s.push_back(choice("accessibility.zoom_tracking", "Accessibility", "Zoomed view follows the pointer",
+        "Proportional slides the view so the pointer stays where it is on screen; centred keeps it in the middle.",
+        {"proportional", "centered"}, d.zoom_tracking,
+        [](Config& c, const json& v) { c.zoom_tracking = v.get<std::string>(); }));
     s.push_back(choice("keyboard.switch_keys", "Keyboard", "Switch layouts with",
         "Keys that go to the next layout, besides the menu bar's layout menu.",
         {"none", "alt_shift", "ctrl_shift", "caps_lock", "shift_caps_lock", "right_alt"}, "none",

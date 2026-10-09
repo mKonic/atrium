@@ -963,6 +963,29 @@ void Server::new_output(wlr_output* wlr) {
     update_outputs();
 }
 
+void Server::zoom_to(double target, bool animate) {
+    target = std::clamp(target, 1.0, 100.0);
+    if (target < 1.01)
+        target = 1.0;  // stepping out lands on off, not just above it
+    if (target > 1.0)
+        zoom_last_ = target;
+    zoom_target_ = target;
+    animator.cancel_owner(&zoom_target_, false);
+    auto set = [this](double z) {
+        zoom = z;
+        for (Output* o : outputs)
+            wlr_output_schedule_frame(o->wlr);
+    };
+    if (!animate || zoom == target) {
+        set(target);
+        return;
+    }
+    // KWin's: 150 ms a step's worth.
+    const double from = zoom;
+    animator.start(&zoom_target_, 150 * config.zoom_step, Ease::OutCubic,
+                   [set, from, target](double t) { set(from + (target - from) * t); });
+}
+
 void Server::bell() {
     if (system_bell_)
         system_bell_->beep();
@@ -1741,6 +1764,9 @@ void Server::run_action(const Keybind& b) {
         if (lock_screen)
             lock_screen->switch_user();
         break;
+    case Action::ZoomIn: zoom_to(zoom_target_ * config.zoom_step); break;
+    case Action::ZoomOut: zoom_to(zoom_target_ / config.zoom_step); break;
+    case Action::ZoomToggle: zoom_toggle(); break;
     case Action::SnapLeft: if (v) v->snap(WLR_EDGE_LEFT); break;
     case Action::SnapRight: if (v) v->snap(WLR_EDGE_RIGHT); break;
     case Action::Restore:

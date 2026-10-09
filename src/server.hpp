@@ -331,6 +331,12 @@ public:
     wlr_xwayland* xwayland = nullptr;
 #endif
 
+    // Zoom, as KWin's: every screen magnified around the pointer, `zoom`
+    // times (1: off), easing to where it's going.
+    double zoom = 1.0;
+    void zoom_to(double target, bool animate = true);
+    double zoom_target() const { return zoom_target_; }
+    void zoom_toggle() { zoom_to(zoom_target_ > 1.0 ? 1.0 : zoom_last_); }
     // The system bell's sound (the typing aids' beeps).
     void bell();
     std::unique_ptr<Settings> settings;
@@ -428,6 +434,7 @@ private:
     Listener<wlr_output> new_output_;
     wlr_drm_lease_v1_manager* drm_lease_manager = nullptr;
     wlr_xdg_foreign_registry* foreign_registry_ = nullptr;
+    double zoom_target_ = 1.0, zoom_last_ = 2.0;
     std::unique_ptr<class SystemBell> system_bell_;
     std::unique_ptr<class Gamepads> gamepads_;
     Listener<wlr_drm_lease_request_v1> lease_request_;

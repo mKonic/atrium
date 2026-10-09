@@ -1028,6 +1028,10 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
     // through one of its barriers.
     if (time && server.eis && server.eis->motion(cursor->x, cursor->y, dx, dy, dx_unaccel, dy_unaccel))
         return;
+    // Zoomed, the view follows the pointer.
+    if (server.zoom > 1.0)
+        for (Output* o : server.outputs)
+            wlr_output_schedule_frame(o->wlr);
 
     // time == 0: an internal refresh, not real motion. A finger driving the
     // pointer (a touch on a window that takes no touch) leaves it hidden.
@@ -1579,6 +1583,14 @@ void Seat::axis(wlr_pointer_axis_event* e) {
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a
     // touchpad once per stretch of scrolling.
     const uint32_t mods = clean_mods(held_modifiers());
+    // Mod+Ctrl + scroll zooms, as KWin's (its pointer-axis modifiers): a wheel
+    // a step a notch, a touchpad as it goes, both at once.
+    if (e->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL && mods == (server.config.mod | WLR_MODIFIER_CTRL)) {
+        const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->delta_discrete != 0;
+        const double steps = wheel ? e->delta_discrete / 120.0 : e->delta / 40.0;
+        server.zoom_to(server.zoom_target() * std::pow(server.config.zoom_step, -steps), false);
+        return;
+    }
     if (!server.locked && e->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL &&
         (mods == server.config.mod || mods == (server.config.mod | WLR_MODIFIER_ALT))) {
         const bool wheel = e->source == WL_POINTER_AXIS_SOURCE_WHEEL && e->delta_discrete != 0;

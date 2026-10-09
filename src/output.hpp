@@ -107,6 +107,12 @@ private:
     std::optional<double> hdr_peak_;  // the HDR calibration's
 
     void fade_handoff();
+    // Zoom: the frame's part around the pointer, drawn whole into a buffer
+    // of its own, which goes on screen instead.
+    void magnify(wlr_output_state& state);
+    wlr_swapchain* zoom_chain_ = nullptr;
+    bool zoom_cursors_ = false;  // software cursors locked, so the pointer is magnified too
+    double zoom_px_ = -1, zoom_py_ = -1;  // where the pointer last was here, in buffer pixels
     wlr_scene_buffer* handoff_ = nullptr;
     wl_event_source* handoff_timer_ = nullptr;
     std::string handoff_awaits_;  // the shell surface that replaces it

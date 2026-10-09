@@ -120,6 +120,8 @@ Output::~Output() {
         wl_event_source_remove(handoff_timer_);
     if (handoff_)
         wlr_scene_node_destroy(&handoff_->node);
+    if (zoom_chain_)
+        wlr_swapchain_destroy(zoom_chain_);
     if (server.overview)
         server.overview->output_removed(this);
     if (!server.shutting_down)
@@ -430,6 +432,16 @@ void Output::render() {
     // Frame callbacks go out even when nothing changed: a client that asked
     // for one without new damage (Qt between animation steps) would
     // otherwise wait forever, frozen mid-animation.
+    // Zoomed: the whole frame each time (the view moves with the pointer),
+    // with the pointer drawn into it to be magnified along.
+    const bool zoomed = server.zoom > 1.0 && wlr->transform == WL_OUTPUT_TRANSFORM_NORMAL;
+    if (zoomed != zoom_cursors_) {
+        wlr_output_lock_software_cursors(wlr, zoomed);
+        zoom_cursors_ = zoomed;
+        wlr_scene_output_damage_whole(scene_output);
+    }
+    if (zoomed)
+        wlr_scene_output_damage_whole(scene_output);
     if (!wlr_scene_output_needs_frame(scene_output) && !recolour && !switch_vrr) {
         send_frame_done();
         return;
@@ -437,6 +449,8 @@ void Output::render() {
     wlr_output_state state;
     wlr_output_state_init(&state);
     if (wlr_scene_output_build_state(scene_output, &state, &options)) {
+        if (zoomed && (state.committed & WLR_OUTPUT_STATE_BUFFER) && state.buffer)
+            magnify(state);
         if (switch_vrr)
             wlr_output_state_set_adaptive_sync_enabled(&state, vrr);
         if (tearing_view(server, *this)) {
@@ -579,6 +593,65 @@ void Output::fade_handoff() {
                 wlr_scene_node_destroy(&handoff_->node);
             handoff_ = nullptr;
         });
+}
+
+// KWin's zoom: proportional tracking keeps the pointer where it is on
+// screen and shows what's around it (the view slides as it moves);
+// centred keeps it in the middle. At 15 times and more, pixels stay square
+// (KWin's pixel grid).
+void Output::magnify(wlr_output_state& state) {
+    wlr_buffer* src = state.buffer;
+    const int w = src->width, h = src->height;
+    if (zoom_chain_ && (zoom_chain_->width != w || zoom_chain_->height != h ||
+                        !wlr->swapchain || zoom_chain_->format.format != wlr->swapchain->format.format)) {
+        wlr_swapchain_destroy(zoom_chain_);
+        zoom_chain_ = nullptr;
+    }
+    if (!zoom_chain_ && wlr->swapchain)
+        zoom_chain_ = wlr_swapchain_create(server.allocator, w, h, &wlr->swapchain->format);
+    if (!zoom_chain_)
+        return;
+    const wlr_cursor* cur = server.seat ? server.seat->cursor : nullptr;
+    if (cur && wlr_box_contains_point(&box, cur->x, cur->y)) {
+        zoom_px_ = (cur->x - box.x) * w / std::max(1, box.width);
+        zoom_py_ = (cur->y - box.y) * h / std::max(1, box.height);
+    } else if (zoom_px_ < 0) {
+        zoom_px_ = w / 2.0;
+        zoom_py_ = h / 2.0;
+    }
+    const double z = server.zoom, sw = w / z, sh = h / z;
+    double sx, sy;
+    if (server.config.zoom_tracking == "centered") {
+        sx = std::clamp(zoom_px_ - sw / 2, 0.0, w - sw);
+        sy = std::clamp(zoom_py_ - sh / 2, 0.0, h - sh);
+    } else {
+        sx = zoom_px_ * (1 - 1 / z);
+        sy = zoom_py_ * (1 - 1 / z);
+    }
+    wlr_buffer* dst = wlr_swapchain_acquire(zoom_chain_);
+    wlr_texture* tex = dst ? wlr_texture_from_buffer(server.renderer, src) : nullptr;
+    wlr_render_pass* pass = tex ? wlr_renderer_begin_buffer_pass(server.renderer, dst, nullptr) : nullptr;
+    bool ok = false;
+    if (pass) {
+        wlr_render_texture_options o{};
+        o.texture = tex;
+        o.src_box = {sx, sy, sw, sh};
+        o.dst_box = {0, 0, w, h};
+        o.filter_mode = z >= 15 ? WLR_SCALE_FILTER_NEAREST : WLR_SCALE_FILTER_BILINEAR;
+        wlr_render_pass_add_texture(pass, &o);
+        ok = wlr_render_pass_submit(pass);
+    }
+    if (tex)
+        wlr_texture_destroy(tex);
+    if (ok) {
+        wlr_output_state_set_buffer(&state, dst);
+        pixman_region32_t whole;
+        pixman_region32_init_rect(&whole, 0, 0, w, h);
+        wlr_output_state_set_damage(&state, &whole);
+        pixman_region32_fini(&whole);
+    }
+    if (dst)
+        wlr_buffer_unlock(dst);
 }
 
 } // namespace atrium

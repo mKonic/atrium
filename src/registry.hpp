@@ -195,6 +195,7 @@ public:
 private:
     void migrate();
     void add_missing_columns();
+    void add_new_shortcuts();
     void migrate_records();
     bool exec(const char* sql) const;
 

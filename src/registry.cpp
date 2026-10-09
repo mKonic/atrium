@@ -159,6 +159,7 @@ Registry::Registry(const std::string& path) {
     exec("PRAGMA foreign_keys=ON");
     migrate();
     add_missing_columns();
+    add_new_shortcuts();
     migrate_records();
 }
 
@@ -209,6 +210,44 @@ void Registry::add_missing_columns() {
             have = have || info.text(1) == a.column;
         if (!have)
             exec((std::string("ALTER TABLE ") + a.table + " ADD COLUMN " + a.column + " " + a.type).c_str());
+    }
+}
+
+// Shortcuts added to the defaults after registries were seeded, each group
+// once by name: a version number can't say (the 1.0 branch stamped later
+// ones). A registry with no shortcuts yet is about to be seeded with them.
+struct AddedShortcut {
+    const char* migration;
+    const char* keys;
+    const char* action;
+};
+constexpr AddedShortcut kAddedShortcuts[] = {
+    {"zoom", "Mod+Alt+equal", "zoom-in"},
+    {"zoom", "Mod+Alt+minus", "zoom-out"},
+    {"zoom", "Mod+Alt+8", "zoom-toggle"},
+};
+
+void Registry::add_new_shortcuts() {
+    exec("CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY)");
+    const bool seeded = [this] {
+        Stmt n(db_, "SELECT COUNT(*) FROM shortcuts");
+        return n.step() && n.integer(0) > 0;
+    }();
+    for (const AddedShortcut& a : kAddedShortcuts) {
+        Stmt done(db_, "SELECT 1 FROM migrations WHERE name = ?1");
+        done.bind(1, std::string(a.migration));
+        if (done.step())
+            continue;
+        if (seeded)
+            for (const AddedShortcut& s : kAddedShortcuts)
+                if (std::string_view(s.migration) == a.migration) {
+                    Stmt add(db_, "INSERT INTO shortcuts (position, keys, action, arg) "
+                                  "SELECT COALESCE(MAX(position), 0) + 1, ?1, ?2, '' FROM shortcuts "
+                                  "WHERE NOT EXISTS (SELECT 1 FROM shortcuts WHERE keys = ?1)");
+                    add.bind(1, std::string(s.keys)).bind(2, std::string(s.action)).run();
+                }
+        Stmt mark(db_, "INSERT OR IGNORE INTO migrations (name) VALUES (?1)");
+        mark.bind(1, std::string(a.migration)).run();
     }
 }
 

@@ -64,6 +64,9 @@ enum class Action {
     SwitchUser,       // lock, then the login manager's greeter beside the session
     Place,            // arg: where the window goes (geometry::named_place, maximize, restore,
                       // next-display, prev-display)
+    ZoomIn,           // the screen magnified around the pointer (KWin's zoom), a step further
+    ZoomOut,
+    ZoomToggle,       // off, or back to the last zoom (macOS's Option-Command-8)
 };
 
 // A mouse button doing something else (pointer.buttons; button_remap.hpp).

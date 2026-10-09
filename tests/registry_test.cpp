@@ -439,3 +439,48 @@ TEST(Registry, RecordTablesGainColumns) {
     EXPECT_EQ(all[0]["keyword"], "");
     std::filesystem::remove(file);
 }
+
+// New default shortcuts reach registries seeded before them, once, by name:
+// one the user removed afterwards stays removed.
+TEST(Registry, AddsNewDefaultShortcutsOnce) {
+    const std::string path = ::testing::TempDir() + "atrium-shortcuts.db";
+    std::remove(path.c_str());
+    auto has = [](const Registry& r, const std::string& keys) {
+        for (const ShortcutRecord& s : r.shortcuts())
+            if (s.keys == keys)
+                return true;
+        return false;
+    };
+    {
+        Registry r(path);  // fresh: seeded afterwards, with these among the rest
+        EXPECT_FALSE(has(r, "Mod+Alt+equal"));
+        r.replace_shortcuts({ShortcutRecord{.keys = "Mod+Q", .action = "close"}});
+    }
+    {
+        Registry r(path);
+        EXPECT_FALSE(has(r, "Mod+Alt+equal"));  // marked done when it was fresh
+    }
+    // One seeded before them (no record of the step):
+    {
+        sqlite3* db = nullptr;
+        ASSERT_EQ(sqlite3_open(path.c_str(), &db), SQLITE_OK);
+        sqlite3_exec(db, "DELETE FROM migrations", nullptr, nullptr, nullptr);
+        sqlite3_close(db);
+    }
+    {
+        Registry r(path);
+        EXPECT_TRUE(has(r, "Mod+Alt+equal"));
+        EXPECT_TRUE(has(r, "Mod+Alt+minus"));
+        EXPECT_TRUE(has(r, "Mod+Alt+8"));
+        EXPECT_TRUE(has(r, "Mod+Q"));
+        auto kept = r.shortcuts();
+        std::erase_if(kept, [](const ShortcutRecord& s) { return s.keys == "Mod+Alt+8"; });
+        r.replace_shortcuts(kept);
+    }
+    {
+        Registry r(path);
+        EXPECT_FALSE(has(r, "Mod+Alt+8"));
+        EXPECT_TRUE(has(r, "Mod+Alt+equal"));
+    }
+    std::remove(path.c_str());
+}
