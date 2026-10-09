@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import shell.components
 import shell.services
 
@@ -30,5 +31,22 @@ Rectangle {
         source: avatar.user.icon ?? ""
         fillMode: Image.PreserveAspectCrop
         sourceSize: Qt.size(avatar.size * 2, avatar.size * 2)
+        // clip only cuts to the square: the circle masks it.
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: circle
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1
+        }
+    }
+
+    Rectangle {
+        id: circle
+
+        anchors.fill: parent
+        radius: width / 2
+        visible: false
+        layer.enabled: true
     }
 }
