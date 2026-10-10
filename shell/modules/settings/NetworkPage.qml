@@ -63,6 +63,7 @@ Column {
         title: "Wi-Fi"
         headerActions: [
             Switch {
+                name: "Wi-Fi"
                 checked: Network.wifiEnabled
                 onToggled: Network.wifiEnabled = !Network.wifiEnabled
             }

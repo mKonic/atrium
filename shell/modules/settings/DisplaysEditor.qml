@@ -170,6 +170,7 @@ Rectangle {
             subtitle: root.output ? `${root.output.name} · ${root.output.geometry.width} × ${root.output.geometry.height} points` : ""
 
             Switch {
+                name: "Use this display"
                 visible: Atrium.outputs.length > 1
                 checked: root.output?.enabled ?? false
                 onToggled: root.configure({ enabled: !checked })
@@ -294,6 +295,7 @@ Rectangle {
             label: "HDR"
 
             Switch {
+                name: "HDR"
                 anchors.verticalCenter: parent.verticalCenter
                 checked: root.output?.hdr ?? false
                 onToggled: root.configure({ hdr: !checked })

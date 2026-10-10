@@ -11,6 +11,12 @@ Rectangle {
     property bool primary: false
     signal clicked
 
+    // An icon-only one is named by its glyph ("add", "remove") unless the
+    // page names it better.
+    Accessible.role: Accessible.Button
+    Accessible.name: text !== "" ? text : icon
+    Accessible.onPressAction: clicked()
+
     implicitWidth: row.implicitWidth + 24
     implicitHeight: 30
     radius: 15

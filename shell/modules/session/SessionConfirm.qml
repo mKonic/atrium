@@ -112,6 +112,7 @@ PanelWindow {
                 spacing: 8
 
                 Switch {
+                    name: "Reopen windows when logging back in"
                     anchors.verticalCenter: parent.verticalCenter
                     checked: Atrium.settings["session.reopen_windows"] ?? true
                     onToggled: Atrium.setSetting("session.reopen_windows", !checked)

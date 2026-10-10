@@ -67,6 +67,7 @@ Column {
                     }
 
                     Switch {
+                        name: item.modelData.name
                         anchors.verticalCenter: parent.verticalCenter
                         checked: item.modelData.enabled
                         onToggled: Autostart.setEnabled(item.modelData.id, !checked)

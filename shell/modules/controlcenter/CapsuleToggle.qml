@@ -16,6 +16,14 @@ Module {
     signal toggled
     signal expand
 
+    Accessible.role: Accessible.Button
+    Accessible.name: title
+    Accessible.description: subtitle
+    Accessible.checkable: true
+    Accessible.checked: on
+    Accessible.onPressAction: toggled()
+    Accessible.onToggleAction: toggled()
+
     radius: height / 2
 
     Rectangle {

@@ -601,6 +601,7 @@ Column {
 
                         // Shown in search: off hides it (only where this page can bring it back).
                         Switch {
+                            name: "Show in search"
                             id: hideSwitch
 
                             anchors.right: parent.right
@@ -782,6 +783,7 @@ Column {
             label: "In root search"
 
             Switch {
+                name: "In root search"
                 checked: quicklinkSheet.inRoot
                 onToggled: quicklinkSheet.inRoot = !quicklinkSheet.inRoot
             }
@@ -912,6 +914,7 @@ Column {
             label: "Show output"
 
             Switch {
+                name: "Show output"
                 checked: commandSheet.output
                 onToggled: {
                     commandSheet.output = !commandSheet.output;
@@ -925,6 +928,7 @@ Column {
             label: "Run in terminal"
 
             Switch {
+                name: "Run in terminal"
                 checked: commandSheet.terminal
                 onToggled: {
                     commandSheet.terminal = !commandSheet.terminal;
@@ -938,6 +942,7 @@ Column {
             label: "Ask first"
 
             Switch {
+                name: "Ask first"
                 checked: commandSheet.confirm
                 onToggled: commandSheet.confirm = !commandSheet.confirm
             }

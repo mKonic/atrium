@@ -106,6 +106,13 @@ ListView {
         readonly property bool selected: index === list.launcherModel.current
         readonly property bool card: kind === "calc"
 
+        // For screen readers (AT-SPI): a result, read as the selection moves.
+        Accessible.role: Accessible.ListItem
+        Accessible.name: title
+        Accessible.description: detail
+        Accessible.selected: selected
+        Accessible.onPressAction: list.activated(index)
+
         width: list.width
         height: card ? 92 : 44
 

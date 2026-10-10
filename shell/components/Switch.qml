@@ -7,7 +7,16 @@ Item {
     id: root
 
     property bool checked: false
+    // What it turns on and off, for screen readers (its label is the row's).
+    property string name
     signal toggled
+
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: name
+    Accessible.checkable: true
+    Accessible.checked: checked
+    Accessible.onToggleAction: toggled()
+    Accessible.onPressAction: toggled()
 
     implicitWidth: 40
     implicitHeight: 24

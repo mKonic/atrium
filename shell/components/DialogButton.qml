@@ -10,6 +10,11 @@ Rectangle {
     property bool primary: false
     signal clicked
 
+    // For screen readers (AT-SPI): a button that says what it does.
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.onPressAction: clicked()
+
     width: 136
     height: 36
     radius: 18

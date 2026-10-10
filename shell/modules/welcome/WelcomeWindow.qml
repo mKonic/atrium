@@ -130,6 +130,7 @@ FloatingWindow {
                     note: "The bar, Dock and panels as glass that bends what is behind it, as in macOS."
 
                     Switch {
+                        name: "Liquid Glass"
                         checked: Atrium.settings["appearance.liquid_glass"] ?? false
                         onToggled: Atrium.setSetting("appearance.liquid_glass", !checked)
                     }

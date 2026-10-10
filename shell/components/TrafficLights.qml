@@ -24,9 +24,9 @@ Row {
         // atrium's order, on the right of the window: minimize, full screen,
         // close last (as its title bars draw them).
         model: [
-            { kind: "minimize", color: "#febc2e", glyph: "remove" },
-            { kind: "zoom", color: "#28c840", glyph: "open_in_full" },
-            { kind: "close", color: "#ff5f57", glyph: "close" }
+            { kind: "minimize", color: "#febc2e", glyph: "remove", name: "Minimize" },
+            { kind: "zoom", color: "#28c840", glyph: "open_in_full", name: "Full Screen" },
+            { kind: "close", color: "#ff5f57", glyph: "close", name: "Close" }
         ]
 
         Rectangle {
@@ -41,6 +41,10 @@ Row {
                                                 : Theme.palette.fill
             border.width: 0.5
             border.color: Qt.rgba(0, 0, 0, 0.15)
+
+            Accessible.role: Accessible.Button
+            Accessible.name: modelData.name
+            Accessible.onPressAction: press.clicked(null)
 
             MaterialIcon {
                 anchors.centerIn: parent

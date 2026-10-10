@@ -41,6 +41,7 @@ Column {
         subtitle: root.adapter ? `This computer is ${root.adapter.name}.` : ""
         headerActions: [
             Switch {
+                name: "Bluetooth"
                 checked: root.adapter?.enabled ?? false
                 onToggled: root.adapter.enabled = !root.adapter.enabled
             }
@@ -90,6 +91,7 @@ Column {
         subtitle: "Share the clipboard with your phone while it is connected: the last few copies when it connects, then every copy on either side."
         headerActions: [
             Switch {
+                name: "Phone Clipboard"
                 checked: phoneClipboard.on
                 onToggled: Atrium.setSetting("bluetooth.phone_clipboard", !phoneClipboard.on)
             }

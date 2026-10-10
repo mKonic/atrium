@@ -10,6 +10,11 @@ import Atrium
 Item {
     id: root
 
+    // For screen readers (AT-SPI).
+    Accessible.role: Accessible.Button
+    Accessible.name: "System menu"
+    Accessible.onPressAction: Panels.toggle("system")
+
     readonly property bool open: Panels.open === "system"
 
     implicitWidth: Theme.lens ? Theme.bar.inner : 30

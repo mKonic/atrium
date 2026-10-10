@@ -8,6 +8,12 @@ import shell.services
 Pill {
     id: root
 
+    // For screen readers (AT-SPI): the date and time, opening the calendar.
+    Accessible.role: Accessible.Button
+    Accessible.name: Qt.formatDateTime(clock.date, "dddd d MMMM, " + ((Atrium.settings["clock.24_hour"] ?? false) ? "H:mm" : "h:mm AP"))
+    Accessible.description: "Calendar"
+    Accessible.onPressAction: Panels.toggle("calendar")
+
     readonly property bool open: Panels.open === "calendar"
 
     color: open ? Theme.palette.accentFill : Theme.material.pill

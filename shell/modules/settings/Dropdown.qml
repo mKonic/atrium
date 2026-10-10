@@ -14,7 +14,13 @@ Rectangle {
     property string value
     property int fieldWidth: 200
     property string placeholder: "Choose…"  // while nothing is picked
+    // What it chooses, for screen readers (its label is the row's).
+    property string name
     signal picked(string value)
+
+    Accessible.role: Accessible.ComboBox
+    Accessible.name: name
+    Accessible.description: label
 
     readonly property string label: options.find(o => o.value === value)?.label ?? (value || placeholder)
 

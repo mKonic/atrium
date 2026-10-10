@@ -17,6 +17,14 @@ Rectangle {
     signal toggled
     signal expand
 
+    Accessible.role: Accessible.Button
+    Accessible.name: title
+    Accessible.description: subtitle
+    Accessible.checkable: true
+    Accessible.checked: on
+    Accessible.onPressAction: toggled()
+    Accessible.onToggleAction: toggled()
+
     implicitHeight: compact ? 78 : wide ? 64 : 58
     radius: 18
     color: Theme.palette.tertiaryFill

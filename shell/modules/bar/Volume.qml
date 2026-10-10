@@ -7,6 +7,12 @@ import shell.services
 Pill {
     id: root
 
+    // For screen readers (AT-SPI): pressing it mutes, as a click does.
+    Accessible.role: Accessible.Button
+    Accessible.name: "Volume"
+    Accessible.description: muted ? "Muted" : `${Math.round(volume * 100)}%`
+    Accessible.onPressAction: if (sink) sink.muted = !sink.muted
+
     readonly property AudioNode sink: Audio.sink
     readonly property real volume: sink?.volume ?? 0
     readonly property bool muted: sink?.muted ?? false

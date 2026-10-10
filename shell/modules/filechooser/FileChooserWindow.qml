@@ -412,6 +412,7 @@ FloatingWindow {
                         spacing: 8
 
                         Switch {
+                            name: choice.modelData.label ?? ""
                             visible: choice.toggle
                             anchors.verticalCenter: parent.verticalCenter
                             checked: choice.modelData.value === "true"

@@ -160,6 +160,12 @@ FloatingWindow {
                 required property var modelData
                 readonly property bool current: root.query === "" && root.page === modelData.name
 
+                Accessible.role: Accessible.PageTab
+                Accessible.name: modelData.name
+                Accessible.checkable: true
+                Accessible.checked: current
+                Accessible.onPressAction: area.clicked(null)
+
                 width: pageList.width
                 height: 36
                 radius: 9

@@ -10,6 +10,10 @@ import shell.services
 Pill {
     id: root
 
+    // For screen readers (AT-SPI).
+    Accessible.role: Accessible.StaticText
+    Accessible.name: "Network"
+
     readonly property bool bluetooth: (Bluetooth.adapter?.connectedNames ?? "") !== ""
 
     readonly property bool showSpeed: Atrium.settings["bar.net_speed"] ?? true

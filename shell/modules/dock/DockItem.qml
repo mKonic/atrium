@@ -66,6 +66,12 @@ Item {
         }
     }
 
+    // For screen readers: the app, and whether (and how much) it's open.
+    Accessible.role: Accessible.Button
+    Accessible.name: name
+    Accessible.description: !running ? "" : windowCount > 1 ? `Running, ${windowCount} windows` : "Running"
+    Accessible.onPressAction: activate()
+
     function activate(): void {
         if (apps.activate(appId)) {
             launching = true;

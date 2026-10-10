@@ -30,6 +30,7 @@ Column {
             note: DateTime.canNtp ? "From the internet (systemd-timesyncd)." : "No network time service is installed."
 
             Switch {
+                name: "Set time automatically"
                 enabled: DateTime.canNtp
                 opacity: enabled ? 1 : 0.4
                 checked: DateTime.ntp

@@ -29,6 +29,7 @@ Column {
             note: `Stops at ${Battery.chargeLimit}%, which keeps the battery healthy when it's mostly plugged in.`
 
             Switch {
+                name: "Limit charging"
                 checked: Battery.chargeLimitEnabled
                 onToggled: Battery.setChargeLimitEnabled(!checked)
             }

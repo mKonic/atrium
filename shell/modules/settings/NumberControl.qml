@@ -13,6 +13,12 @@ Item {
     property bool integer: true
     property real shown: value  // while dragging
     signal committed(var value)
+    // What it sets, for screen readers (its label is the row's).
+    property string name
+
+    Accessible.role: Accessible.Slider
+    Accessible.name: name
+    Accessible.description: String(shown)
     // Each step while dragging, for settings that show the change live.
     signal moved(var value)
 

@@ -10,7 +10,12 @@ Rectangle {
 
     property string value
     property var choices: []
+    // What it chooses, for screen readers (its label is the row's).
+    property string name
     signal picked(string value)
+
+    Accessible.role: Accessible.Grouping
+    Accessible.name: name
 
     // Words title-cased; scale factors as percentages.
     function label(c: string): string {
@@ -43,6 +48,12 @@ Rectangle {
                 height: 24
                 radius: 7
                 color: current ? Theme.palette.accent : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+
+                Accessible.role: Accessible.RadioButton
+                Accessible.name: root.label(modelData)
+                Accessible.checkable: true
+                Accessible.checked: current
+                Accessible.onPressAction: if (!current) root.picked(modelData)
 
                 StyledText {
                     id: text

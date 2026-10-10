@@ -22,6 +22,7 @@ Column {
         subtitle: "Play your phone's sound here, over the network, instead of on the phone. Both need to be on the same network; the phone needs Atrium Link."
         headerActions: [
             Switch {
+                name: "Phone Audio"
                 checked: root.on
                 onToggled: Atrium.setSetting("phone.audio", !root.on)
             }
@@ -84,6 +85,7 @@ Column {
                     note: "Whenever it's on this network."
 
                     Switch {
+                        name: "Connect automatically"
                         checked: phone.modelData.auto
                         onToggled: PhoneLink.setAutoConnect(phone.modelData.id, !phone.modelData.auto)
                     }

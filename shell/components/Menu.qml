@@ -16,6 +16,9 @@ Rectangle {
     readonly property bool iconColumn: actions.some(a => a !== "-" && (a.icon ?? "") !== "")
     signal picked
 
+    Accessible.role: Accessible.PopupMenu
+    Accessible.name: title
+
     // At least 220, wider for a long row.
     width: Math.max(220, column.widest + Theme.padding.small * 2)
     height: column.implicitHeight + Theme.padding.small * 2
@@ -93,6 +96,11 @@ Rectangle {
             radius: Theme.rounding.small
             opacity: usable ? 1 : 0.4
             color: hover.containsMouse && usable ? Theme.palette.tertiaryFill : "transparent"
+
+            Accessible.role: Accessible.MenuItem
+            Accessible.name: action.text ?? ""
+            Accessible.description: action.hint ?? ""
+            Accessible.onPressAction: if (usable) hover.clicked(null)
 
             Row {
                 id: content

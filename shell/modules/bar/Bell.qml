@@ -8,6 +8,12 @@ import Atrium
 Pill {
     id: root
 
+    // For screen readers (AT-SPI).
+    Accessible.role: Accessible.Button
+    Accessible.name: "Notifications"
+    Accessible.description: dnd ? "Do Not Disturb" : NotificationHistory.unread > 0 ? `${NotificationHistory.unread} unread` : ""
+    Accessible.onPressAction: Panels.toggle("notifications")
+
     readonly property bool dnd: Atrium.settings["notifications.dnd"] ?? false
     readonly property bool open: Panels.open === "notifications"
 

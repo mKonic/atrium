@@ -15,6 +15,12 @@ Module {
     signal moved(real value)
     signal released(real value)
 
+    Accessible.role: Accessible.Slider
+    Accessible.name: title
+    Accessible.description: Math.round(value * 100) + "%"
+    Accessible.onIncreaseAction: released(Math.min(1, value + 0.05))
+    Accessible.onDecreaseAction: released(Math.max(0, value - 0.05))
+
     radius: 26
     implicitHeight: 76
 

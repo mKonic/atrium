@@ -108,6 +108,7 @@ Column {
                 label: "Natural scrolling"
 
                 Switch {
+                    name: "Natural scrolling"
                     checked: device.modelData.natural_scroll
                              ?? Atrium.settings[device.modelData.touchpad ? "touchpad.natural_scroll" : "pointer.natural_scroll"] ?? true
                     onToggled: device.set("natural_scroll", !checked)
@@ -119,6 +120,7 @@ Column {
                 label: "Left-handed"
 
                 Switch {
+                    name: "Left-handed"
                     checked: device.modelData.left_handed ?? Atrium.settings["pointer.left_handed"] ?? false
                     onToggled: device.set("left_handed", !checked)
                 }

@@ -294,6 +294,7 @@ Column {
                             label: "Keep in the Dock"
 
                             Switch {
+                                name: "Keep in the Dock"
                                 checked: app.modelData.dock !== null
                                 onToggled: Atrium.setPinned(app.modelData.app_id, !checked)
                             }

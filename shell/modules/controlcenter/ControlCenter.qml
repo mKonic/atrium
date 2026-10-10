@@ -492,6 +492,7 @@ PanelWindow {
                     }
 
                     Switch {
+                        name: cc.page === "wifi" ? "Wi-Fi" : cc.page === "vpn" ? "VPN" : "Bluetooth"
                         visible: cc.page !== "media"
                         anchors.right: parent.right
                         anchors.rightMargin: 10

@@ -6,6 +6,11 @@ import shell.services
 Pill {
     id: root
 
+    // For screen readers (AT-SPI).
+    Accessible.role: Accessible.Button
+    Accessible.name: "Control Center"
+    Accessible.onPressAction: Panels.toggle("control")
+
     readonly property bool open: Panels.open === "control"
 
     implicitWidth: implicitHeight

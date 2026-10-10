@@ -133,6 +133,7 @@ Rectangle {
                     height: childrenRect.height
 
                     Switch {
+                        name: choice.modelData.label ?? ""
                         visible: choice.toggle
                         checked: choice.modelData.value === "true"
                         onToggled: AccessPrompt.setChoice(choice.modelData.id, checked ? "false" : "true")

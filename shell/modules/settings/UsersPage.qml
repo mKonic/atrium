@@ -324,6 +324,7 @@ Column {
             spacing: 10
 
             Switch {
+                name: "Allow this user to administer this computer"
                 id: adminSwitch
                 onToggled: checked = !checked
             }

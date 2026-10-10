@@ -48,6 +48,7 @@ Column {
         property string field
 
         Switch {
+            name: flag.label
             checked: root.record[flag.field] === true
             onToggled: root.changed({ [flag.field]: checked ? null : true })
         }
@@ -74,6 +75,7 @@ Column {
         label: "Start with the space"
 
         Switch {
+            name: "Start with the space"
             checked: (root.record.launch ?? "") !== ""
             onToggled: root.changed({ launch: checked ? "" : root.launchCommand })
         }

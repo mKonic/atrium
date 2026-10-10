@@ -15,6 +15,13 @@ Module {
     property int edge: 0
     signal toggled
 
+    Accessible.role: Accessible.Button
+    Accessible.name: title
+    Accessible.checkable: true
+    Accessible.checked: on
+    Accessible.onPressAction: toggled()
+    Accessible.onToggleAction: toggled()
+
     // Its name over the buttons and sliders below it.
     z: area.containsMouse ? 1 : 0
     radius: width / 2
