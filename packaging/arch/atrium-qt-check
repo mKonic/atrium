@@ -1,0 +1,23 @@
+#!/bin/sh
+# Qt plugins (atrium's lock screen, platform themes like qtengine) are built
+# against one Qt minor version: Qt won't load a platform theme from another,
+# and the lock screen uses Qt Wayland's private API. Repository packages are
+# rebuilt along with Qt; AUR ones aren't, so when Qt moves to a new minor
+# version this names the ones to rebuild.
+state=${ATRIUM_QT_STATE:-/run/atrium-qt-before}
+minor() { pacman -Q qt6-base 2>/dev/null | awk '{print $2}' | cut -d. -f1,2; }
+case "$1" in
+before)
+    minor >"$state"
+    ;;
+after)
+    old=$(cat "$state" 2>/dev/null)
+    rm -f "$state"
+    new=$(minor)
+    { [ -n "$old" ] && [ -n "$new" ] && [ "$old" != "$new" ]; } || exit 0
+    stale=$(pacman -Qqo /usr/lib/qt6/plugins 2>/dev/null | grep -Fx "$(pacman -Qmq)")
+    [ -n "$stale" ] || exit 0
+    echo "Qt moved from $old to $new. Rebuild these, their Qt plugins are built for $old:"
+    printf '  %s\n' $stale
+    ;;
+esac

@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = qt6-base
+
+[Action]
+Description = Noting the Qt version...
+When = PreTransaction
+Exec = /usr/share/libalpm/scripts/atrium-qt-check before
