@@ -171,8 +171,8 @@ QVariantList Session::waylandSessions() const {
 namespace {
 
 QString login_state_file() {
-    // The greeter user's own directory (greeter-tmpfiles.conf, installed with
-    // greetd's config): its home is often / and not its to write.
+    // The login screen user's own directory (atrium-login's tmpfiles.conf);
+    // elsewhere (nested, a test) the running user's state.
     const QFileInfo shared("/var/lib/atrium-greeter");
     if (shared.isDir() && shared.isWritable())
         return shared.filePath() + "/greeter.conf";

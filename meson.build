@@ -109,17 +109,12 @@ configure_file(input: 'data/share/dbus-1/services/org.freedesktop.impl.portal.de
 install_subdir('data/share/wayland-sessions', install_dir: get_option('datadir'), strip_directory: false)
 # sudo -A and ssh ask for passwords through the shell (SUDO_ASKPASS).
 install_data('data/bin/atrium-askpass', install_dir: get_option('bindir'), install_mode: 'rwxr-xr-x')
-# The login screen: an example greetd config (atrium --greeter), and where
-# it remembers the last login.
 # External monitors' brightness over DDC/CI: /dev/i2c-N, the session's own.
 install_data('data/lib/udev/rules.d/60-atrium-i2c.rules', install_dir: get_option('prefix') / 'lib' / 'udev' / 'rules.d')
 install_data('data/lib/modules-load.d/atrium-i2c.conf', install_dir: get_option('prefix') / 'lib' / 'modules-load.d')
 install_data('data/lib/systemd/user/atrium-session.target', install_dir: get_option('prefix') / 'lib' / 'systemd' / 'user')
-# The greeter's memory is only for machines using greetd (its `greeter` user
-# comes with greetd): the config's comments say to install it.
 # The shell's own font (Rubik), for every user and the greeter.
 install_subdir('data/share/atrium/fonts', install_dir: get_option('datadir') / 'atrium')
-install_data('data/share/atrium/greetd-config.toml', 'data/share/atrium/greeter-tmpfiles.conf', install_dir: get_option('datadir') / 'atrium')
 subdir('po')
 subdir('translations')
 subdir('shell/plugin/Atrium')
