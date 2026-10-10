@@ -361,3 +361,16 @@ TEST(Emoji, TheShippedDataParses) {
     EXPECT_GT(all.size(), 1500u);
     EXPECT_FALSE(atrium::emoji::search(all, "red heart").empty());
 }
+
+// The fifine H13's mixer reports +32 dB over its own 0 dB: PulseAudio's
+// base volume sits at 29% (-32 dB), and above it the headset overdrives.
+TEST(Levels, FullVolumeIsTheDevicesOwnZeroDecibels) {
+    constexpr uint32_t norm = 65536, base = 19193;
+    EXPECT_DOUBLE_EQ(atrium::levels::shown_volume(base, base, norm), 1.0);
+    EXPECT_EQ(atrium::levels::raw_volume(1.0, base, norm), base);
+    EXPECT_EQ(atrium::levels::raw_volume(2.0, base, norm), base);  // never past it
+    EXPECT_EQ(atrium::levels::raw_volume(0.5, base, norm), 9597u);
+    // A device without (HDMI: base = norm), or a stream (0): as PulseAudio says.
+    EXPECT_DOUBLE_EQ(atrium::levels::shown_volume(32768, norm, norm), 0.5);
+    EXPECT_EQ(atrium::levels::raw_volume(1.0, 0, norm), norm);
+}

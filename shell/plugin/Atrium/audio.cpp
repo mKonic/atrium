@@ -1,4 +1,5 @@
 #include "audio.hpp"
+#include "levels.hpp"
 
 #include <pulse/glib-mainloop.h>
 #include <pulse/pulseaudio.h>
@@ -12,8 +13,8 @@ namespace atrium {
 
 namespace {
 
-double fraction(const pa_cvolume& cv) {
-    return double(pa_cvolume_max(&cv)) / PA_VOLUME_NORM;
+double fraction(const pa_cvolume& cv, pa_volume_t base = 0) {
+    return levels::shown_volume(pa_cvolume_max(&cv), base, PA_VOLUME_NORM);
 }
 
 QByteArray pack(const pa_cvolume& cv) {
@@ -32,7 +33,8 @@ QString prop(pa_proplist* p, const char* key) {
 AudioNode::AudioNode(Audio* audio, Kind kind, uint index) : QObject(audio), audio_(audio), kind_(kind), index_(index) {}
 
 void AudioNode::update(const QString& name, const QString& label, const QString& icon, const QByteArray& cvolume,
-                       double volume, bool muted) {
+                       double volume, bool muted, uint base) {
+    base_ = base;
     name_ = name;
     label_ = label;
     icon_ = icon;
@@ -40,6 +42,10 @@ void AudioNode::update(const QString& name, const QString& label, const QString&
     volume_ = volume;
     muted_ = muted;
     emit changed();
+    // Past a device's own 0 dB (raised before, or by another mixer): back to
+    // it, as that's as loud as it goes without distorting.
+    if (base > 0 && base < PA_VOLUME_NORM && volume > 1.0 + 1e-3)
+        setVolume(1.0);
 }
 
 bool AudioNode::isDefault() const {
@@ -69,9 +75,11 @@ void AudioNode::setVolume(double v) {
     pa_cvolume cv;
     std::memcpy(&cv, cvolume_.constData(), sizeof cv);
     // Every channel scaled together: the balance stays.
-    pa_cvolume_scale(&cv, pa_volume_t(std::clamp(v, 0.0, 1.5) * PA_VOLUME_NORM));
+    // 100% is the device's own 0 dB (levels::shown_volume): past it, a
+    // headset's amplifier only distorts.
+    pa_cvolume_scale(&cv, levels::raw_volume(v, base_, PA_VOLUME_NORM));
     cvolume_ = pack(cv);
-    volume_ = fraction(cv);
+    volume_ = fraction(cv, base_);
     emit changed();
     pa_operation* op = nullptr;
     switch (kind_) {
@@ -244,7 +252,8 @@ void Audio::sinkCb(pa_context*, const pa_sink_info* i, int eol, void* data) {
     const bool fresh = !self->find(AudioNode::Kind::Sink, i->index);
     AudioNode* n = self->ensure(AudioNode::Kind::Sink, i->index);
     n->update(QString::fromUtf8(i->name), QString::fromUtf8(i->description ? i->description : i->name),
-              prop(i->proplist, PA_PROP_DEVICE_ICON_NAME), pack(i->volume), fraction(i->volume), i->mute);
+              prop(i->proplist, PA_PROP_DEVICE_ICON_NAME), pack(i->volume), fraction(i->volume, i->base_volume), i->mute,
+              i->base_volume);
     if (fresh) {
         emit self->nodesChanged();
         emit self->defaultsChanged();
@@ -259,7 +268,8 @@ void Audio::sourceCb(pa_context*, const pa_source_info* i, int eol, void* data) 
     const bool fresh = !self->find(AudioNode::Kind::Source, i->index);
     AudioNode* n = self->ensure(AudioNode::Kind::Source, i->index);
     n->update(QString::fromUtf8(i->name), QString::fromUtf8(i->description ? i->description : i->name),
-              prop(i->proplist, PA_PROP_DEVICE_ICON_NAME), pack(i->volume), fraction(i->volume), i->mute);
+              prop(i->proplist, PA_PROP_DEVICE_ICON_NAME), pack(i->volume), fraction(i->volume, i->base_volume), i->mute,
+              i->base_volume);
     if (fresh) {
         emit self->nodesChanged();
         emit self->defaultsChanged();

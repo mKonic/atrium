@@ -55,8 +55,10 @@ public:
     Q_INVOKABLE void makeDefault();
 
     // From the server.
+    // `base`: the device's own 0 dB (PulseAudio's base volume; 0 for an
+    // app's stream), which the shell shows as 100%.
     void update(const QString& name, const QString& label, const QString& icon, const QByteArray& cvolume,
-                double volume, bool muted);
+                double volume, bool muted, uint base = 0);
 
 signals:
     void changed();
@@ -69,6 +71,7 @@ private:
     QByteArray cvolume_;  // the server's pa_cvolume, to scale keeping balance
     double volume_ = 0;
     bool muted_ = false;
+    uint base_ = 0;
 };
 
 class Audio : public QObject {
