@@ -152,6 +152,7 @@ public:
 
     // --- displays ---
     std::optional<DisplayRecord> display(const std::string& id) const;
+    std::vector<DisplayRecord> displays() const;
     void put_display(const DisplayRecord& display);
 
     // --- devices ---

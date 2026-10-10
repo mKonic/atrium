@@ -192,11 +192,17 @@ int session_vt(int greeter, const std::vector<int>& session_vts, int free_vt) {
     return greeter;
 }
 
-std::optional<Control> parse_control(std::string_view line) {
+std::optional<ControlRequest> parse_control(std::string_view line) {
     while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' '))
         line.remove_suffix(1);
     if (line == "switch-to-greeter")
-        return Control::SwitchToGreeter;
+        return ControlRequest{Control::SwitchToGreeter, {}};
+    if (line.starts_with("displays ")) {
+        const std::string_view body = line.substr(9);
+        const nlohmann::json j = nlohmann::json::parse(body, nullptr, false);
+        if (!j.is_discarded() && j.is_array())
+            return ControlRequest{Control::Displays, std::string(body)};
+    }
     return std::nullopt;
 }
 

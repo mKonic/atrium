@@ -17,7 +17,10 @@ class Space;
 class Output {
 public:
     // `handoff`: what the screen showed before atrium (handoff.hpp).
-    Output(Server& server, wlr_output* wlr, Scanout handoff = {});
+    // `saved`: how this screen was last set up, taken over in that mode (and
+    // HDR) from the start, so a login screen set up the same way needs no
+    // modeset.
+    Output(Server& server, wlr_output* wlr, Scanout handoff = {}, const struct DisplayRecord* saved = nullptr);
     ~Output();
     Output(const Output&) = delete;
     Output& operator=(const Output&) = delete;
@@ -70,6 +73,7 @@ public:
     bool hdr_active() const;
     // Signal and compositing as set; false when the screen refused HDR.
     bool apply_hdr();
+    bool add_hdr(wlr_output_state& state);
     // SDR brightness 0-100 as the nits white is shown at in HDR: 80 (what
     // SDR is mastered for) up to the screen's peak, never past it. Content
     // that says what it is (Chromium, HDR video) has its reference white

@@ -78,8 +78,15 @@ int session_vt(int greeter, const std::vector<int>& session_vts, int free_vt);
 
 // What a logged-in session may ask of the daemon on its control socket, a
 // line each: "switch-to-greeter" (a greeter on a VT of its own, the asking
-// session left running).
-enum class Control { SwitchToGreeter };
-std::optional<Control> parse_control(std::string_view line);
+// session left running), or "displays [...]" (its displays as JSON, for the
+// greeter to come up the same way: no modeset when logging in).
+enum class Control { SwitchToGreeter, Displays };
+struct ControlRequest {
+    Control kind;
+    std::string payload;  // Displays: the JSON array, as sent
+};
+std::optional<ControlRequest> parse_control(std::string_view line);
+// The longest control line taken (a displays line with every screen).
+constexpr size_t kControlLineMax = 64 * 1024;
 
 } // namespace atrium::login

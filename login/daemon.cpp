@@ -134,6 +134,26 @@ void Daemon::quit_plymouth(bool keep_splash) {
     }
 }
 
+// A session's displays, for the greeter to come up the same way (its home:
+// displays.json, read by `atrium --greeter`).
+bool Daemon::save_greeter_displays(const std::string& json) {
+    const passwd* pw = getpwnam(config_.greeter_user.c_str());
+    if (!pw || !pw->pw_dir || !*pw->pw_dir)
+        return false;
+    const std::string path = std::string(pw->pw_dir) + "/displays.json";
+    const std::string tmp = path + ".new";
+    const int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
+    if (fd < 0)
+        return false;
+    const bool ok = write(fd, json.data(), json.size()) == ssize_t(json.size()) && fchown(fd, pw->pw_uid, pw->pw_gid) == 0;
+    close(fd);
+    if (!ok || rename(tmp.c_str(), path.c_str()) != 0) {
+        unlink(tmp.c_str());
+        return false;
+    }
+    return true;
+}
+
 std::vector<int> Daemon::session_vts() const {
     std::vector<int> vts;
     for (const auto& s : sessions_)
@@ -511,7 +531,7 @@ void Daemon::on_control(size_t index) {
         const ssize_t n = read(c.fd, buf, sizeof buf);
         if (n > 0) {
             c.buffer.append(buf, size_t(n));
-            if (c.buffer.size() > 1024)
+            if (c.buffer.size() > kControlLineMax)
                 gone = true;
             continue;
         }
@@ -534,6 +554,8 @@ void Daemon::on_control(size_t index) {
             answer = "error: not logged in here\n";
         } else if (auto r = parse_control(std::string_view(c.buffer).substr(0, nl)); !r) {
             answer = "error: unknown request\n";
+        } else if (r->kind == Control::Displays) {
+            answer = save_greeter_displays(r->payload) ? "ok\n" : "error: couldn't keep them\n";
         } else {
             switch_to_greeter(cred.uid);
             answer = "ok\n";

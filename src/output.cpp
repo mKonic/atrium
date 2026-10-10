@@ -23,34 +23,66 @@
 
 namespace atrium {
 
-Output::Output(Server& srv, wlr_output* output, Scanout handoff) : server(srv), wlr(output) {
+Output::Output(Server& srv, wlr_output* output, Scanout handoff, const DisplayRecord* saved)
+    : server(srv), wlr(output) {
     wlr->data = this;
+    if (!wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr))
+        hdr_caps = hdr_caps_from_edid(connector_edid(wlr->name));
 
-    // On with what it already shows, in the mode it's in: no modeset, and
-    // no black frame (wlroots lights a screen without a buffer black).
+    // The mode it was last set up in (the login screen's too, when it took
+    // them from the last session), else the one it's in.
+    wlr_output_mode* mode = handoff.mode;
+    if (saved && saved->enabled && saved->width > 0 && saved->height > 0) {
+        wlr_output_mode* best = nullptr;
+        wlr_output_mode* m;
+        wl_list_for_each(m, &wlr->modes, link)
+            if (m->width == saved->width && m->height == saved->height &&
+                (!best || std::abs(m->refresh - saved->refresh) < std::abs(best->refresh - saved->refresh)))
+                best = m;
+        if (best)
+            mode = best;
+    }
+    const bool want_hdr = saved && saved->enabled && saved->hdr && hdr_supported();
+    // On with what it already shows, in that mode and HDR as it was: the
+    // same picture and signal, so no modeset and no black frame (wlroots
+    // lights a screen without a buffer black). Short of that, less of it.
     bool on = false;
-    if (handoff.buffer && handoff.mode && handoff.buffer->width == handoff.mode->width &&
-        handoff.buffer->height == handoff.mode->height) {
+    const bool fits = handoff.buffer && mode && handoff.buffer->width == mode->width &&
+                      handoff.buffer->height == mode->height;
+    for (auto [with_buffer, with_hdr] : {std::pair{true, true}, {false, true}, {true, false}}) {
+        if ((with_buffer && !fits) || (with_hdr && !want_hdr) || (!with_hdr && !with_buffer) || !mode)
+            continue;
         wlr_output_state state;
         wlr_output_state_init(&state);
-        wlr_output_state_set_mode(&state, handoff.mode);
+        wlr_output_state_set_mode(&state, mode);
         wlr_output_state_set_enabled(&state, true);
-        wlr_output_state_set_buffer(&state, handoff.buffer);
-        on = wlr_output_commit_state(wlr, &state);
+        if (with_buffer)
+            wlr_output_state_set_buffer(&state, handoff.buffer);
+        const bool ready = with_hdr ? add_hdr(state) : wlr_output_test_state(wlr, &state);
+        on = ready && wlr_output_commit_state(wlr, &state);
         wlr_output_state_finish(&state);
-        if (!on)
-            wlr_log(WLR_INFO, "%s: can't show what was on screen, starting black", wlr->name);
+        if (on) {
+            hdr = with_hdr;
+            break;
+        }
     }
+    if (!on && handoff.buffer)
+        wlr_log(WLR_INFO, "%s: can't show what was on screen, starting black", wlr->name);
     if (!on) {
         wlr_output_state state;
         wlr_output_state_init(&state);
-        wlr_output_state_set_mode(&state, wlr_output_preferred_mode(wlr));
+        wlr_output_state_set_mode(&state, mode ? mode : wlr_output_preferred_mode(wlr));
         wlr_output_state_set_enabled(&state, true);
         wlr_output_commit_state(wlr, &state);
         wlr_output_state_finish(&state);
     }
     if (handoff.buffer) {
         handoff_ = wlr_scene_buffer_create(server.layer(Layer::Lock), handoff.buffer);
+        // Taken over in HDR, it was drawn for HDR (the login screen's): PQ.
+        if (hdr_active()) {
+            wlr_scene_buffer_set_transfer_function(handoff_, WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ);
+            wlr_scene_buffer_set_primaries(handoff_, WLR_COLOR_NAMED_PRIMARIES_BT2020);
+        }
         wlr_buffer_drop(handoff.buffer);  // the scene holds it now
         // Up to this long for the shell, then it goes anyway.
         handoff_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
@@ -100,8 +132,6 @@ Output::Output(Server& srv, wlr_output* output, Scanout handoff) : server(srv), 
     wlr_scene_node_set_enabled(&fullscreen_bg->node, false);
 
     scene_output = wlr_scene_output_create(server.scene, wlr);
-    if (!wlr_output_is_wl(wlr) && !wlr_output_is_headless(wlr))
-        hdr_caps = hdr_caps_from_edid(connector_edid(wlr->name));
     // Adding to the layout fires layout.change, which runs update_outputs().
     wlr_output_layout_add_auto(server.output_layout, wlr);
 }
@@ -228,6 +258,48 @@ bool Output::apply_icc(bool for_hdr, std::string* why) {
     return true;
 }
 
+// The HDR signal into `state`: the screen's own metadata, and a 10-bit
+// format its plane and the renderer share (tested with the rest of
+// `state`); false when there's none.
+bool Output::add_hdr(wlr_output_state& state) {
+    // The metadata describes the screen (what Windows sends from the
+    // EDID): its primaries and the luminances it says it can show.
+    wlr_output_image_description desc{};
+    desc.primaries = WLR_COLOR_NAMED_PRIMARIES_BT2020;
+    desc.transfer_function = WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
+    if (wlr->default_primaries)
+        desc.mastering_display_primaries = *wlr->default_primaries;
+    else
+        wlr_color_primaries_from_named(&desc.mastering_display_primaries, WLR_COLOR_NAMED_PRIMARIES_BT2020);
+    const double max = peak_nits() > 0 ? peak_nits() : 1000.0;
+    desc.mastering_luminance.min = hdr_caps ? hdr_caps->min_nits : 0.0;
+    desc.mastering_luminance.max = max;
+    desc.max_cll = max;
+    desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? hdr_caps->max_frame_avg_nits : max;
+    wlr_output_state_set_image_description(&state, &desc);
+    // Night light moves from the gamma table into the renderer.
+    if (wlr_output_get_gamma_size(wlr) > 0)
+        wlr_output_state_set_color_transform(&state, nullptr);
+    // At least 10 bits a channel, in whichever layout this screen's
+    // plane and the renderer share (NVIDIA's may not be XRGB).
+    bool ok = false;
+    for (uint32_t format : {DRM_FORMAT_XRGB2101010, DRM_FORMAT_XBGR2101010, DRM_FORMAT_ARGB2101010,
+                            DRM_FORMAT_ABGR2101010, DRM_FORMAT_XBGR16161616F, DRM_FORMAT_ABGR16161616F}) {
+        // Only the plane's own (testing any other logs an error).
+        if (!wlr_drm_format_set_get(wlr_output_get_primary_formats(wlr, wlr->allocator->buffer_caps), format))
+            continue;
+        wlr_output_state_set_render_format(&state, format);
+        if (wlr_output_test_state(wlr, &state)) {
+            wlr_log(WLR_INFO, "%s: HDR in %s", wlr->name, format_name(format).c_str());
+            ok = true;
+            break;
+        }
+    }
+    if (!ok)
+        log_formats(wlr);
+    return ok;
+}
+
 bool Output::apply_hdr() {
     const bool want = hdr && hdr_supported();
     // The HDR calibration first: its peak goes in the metadata.
@@ -239,41 +311,7 @@ bool Output::apply_hdr() {
         wlr_output_state_init(&state);
         state.allow_reconfiguration = true;
         if (want) {
-            // The metadata describes the screen (what Windows sends from the
-            // EDID): its primaries and the luminances it says it can show.
-            wlr_output_image_description desc{};
-            desc.primaries = WLR_COLOR_NAMED_PRIMARIES_BT2020;
-            desc.transfer_function = WLR_COLOR_TRANSFER_FUNCTION_ST2084_PQ;
-            if (wlr->default_primaries)
-                desc.mastering_display_primaries = *wlr->default_primaries;
-            else
-                wlr_color_primaries_from_named(&desc.mastering_display_primaries, WLR_COLOR_NAMED_PRIMARIES_BT2020);
-            const double max = peak_nits() > 0 ? peak_nits() : 1000.0;
-            desc.mastering_luminance.min = hdr_caps ? hdr_caps->min_nits : 0.0;
-            desc.mastering_luminance.max = max;
-            desc.max_cll = max;
-            desc.max_fall = hdr_caps && hdr_caps->max_frame_avg_nits > 0 ? hdr_caps->max_frame_avg_nits : max;
-            wlr_output_state_set_image_description(&state, &desc);
-            // Night light moves from the gamma table into the renderer.
-            if (wlr_output_get_gamma_size(wlr) > 0)
-                wlr_output_state_set_color_transform(&state, nullptr);
-            // At least 10 bits a channel, in whichever layout this screen's
-            // plane and the renderer share (NVIDIA's may not be XRGB).
-            ok = false;
-            for (uint32_t format : {DRM_FORMAT_XRGB2101010, DRM_FORMAT_XBGR2101010, DRM_FORMAT_ARGB2101010,
-                                    DRM_FORMAT_ABGR2101010, DRM_FORMAT_XBGR16161616F, DRM_FORMAT_ABGR16161616F}) {
-                // Only the plane's own (testing any other logs an error).
-                if (!wlr_drm_format_set_get(wlr_output_get_primary_formats(wlr, wlr->allocator->buffer_caps), format))
-                    continue;
-                wlr_output_state_set_render_format(&state, format);
-                if (wlr_output_test_state(wlr, &state)) {
-                    wlr_log(WLR_INFO, "%s: HDR in %s", wlr->name, format_name(format).c_str());
-                    ok = true;
-                    break;
-                }
-            }
-            if (!ok)
-                log_formats(wlr);
+            ok = add_hdr(state);
         } else {
             wlr_output_state_set_image_description(&state, nullptr);
             wlr_output_state_set_render_format(&state, DRM_FORMAT_XRGB8888);

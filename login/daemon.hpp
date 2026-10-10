@@ -70,6 +70,7 @@ private:
     void hold_displays();
     void quit_plymouth(bool keep_splash);
     std::vector<int> session_vts() const;
+    bool save_greeter_displays(const std::string& json);
 
     Config config_;
     WorkerPtr greeter_, pending_;

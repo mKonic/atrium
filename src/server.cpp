@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include "display_share.hpp"
 #include "gamepads.hpp"
 #include "hot_corners_core.hpp"
 #include "not_responding.hpp"
@@ -13,6 +14,7 @@
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
+#include <sys/un.h>
 #include <fstream>
 #include "registry.hpp"
 
@@ -90,8 +92,41 @@ Server::Server(Config defaults, bool is_nested, std::filesystem::path registry_f
     if (registry->fresh())
         seed_registry(registry_file.parent_path());
     settings->apply(config);
+    if (config.greeter)
+        load_greeter_displays();
     rebuild_from_registry();
     setup();
+}
+
+// The login screen: the displays as the last session left them
+// (atrium-login keeps them in its home), so logging in needs no modeset.
+void Server::load_greeter_displays() {
+    const char* home = std::getenv("HOME");
+    if (!home || !*home)
+        return;
+    std::ifstream in(std::filesystem::path(home) / "displays.json");
+    if (!in)
+        return;
+    const nlohmann::json j = nlohmann::json::parse(in, nullptr, false);
+    for (const DisplayRecord& d : displays_from_json(j))
+        registry->put_display(d);
+}
+
+// The session's displays to atrium-login, for the login screen to come up
+// the same way. Quietly nothing without it (greetd, nested).
+void Server::share_displays() {
+    if (config.greeter || nested)
+        return;
+    const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+    if (fd < 0)
+        return;
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, "/run/atrium-login/control.sock", sizeof addr.sun_path - 1);
+    const std::string line = displays_line(registry->displays());
+    if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0)
+        (void)send(fd, line.data(), line.size(), MSG_NOSIGNAL);
+    close(fd);
 }
 
 // A new registry: what the old stores held (settings.json and
@@ -952,10 +987,12 @@ void Server::new_output(wlr_output* wlr) {
     if (!wlr_output_init_render(wlr, allocator, renderer))
         return;
     // Before atrium's first commit replaces it.
-    auto* output = new Output(*this, wlr, capture_scanout(wlr));
+    const auto saved = registry->display(display_id(wlr));
+    auto* output = new Output(*this, wlr, capture_scanout(wlr), saved ? &*saved : nullptr);
     outputs.push_back(output);
     output_added(output);
     restore_display(output);
+    share_displays();  // the login screen's, as this session has them
     apply_lid_soon();
     // Joining the layout (in Output's constructor) ran update_outputs()
     // before this output was in `outputs`: its box, and the bar's and every

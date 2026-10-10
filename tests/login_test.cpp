@@ -108,10 +108,17 @@ TEST(LoginSeats, SessionStartsBesideTheGreeter) {
 }
 
 TEST(LoginSeats, ParsesControlLines) {
-    EXPECT_EQ(parse_control("switch-to-greeter"), Control::SwitchToGreeter);
-    EXPECT_EQ(parse_control("switch-to-greeter\r\n"), Control::SwitchToGreeter);
+    EXPECT_EQ(parse_control("switch-to-greeter")->kind, Control::SwitchToGreeter);
+    EXPECT_EQ(parse_control("switch-to-greeter\r\n")->kind, Control::SwitchToGreeter);
     EXPECT_FALSE(parse_control("switch-to-greeter now"));
     EXPECT_FALSE(parse_control(""));
+    // The session's displays, for the greeter: a JSON array only.
+    const auto d = parse_control(R"(displays [{"id":"MSI G274F","refresh":179999,"hdr":true}])");
+    ASSERT_TRUE(d);
+    EXPECT_EQ(d->kind, Control::Displays);
+    EXPECT_EQ(d->payload, R"([{"id":"MSI G274F","refresh":179999,"hdr":true}])");
+    EXPECT_FALSE(parse_control("displays {\"id\":1}"));
+    EXPECT_FALSE(parse_control("displays [not json"));
 }
 
 } // namespace

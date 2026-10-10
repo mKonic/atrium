@@ -588,16 +588,33 @@ void Registry::replace_shortcuts(const std::vector<ShortcutRecord>& list) {
 
 // --- displays ------------------------------------------------------------------------
 
+namespace {
+
+constexpr const char* kDisplayColumns = "SELECT id, enabled, width, height, refresh, scale, transform, x, y,"
+                                        " adaptive_sync, hdr, sdr_brightness, sdr_color, icc, icc_hdr FROM displays";
+
+DisplayRecord display_row(const Stmt& s) {
+    return {s.text(0), s.integer(1) != 0, int(s.integer(2)), int(s.integer(3)), int(s.integer(4)),
+            s.real(5), int(s.integer(6)), s.opt_int(7), s.opt_int(8), s.text(9), s.integer(10) != 0,
+            int(s.integer(11)), int(s.integer(12)), s.text(13), s.text(14)};
+}
+
+} // namespace
+
 std::optional<DisplayRecord> Registry::display(const std::string& id) const {
-    Stmt s(db_, "SELECT id, enabled, width, height, refresh, scale, transform, x, y, adaptive_sync, hdr,"
-                " sdr_brightness, sdr_color, icc, icc_hdr FROM displays WHERE id = ?1");
+    Stmt s(db_, (std::string(kDisplayColumns) + " WHERE id = ?1").c_str());
     s.bind(1, id);
     if (!s.step())
         return std::nullopt;
-    DisplayRecord d{s.text(0), s.integer(1) != 0, int(s.integer(2)), int(s.integer(3)), int(s.integer(4)),
-                    s.real(5), int(s.integer(6)), s.opt_int(7), s.opt_int(8), s.text(9), s.integer(10) != 0,
-                    int(s.integer(11)), int(s.integer(12)), s.text(13), s.text(14)};
-    return d;
+    return display_row(s);
+}
+
+std::vector<DisplayRecord> Registry::displays() const {
+    std::vector<DisplayRecord> out;
+    Stmt s(db_, (std::string(kDisplayColumns) + " ORDER BY id").c_str());
+    while (s.step())
+        out.push_back(display_row(s));
+    return out;
 }
 
 void Registry::put_display(const DisplayRecord& d) {

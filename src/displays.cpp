@@ -100,6 +100,7 @@ void Server::remember_displays() {
         }
         registry->put_display(d);
     }
+    share_displays();
 }
 
 void Server::restore_display(Output* output) {
@@ -133,7 +134,10 @@ void Server::restore_display(Output* output) {
     wlr_output* w = output->wlr;
     wlr_output_state state;
     wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, d->enabled);
+    // Only what differs: setting even the same mode, or "on" again, lets the
+    // driver modeset (a blank screen for a moment).
+    if (d->enabled != w->enabled)
+        wlr_output_state_set_enabled(&state, d->enabled);
     if (d->enabled) {
         if (d->width > 0 && d->height > 0) {
             // The closest mode it has; a custom one where it has none (nested).
@@ -143,7 +147,7 @@ void Server::restore_display(Output* output) {
                 if (mode->width == d->width && mode->height == d->height &&
                     (!best || std::abs(mode->refresh - d->refresh) < std::abs(best->refresh - d->refresh)))
                     best = mode;
-            if (best)
+            if (best && best != w->current_mode)
                 wlr_output_state_set_mode(&state, best);
             else if (wl_list_empty(&w->modes))
                 wlr_output_state_set_custom_mode(&state, d->width, d->height, d->refresh);

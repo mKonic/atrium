@@ -337,6 +337,8 @@ public:
     void zoom_to(double target, bool animate = true);
     double zoom_target() const { return zoom_target_; }
     void zoom_toggle() { zoom_to(zoom_target_ > 1.0 ? 1.0 : zoom_last_); }
+    // The displays to atrium-login, for the login screen (display_share.hpp).
+    void share_displays();
     // The system bell's sound (the typing aids' beeps).
     void bell();
     std::unique_ptr<Settings> settings;
@@ -434,6 +436,7 @@ private:
     Listener<wlr_output> new_output_;
     wlr_drm_lease_v1_manager* drm_lease_manager = nullptr;
     wlr_xdg_foreign_registry* foreign_registry_ = nullptr;
+    void load_greeter_displays();
     double zoom_target_ = 1.0, zoom_last_ = 2.0;
     std::unique_ptr<class SystemBell> system_bell_;
     std::unique_ptr<class Gamepads> gamepads_;
