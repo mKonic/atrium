@@ -837,6 +837,7 @@ void Server::run(const char* startup_cmd) {
         apply_color_scheme(config.light);
         apply_accent_color(config.accent);
         apply_interface(interface());
+        apply_accessibility(config.animations, config.text_scale, config.high_contrast);
     }
     ipc = std::make_unique<Ipc>(*this, socket);
     if (!config.greeter)
@@ -1366,8 +1367,8 @@ void Server::focus_view(View* view, bool raise) {
 }
 
 Interface Server::interface() const {
-    return {config.icon_theme, config.font, config.font_size, config.mono_font, config.cursor_theme,
-            config.cursor_size};
+    return {config.icon_theme, config.font,         config.font_size,  config.mono_font,
+            config.cursor_theme, config.cursor_size, config.text_scale, config.high_contrast};
 }
 
 // An app's global shortcut pressed or let go: the portal backend hears it
@@ -1892,6 +1893,12 @@ void Server::setting_changed(const std::string& key) {
         update_blocked();
     if ((is("appearance.blur") || key == "appearance.transparency") && background_effects)
         background_effects->announce();
+    if (key == "appearance.animations" || key == "accessibility.text_size" || key == "appearance.high_contrast") {
+        if (key != "appearance.animations")
+            install_qt_theme(config.light, config.accent, interface());
+        if (!nested)
+            apply_accessibility(config.animations, config.text_scale, config.high_contrast);
+    }
     if (key == "appearance.style" || key == "appearance.accent") {
         install_gtk_theme(config.light, config.accent);  // apps opened from now on
         install_qt_theme(config.light, config.accent, interface());   // Qt apps too, live (qtengine watches it)

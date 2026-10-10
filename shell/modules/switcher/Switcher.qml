@@ -55,12 +55,12 @@ PanelWindow {
         scale: root.shown ? 1 : 0.94
         Behavior on opacity {
             Anim {
-                duration: root.shown ? 140 : 90
+                duration: (root.shown ? 140 : 90) * Theme.anim.factor
             }
         }
         Behavior on scale {
             Anim {
-                duration: 180
+                duration: 180 * Theme.anim.factor
                 easing.bezierCurve: Theme.anim.emphasizedDecel
             }
         }
@@ -87,7 +87,7 @@ PanelWindow {
             Behavior on x {
                 enabled: root.shown
                 Anim {
-                    duration: 160
+                    duration: 160 * Theme.anim.factor
                     easing.bezierCurve: Theme.anim.emphasizedDecel
                 }
             }
@@ -124,7 +124,7 @@ PanelWindow {
                         scale: cellItem.picked ? 1.04 : 1
                         Behavior on scale {
                             Anim {
-                                duration: 160
+                                duration: 160 * Theme.anim.factor
                             }
                         }
                     }
@@ -153,7 +153,7 @@ PanelWindow {
             Behavior on x {
                 enabled: root.shown
                 Anim {
-                    duration: 160
+                    duration: 160 * Theme.anim.factor
                     easing.bezierCurve: Theme.anim.emphasizedDecel
                 }
             }

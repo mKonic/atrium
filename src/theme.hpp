@@ -14,6 +14,8 @@ struct Interface {
     std::string mono;       // monospace family, at font_size
     std::string cursor_theme;
     int cursor_size = 24;
+    double text_scale = 1.0;     // Qt's font size goes up with it (GTK reads text-scaling-factor)
+    bool high_contrast = false;  // the Qt colour scheme's
 };
 
 // Install atrium's GTK theme into $XDG_DATA_HOME/themes/atrium and point apps
@@ -37,6 +39,10 @@ void apply_color_scheme(bool light);
 // Icons, fonts and the cursor through GSettings, which GTK apps and the
 // settings portal read, live.
 void apply_interface(const Interface& ui);
+// Reduced motion, larger text and high contrast through GSettings
+// (enable-animations, text-scaling-factor, a11y high-contrast), which GTK
+// reads and the settings portal hands on, live.
+void apply_accessibility(bool animations, double text_scale, bool high_contrast);
 // GNOME's accent-color (libadwaita apps, live through the portal).
 void apply_accent_color(std::string_view accent);
 

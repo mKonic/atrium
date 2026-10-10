@@ -1,5 +1,7 @@
 #include "theme.hpp"
 
+#include <cmath>
+
 #include "accent.hpp"
 #include "palette.hpp"
 
@@ -129,11 +131,11 @@ void use_defaults_dir() {
 // it up when they start.
 void install_kdeglobals(bool light, std::string_view accent, const Interface& ui) {
     const fs::path xdg = defaults_dir();
-    std::string text = palette::kde_colors(light, accent);
+    std::string text = palette::kde_colors(light, accent, ui.high_contrast);
     if (!ui.icon_theme.empty())
         text += "\n[Icons]\nTheme=" + ui.icon_theme + "\n";
     auto font = [&](const std::string& family) {
-        return family + "," + std::to_string(ui.font_size) + ",-1,5,400,0,0,0,0,0";
+        return family + "," + std::to_string(int(std::lround(ui.font_size * ui.text_scale))) + ",-1,5,400,0,0,0,0,0";
     };
     if (!ui.font.empty() || !ui.mono.empty()) {
         text += "\n[General]\n";
@@ -216,16 +218,16 @@ void install_qt_theme(bool light, std::string_view accent, const Interface& ui) 
     if (!ui.icon_theme.empty())
         theme["iconTheme"] = ui.icon_theme;
     if (!ui.font.empty())
-        theme["font"] = {{"family", ui.font}, {"size", ui.font_size}, {"weight", -1}};
+        theme["font"] = {{"family", ui.font}, {"size", int(std::lround(ui.font_size * ui.text_scale))}, {"weight", -1}};
     if (!ui.mono.empty())
-        theme["fontFixed"] = {{"family", ui.mono}, {"size", ui.font_size}, {"weight", -1}};
+        theme["fontFixed"] = {{"family", ui.mono}, {"size", int(std::lround(ui.font_size * ui.text_scale))}, {"weight", -1}};
     if (!theme.contains("iconTheme"))
         theme["iconTheme"] = light ? "breeze" : "breeze-dark";
     if (!theme.contains("style"))
         theme["style"] = "Fusion";
 
     // The colours first: qtengine reloads when its config changes.
-    if (!write_if_changed(colors, palette::kde_colors(light, accent)) ||
+    if (!write_if_changed(colors, palette::kde_colors(light, accent, ui.high_contrast)) ||
         !write_if_changed(dir / "config.json", config.dump(2) + "\n")) {
         wlr_log(WLR_ERROR, "theme: couldn't write %s; Qt apps keep their own colours", dir.c_str());
         return;
@@ -290,6 +292,30 @@ void apply_interface(const Interface& ui) {
     g_settings_sync();
     g_object_unref(s);
     g_settings_schema_unref(schema);
+}
+
+void apply_accessibility(bool animations, double text_scale, bool high_contrast) {
+    GSettingsSchemaSource* source = g_settings_schema_source_get_default();
+    auto with = [&](const char* id, auto fn) {
+        GSettingsSchema* schema = source ? g_settings_schema_source_lookup(source, id, true) : nullptr;
+        if (!schema)
+            return;
+        GSettings* s = g_settings_new(id);
+        fn(schema, s);
+        g_object_unref(s);
+        g_settings_schema_unref(schema);
+    };
+    with("org.gnome.desktop.interface", [&](GSettingsSchema* schema, GSettings* s) {
+        if (g_settings_schema_has_key(schema, "enable-animations"))
+            g_settings_set_boolean(s, "enable-animations", animations);
+        if (g_settings_schema_has_key(schema, "text-scaling-factor"))
+            g_settings_set_double(s, "text-scaling-factor", text_scale);
+    });
+    with("org.gnome.desktop.a11y.interface", [&](GSettingsSchema* schema, GSettings* s) {
+        if (g_settings_schema_has_key(schema, "high-contrast"))
+            g_settings_set_boolean(s, "high-contrast", high_contrast);
+    });
+    g_settings_sync();
 }
 
 void apply_accent_color(std::string_view accent) {

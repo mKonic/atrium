@@ -172,6 +172,8 @@ struct Config {
     int slow_keys_delay = 500;
     bool bounce_keys = false;
     int bounce_keys_delay = 500;
+    bool high_contrast = false;  // appearance.high_contrast: macOS's Increase Contrast
+    double text_scale = 1.0;     // accessibility.text_size: the shell's and apps' text, bigger
     double zoom_step = 1.2;                     // each zoom in multiplies by this
     std::string zoom_tracking = "proportional";  // or "centered": how the zoomed view follows the pointer
 

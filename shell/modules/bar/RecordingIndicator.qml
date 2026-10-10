@@ -25,7 +25,7 @@ Pill {
             color: Theme.dark.label
 
             SequentialAnimation on opacity {
-                running: Recorder.recording
+                running: Recorder.recording && Theme.anim.on  // a pulse: decoration, still with reduced motion
                 loops: Animation.Infinite
 
                 Anim {

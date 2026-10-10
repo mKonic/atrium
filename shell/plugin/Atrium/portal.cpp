@@ -306,6 +306,8 @@ QVariantMap SettingsAdaptor::appearance() const {
         {"color-scheme", uint(s.value("appearance.style").toString() == "light" ? 2 : 1)},
         {"accent-color", QVariant::fromValue(accent)},
         {"contrast", uint(s.value("appearance.high_contrast").toBool() ? 1 : 0)},
+        // Animations off: reduced motion.
+        {"reduced-motion", uint(s.value("appearance.animations", true).toBool() ? 0 : 1)},
     };
 }
 

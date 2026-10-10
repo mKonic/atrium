@@ -60,7 +60,7 @@ void apply_glass(wlr_scene_blur* blur, const std::vector<GlassShape>& given, flo
     // bends in it: grown in from flat as the glass materializes.
     const float bevel = std::clamp(0.3f * float(std::min(width, height)), 8.0f, 20.0f);
     wlr_scene_blur_set_refraction(blur, std::max(0.01f, bevel * float(lensing) * c.glass_refraction), bevel);
-    const uint32_t bg = palette::make(c.light, c.accent).window_background;
+    const uint32_t bg = palette::make(c.light, c.accent, c.high_contrast).window_background;
     wlr_scene_glass glass{};
     glass.tint[0] = float((bg >> 24) & 0xff) / 255;
     glass.tint[1] = float((bg >> 16) & 0xff) / 255;

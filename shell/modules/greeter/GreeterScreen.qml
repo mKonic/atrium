@@ -325,10 +325,10 @@ PanelWindow {
                 id: shake
 
                 loops: 1
-                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: -12; duration: 50 }
-                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: 12; duration: 70 }
-                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: -8; duration: 60 }
-                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: 0; duration: 50 }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: -12; duration: 50 * Theme.anim.factor }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: 12; duration: 70 * Theme.anim.factor }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: -8; duration: 60 * Theme.anim.factor }
+                NumberAnimation { target: passwordBox; property: "anchors.horizontalCenterOffset"; to: 0; duration: 50 * Theme.anim.factor }
             }
         }
 

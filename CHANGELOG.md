@@ -14,6 +14,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Added
 - Settings > Accessibility with KWin's typing aids: sticky keys (a modifier pressed and let go applies to the next key or click, pressed twice it locks), slow keys (a key counts once held a moment) and bounce keys (a key pressed again straight away is ignored), each with its beeps.
 - Zoom, as KWin's: the screen magnified around the pointer with Super+Alt+= and Super+Alt+- (Super+Alt+8 turns it off and on) or Super+Ctrl and scroll, following the pointer proportionally or centred (Settings > Accessibility).
+- Increase contrast and text size in Settings > Accessibility: macOS's Increase Contrast colours with opaque text, firmer edges and solid panels, and bigger text in the shell; GTK and libadwaita apps follow both, Qt apps the text size when the font is set in Appearance.
+- With animations off, the shell's panels stop moving too, and apps are told to reduce motion.
 - Clipboard History (Super+V): pin entries (Ctrl+.) to keep them on top, past the history limit and Clear All, and paste one with Ctrl+1..0; show only text, images, files, colours, links or emails; copied colours drawn as a swatch; its actions in Ctrl+K.
 - Quicklinks import from and export to a JSON file in Settings > Launcher.
 - The launcher offers to search the web for what was typed, with Google, DuckDuckGo, Bing, Brave Search, Startpage or Ecosia (Settings > Launcher).

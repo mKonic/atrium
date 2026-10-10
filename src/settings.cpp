@@ -473,7 +473,8 @@ std::vector<SettingSchema> build_schema(const Config& d) {
 
     // Motion
     s.push_back(boolean("appearance.animations", "Appearance", "Animations",
-        "Windows and spaces move instead of jumping.", &Config::animations, d));
+        "Windows, spaces and the shell's panels move instead of jumping. Off, nothing moves by itself (reduced "
+        "motion), and apps that follow the system are asked to do the same.", &Config::animations, d));
     s.push_back(number("appearance.animation_speed", T::Float, "Appearance", "Animation speed",
         "1 is normal; 2 is twice as fast.", &Config::animation_speed, d, 0.25, 4));
 
@@ -555,6 +556,20 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Repeats per second while a key is held.", &Config::repeat_rate, d, 1, 100));
     s.push_back(number("keyboard.repeat_delay", T::Int, "Keyboard", "Delay until repeat",
         "Milliseconds a key is held before it repeats.", &Config::repeat_delay, d, 100, 2000));
+    // Accessibility: seeing first (contrast, text, zoom), as a Mac lists them.
+    s.push_back(boolean("appearance.high_contrast", "Accessibility", "Increase contrast",
+        "Text, edges and colours stronger, as macOS's Increase Contrast; panels go solid. Apps that follow the "
+        "system (GTK, libadwaita) do the same.", &Config::high_contrast, d));
+    s.push_back(number("accessibility.text_size", T::Float, "Accessibility", "Text size",
+        "Text in the bar, Dock, panels and Settings, and in apps that follow the system (GTK; Qt apps with "
+        "the font set in Appearance): 1 is normal, 1.25 a quarter bigger.", &Config::text_scale, d, 0.8, 2));
+    s.push_back(number("accessibility.zoom_step", T::Float, "Accessibility", "Zoom step",
+        "How much each zoom in (Super+Alt+=, or Super+Ctrl and scroll) magnifies the screen: 1.2 is a fifth more.",
+        &Config::zoom_step, d, 1.05, 3));
+    s.push_back(choice("accessibility.zoom_tracking", "Accessibility", "Zoomed view follows the pointer",
+        "Proportional slides the view so the pointer stays where it is on screen; centred keeps it in the middle.",
+        {"proportional", "centered"}, d.zoom_tracking,
+        [](Config& c, const json& v) { c.zoom_tracking = v.get<std::string>(); }));
     // Accessibility: typing aids, as KWin's (Plasma's Accessibility page).
     s.push_back(boolean("accessibility.sticky_keys", "Accessibility", "Sticky keys",
         "Shift, Control, Alt and Super pressed and let go apply to the next key or click, so shortcuts need "
@@ -582,13 +597,6 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(number("accessibility.bounce_keys_delay", T::Int, "Accessibility", "Ignore repeats within",
         "Milliseconds after a key is pressed in which pressing it again is ignored.", &Config::bounce_keys_delay, d,
         50, 2000));
-    s.push_back(number("accessibility.zoom_step", T::Float, "Accessibility", "Zoom step",
-        "How much each zoom in (Super+Alt+=, or Super+Ctrl and scroll) magnifies the screen: 1.2 is a fifth more.",
-        &Config::zoom_step, d, 1.05, 3));
-    s.push_back(choice("accessibility.zoom_tracking", "Accessibility", "Zoomed view follows the pointer",
-        "Proportional slides the view so the pointer stays where it is on screen; centred keeps it in the middle.",
-        {"proportional", "centered"}, d.zoom_tracking,
-        [](Config& c, const json& v) { c.zoom_tracking = v.get<std::string>(); }));
     s.push_back(choice("keyboard.switch_keys", "Keyboard", "Switch layouts with",
         "Keys that go to the next layout, besides the menu bar's layout menu.",
         {"none", "alt_shift", "ctrl_shift", "caps_lock", "shift_caps_lock", "right_alt"}, "none",
@@ -974,6 +982,12 @@ std::optional<std::string> Settings::reset(const std::string& key) {
 void Settings::apply(Config& config) const {
     for (const auto& s : schema_)
         s.apply(config, get(s.key));
+    // Increase Contrast reduces transparency too, as on a Mac: solid panels
+    // and windows whatever the Appearance page says.
+    if (config.high_contrast) {
+        config.liquid_glass = false;
+        config.transparency = false;
+    }
 }
 
 void Settings::load() {

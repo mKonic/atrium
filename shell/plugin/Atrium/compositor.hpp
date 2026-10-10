@@ -85,7 +85,7 @@ public:
     Q_INVOKABLE QVariant setting(const QString& key, const QVariant& fallback) const;
     // The shell's colours for appearance.style and appearance.accent:
     // label, fill, accent, red, ... as "#rrggbb" or "#aarrggbb" (palette.hpp).
-    Q_INVOKABLE QVariantMap palette(bool light, const QString& accent) const;
+    Q_INVOKABLE QVariantMap palette(bool light, const QString& accent, bool highContrast = false) const;
     // The accent's own colour, for swatches; invalid for multicolour.
     Q_INVOKABLE QString accentColor(const QString& accent) const;
     Q_INVOKABLE QString accentLabel(const QString& accent) const;

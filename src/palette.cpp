@@ -49,11 +49,58 @@ uint32_t with_alpha(uint32_t rgba, uint32_t a) {
     return (rgba & 0xffffff00) | a;
 }
 
+// macOS's Increase Contrast system colours, light and dark (Apple's Human
+// Interface Guidelines, Color, as updated June 2025).
+struct Contrast {
+    std::string_view name;
+    uint32_t light, dark;
+};
+constexpr Contrast kContrast[] = {
+    {"red", 0xe9152dff, 0xff6165ff},    {"orange", 0xc55300ff, 0xffa056ff}, {"yellow", 0xa16a00ff, 0xfedf43ff},
+    {"green", 0x008932ff, 0x4ad968ff},  {"mint", 0x008575ff, 0x54dfcbff},   {"teal", 0x008198ff, 0x3bddecff},
+    {"cyan", 0x007eaeff, 0x6dd9ffff},   {"blue", 0x1e6ef4ff, 0x5cb8ffff},   {"indigo", 0x564adeff, 0xa7aaffff},
+    {"purple", 0xb02fc2ff, 0xea8dffff}, {"pink", 0xe7124dff, 0xff8ac4ff},   {"brown", 0x956d51ff, 0xdba679ff},
+    {"gray", 0x6c6c70ff, 0xaeaeb2ff},
+};
+
+uint32_t contrast(std::string_view name, bool light) {
+    for (const Contrast& c : kContrast)
+        if (c.name == name)
+            return light ? c.light : c.dark;
+    return 0;
+}
+
+// Apple gives no Increase Contrast values for labels and separators: text
+// goes opaque and each lesser role a firm step down, hairlines and fills
+// half as strong again, so every edge reads without colour.
+uint32_t firmer(uint32_t rgba, uint32_t alpha) {
+    return with_alpha(rgba, std::max(rgba & 0xff, alpha));
+}
+
 } // namespace
 
-Palette make(bool light, std::string_view accent) {
+Palette make(bool light, std::string_view accent, bool high_contrast) {
     Palette p = light ? kLight : kDark;
     p.accent = accent::rgb(accent, light) << 8 | 0xff;
+    if (high_contrast) {
+        uint32_t* system[] = {&p.red, &p.orange, &p.yellow, &p.green, &p.mint, &p.teal, &p.cyan,
+                              &p.blue, &p.indigo, &p.purple, &p.pink, &p.brown, &p.gray};
+        for (size_t i = 0; i < std::size(system); ++i)
+            *system[i] = light ? kContrast[i].light : kContrast[i].dark;
+        // The accent as its system colour (Multicolour is blue, Graphite gray).
+        const std::string_view base = accent == "graphite" ? "gray" : accent;
+        if (const uint32_t c = contrast(base, light))
+            p.accent = c;
+        else if (!accent::seed(accent))
+            p.accent = contrast("blue", light);
+        p.label = with_alpha(p.label, 0xff);
+        p.secondary_label = firmer(p.secondary_label, 0xc0);
+        p.tertiary_label = firmer(p.tertiary_label, 0x80);
+        p.quaternary_label = firmer(p.quaternary_label, 0x4c);
+        p.separator = firmer(p.separator, 0x80);
+        for (uint32_t* f : {&p.fill, &p.secondary_fill, &p.tertiary_fill, &p.quaternary_fill})
+            *f = firmer(*f, std::min<uint32_t>(0xff, (*f & 0xff) * 3 / 2));
+    }
     // White on the accent as macOS draws it, or black where white would not
     // read at all (yellow).
     p.on_accent = 1.05 / (luminance(p.accent) + 0.05) >= 1.6 ? 0xffffffff : 0x000000d8;
@@ -79,8 +126,8 @@ uint32_t over(uint32_t top, uint32_t bottom) {
     return out << 8 | 0xff;
 }
 
-std::string kde_colors(bool light, std::string_view accent) {
-    const Palette p = make(light, accent);
+std::string kde_colors(bool light, std::string_view accent, bool high_contrast) {
+    const Palette p = make(light, accent, high_contrast);
     const uint32_t visited = light ? 0x5856d6ff : 0x5e5ce6ff;  // indigo
 
     std::string out;

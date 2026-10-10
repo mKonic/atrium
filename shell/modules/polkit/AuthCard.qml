@@ -98,25 +98,25 @@ Rectangle {
             target: slide
             property: "x"
             to: -12
-            duration: 50
+            duration: 50 * Theme.anim.factor
         }
         NumberAnimation {
             target: slide
             property: "x"
             to: 10
-            duration: 70
+            duration: 70 * Theme.anim.factor
         }
         NumberAnimation {
             target: slide
             property: "x"
             to: -6
-            duration: 60
+            duration: 60 * Theme.anim.factor
         }
         NumberAnimation {
             target: slide
             property: "x"
             to: 0
-            duration: 50
+            duration: 50 * Theme.anim.factor
         }
     }
 

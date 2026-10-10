@@ -1239,7 +1239,7 @@ void View::update_decorations() {
         // Tiles and secret windows show which has focus: an accent ring,
         // caelestia's (its primary at 90%, the others faint).
         if (layout_owned()) {
-            const uint32_t a = palette::make(c.light, c.accent).accent;
+            const uint32_t a = palette::make(c.light, c.accent, c.high_contrast).accent;
             const Color ring{((a >> 24) & 0xff) / 255.0f, ((a >> 16) & 0xff) / 255.0f, ((a >> 8) & 0xff) / 255.0f, 0.9f};
             const Color faint = c.outline_color_inactive;
             const float t = float(ring_);

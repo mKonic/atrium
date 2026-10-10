@@ -13,8 +13,13 @@ Singleton {
 
     readonly property bool light: Atrium.settings["appearance.style"] === "light"
     readonly property string accent: Atrium.settings["appearance.accent"] ?? "multicolor"
-    readonly property var colors: Atrium.palette(light, accent)
-    readonly property var darkColors: Atrium.palette(false, accent)
+    // Increase Contrast (macOS's, Settings > Accessibility): firmer colours,
+    // and solid panels (it reduces transparency too).
+    readonly property bool highContrast: Atrium.settings["appearance.high_contrast"] ?? false
+    readonly property var colors: Atrium.palette(light, accent, highContrast)
+    readonly property var darkColors: Atrium.palette(false, accent, highContrast)
+    // Settings > Accessibility's text size: every font size below scales with it.
+    readonly property real textScale: Atrium.settings["accessibility.text_size"] ?? 1
 
     // The palette for the current appearance.
     readonly property QtObject palette: QtObject {
@@ -135,18 +140,23 @@ Singleton {
         readonly property string mono: "CaskaydiaCove NF"
         readonly property string icons: "Material Symbols Rounded"
         readonly property QtObject size: QtObject {
-            readonly property int small: 11
-            readonly property int smaller: 12
-            readonly property int normal: 13
-            readonly property int larger: 15
-            readonly property int large: 18
+            readonly property int small: Math.round(11 * root.textScale)
+            readonly property int smaller: Math.round(12 * root.textScale)
+            readonly property int normal: Math.round(13 * root.textScale)
+            readonly property int larger: Math.round(15 * root.textScale)
+            readonly property int large: Math.round(18 * root.textScale)
         }
     }
 
+    // Motion as the compositor's: appearance.animations off stops it all
+    // (reduced motion), appearance.animation_speed scales it. Durations
+    // written out elsewhere multiply by `factor`; endless ones run only `on`.
     readonly property QtObject anim: QtObject {
-        readonly property int small: 200
-        readonly property int normal: 400
-        readonly property int large: 600
+        readonly property bool on: Atrium.settings["appearance.animations"] ?? true
+        readonly property real factor: on ? 1 / (Atrium.settings["appearance.animation_speed"] ?? 1) : 0
+        readonly property int small: 200 * factor
+        readonly property int normal: 400 * factor
+        readonly property int large: 600 * factor
         readonly property list<real> standard: [0.2, 0, 0, 1, 1, 1]
         readonly property list<real> standardDecel: [0, 0, 0, 1, 1, 1]
         readonly property list<real> emphasized: [0.05, 0, 2 / 15, 0.06, 1 / 6, 0.4, 5 / 24, 0.82, 0.25, 1, 1, 1]
@@ -162,10 +172,10 @@ Singleton {
 
     // Liquid Glass (appearance.liquid_glass): panels clearer still, lensed
     // and lit by the compositor, whatever the windows do.
-    readonly property bool liquid: !safeMode && (Atrium.settings["appearance.liquid_glass"] ?? false)
+    readonly property bool liquid: !safeMode && !highContrast && (Atrium.settings["appearance.liquid_glass"] ?? false)
     // The shell kept crashing: atrium restarts it without effects.
     readonly property bool safeMode: Shell.env("ATRIUM_SAFE_MODE") === "1"
-    readonly property bool glass: liquid || (Atrium.settings["appearance.transparency"] ?? false)
+    readonly property bool glass: liquid || (!highContrast && (Atrium.settings["appearance.transparency"] ?? false))
     // atrium draws Liquid Glass behind the panels (only with blur on): its
     // tint, rim light and shadow. Panels then leave all three to it.
     readonly property bool lens: liquid && (Atrium.settings["appearance.blur"] ?? true)

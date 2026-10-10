@@ -118,7 +118,7 @@ Item {
     }
 
     SequentialAnimation {
-        running: root.launching
+        running: root.launching && Theme.anim.on  // the bounce stays still with reduced motion
         loops: Animation.Infinite
         alwaysRunToEnd: true
 

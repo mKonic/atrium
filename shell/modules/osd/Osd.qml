@@ -215,7 +215,7 @@ PanelWindow {
 
                 Behavior on width {
                     Anim {
-                        duration: 120
+                        duration: 120 * Theme.anim.factor
                     }
                 }
             }

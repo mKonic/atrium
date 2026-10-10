@@ -418,8 +418,8 @@ void Compositor::closeWindow(int id) {
     request({{"cmd", "window.close"}, {"window", id}});
 }
 
-QVariantMap Compositor::palette(bool light, const QString& accent) const {
-    const palette::Palette p = palette::make(light, accent.toStdString());
+QVariantMap Compositor::palette(bool light, const QString& accent, bool highContrast) const {
+    const palette::Palette p = palette::make(light, accent.toStdString(), highContrast);
     auto c = [](uint32_t v) { return QString::fromStdString(palette::hex(v)); };
     return {{"label", c(p.label)},
             {"secondaryLabel", c(p.secondary_label)},

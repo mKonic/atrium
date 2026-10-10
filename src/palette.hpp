@@ -37,7 +37,9 @@ struct Palette {
     uint32_t shadow, scrim;
 };
 
-Palette make(bool light, std::string_view accent);
+// `high_contrast`: macOS's Increase Contrast (appearance.high_contrast):
+// its system colours, opaque labels and firmer hairlines and fills.
+Palette make(bool light, std::string_view accent, bool high_contrast = false);
 
 // "#rrggbb", or Qt's "#aarrggbb" when translucent.
 std::string hex(uint32_t rgba);
@@ -46,6 +48,6 @@ std::string hex(uint32_t rgba);
 uint32_t over(uint32_t top, uint32_t bottom);
 
 // A KDE colour scheme (.colors) for Qt apps, from the same palette.
-std::string kde_colors(bool light, std::string_view accent);
+std::string kde_colors(bool light, std::string_view accent, bool high_contrast = false);
 
 } // namespace atrium::palette
