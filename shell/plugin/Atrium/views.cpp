@@ -14,9 +14,14 @@ OutputState::OutputState(QObject* parent) : QObject(parent) {
             emit edgeChanged();
         }
     });
-    connect(c, &Compositor::barSummoned, this, [this](const QString& output) {
-        if (output == name_)
-            emit summoned();
+    connect(c, &Compositor::superTapped, this, [this, c](const QString& output) {
+        if (output != name_)
+            return;
+        const QString which = c->settings().value("dock.super_tap", "menu-bar").toString();
+        if (which == "menu-bar" || which == "both")
+            emit barSummoned();
+        if (which == "dock" || which == "both")
+            emit dockSummoned();
     });
 }
 

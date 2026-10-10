@@ -780,13 +780,14 @@ void Seat::key_through(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
-    // A tap of Mod alone (nothing pressed or clicked with it) summons the
-    // bar over an app's own fullscreen, where the edges don't.
+    // A tap of Mod alone (nothing pressed or clicked with it) brings out the
+    // bar or the Dock while they're hidden, or sends them away again (the
+    // shell decides which, by dock.super_tap).
     if (pressed)
         mod_tap_ = is_mod_key(g.syms[0]) && !(g.mods & ~server.config.mod) ? e->keycode : 0;
     else if (mod_tap_ && mod_tap_ == e->keycode) {
         mod_tap_ = 0;
-        server.summon_bar();
+        server.summon_panels();
     }
 
     const Keybind* bind = nullptr;

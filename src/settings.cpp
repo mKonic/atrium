@@ -796,6 +796,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
         "Keep the Dock out of sight until the pointer reaches the bottom of the screen.", false,
         [](Config&, const json&) {}));
+    s.push_back(choice("dock.super_tap", "Dock", "Tap Super to show",
+        "While the menu bar or the Dock is out of sight (over a fullscreen app, on a tiled space, or hidden), a tap "
+        "of Super alone brings it out for a few seconds; another tap sends it away.",
+        {"menu-bar", "dock", "both", "off"}, "menu-bar", [](Config&, const json&) {}));
     s.push_back(make("security.remember_admin", SettingType::Bool, "Privacy & Security", "Remember admin password",
         "After you enter your password for an administrator action, don't ask again for five minutes, as sudo does.",
         true, [](Config&, const json&) {}));

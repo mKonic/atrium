@@ -1713,8 +1713,8 @@ void Server::notify(const std::string& summary, const std::string& body) {
           quoted(summary) + " " + quoted(body) + " '[]' '{}' 10000 >/dev/null 2>&1");
 }
 
-void Server::summon_bar() {
-    if (!focused_output || !focused_output->fullscreen_bg->node.enabled || !ipc)
+void Server::summon_panels() {
+    if (!focused_output || !ipc)
         return;
     ipc->broadcast("outputs", {{"event", "output.summon"}, {"output", focused_output->wlr->name}});
 }

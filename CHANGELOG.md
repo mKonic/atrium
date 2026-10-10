@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- Tap Super to show (Settings > Dock): a tap of Super alone brings out the menu bar, the Dock or both while they're out of sight (over a fullscreen app, on a tiled space, or with Hide the Dock), and another tap sends them away.
 - Settings > Accessibility with KWin's typing aids: sticky keys (a modifier pressed and let go applies to the next key or click, pressed twice it locks), slow keys (a key counts once held a moment) and bounce keys (a key pressed again straight away is ignored), each with its beeps.
 - Zoom, as KWin's: the screen magnified around the pointer with Super+Alt+= and Super+Alt+- (Super+Alt+8 turns it off and on) or Super+Ctrl and scroll, following the pointer proportionally or centred (Settings > Accessibility).
 - Increase contrast and text size in Settings > Accessibility: macOS's Increase Contrast colours with opaque text, firmer edges and solid panels, and bigger text in the shell; GTK and libadwaita apps follow both, Qt apps the text size when the font is set in Appearance.

@@ -4403,6 +4403,18 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Tap Super to show</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>While the menu bar or the Dock is out of sight (over a fullscreen app, on a tiled space, or hidden), a tap of Super alone brings it out for a few seconds; another tap sends it away.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Both</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Privacy &amp; Security</source>
         <translation type="unfinished"></translation>
     </message>

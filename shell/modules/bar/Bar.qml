@@ -35,7 +35,7 @@ PanelWindow {
     property bool revealed: !fullscreen
     readonly property bool tiled: output.tiled && !fullscreen
     // The whole bar, or just the space pill.
-    readonly property bool chrome: !tiled || hover.hovered
+    readonly property bool chrome: !tiled || hover.hovered || summoned.running
 
     onFullscreenChanged: revealed = !fullscreen
 
@@ -62,11 +62,17 @@ PanelWindow {
                 hideTimer.restart();
         }
 
-        // A tap of Mod: over an app's own fullscreen, where the edge doesn't
-        // bring it, the bar comes for a few seconds, and stays while used.
-        function onSummoned() {
-            if (!bar.fullscreen)
+        // A tap of Super (Settings > Dock > Tap Super to show): out of sight
+        // over a fullscreen app, or just its space pill on a tiled space, the
+        // bar comes for a few seconds, and stays while used; out, it goes.
+        function onBarSummoned() {
+            if (!bar.fullscreen && !bar.tiled)
                 return;
+            if (summoned.running || (bar.fullscreen && bar.revealed)) {
+                summoned.stop();
+                bar.revealed = !bar.fullscreen;
+                return;
+            }
             bar.revealed = true;
             summoned.restart();
         }

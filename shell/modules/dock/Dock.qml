@@ -115,6 +115,32 @@ PanelWindow {
             else if (!hover.hovered && !dock.menuItem)
                 hideTimer.restart();
         }
+
+        // A tap of Super (Settings > Dock > Tap Super to show): out of sight,
+        // the Dock comes for a few seconds (to this screen, when there is
+        // one Dock), and stays while used; out, it goes.
+        function onDockSummoned() {
+            if (dock.empty)
+                return;
+            if (!dock.home)
+                DockPlace.screen = dock.screen?.name ?? "";
+            if (!dock.hides)
+                return;
+            if (dock.revealed && !dock.menuItem) {
+                summoned.stop();
+                dock.revealed = false;
+                return;
+            }
+            dock.revealed = true;
+            summoned.restart();
+        }
+    }
+
+    Timer {
+        id: summoned
+
+        interval: 3000
+        onTriggered: if (!hover.hovered && !dock.menuItem) hideTimer.restart()
     }
 
     HoverHandler {
@@ -126,10 +152,12 @@ PanelWindow {
                 claimTimer.running = hovered;
                 return;
             }
-            if (hovered)
+            if (hovered) {
                 dock.revealed = !dock.empty;
-            else if (dock.hides && !dock.menuItem)
+            } else if (dock.hides && !dock.menuItem) {
+                summoned.stop();
                 hideTimer.restart();
+            }
         }
     }
 
@@ -146,7 +174,7 @@ PanelWindow {
         id: hideTimer
 
         interval: 450
-        onTriggered: dock.revealed = !dock.empty && (!dock.hides || hover.hovered || dock.menuItem !== null || (dock.fullscreen && output.edge === "bottom"))
+        onTriggered: dock.revealed = !dock.empty && (!dock.hides || hover.hovered || dock.menuItem !== null || summoned.running || (dock.fullscreen && output.edge === "bottom"))
     }
 
     onMenuItemChanged: {

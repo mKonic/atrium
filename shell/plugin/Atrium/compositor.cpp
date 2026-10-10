@@ -237,7 +237,7 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "logout.done") {
         emit logoutDone();
     } else if (kind == "output.summon") {
-        emit barSummoned(e.value("output").toString());
+        emit superTapped(e.value("output").toString());
     } else if (kind == "outputs.changed") {
         request({{"cmd", "outputs"}}, [this](const QJsonValue& r) {
             outputs_ = r.toArray().toVariantList();

@@ -43,8 +43,10 @@ signals:
     void nameChanged();
     void changed();
     void edgeChanged();
-    // A tap of Mod asked for the bar over this screen's fullscreen app.
-    void summoned();
+    // A tap of Mod on this screen, for the bar or the Dock as dock.super_tap
+    // says: each brings itself out if hidden, or sends itself away.
+    void barSummoned();
+    void dockSummoned();
 
 private:
     void update();

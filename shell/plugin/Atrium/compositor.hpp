@@ -193,8 +193,8 @@ signals:
     // The pointer reached the top or bottom of a screen with a fullscreen
     // app, where the bar and the Dock wait out of sight.
     void edgeReached(const QString& output, const QString& edge);
-    // A tap of Mod over a fullscreen app on `output`: the bar comes over.
-    void barSummoned(const QString& output);
+    // A tap of Mod alone on `output` (see OutputState).
+    void superTapped(const QString& output);
     // Logging out (or restarting, shutting down) waits on apps that haven't
     // quit: {then, apps, seconds}; then it's over.
     void logoutWaiting(const QVariantMap& state);
