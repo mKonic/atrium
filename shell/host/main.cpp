@@ -18,6 +18,9 @@
 #include <QDBusVariant>
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QFileInfo>
 #include <QIcon>
 #include <QLibraryInfo>
@@ -66,7 +69,7 @@ QString pragma(const QString& file, const QString& name) {
 }
 
 // The icon theme when the platform names none (no KDE or qtengine platform
-// theme): the one KDE's or GTK's settings name, else a full theme that is
+// theme): the one qtengine's, KDE's or GTK's settings name, else a full theme that is
 // installed. Qt alone knows only hicolor, where most icons aren't.
 void pick_icon_theme() {
     const QString current = QIcon::themeName();
@@ -74,6 +77,11 @@ void pick_icon_theme() {
         return;
     const QString config = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     QStringList wanted;
+    // qtengine's own choice (atrium writes its icon theme there too), when
+    // qtengine itself didn't load: built for another Qt version.
+    QFile engine(config + "/qtengine/config.json");
+    if (engine.open(QIODevice::ReadOnly))
+        wanted << QJsonDocument::fromJson(engine.readAll())["theme"]["iconTheme"].toString();
     QSettings kde(config + "/kdeglobals", QSettings::IniFormat);
     wanted << kde.value("Icons/Theme").toString();
     for (const char* gtk : {"/gtk-4.0/settings.ini", "/gtk-3.0/settings.ini"})
