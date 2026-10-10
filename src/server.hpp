@@ -337,6 +337,9 @@ public:
     void zoom_to(double target, bool animate = true);
     double zoom_target() const { return zoom_target_; }
     void zoom_toggle() { zoom_to(zoom_target_ > 1.0 ? 1.0 : zoom_last_); }
+    // Log out: atrium-login's greeter comes to the front first (on a VT of
+    // its own), then atrium quits; elsewhere it just quits.
+    void log_out();
     // The displays to atrium-login, for the login screen (display_share.hpp).
     void share_displays();
     // The system bell's sound (the typing aids' beeps).
@@ -436,6 +439,8 @@ private:
     Listener<wlr_output> new_output_;
     wlr_drm_lease_v1_manager* drm_lease_manager = nullptr;
     wlr_xdg_foreign_registry* foreign_registry_ = nullptr;
+    Listener<> logout_session_;
+    wl_event_source* logout_timer_ = nullptr;
     void load_greeter_displays();
     double zoom_target_ = 1.0, zoom_last_ = 2.0;
     std::unique_ptr<class SystemBell> system_bell_;

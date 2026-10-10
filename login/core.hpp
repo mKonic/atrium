@@ -79,8 +79,10 @@ int session_vt(int greeter, const std::vector<int>& session_vts, int free_vt);
 // What a logged-in session may ask of the daemon on its control socket, a
 // line each: "switch-to-greeter" (a greeter on a VT of its own, the asking
 // session left running), or "displays [...]" (its displays as JSON, for the
-// greeter to come up the same way: no modeset when logging in).
-enum class Control { SwitchToGreeter, Displays };
+// greeter to come up the same way: no modeset when logging in), or "logout"
+// (the greeter in front before the session goes, so its VT going back to
+// text is never seen).
+enum class Control { SwitchToGreeter, Displays, Logout };
 struct ControlRequest {
     Control kind;
     std::string payload;  // Displays: the JSON array, as sent

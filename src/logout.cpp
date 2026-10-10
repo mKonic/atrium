@@ -170,7 +170,7 @@ void Logout::finish() {
     switch (then_) {
     case Then::LogOut:
         wlr_log(WLR_INFO, "logout: logging out");
-        server_.quit();
+        server_.log_out();
         break;
     case Then::Restart:
     case Then::ShutDown:

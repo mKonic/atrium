@@ -111,6 +111,7 @@ TEST(LoginSeats, ParsesControlLines) {
     EXPECT_EQ(parse_control("switch-to-greeter")->kind, Control::SwitchToGreeter);
     EXPECT_EQ(parse_control("switch-to-greeter\r\n")->kind, Control::SwitchToGreeter);
     EXPECT_FALSE(parse_control("switch-to-greeter now"));
+    EXPECT_EQ(parse_control("logout\n")->kind, Control::Logout);
     EXPECT_FALSE(parse_control(""));
     // The session's displays, for the greeter: a JSON array only.
     const auto d = parse_control(R"(displays [{"id":"MSI G274F","refresh":179999,"hdr":true}])");

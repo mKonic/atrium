@@ -975,6 +975,46 @@ void Server::quit() {
     wl_display_terminate(display);
 }
 
+void Server::log_out() {
+    if (config.greeter || nested || !session) {
+        quit();
+        return;
+    }
+    const int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, "/run/atrium-login/control.sock", sizeof addr.sun_path - 1);
+    timeval tv{2, 0};
+    char answer[16] = {};
+    bool asked = false;
+    if (fd >= 0) {
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+        asked = connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0 &&
+                send(fd, "logout\n", 7, MSG_NOSIGNAL) == 7 && recv(fd, answer, sizeof answer - 1, 0) > 0 &&
+                std::strncmp(answer, "ok", 2) == 0;
+        close(fd);
+    }
+    if (!asked || !session->active) {
+        quit();
+        return;
+    }
+    // Gone once the greeter's VT is in front (this session goes inactive),
+    // or after a while regardless.
+    logout_session_.connect(&session->events.active, [this](void*) {
+        if (!session->active) {
+            logout_session_.disconnect();
+            quit();
+        }
+    });
+    logout_timer_ = wl_event_loop_add_timer(loop, [](void* data) {
+        auto* self = static_cast<Server*>(data);
+        self->logout_session_.disconnect();
+        self->quit();
+        return 0;
+    }, this);
+    wl_event_source_timer_update(logout_timer_, 8000);
+}
+
 // --- outputs -----------------------------------------------------------------
 
 void Server::new_output(wlr_output* wlr) {

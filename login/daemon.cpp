@@ -554,6 +554,14 @@ void Daemon::on_control(size_t index) {
             answer = "error: not logged in here\n";
         } else if (auto r = parse_control(std::string_view(c.buffer).substr(0, nl)); !r) {
             answer = "error: unknown request\n";
+        } else if (r->kind == Control::Logout) {
+            // A greeter of its own (no way back): it comes to the front on
+            // a VT already in graphics, then the session ends behind it.
+            if (!greeter_) {
+                return_vt_ = 0;
+                start_greeter();
+            }
+            answer = "ok\n";
         } else if (r->kind == Control::Displays) {
             answer = save_greeter_displays(r->payload) ? "ok\n" : "error: couldn't keep them\n";
         } else {

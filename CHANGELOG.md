@@ -27,6 +27,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - External monitors' brightness no longer needs ddcutil: atrium talks DDC/CI to them itself, finds them faster and doesn't stall the screen while it looks.
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
+- The text console flashing up between logging out and the login screen: the login screen now comes to the front before the session ends.
 - A black screen for a second or two after logging in when the session runs a different refresh rate or HDR than the login screen: atrium-login now brings the login screen up the way the last session set the displays, and the session takes the screen over without a modeset.
 - A release installed on a system with an older Qt than it was built with left a desktop whose shell couldn't start: the package now asks for that Qt, so it comes along.
 - GTK 3 apps logging theme errors for atrium's window buttons (GTK 4-only properties).

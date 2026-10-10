@@ -197,6 +197,8 @@ std::optional<ControlRequest> parse_control(std::string_view line) {
         line.remove_suffix(1);
     if (line == "switch-to-greeter")
         return ControlRequest{Control::SwitchToGreeter, {}};
+    if (line == "logout")
+        return ControlRequest{Control::Logout, {}};
     if (line.starts_with("displays ")) {
         const std::string_view body = line.substr(9);
         const nlohmann::json j = nlohmann::json::parse(body, nullptr, false);
