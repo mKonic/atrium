@@ -93,4 +93,10 @@ package() {
   # scenefx is linked in and wlroots goes to /usr/lib/atrium (an install
   # script); their headers and pkg-config files stay out.
   meson install -C build --destdir "$pkgdir" --skip-subprojects
+  # Qt's symbols are versioned: built against Qt 6.N, the shell won't start
+  # on an older one. Said here, pacman brings Qt up to date instead of
+  # installing a desktop that can't start (a release on a system behind it).
+  local qt
+  qt=$(pacman -Q qt6-base | awk '{print $2}' | cut -d. -f1,2)
+  depends+=("qt6-base>=$qt" "qt6-declarative>=$qt")
 }

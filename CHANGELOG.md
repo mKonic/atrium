@@ -27,6 +27,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - External monitors' brightness no longer needs ddcutil: atrium talks DDC/CI to them itself, finds them faster and doesn't stall the screen while it looks.
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
+- A release installed on a system with an older Qt than it was built with left a desktop whose shell couldn't start: the package now asks for that Qt, so it comes along.
 - GTK 3 apps logging theme errors for atrium's window buttons (GTK 4-only properties).
 - atrium crashing when a screen was plugged in while a window was opening, minimizing or changing size.
 - An empty Dock, and pins lost on the next change, after running a build whose settings had another shape: atrium adds the columns its settings need on every start.
