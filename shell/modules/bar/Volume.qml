@@ -9,8 +9,8 @@ Pill {
 
     // For screen readers (AT-SPI): pressing it mutes, as a click does.
     Accessible.role: Accessible.Button
-    Accessible.name: "Volume"
-    Accessible.description: muted ? "Muted" : `${Math.round(volume * 100)}%`
+    Accessible.name: qsTr("Volume")
+    Accessible.description: muted ? qsTr("Muted") : `${Math.round(volume * 100)}%`
     Accessible.onPressAction: if (sink) sink.muted = !sink.muted
 
     readonly property AudioNode sink: Audio.sink

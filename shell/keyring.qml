@@ -41,7 +41,7 @@ ShellRoot {
             wrong: root.wrong
 
             flow: QtObject {
-                readonly property string message: root.create ? "Set up your keyring"
+                readonly property string message: root.create ? qsTr("Set up your keyring")
                     : root.who ? `“${root.who}” wants to use your keyring.` : "Unlock your keyring"
                 readonly property string supplementaryMessage: root.create
                     ? "Enter your login password. Saved passwords are kept safe with it, and open when you log in."
@@ -50,7 +50,7 @@ ShellRoot {
                 readonly property string iconName: "dialog-password"
                 readonly property bool isResponseRequired: true
                 readonly property bool responseVisible: false
-                readonly property string inputPrompt: "Password"
+                readonly property string inputPrompt: qsTr("Password")
                 readonly property var identities: []
                 readonly property var selectedIdentity: null
                 signal authenticationFailed

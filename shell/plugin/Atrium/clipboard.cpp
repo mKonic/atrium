@@ -1,5 +1,7 @@
 #include "clipboard.hpp"
 
+#include <QCoreApplication>
+
 #include "compositor.hpp"
 
 #include <QDir>
@@ -23,13 +25,13 @@ struct Filter {
     const char* empty;
 };
 constexpr Filter kFilters[] = {
-    {"", "All Types", "Nothing copied yet"},
-    {"text", "Text Only", "No text in clipboard history"},
-    {"image", "Images Only", "No images in clipboard history"},
-    {"file", "Files Only", "No files in clipboard history"},
-    {"color", "Colours Only", "No colours in clipboard history"},
-    {"link", "Links Only", "No links in clipboard history"},
-    {"email", "Emails Only", "No email addresses in clipboard history"},
+    {"", QT_TRANSLATE_NOOP("clipboard", "All Types"), QT_TRANSLATE_NOOP("clipboard", "Nothing copied yet")},
+    {"text", QT_TRANSLATE_NOOP("clipboard", "Text Only"), QT_TRANSLATE_NOOP("clipboard", "No text in clipboard history")},
+    {"image", QT_TRANSLATE_NOOP("clipboard", "Images Only"), QT_TRANSLATE_NOOP("clipboard", "No images in clipboard history")},
+    {"file", QT_TRANSLATE_NOOP("clipboard", "Files Only"), QT_TRANSLATE_NOOP("clipboard", "No files in clipboard history")},
+    {"color", QT_TRANSLATE_NOOP("clipboard", "Colours Only"), QT_TRANSLATE_NOOP("clipboard", "No colours in clipboard history")},
+    {"link", QT_TRANSLATE_NOOP("clipboard", "Links Only"), QT_TRANSLATE_NOOP("clipboard", "No links in clipboard history")},
+    {"email", QT_TRANSLATE_NOOP("clipboard", "Emails Only"), QT_TRANSLATE_NOOP("clipboard", "No email addresses in clipboard history")},
 };
 
 } // namespace
@@ -214,15 +216,15 @@ void ClipboardHistory::setFilter(const QString& filter) {
 QVariantList ClipboardHistory::filters() const {
     QVariantList out;
     for (const Filter& f : kFilters)
-        out.push_back(QVariantMap{{"value", QString(f.value)}, {"label", QString(f.label)}});
+        out.push_back(QVariantMap{{"value", QString(f.value)}, {"label", QCoreApplication::translate("clipboard", f.label)}});
     return out;
 }
 
 QString ClipboardHistory::emptyText() const {
     for (const Filter& f : kFilters)
         if (filter_ == f.value)
-            return f.empty;
-    return kFilters[0].empty;
+            return QCoreApplication::translate("clipboard", f.empty);
+    return QCoreApplication::translate("clipboard", kFilters[0].empty);
 }
 
 } // namespace atrium

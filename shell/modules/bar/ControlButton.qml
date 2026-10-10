@@ -8,7 +8,7 @@ Pill {
 
     // For screen readers (AT-SPI).
     Accessible.role: Accessible.Button
-    Accessible.name: "Control Center"
+    Accessible.name: qsTr("Control Center")
     Accessible.onPressAction: Panels.toggle("control")
 
     readonly property bool open: Panels.open === "control"

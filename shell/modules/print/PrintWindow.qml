@@ -13,7 +13,7 @@ import Atrium
 FloatingWindow {
     id: root
 
-    title: PrintPrompt.title ? `Print “${PrintPrompt.title}”` : "Print"
+    title: PrintPrompt.title ? qsTr("Print “%1”").arg(PrintPrompt.title) : qsTr("Print")
     color: Theme.palette.windowBackground
     implicitWidth: 500
     // Room for every row it can show (a printer's seven): it doesn't grow
@@ -46,14 +46,14 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Printer"
+                text: qsTr("Printer")
             }
 
             Dropdown {
                 fieldWidth: form.width - 142
                 options: PrintPrompt.printers
                 value: PrintPrompt.printer
-                placeholder: "Looking for printers…"
+                placeholder: qsTr("Looking for printers…")
                 onPicked: v => PrintPrompt.printer = v
             }
         }
@@ -63,7 +63,7 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Save as"
+                text: qsTr("Save as")
             }
 
             Field {
@@ -78,7 +78,7 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Copies"
+                text: qsTr("Copies")
             }
 
             Row {
@@ -112,12 +112,12 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Pages"
+                text: qsTr("Pages")
             }
 
             Field {
                 width: 200
-                placeholder: "All"
+                placeholder: qsTr("All")
                 text: PrintPrompt.pages
                 onTextChanged: PrintPrompt.pages = text
                 onAccepted: PrintPrompt.print()
@@ -128,14 +128,14 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Paper size"
+                text: qsTr("Paper size")
             }
 
             Dropdown {
                 fieldWidth: 220
                 options: PrintPrompt.papers
                 value: PrintPrompt.paper
-                placeholder: "The printer's"
+                placeholder: qsTr("The printer's")
                 onPicked: v => PrintPrompt.paper = v
             }
         }
@@ -144,7 +144,7 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Orientation"
+                text: qsTr("Orientation")
             }
 
             ChoiceControl {
@@ -159,7 +159,7 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Two-sided"
+                text: qsTr("Two-sided")
             }
 
             Dropdown {
@@ -175,7 +175,7 @@ FloatingWindow {
             spacing: 12
 
             Label {
-                text: "Colour"
+                text: qsTr("Colour")
             }
 
             Dropdown {
@@ -209,7 +209,7 @@ FloatingWindow {
         spacing: 10
 
         PillButton {
-            text: "Cancel"
+            text: qsTr("Cancel")
             onClicked: PrintPrompt.cancel()
         }
 
@@ -217,7 +217,7 @@ FloatingWindow {
             primary: true
             enabled: PrintPrompt.problem === ""
             opacity: enabled ? 1 : 0.5
-            text: PrintPrompt.pdf ? "Save" : PrintPrompt.acceptLabel
+            text: PrintPrompt.pdf ? qsTr("Save") : PrintPrompt.acceptLabel
             onClicked: PrintPrompt.print()
         }
     }

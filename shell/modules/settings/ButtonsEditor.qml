@@ -106,7 +106,7 @@ Column {
             PillButton {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Remove"
+                text: qsTr("Remove")
                 onClicked: {
                     root.recording = 0;
                     root.pending = 0;
@@ -128,7 +128,7 @@ Column {
 
         StyledText {
             anchors.centerIn: parent
-            text: "Press the mouse button to change here"
+            text: qsTr("Press the mouse button to change here")
             color: Theme.palette.secondaryLabel
         }
 
@@ -157,7 +157,7 @@ Column {
         topPadding: 4
 
         PillButton {
-            text: root.listening ? "Cancel" : "Add Button…"
+            text: root.listening ? qsTr("Cancel") : qsTr("Add Button…")
             onClicked: {
                 root.note = "";
                 root.recording = 0;
@@ -169,7 +169,7 @@ Column {
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.recording !== 0
-            text: "Press the keys, or Escape to keep it as it is"
+            text: qsTr("Press the keys, or Escape to keep it as it is")
             font.pointSize: Theme.font.size.small
             color: Theme.palette.secondaryLabel
         }

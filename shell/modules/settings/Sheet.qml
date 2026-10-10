@@ -67,12 +67,12 @@ Popup {
             spacing: 8
 
             PillButton {
-                text: "Cancel"
+                text: qsTr("Cancel")
                 onClicked: if (!root.busy) root.close()
             }
 
             PillButton {
-                text: root.busy ? "Working…" : root.action
+                text: root.busy ? qsTr("Working…") : root.action
                 primary: true
                 opacity: root.ready && !root.busy ? 1 : 0.5
                 onClicked: if (root.ready && !root.busy) root.submitted()

@@ -45,14 +45,14 @@ ShellRoot {
 
             // What AuthCard reads from polkit's flow, for sudo.
             flow: QtObject {
-                readonly property string message: root.sudo ? `${root.asker.app ?? "A command"} wants to make changes.`
+                readonly property string message: root.sudo ? qsTr("%1 wants to make changes.").arg(root.asker.app ?? "A command")
                     : root.prompt.replace(/:\s*$/, "") || "A password is needed."
                 readonly property string supplementaryMessage: root.sudo ? "Enter your password to allow this." : ""
                 readonly property bool supplementaryIsError: false
                 readonly property string iconName: root.asker.icon ?? "utilities-terminal"
                 readonly property bool isResponseRequired: true
                 readonly property bool responseVisible: false
-                readonly property string inputPrompt: "Password"
+                readonly property string inputPrompt: qsTr("Password")
                 readonly property var identities: []
                 readonly property var selectedIdentity: root.sudo ? { "displayName": root.user } : null
                 signal authenticationFailed

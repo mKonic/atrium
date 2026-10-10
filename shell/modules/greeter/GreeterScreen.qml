@@ -105,7 +105,7 @@ PanelWindow {
 
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDate(clock.date, "dddd d MMMM")
+            text: Qt.locale().toString(clock.date, "dddd d MMMM")
             font.pointSize: 17
             font.weight: Font.DemiBold
             color: Theme.dark.label
@@ -113,7 +113,7 @@ PanelWindow {
 
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatTime(clock.date, "hh:mm")
+            text: Qt.locale().toString(clock.date, "hh:mm")
             font.pointSize: 84
             font.weight: Font.Bold
             color: Theme.dark.label
@@ -234,7 +234,7 @@ PanelWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: nameField.text.length === 0 && nameField.preeditText.length === 0
-                    text: "Name"
+                    text: qsTr("Name")
                     color: Theme.dark.secondaryLabel
                 }
             }
@@ -282,7 +282,7 @@ PanelWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: password.text.length === 0
-                    text: "Enter Password"
+                    text: qsTr("Enter Password")
                     color: Theme.dark.secondaryLabel
                 }
             }
@@ -353,10 +353,10 @@ PanelWindow {
         spacing: 36
 
         Repeater {
-            model: (Greeter.canGoBack ? [{ icon: "arrow_back", text: "Back", action: "back" }] : []).concat([
-                { icon: "bedtime", text: "Sleep", action: "sleep" },
-                { icon: "restart_alt", text: "Restart", action: "restart" },
-                { icon: "power_settings_new", text: "Shut Down", action: "shutdown" }
+            model: (Greeter.canGoBack ? [{ icon: "arrow_back", text: qsTr("Back"), action: "back" }] : []).concat([
+                { icon: "bedtime", text: qsTr("Sleep"), action: "sleep" },
+                { icon: "restart_alt", text: qsTr("Restart"), action: "restart" },
+                { icon: "power_settings_new", text: qsTr("Shut Down"), action: "shutdown" }
             ])
 
             Column {

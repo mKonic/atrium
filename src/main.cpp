@@ -1,3 +1,4 @@
+#include "i18n.hpp"
 #include "server.hpp"
 #include "settings.hpp"
 #include "version.hpp"
@@ -22,7 +23,8 @@ void usage(const char* argv0) {
         "  -c, --registry FILE the registry database (default $XDG_CONFIG_HOME/atrium/registry.db)\n"
         "  -g, --greeter       the login screen, for atrium-login or greetd\n"
         "  -d, --debug         verbose logging\n"
-        "  -v, --version       print the version and exit\n",
+        "  -v, --version       print the version and exit\n"
+        "      --dump-schema   print the settings' pages, titles, descriptions and choices (JSON) and exit\n",
         argv0);
 }
 
@@ -41,6 +43,7 @@ int main(int argc, char** argv) {
         {"greeter", no_argument, nullptr, 'g'},
         {"version", no_argument, nullptr, 'v'},
         {"help", no_argument, nullptr, 'h'},
+        {"dump-schema", no_argument, nullptr, 'S'},
         {nullptr, 0, nullptr, 0},
     };
     for (int c; (c = getopt_long(argc, argv, "s:c:dgvh", long_opts, nullptr)) != -1;) {
@@ -51,6 +54,16 @@ int main(int argc, char** argv) {
         case 'g': greeter = true; break;
         case 'v': std::printf("atrium %s (build %d)\n", ATRIUM_VERSION, ATRIUM_BUILD); return 0;
         case 'h': usage(argv[0]); return 0;
+        case 'S': {
+            // What Settings shows of the schema, for the translation catalogue
+            // (translations/update.sh): the shell translates it at run time.
+            nlohmann::json out = nlohmann::json::array();
+            for (const auto& s : atrium::Settings(atrium::Config{}, nullptr).schema())
+                out.push_back({{"key", s.key}, {"page", s.page}, {"title", s.title}, {"description", s.description},
+                               {"choices", s.choices}});
+            std::printf("%s\n", out.dump(1).c_str());
+            return 0;
+        }
         default: usage(argv[0]); return 1;
         }
     }
@@ -58,6 +71,7 @@ int main(int argc, char** argv) {
         usage(argv[0]);
         return 1;
     }
+    atrium::i18n_init();
 
     // Inside another compositor (a window on a desktop, or a test box) that
     // compositor keeps Super for itself.

@@ -1,4 +1,5 @@
 #include "not_responding.hpp"
+#include "i18n.hpp"
 
 #include "server.hpp"
 #include "shell_process.hpp"
@@ -112,10 +113,10 @@ void NotResponding::open_dialog(wl_client* client, App& app, const View& view) {
     const std::string cls = view.app_id() && *view.app_id() ? view.app_id() : "(unknown)";
     const nlohmann::json question{
         {"app", view.app_id() ? view.app_id() : ""},
-        {"title", "Application Not Responding"},
-        {"body", "An application " + title + " - " + cls + " is not responding.\nWhat do you want to do with it?"},
-        {"grant", "Terminate"},
-        {"deny", "Wait"},
+        {"title", tr("Application Not Responding")},
+        {"body", trf("An application {} - {} is not responding.\nWhat do you want to do with it?", title, cls)},
+        {"grant", tr("Terminate")},
+        {"deny", tr("Wait")},
     };
     int in[2], out[2];
     if (pipe2(in, O_CLOEXEC) < 0)

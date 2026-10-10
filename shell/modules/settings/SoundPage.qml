@@ -18,12 +18,12 @@ Column {
         id: missing
 
         needs: "pipewire"
-        explanation: "Sound devices and volumes come from PipeWire (pipewire-pulse and WirePlumber)."
+        explanation: qsTr("Sound devices and volumes come from PipeWire (pipewire-pulse and WirePlumber).")
     }
 
     Group {
         visible: !missing.visible
-        title: "Output"
+        title: qsTr("Output")
 
         Repeater {
             model: Audio.outputs
@@ -33,7 +33,7 @@ Column {
 
                 glyph: modelData.glyph
                 name: modelData.label
-                note: modelData.isDefault ? "In use" : ""
+                note: modelData.isDefault ? qsTr("In use") : ""
                 active: modelData.isDefault
                 onClicked: modelData.makeDefault()
             }
@@ -41,13 +41,13 @@ Column {
 
         LevelRow {
             node: root.sink
-            label: "Output volume"
+            label: qsTr("Output volume")
         }
     }
 
     Group {
         visible: !missing.visible
-        title: "Input"
+        title: qsTr("Input")
 
         Repeater {
             model: Audio.inputs
@@ -57,7 +57,7 @@ Column {
 
                 glyph: modelData.glyph
                 name: modelData.label
-                note: modelData.isDefault ? "In use" : ""
+                note: modelData.isDefault ? qsTr("In use") : ""
                 active: modelData.isDefault
                 onClicked: modelData.makeDefault()
             }
@@ -65,14 +65,14 @@ Column {
 
         LevelRow {
             node: root.source
-            label: "Input volume"
+            label: qsTr("Input volume")
         }
     }
 
     Group {
         visible: !missing.visible && Audio.apps.length > 0
-        title: "Apps"
-        subtitle: "Each app's own volume, on top of the output's."
+        title: qsTr("Apps")
+        subtitle: qsTr("Each app's own volume, on top of the output's.")
 
         Repeater {
             model: Audio.apps

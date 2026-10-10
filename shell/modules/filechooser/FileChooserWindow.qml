@@ -90,7 +90,7 @@ FloatingWindow {
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Save As:"
+                text: qsTr("Save As:")
             }
 
             Field {
@@ -201,7 +201,7 @@ FloatingWindow {
                     StyledText {
                         x: 44
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Name"
+                        text: qsTr("Name")
                         font.pointSize: Theme.font.size.smaller
                         color: Theme.palette.secondaryLabel
                     }
@@ -209,7 +209,7 @@ FloatingWindow {
                     StyledText {
                         x: parent.width - 290
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Date Modified"
+                        text: qsTr("Date Modified")
                         font.pointSize: Theme.font.size.smaller
                         color: Theme.palette.secondaryLabel
                     }
@@ -217,7 +217,7 @@ FloatingWindow {
                     StyledText {
                         x: parent.width - 96
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Size"
+                        text: qsTr("Size")
                         font.pointSize: Theme.font.size.smaller
                         color: Theme.palette.secondaryLabel
                     }
@@ -233,7 +233,7 @@ FloatingWindow {
                 StyledText {
                     visible: folderModel.count === 0
                     anchors.centerIn: parent
-                    text: FileChooser.directory ? "No folders here." : "Nothing here."
+                    text: FileChooser.directory ? qsTr("No folders here.") : qsTr("Nothing here.")
                     color: Theme.palette.secondaryLabel
                 }
 
@@ -445,7 +445,7 @@ FloatingWindow {
 
                 PillButton {
                     visible: root.saving || FileChooser.directory
-                    text: "New Folder"
+                    text: qsTr("New Folder")
                     onClicked: {
                         newFolder.text = "untitled folder";
                         newFolderBox.visible = true;
@@ -455,7 +455,7 @@ FloatingWindow {
                 }
 
                 PillButton {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: FileChooser.cancel()
                 }
 
@@ -523,7 +523,7 @@ FloatingWindow {
             spacing: 12
 
             StyledText {
-                text: "New Folder"
+                text: qsTr("New Folder")
                 font.weight: Font.DemiBold
             }
 
@@ -548,13 +548,13 @@ FloatingWindow {
                 spacing: 10
 
                 PillButton {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: newFolderBox.visible = false
                 }
 
                 PillButton {
                     primary: true
-                    text: "Create"
+                    text: qsTr("Create")
                     onClicked: newFolderBox.create()
                 }
             }
@@ -588,7 +588,7 @@ FloatingWindow {
             StyledText {
                 width: parent.width
                 wrapMode: Text.Wrap
-                text: "Replacing it overwrites what's in it now."
+                text: qsTr("Replacing it overwrites what's in it now.")
                 color: Theme.palette.secondaryLabel
                 font.pointSize: Theme.font.size.small
             }
@@ -598,13 +598,13 @@ FloatingWindow {
                 spacing: 10
 
                 PillButton {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: root.confirm = ""
                 }
 
                 PillButton {
                     primary: true
-                    text: "Replace"
+                    text: qsTr("Replace")
                     onClicked: root.accept(true)
                 }
             }

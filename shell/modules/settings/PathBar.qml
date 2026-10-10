@@ -100,7 +100,7 @@ Row {
                             id: crumbText
 
                             anchors.centerIn: parent
-                            text: crumb.index === 0 ? "Computer" : crumb.modelData.name
+                            text: crumb.index === 0 ? qsTr("Computer") : crumb.modelData.name
                             font.pointSize: Theme.font.size.small
                             font.weight: crumb.last ? Font.DemiBold : Font.Normal
                             color: crumb.last ? Theme.palette.label : Theme.palette.secondaryLabel

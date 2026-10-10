@@ -55,7 +55,7 @@ Column {
     }
 
     Detail {
-        label: "Opens in"
+        label: qsTr("Opens in")
 
         Destination {
             space: root.record.space ?? 0
@@ -66,16 +66,16 @@ Column {
 
     Flag {
         visible: root.placed
-        label: "Go there with it"
+        label: qsTr("Go there with it")
         field: "follow"
     }
 
     Detail {
         visible: root.canLaunch && !!root.record.secret
-        label: "Start with the space"
+        label: qsTr("Start with the space")
 
         Switch {
-            name: "Start with the space"
+            name: qsTr("Start with the space")
             checked: (root.record.launch ?? "") !== ""
             onToggled: root.changed({ launch: checked ? "" : root.launchCommand })
         }
@@ -83,14 +83,14 @@ Column {
         TextControl {
             visible: (root.record.launch ?? "") !== ""
             fieldWidth: 220
-            placeholder: "Command"
+            placeholder: qsTr("Command")
             value: root.record.launch ?? ""
             onCommitted: v => root.changed({ launch: v })
         }
     }
 
     Detail {
-        label: "Opens"
+        label: qsTr("Opens")
 
         ChoiceControl {
             value: root.record.fullscreen ? "fullscreen" : root.record.maximized ? "maximized" : "normal"
@@ -103,27 +103,27 @@ Column {
     }
 
     Flag {
-        label: "Float when tiling"
+        label: qsTr("Float when tiling")
         field: "floating"
     }
 
     Flag {
-        label: "Keep above others"
+        label: qsTr("Keep above others")
         field: "keep_above"
     }
 
     Flag {
-        label: "On every space"
+        label: qsTr("On every space")
         field: "sticky"
     }
 
     Flag {
-        label: "Open without focus"
+        label: qsTr("Open without focus")
         field: "no_focus"
     }
 
     Flag {
-        label: "Keep drawing out of sight"
+        label: qsTr("Keep drawing out of sight")
         field: "render_unfocused"
     }
 }

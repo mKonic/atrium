@@ -14,14 +14,14 @@ Column {
     SectionHeader {
         visible: NotificationHistory.apps.length === 0
         width: parent.width
-        title: "Apps"
-        subtitle: "Apps show up here once they've sent a notification."
+        title: qsTr("Apps")
+        subtitle: qsTr("Apps show up here once they've sent a notification.")
     }
 
     Group {
         visible: NotificationHistory.apps.length > 0
-        title: "Apps"
-        subtitle: "Quiet ones go straight to the notification center."
+        title: qsTr("Apps")
+        subtitle: qsTr("Quiet ones go straight to the notification center.")
 
         Repeater {
             model: NotificationHistory.apps

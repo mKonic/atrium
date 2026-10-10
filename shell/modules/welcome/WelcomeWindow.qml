@@ -24,7 +24,7 @@ FloatingWindow {
         Qt.quit();
     }
 
-    title: "Welcome"
+    title: qsTr("Welcome")
     titleBar: false  // its own traffic lights, as macOS 26's windows
     color: Theme.palette.windowBackground
     implicitWidth: 720
@@ -73,7 +73,7 @@ FloatingWindow {
             StyledText {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: "Welcome to atrium"
+                text: qsTr("Welcome to atrium")
                 font.pointSize: 26
                 font.weight: Font.Bold
             }
@@ -82,15 +82,15 @@ FloatingWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: "A few choices to make it yours. Everything here is also in System Settings, so nothing is final."
+                text: qsTr("A few choices to make it yours. Everything here is also in System Settings, so nothing is final.")
                 color: Theme.palette.secondaryLabel
             }
         }
 
         // --- appearance ----------------------------------------------------
         Page {
-            title: "Choose your look"
-            subtitle: "Light or dark, and the colour of highlights and buttons."
+            title: qsTr("Choose your look")
+            subtitle: qsTr("Light or dark, and the colour of highlights and buttons.")
 
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -116,7 +116,7 @@ FloatingWindow {
 
             Rows {
                 Line {
-                    title: "Accent colour"
+                    title: qsTr("Accent colour")
 
                     AccentControl {
                         value: Atrium.settings["appearance.accent"] ?? "multicolor"
@@ -126,11 +126,11 @@ FloatingWindow {
                 }
 
                 Line {
-                    title: "Liquid Glass"
-                    note: "The bar, Dock and panels as glass that bends what is behind it, as in macOS."
+                    title: qsTr("Liquid Glass")
+                    note: qsTr("The bar, Dock and panels as glass that bends what is behind it, as in macOS.")
 
                     Switch {
-                        name: "Liquid Glass"
+                        name: qsTr("Liquid Glass")
                         checked: Atrium.settings["appearance.liquid_glass"] ?? false
                         onToggled: Atrium.setSetting("appearance.liquid_glass", !checked)
                     }
@@ -140,12 +140,12 @@ FloatingWindow {
 
         // --- keyboard ------------------------------------------------------
         Page {
-            title: "Your keyboard"
-            subtitle: "The layout of the keys you type on. More layouts, and switching between them, are in System Settings, Keyboard."
+            title: qsTr("Your keyboard")
+            subtitle: qsTr("The layout of the keys you type on. More layouts, and switching between them, are in System Settings, Keyboard.")
 
             Rows {
                 Line {
-                    title: "Layout"
+                    title: qsTr("Layout")
 
                     Dropdown {
                         fieldWidth: 260
@@ -158,19 +158,19 @@ FloatingWindow {
 
             Field {
                 width: parent.width
-                placeholder: "Try it here"
+                placeholder: qsTr("Try it here")
             }
         }
 
         // --- apps ----------------------------------------------------------
         Page {
-            title: "Your apps"
-            subtitle: "What opens links, and what the terminal shortcut opens."
+            title: qsTr("Your apps")
+            subtitle: qsTr("What opens links, and what the terminal shortcut opens.")
 
             Rows {
                 Line {
-                    title: "Web browser"
-                    note: DefaultApps.browsers.length === 0 ? "No web browser is installed." : ""
+                    title: qsTr("Web browser")
+                    note: DefaultApps.browsers.length === 0 ? qsTr("No web browser is installed.") : ""
 
                     Dropdown {
                         visible: DefaultApps.browsers.length > 0
@@ -182,8 +182,8 @@ FloatingWindow {
                 }
 
                 Line {
-                    title: "Terminal"
-                    note: DefaultApps.terminals.length === 0 ? "No terminal is installed." : ""
+                    title: qsTr("Terminal")
+                    note: DefaultApps.terminals.length === 0 ? qsTr("No terminal is installed.") : ""
 
                     Dropdown {
                         visible: DefaultApps.terminals.length > 0
@@ -198,8 +198,8 @@ FloatingWindow {
 
         // --- wallpaper -----------------------------------------------------
         Page {
-            title: "A wallpaper"
-            subtitle: Wallpaper.found ? `You have one from ${Wallpaper.foundFrom}; bring it along, or choose another.` : "Choose a picture for the desktop, or keep the plain colour."
+            title: qsTr("A wallpaper")
+            subtitle: Wallpaper.found ? qsTr("You have one from %1; bring it along, or choose another.").arg(Wallpaper.foundFrom) : qsTr("Choose a picture for the desktop, or keep the plain colour.")
 
             Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -228,12 +228,12 @@ FloatingWindow {
                 PillButton {
                     visible: Wallpaper.found !== "" && Wallpaper.found !== (Atrium.settings["appearance.wallpaper"] ?? "")
                     primary: true
-                    text: `Use my ${Wallpaper.foundFrom} wallpaper`
+                    text: qsTr("Use my %1 wallpaper").arg(Wallpaper.foundFrom)
                     onClicked: Wallpaper.setPath(Wallpaper.found)
                 }
 
                 PillButton {
-                    text: "Choose…"
+                    text: qsTr("Choose…")
                     onClicked: picker.open()
                 }
             }
@@ -241,9 +241,9 @@ FloatingWindow {
             FilePicker {
                 id: picker
 
-                title: "Choose a Wallpaper"
+                title: qsTr("Choose a Wallpaper")
                 folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-                nameFilter: "Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)"
+                nameFilter: qsTr("Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)")
                 onPicked: file => Wallpaper.set(file)
             }
         }
@@ -267,7 +267,7 @@ FloatingWindow {
             StyledText {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: "You're all set"
+                text: qsTr("You're all set")
                 font.pointSize: 26
                 font.weight: Font.Bold
             }
@@ -276,7 +276,7 @@ FloatingWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: "Super+Space finds apps and files, and System Settings (Super+,) has the rest."
+                text: qsTr("Super+Space finds apps and files, and System Settings (Super+,) has the rest.")
                 color: Theme.palette.secondaryLabel
             }
         }
@@ -302,7 +302,7 @@ FloatingWindow {
             anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
             visible: !root.last
-            text: "Skip"
+            text: qsTr("Skip")
             onClicked: root.finish()
         }
 
@@ -314,13 +314,13 @@ FloatingWindow {
 
             PillButton {
                 visible: root.page > 0
-                text: "Back"
+                text: qsTr("Back")
                 onClicked: root.page -= 1
             }
 
             PillButton {
                 primary: true
-                text: root.last ? "Get Started" : "Continue"
+                text: root.last ? qsTr("Get Started") : qsTr("Continue")
                 onClicked: root.last ? root.finish() : root.page += 1
             }
         }

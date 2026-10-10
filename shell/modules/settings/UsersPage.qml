@@ -62,8 +62,8 @@ Column {
     }
 
     MissingNote {
-        message: Accounts.available ? "" : "AccountsService isn't running."
-        explanation: "User accounts are listed and changed through AccountsService."
+        message: Accounts.available ? "" : qsTr("AccountsService isn't running.")
+        explanation: qsTr("User accounts are listed and changed through AccountsService.")
     }
 
     // You.
@@ -102,7 +102,7 @@ Column {
 
                 StyledText {
                     anchors.centerIn: parent
-                    text: "Edit"
+                    text: qsTr("Edit")
                     font.pointSize: Theme.font.size.smaller
                     color: Theme.dark.label
                 }
@@ -113,7 +113,7 @@ Column {
             anchors.right: parent.right
             anchors.rightMargin: 20
             anchors.verticalCenter: parent.verticalCenter
-            text: "Change Password…"
+            text: qsTr("Change Password…")
             onClicked: passwordSheet.open()
         }
 
@@ -125,7 +125,7 @@ Column {
 
             TextControl {
                 fieldWidth: 260
-                placeholder: "Full name"
+                placeholder: qsTr("Full name")
                 value: Accounts.me.realName ?? ""
                 onCommitted: v => Accounts.setRealName(v)
             }
@@ -151,7 +151,7 @@ Column {
                         id: adminLabel
 
                         anchors.centerIn: parent
-                        text: "Admin"
+                        text: qsTr("Admin")
                         font.pointSize: Theme.font.size.smaller
                         color: Theme.palette.label
                     }
@@ -163,11 +163,11 @@ Column {
     // Everyone else.
     Group {
         visible: Accounts.available
-        title: "Other users"
+        title: qsTr("Other users")
         headerActions: [
             PillButton {
                 visible: Accounts.me.admin ?? false
-                text: "Add User…"
+                text: qsTr("Add User…")
                 icon: "person_add"
                 onClicked: addSheet.open()
             }
@@ -176,7 +176,7 @@ Column {
         StyledText {
             visible: Accounts.others.length === 0
             padding: 10
-            text: "Nobody else has an account on this computer."
+            text: qsTr("Nobody else has an account on this computer.")
             color: Theme.palette.secondaryLabel
         }
 
@@ -206,7 +206,7 @@ Column {
                     }
 
                     StyledText {
-                        text: row.modelData.userName + (row.modelData.admin ? " · Admin" : "")
+                        text: row.modelData.userName + (row.modelData.admin ? qsTr(" · Admin") : "")
                         font.pointSize: Theme.font.size.smaller
                         color: Theme.palette.secondaryLabel
                     }
@@ -218,7 +218,7 @@ Column {
     Sheet {
         id: passwordSheet
 
-        title: "Change Password"
+        title: qsTr("Change Password")
         action: "Change Password"
         ready: next.text.length > 0 && next.text === verify.text && current.text.length > 0
         onOpened: {
@@ -236,7 +236,7 @@ Column {
 
             width: parent.width
             password: true
-            placeholder: "Current password"
+            placeholder: qsTr("Current password")
             onAccepted: next.focusField()
         }
 
@@ -245,7 +245,7 @@ Column {
 
             width: parent.width
             password: true
-            placeholder: "New password"
+            placeholder: qsTr("New password")
             onAccepted: verify.focusField()
         }
 
@@ -254,13 +254,13 @@ Column {
 
             width: parent.width
             password: true
-            placeholder: "Verify"
+            placeholder: qsTr("Verify")
             onAccepted: passwordSheet.submitted()
         }
 
         StyledText {
             visible: verify.text.length > 0 && verify.text !== next.text
-            text: "The new passwords don't match."
+            text: qsTr("The new passwords don't match.")
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel
         }
@@ -271,7 +271,7 @@ Column {
 
         property bool nameEdited: false
 
-        title: "New User"
+        title: qsTr("New User")
         action: "Create User"
         // An account with no password would let anyone in.
         ready: fullName.text.trim().length > 0 && Accounts.validUserName(account.text) && newPassword.text.length > 0
@@ -292,7 +292,7 @@ Column {
             id: fullName
 
             width: parent.width
-            placeholder: "Full name"
+            placeholder: qsTr("Full name")
             onTextChanged: if (!addSheet.nameEdited) account.text = Accounts.suggestUserName(text)
         }
 
@@ -300,7 +300,7 @@ Column {
             id: account
 
             width: parent.width
-            placeholder: "Account name"
+            placeholder: qsTr("Account name")
             onTextChanged: if (activeFocus) addSheet.nameEdited = true
         }
 
@@ -309,7 +309,7 @@ Column {
 
             width: parent.width
             password: true
-            placeholder: "Password"
+            placeholder: qsTr("Password")
         }
 
         Field {
@@ -317,21 +317,21 @@ Column {
 
             width: parent.width
             password: true
-            placeholder: "Verify"
+            placeholder: qsTr("Verify")
         }
 
         Row {
             spacing: 10
 
             Switch {
-                name: "Allow this user to administer this computer"
+                name: qsTr("Allow this user to administer this computer")
                 id: adminSwitch
                 onToggled: checked = !checked
             }
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Allow this user to administer this computer"
+                text: qsTr("Allow this user to administer this computer")
                 font.pointSize: Theme.font.size.small
             }
         }
@@ -340,9 +340,9 @@ Column {
     FilePicker {
         id: picker
 
-        title: "Choose a Picture"
+        title: qsTr("Choose a Picture")
         folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-        nameFilter: "Pictures (*.png *.jpg *.jpeg *.webp *.gif)"
+        nameFilter: qsTr("Pictures (*.png *.jpg *.jpeg *.webp *.gif)")
         onPicked: file => Accounts.setPicture(file.toString())
     }
 

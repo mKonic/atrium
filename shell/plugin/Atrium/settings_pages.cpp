@@ -4,6 +4,7 @@
 #include "compositor.hpp"
 #include "search.hpp"
 
+#include <QCoreApplication>
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -97,13 +98,13 @@ QVariantList SettingsPages::choiceOptions(const QStringList& choices) const {
     QVariantList out;
     for (const QString& c : choices) {
         if (kNames.contains(c)) {
-            out.append(QVariantMap{{"value", c}, {"label", kNames[c]}});
+            out.append(QVariantMap{{"value", c}, {"label", QCoreApplication::translate("settings", qPrintable(kNames[c]))}});
             continue;
         }
         QStringList words = c.split(QRegularExpression("[-_]"), Qt::SkipEmptyParts);
         for (QString& w : words)
             w[0] = w[0].toUpper();
-        out.append(QVariantMap{{"value", c}, {"label", words.join(' ')}});
+        out.append(QVariantMap{{"value", c}, {"label", QCoreApplication::translate("settings", qPrintable(words.join(' ')))}});
     }
     return out;
 }

@@ -17,11 +17,11 @@ Column {
     spacing: 20
 
     Group {
-        title: "Input Sources"
-        subtitle: root.sources.length > 1 ? "Switch between them from the menu bar." : ""
+        title: qsTr("Input Sources")
+        subtitle: root.sources.length > 1 ? qsTr("Switch between them from the menu bar.") : ""
         headerActions: [
             PillButton {
-                text: "Add…"
+                text: qsTr("Add…")
                 icon: "add"
                 onClicked: addSheet.open()
             }
@@ -38,7 +38,7 @@ Column {
 
                 glyph: "keyboard"
                 name: modelData.label
-                note: root.sources.length > 1 && index === root.active ? "In use" : ""
+                note: root.sources.length > 1 && index === root.active ? qsTr("In use") : ""
                 active: root.sources.length > 1 && index === root.active
                 onClicked: Atrium.setKeyboardLayout(index)
 
@@ -62,7 +62,7 @@ Column {
 
         property var picked: null
 
-        title: "Add an Input Source"
+        title: qsTr("Add an Input Source")
         action: "Add"
         ready: picked !== null
         onOpened: {
@@ -79,7 +79,7 @@ Column {
             id: search
 
             width: parent.width
-            placeholder: "Search"
+            placeholder: qsTr("Search")
         }
 
         ListView {

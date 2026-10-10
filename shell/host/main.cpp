@@ -13,15 +13,22 @@
 
 #include <QApplication>
 #include <QCryptographicHash>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusVariant>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
+#include <QLibraryInfo>
+#include <QLocale>
 #include <QSettings>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QTranslator>
 
 #include <fcntl.h>
 #include <fontconfig/fontconfig.h>
@@ -112,6 +119,48 @@ bool first_instance(const QString& file) {
 
 } // namespace
 
+// Translations: atrium's own (translations/atrium_<lang>.qm, beside the
+// shell) for the system's language, and Qt's for what Qt draws itself
+// (dialog buttons). The language is localed's LANG, as Settings > Language
+// & Region sets it; the session's LANG until it says.
+QTranslator* g_atrium_tr = nullptr;
+QTranslator* g_qt_tr = nullptr;
+
+void load_translations(const QString& dir, const QLocale& locale) {
+    for (QTranslator** t : {&g_atrium_tr, &g_qt_tr}) {
+        if (*t) {
+            QCoreApplication::removeTranslator(*t);
+            delete *t;
+            *t = nullptr;
+        }
+    }
+    QLocale::setDefault(locale);
+    auto* own = new QTranslator;
+    if (own->load(locale, "atrium", "_", dir))
+        QCoreApplication::installTranslator(g_atrium_tr = own);
+    else
+        delete own;
+    auto* qt = new QTranslator;
+    if (qt->load(locale, "qtbase", "_", QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+        QCoreApplication::installTranslator(g_qt_tr = qt);
+    else
+        delete qt;
+}
+
+// localed's LANG ("LANG=de_DE.UTF-8"), or nothing when it can't be asked.
+QString system_language() {
+    QDBusMessage m = QDBusMessage::createMethodCall("org.freedesktop.locale1", "/org/freedesktop/locale1",
+                                                    "org.freedesktop.DBus.Properties", "Get");
+    m << QStringLiteral("org.freedesktop.locale1") << QStringLiteral("Locale");
+    const QDBusMessage r = QDBusConnection::systemBus().call(m, QDBus::Block, 2000);
+    if (r.type() != QDBusMessage::ReplyMessage || r.arguments().isEmpty())
+        return {};
+    for (const QString& a : r.arguments().first().value<QDBusVariant>().variant().toStringList())
+        if (a.startsWith("LANG="))
+            return a.mid(5).section('.', 0, 0);
+    return {};
+}
+
 int main(int argc, char** argv) {
     QString path;
     bool no_duplicate = false;
@@ -166,6 +215,25 @@ int main(int argc, char** argv) {
     engine.addImportPath(above.absolutePath());
     QObject::connect(&engine, &QQmlEngine::quit, &app, &QCoreApplication::quit);
     QObject::connect(&engine, &QQmlEngine::exit, &app, &QCoreApplication::exit);
+
+    // The session's language, then localed's as it changes (Settings), live.
+    const QString translations = QDir(info.absolutePath()).absoluteFilePath("../translations");
+    load_translations(translations, QLocale::system());
+    // localed says something changed: a timer's slot takes the signal (this
+    // file has no moc), and its timeout reloads when LANG is new.
+    auto* relang = new QTimer(&app);
+    relang->setSingleShot(true);
+    QObject::connect(relang, &QTimer::timeout, &app, [translations, &engine, last = QLocale::system().name()]() mutable {
+        const QString lang = system_language();
+        if (lang.isEmpty() || lang == last)
+            return;
+        last = lang;
+        load_translations(translations, QLocale(lang));
+        engine.retranslate();
+    });
+    QDBusConnection::systemBus().connect("org.freedesktop.locale1", "/org/freedesktop/locale1",
+                                         "org.freedesktop.DBus.Properties", "PropertiesChanged", relang,
+                                         SLOT(start()));
 
     QQmlComponent component(&engine, QUrl::fromLocalFile(file));
     if (component.isError()) {

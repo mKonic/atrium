@@ -9,6 +9,7 @@
 #include "settings_pages.hpp"
 #include "window_layouts.hpp"
 
+#include <QCoreApplication>
 #include <QClipboard>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -44,15 +45,15 @@ struct KindInfo {
 
 // In section order.
 constexpr KindInfo kKinds[] = {
-    {"app", "Applications", "Application", 4, true},
-    {"settings", "Settings", "Settings Page", 1, true},
-    {"quicklink", "Quicklinks", "Quicklink", 2, false},
-    {"snippet", "Snippets", "Snippet", 3, false},
-    {"system", "System", "System Action", 3, true},
-    {"window", "Window Management", "Window Command", 3, true},
-    {"script", "Custom Commands", "Custom Command", 3, false},
-    {"command", "Commands", "Command", 3, true},
-    {"open-window", "Windows", "Window", 3, false},
+    {"app", QT_TRANSLATE_NOOP("launcher", "Applications"), QT_TRANSLATE_NOOP("launcher", "Application"), 4, true},
+    {"settings", QT_TRANSLATE_NOOP("launcher", "Settings"), QT_TRANSLATE_NOOP("launcher", "Settings Page"), 1, true},
+    {"quicklink", QT_TRANSLATE_NOOP("launcher", "Quicklinks"), QT_TRANSLATE_NOOP("launcher", "Quicklink"), 2, false},
+    {"snippet", QT_TRANSLATE_NOOP("launcher", "Snippets"), QT_TRANSLATE_NOOP("launcher", "Snippet"), 3, false},
+    {"system", QT_TRANSLATE_NOOP("launcher", "System"), QT_TRANSLATE_NOOP("launcher", "System Action"), 3, true},
+    {"window", QT_TRANSLATE_NOOP("launcher", "Window Management"), QT_TRANSLATE_NOOP("launcher", "Window Command"), 3, true},
+    {"script", QT_TRANSLATE_NOOP("launcher", "Custom Commands"), QT_TRANSLATE_NOOP("launcher", "Custom Command"), 3, false},
+    {"command", QT_TRANSLATE_NOOP("launcher", "Commands"), QT_TRANSLATE_NOOP("launcher", "Command"), 3, true},
+    {"open-window", QT_TRANSLATE_NOOP("launcher", "Windows"), QT_TRANSLATE_NOOP("launcher", "Window"), 3, false},
 };
 
 constexpr int kMaxFavoriteSlots = 10;
@@ -63,6 +64,21 @@ const char* const kSuggested[] = {"command:screen:clipboard", "command:screen:fi
 
 const KindInfo& info(int kind) {
     return kKinds[kind];
+}
+
+// The launcher's words in the user's language (translations/atrium.ts,
+// context "launcher").
+QString L(const char* text) {
+    return QCoreApplication::translate("launcher", text);
+}
+
+// A kind's word typed alone ("applications", "app") lists them all: in
+// English or the user's language.
+bool isKindWord(const std::u32string& folded, const KindInfo& k) {
+    for (const char* w : {k.section, k.label})
+        if (folded == foldText(w) || folded == foldText(L(w)))
+            return true;
+    return false;
 }
 
 void shellAction(const QString& name) {
@@ -327,11 +343,11 @@ void LauncherModel::rebuildEntries() {
             {m.value("keyword").toString()}, {}, {});
     }
     for (const CatalogItem& i : systemActions())
-        add({.key = QString("system:") + i.id, .kind = Kind::System, .title = i.title, .glyph = i.glyph,
+        add({.key = QString("system:") + i.id, .kind = Kind::System, .title = L(i.title), .glyph = i.glyph,
              .target = i.id, .confirm = i.confirm},
             {}, QString(i.keywords).split(' ', Qt::SkipEmptyParts), {});
     for (const CatalogItem& i : windowCommands())
-        add({.key = QString("window:") + i.id, .kind = Kind::Window, .title = i.title, .glyph = i.glyph,
+        add({.key = QString("window:") + i.id, .kind = Kind::Window, .title = L(i.title), .glyph = i.glyph,
              .target = i.id},
             {}, QString(i.keywords).split(' ', Qt::SkipEmptyParts), {});
     for (const QVariant& v : c->records("window_sizes")) {
@@ -363,7 +379,7 @@ void LauncherModel::rebuildEntries() {
             {}, {}, {});
     }
     for (const CatalogItem& i : paletteCommands())
-        add({.key = QString("command:") + i.id, .kind = Kind::Command, .title = i.title, .glyph = i.glyph,
+        add({.key = QString("command:") + i.id, .kind = Kind::Command, .title = L(i.title), .glyph = i.glyph,
              .target = i.id, .confirm = i.confirm},
             {}, QString(i.keywords).split(' ', Qt::SkipEmptyParts), {});
 
@@ -393,7 +409,7 @@ void LauncherModel::rebuildEntries() {
 void LauncherModel::pushEntryRow(std::vector<Row>& rows, int entry, const QString& section, int slot) const {
     const Entry& e = entries_[size_t(entry)];
     rows.push_back({.kind = kindId(e.kind), .entry = entry, .section = section, .title = e.title,
-                    .detail = e.detail, .icon = e.icon, .glyph = e.glyph, .label = info(int(e.kind)).label,
+                    .detail = e.detail, .icon = e.icon, .glyph = e.glyph, .label = L(info(int(e.kind)).label),
                     .slot = slot});
 }
 
@@ -468,7 +484,7 @@ void LauncherModel::rebuildRows(bool keepSelection) {
         int slot = 0;
         for (const auto& [_, i] : favorites) {
             ++slot;
-            pushEntryRow(rows, i, "Favorites", slot <= kMaxFavoriteSlots ? slot : 0);
+            pushEntryRow(rows, i, L("Favorites"), slot <= kMaxFavoriteSlots ? slot : 0);
             placed.insert(i);
         }
         // Suggestions: what you use that has no quicker way in, then a few commands worth knowing.
@@ -494,7 +510,7 @@ void LauncherModel::rebuildRows(bool keepSelection) {
                     used.push_back(i);
             }
             for (int i : used) {
-                pushEntryRow(rows, i, "Suggestions");
+                pushEntryRow(rows, i, L("Suggestions"));
                 placed.insert(i);
             }
         }
@@ -507,13 +523,13 @@ void LauncherModel::rebuildRows(bool keepSelection) {
                     list.push_back(int(i));
             idleSort(list);
             for (int i : list)
-                pushEntryRow(rows, i, info(k).section);
+                pushEntryRow(rows, i, L(info(k).section));
         }
     } else if (trimmed.startsWith('>')) {
         const QString cmd = trimmed.mid(1).trimmed();
         if (!cmd.isEmpty())
-            rows.push_back({.kind = "fallback", .title = cmd, .detail = "Run in Shell", .glyph = "terminal",
-                            .label = "Shell", .target = "shell"});
+            rows.push_back({.kind = "fallback", .title = cmd, .detail = L("Run in Shell"), .glyph = "terminal",
+                            .label = L("Shell"), .target = "shell"});
     } else {
         // An inline answer first: a sum, a conversion, a date, or an address to open.
         calc::Context context;
@@ -527,13 +543,13 @@ void LauncherModel::rebuildRows(bool keepSelection) {
                             .label = QString::fromStdString(a->result_badge), .target = QString::fromStdString(a->copy),
                             .badge = QString::fromStdString(a->input_badge)});
         if (looksLikeAddress(trimmed))
-            rows.push_back({.kind = "url", .title = "Open in Browser", .detail = trimmed, .glyph = "open_in_browser",
-                            .label = "Command", .target = trimmed});
+            rows.push_back({.kind = "url", .title = L("Open in Browser"), .detail = trimmed, .glyph = "open_in_browser",
+                            .label = L("Command"), .target = trimmed});
 
         // A category's own name lists all of it.
         int category = -1;
         for (int k = 0; k < int(std::size(kKinds)); ++k)
-            if (q == foldText(info(k).section) || q == foldText(info(k).label))
+            if (isKindWord(q, info(k)))
                 category = k;
         if (category >= 0) {
             std::vector<int> list;
@@ -543,7 +559,7 @@ void LauncherModel::rebuildRows(bool keepSelection) {
             idleSort(list);
             std::ranges::stable_partition(list, [&](int i) { return int(entries_[size_t(i)].kind) != category; });
             for (int i : list)
-                pushEntryRow(rows, i, int(entries_[size_t(i)].kind) == category ? info(category).section : "");
+                pushEntryRow(rows, i, int(entries_[size_t(i)].kind) == category ? L(info(category).section) : "");
         } else {
             struct Hit {
                 int entry;
@@ -563,23 +579,23 @@ void LauncherModel::rebuildRows(bool keepSelection) {
         }
 
         // What nothing recognised goes to: under "Use “…” with".
-        const QString with = QString("Use “%1” with").arg(trimmed.size() > 24 ? trimmed.left(23) + "…" : trimmed);
+        const QString with = L("Use “%1” with").arg(trimmed.size() > 24 ? trimmed.left(23) + "…" : trimmed);
         // The web first, as Raycast's Search Google.
         if (const auto web = placeholders::web_search(c->setting("launcher.web_search", "google").toString().toStdString(),
                                                       trimmed.toStdString()))
             rows.push_back({.kind = "fallback", .section = with, .title = QString::fromStdString(web->title),
-                            .glyph = "travel_explore", .label = "Web", .target = "web"});
-        rows.push_back({.kind = "fallback", .section = with, .title = "Search Files", .glyph = "folder_open",
-                        .label = "Command", .target = "files"});
+                            .glyph = "travel_explore", .label = L("Web"), .target = "web"});
+        rows.push_back({.kind = "fallback", .section = with, .title = L("Search Files"), .glyph = "folder_open",
+                        .label = L("Command"), .target = "files"});
         for (const QVariant& v : c->records("quicklinks")) {
             const QVariantMap m = v.toMap();
             if (!placeholders::arguments(m.value("url").toString().toStdString()).empty())
                 rows.push_back({.kind = "fallback", .section = with, .title = m.value("name").toString(),
-                                .icon = m.value("icon").toString(), .glyph = "link", .label = "Quicklink",
+                                .icon = m.value("icon").toString(), .glyph = "link", .label = L("Quicklink"),
                                 .target = "quicklink:" + m.value("id").toString()});
         }
-        rows.push_back({.kind = "fallback", .section = with, .title = "Run in Shell", .glyph = "terminal",
-                        .label = "Command", .target = "shell"});
+        rows.push_back({.kind = "fallback", .section = with, .title = L("Run in Shell"), .glyph = "terminal",
+                        .label = L("Command"), .target = "shell"});
     }
 
     const bool counted = rows.size() != rows_.size();
@@ -706,7 +722,7 @@ void LauncherModel::activate(int row, const QVariantList& args) {
         if (persistent(e)) {
             // A category word is not a search for the row that ran.
             const bool category = std::ranges::any_of(kKinds, [&](const KindInfo& k) {
-                return foldText(query_) == foldText(k.section) || foldText(query_) == foldText(k.label);
+                return isKindWord(foldText(query_), k);
             });
             ranking_.record(e.key, category ? QString() : query_);
         }
@@ -722,7 +738,7 @@ void LauncherModel::runRow(const Row& r, const QVariantList&) {
         QGuiApplication::clipboard()->setText(r.target);
         rememberCalc(r);
         emit closeRequested();
-        emit feedback("content_copy", "Copied " + r.title, false);
+        emit feedback("content_copy", L("Copied %1").arg(r.title), false);
     } else if (r.kind == "url") {
         emit closeRequested();
         QDesktopServices::openUrl(QUrl::fromUserInput(r.target));
@@ -747,7 +763,7 @@ void LauncherModel::runRow(const Row& r, const QVariantList&) {
 
 void LauncherModel::runEntry(const Entry& e, const QVariantList& args, bool fromPalette) {
     if (e.confirm) {
-        emit confirmRequested(e.title + "?", e.kind == Kind::System ? "This can't be undone." : QString(), e.glyph,
+        emit confirmRequested(e.title + "?", e.kind == Kind::System ? L("This can't be undone.") : QString(), e.glyph,
                               "run|" + e.key);
         return;
     }
@@ -792,8 +808,8 @@ void LauncherModel::runEntry(const Entry& e, const QVariantList& args, bool from
             WindowLayouts::instance()->run(e.target.mid(7), index_);
         else if (e.target == "save-layout") {
             const QString name = WindowLayouts::instance()->capture();
-            emit feedback("dashboard_customize", name.isEmpty() ? QStringLiteral("No Windows to Save")
-                                                                : QString("Saved as “%1”").arg(name),
+            emit feedback("dashboard_customize", name.isEmpty() ? L("No Windows to Save")
+                                                                : L("Saved as “%1”").arg(name),
                           name.isEmpty());
         } else
             Compositor::instance()->action("place", e.target);
@@ -834,7 +850,7 @@ void LauncherModel::runCommand(const QString& id) {
         Compositor::instance()->action("overview");
     else if (id == "reset-ranking") {
         ranking_.resetAll();
-        emit feedback("restart_alt", "Learned Ranking Reset", false);
+        emit feedback("restart_alt", L("Learned Ranking Reset"), false);
     }
 }
 
@@ -878,7 +894,7 @@ void LauncherModel::typeSnippet(const QVariantMap& m, const QVariantList& args, 
     emit closeRequested();
     if (copyOnly) {
         QGuiApplication::clipboard()->setText(text);
-        emit feedback("content_copy", "Snippet Copied", false);
+        emit feedback("content_copy", L("Snippet Copied"), false);
         return;
     }
     // Typed into the field the palette was opened over (copied when none takes it).
@@ -908,7 +924,7 @@ void LauncherModel::runCustom(const QVariantMap& m, const QVariantList& args) {
         emit closeRequested();
         QStringList t = shell::DesktopEntries::inTerminal(argv);
         if (t.isEmpty()) {
-            emit feedback("error", "No Terminal Installed", true);
+            emit feedback("error", L("No Terminal Installed"), true);
             return;
         }
         QProcess p;
@@ -964,9 +980,9 @@ void LauncherModel::runCustom(const QVariantMap& m, const QVariantList& args) {
     p->setProcessChannelMode(QProcess::ForwardedChannels);
     connect(p, &QProcess::finished, this, [this, p, name](int code, QProcess::ExitStatus status) {
         if (status == QProcess::NormalExit && code == 0)
-            emit feedback("check_circle", QString("“%1” Finished").arg(name), false);
+            emit feedback("check_circle", L("“%1” Finished").arg(name), false);
         else
-            emit feedback("error", QString("“%1” Failed (exit %2)").arg(name).arg(code), false);
+            emit feedback("error", L("“%1” Failed (exit %2)").arg(name).arg(code), false);
         p->deleteLater();
     });
     p->start();
@@ -1034,7 +1050,7 @@ void LauncherModel::confirm(const QString& token) {
     } else if (verb == "uninstall") {
         const Uninstall u = uninstallFor(e);
         if (u.trashFile.isEmpty())
-            runCustom({{"name", "Uninstall " + e.title}, {"command", u.command}, {"output", true}}, {});
+            runCustom({{"name", L("Uninstall %1").arg(e.title)}, {"command", u.command}, {"output", true}}, {});
         else if (QFile::moveToTrash(u.trashFile))
             emit feedback("delete_forever", e.title + " Removed", false);
     } else if (verb == "delete" && e.key.startsWith("window:layout:")) {
@@ -1106,13 +1122,13 @@ LauncherModel::Uninstall LauncherModel::uninstallFor(const Entry& e) const {
     if (file.contains("/flatpak/")) {
         const QString app = QFileInfo(file).completeBaseName();
         u.command = "flatpak uninstall --noninteractive -y " + app;
-        u.says = QString("The Flatpak %1 goes; its data in ~/.var/app stays.").arg(app);
+        u.says = L("The Flatpak %1 goes; its data in ~/.var/app stays.").arg(app);
         return u;
     }
     if (file.startsWith(QDir::homePath())) {
         u.trashFile = d->file();
         u.command = "trash";
-        u.says = "It's a launcher entry of your own: it goes to the Trash.";
+        u.says = L("It's a launcher entry of your own: it goes to the Trash.");
         return u;
     }
     if (QStandardPaths::findExecutable("pacman").isEmpty())
@@ -1126,7 +1142,7 @@ LauncherModel::Uninstall LauncherModel::uninstallFor(const Entry& e) const {
         return u;
     // -R alone: the package, not what it pulled in, and nothing that needs it.
     u.command = "pkexec pacman -R --noconfirm " + pkg;
-    u.says = QString("The package %1 is removed (you'll be asked for your password). What it depends on stays.").arg(pkg);
+    u.says = L("The package %1 is removed (you'll be asked for your password). What it depends on stays.").arg(pkg);
     return u;
 }
 
@@ -1167,8 +1183,8 @@ QVariantList LauncherModel::items(const QString& query) {
         out.push_back(QVariantMap{
             {"key", e.key},
             {"title", e.title},
-            {"section", info(int(e.kind)).section},
-            {"label", info(int(e.kind)).label},
+            {"section", L(info(int(e.kind)).section)},
+            {"label", L(info(int(e.kind)).label)},
             {"icon", e.icon},
             {"glyph", e.glyph},
             {"color", e.color},
@@ -1304,16 +1320,16 @@ QVariantList LauncherModel::allActions(int row) const {
 
     if (r.entry < 0) {
         if (r.kind == "calc") {
-            add("open", "Copy Answer", "content_copy", "Enter");
-            add("type", "Type Answer", "keyboard", "Ctrl+Enter");
-            add("copy-expression", "Copy Question", "functions");
+            add("open", L("Copy Answer"), "content_copy", "Enter");
+            add("type", L("Type Answer"), "keyboard", "Ctrl+Enter");
+            add("copy-expression", L("Copy Question"), "functions");
             if (screen_ == "calculator") {
                 section();
-                add("forget", "Remove from History", "delete");
-                add("forget-all", "Clear History", "delete_sweep");
+                add("forget", L("Remove from History"), "delete");
+                add("forget-all", L("Clear History"), "delete_sweep");
             }
         } else {
-            add("open", r.kind == "url" ? QStringLiteral("Open in Browser") : !r.detail.isEmpty() ? r.detail : r.title, r.glyph,
+            add("open", r.kind == "url" ? L("Open in Browser") : !r.detail.isEmpty() ? r.detail : r.title, r.glyph,
                 "Enter");
         }
         return out;
@@ -1322,41 +1338,41 @@ QVariantList LauncherModel::allActions(int row) const {
     const Prefs* p = prefs(e.key);
     switch (e.kind) {
     case Kind::App: {
-        add("open", running(e) ? "Switch to App" : "Open", "open_in_new", "Enter");
+        add("open", running(e) ? L("Switch to App") : L("Open"), "open_in_new", "Enter");
         if (running(e))
-            add("new-window", "New Window", "add_box");
+            add("new-window", L("New Window"), "add_box");
         if (auto* d = qobject_cast<shell::DesktopEntry*>(index_.byId(e.target)))
             for (int i = 0; i < d->actions().size(); ++i)
                 add("desktop-action:" + QString::number(i), d->actions()[i]->property("name").toString(), "bolt");
         if (const QString gpu = shell::DesktopEntries::instance()->otherGpu(); !gpu.isEmpty())
-            add("other-gpu", "Launch on " + gpu, "memory");
+            add("other-gpu", L("Launch on %1").arg(gpu), "memory");
         section();
         const bool pinned = Compositor::instance()->dockPins().contains(e.target);
-        add(pinned ? "unpin" : "pin", pinned ? "Remove from Dock" : "Keep in Dock", "dock_to_bottom");
-        add("reveal", "Show Desktop File", "folder_open", "Ctrl+Enter");
-        add("uninstall", "Uninstall…", "delete_forever");
+        add(pinned ? "unpin" : "pin", pinned ? L("Remove from Dock") : L("Keep in Dock"), "dock_to_bottom");
+        add("reveal", L("Show Desktop File"), "folder_open", "Ctrl+Enter");
+        add("uninstall", L("Uninstall…"), "delete_forever");
         if (running(e)) {
             section();
-            add("restart", "Restart App", "refresh", "Ctrl+R");
-            add("quit", "Quit App", "close", "Ctrl+Shift+Q");
+            add("restart", L("Restart App"), "refresh", "Ctrl+R");
+            add("quit", L("Quit App"), "close", "Ctrl+Shift+Q");
         }
         break;
     }
     case Kind::Quicklink:
-        add("open", "Open Quicklink", "open_in_new", "Enter");
-        add("copy", "Copy Address", "content_copy", "Ctrl+Shift+C");
+        add("open", L("Open Quicklink"), "open_in_new", "Enter");
+        add("copy", L("Copy Address"), "content_copy", "Ctrl+Shift+C");
         break;
     case Kind::Snippet:
-        add("open", "Type Snippet", "keyboard", "Enter");
-        add("copy", "Copy Snippet", "content_copy", "Ctrl+Shift+C");
+        add("open", L("Type Snippet"), "keyboard", "Enter");
+        add("copy", L("Copy Snippet"), "content_copy", "Ctrl+Shift+C");
         break;
     case Kind::Script:
-        add("open", "Run Command", "play_arrow", "Enter");
+        add("open", L("Run Command"), "play_arrow", "Enter");
         break;
     case Kind::OpenWindow:
-        add("open", "Switch to Window", "select_window", "Enter");
-        add("minimize", "Minimize Window", "minimize");
-        add("close-window", "Close Window", "close");
+        add("open", L("Switch to Window"), "select_window", "Enter");
+        add("minimize", L("Minimize Window"), "minimize");
+        add("close-window", L("Close Window"), "close");
         return out;
     default:
         add("open", e.kind == Kind::Settings ? "Open Settings" : "Run", e.glyph, "Enter");
@@ -1438,7 +1454,7 @@ void LauncherModel::runAction(int row, const QString& id) {
                                                       : "sizes";
         shellAction("settings:Launcher/" + tab);
     } else if (id == "delete") {
-        emit confirmRequested(QString("Delete “%1”?").arg(e.title), "This can't be undone.", "delete", "delete|" + e.key);
+        emit confirmRequested(QString("Delete “%1”?").arg(e.title), L("This can't be undone."), "delete", "delete|" + e.key);
     } else if (id == "copy") {
         if (e.kind == Kind::Quicklink) {
             QGuiApplication::clipboard()->setText(record("quicklinks", e.target).value("url").toString());

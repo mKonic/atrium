@@ -10,8 +10,8 @@ Pill {
 
     // For screen readers (AT-SPI).
     Accessible.role: Accessible.Button
-    Accessible.name: "Notifications"
-    Accessible.description: dnd ? "Do Not Disturb" : NotificationHistory.unread > 0 ? `${NotificationHistory.unread} unread` : ""
+    Accessible.name: qsTr("Notifications")
+    Accessible.description: dnd ? qsTr("Do Not Disturb") : NotificationHistory.unread > 0 ? qsTr("%1 unread").arg(NotificationHistory.unread) : ""
     Accessible.onPressAction: Panels.toggle("notifications")
 
     readonly property bool dnd: Atrium.settings["notifications.dnd"] ?? false

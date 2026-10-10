@@ -57,7 +57,7 @@ Flow {
 
     TextControl {
         fieldWidth: 160
-        placeholder: "Add…"
+        placeholder: qsTr("Add…")
         value: ""
         onCommitted: v => {
             if (v.trim())

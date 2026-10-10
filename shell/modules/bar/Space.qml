@@ -12,7 +12,7 @@ Item {
 
     // For screen readers (AT-SPI): a space, and whether it's the one shown.
     Accessible.role: Accessible.PageTab
-    Accessible.name: `Space ${number}`
+    Accessible.name: qsTr("Space %1").arg(number)
     Accessible.checkable: true
     Accessible.checked: active
 

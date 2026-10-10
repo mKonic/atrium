@@ -100,7 +100,7 @@ PanelWindow {
     readonly property string glyph: kind === "brightness" ? (level > 0.5 ? "brightness_high" : "brightness_low")
         : kind === "mic" ? (off ? "mic_off" : "mic")
         : off || level === 0 ? "volume_off" : level < 0.34 ? "volume_mute" : level < 0.67 ? "volume_down" : "volume_up"
-    readonly property string title: kind === "brightness" ? "Display" : kind === "mic" ? (off ? "Microphone Off" : "Microphone")
+    readonly property string title: kind === "brightness" ? qsTr("Display") : kind === "mic" ? (off ? qsTr("Microphone Off") : qsTr("Microphone"))
         : (sink?.label || "Sound")
 
     screen: Shell.screen(Atrium.focusedOutput?.name)

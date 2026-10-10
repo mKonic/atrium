@@ -38,7 +38,7 @@ FloatingWindow {
             Atrium.focusWindow(self.id);
     }
 
-    title: "System Settings"
+    title: qsTr("System Settings")
     visible: false
     // As macOS 26's Settings: no title bar; the traffic lights sit in the
     // sidebar, a pane inset in the window with a fine light rim.
@@ -127,7 +127,7 @@ FloatingWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !search.text
-                    text: "Search"
+                    text: qsTr("Search")
                     color: Theme.palette.tertiaryLabel
                 }
             }
@@ -161,7 +161,7 @@ FloatingWindow {
                 readonly property bool current: root.query === "" && root.page === modelData.name
 
                 Accessible.role: Accessible.PageTab
-                Accessible.name: modelData.name
+                Accessible.name: qsTranslate("settings", modelData.name)
                 Accessible.checkable: true
                 Accessible.checked: current
                 Accessible.onPressAction: area.clicked(null)
@@ -197,7 +197,7 @@ FloatingWindow {
                     anchors.right: parent.right
                     anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    text: entry.modelData.name
+                    text: qsTranslate("settings", entry.modelData.name)
                     elide: Text.ElideRight
                     font.weight: entry.current ? Font.DemiBold : Font.Normal
                 }
@@ -248,7 +248,7 @@ FloatingWindow {
 
             StyledText {
                 visible: root.query !== "" && SettingsPages.search(root.query).length === 0
-                text: "No settings match."
+                text: qsTr("No settings match.")
                 color: Theme.palette.secondaryLabel
             }
 
@@ -452,7 +452,7 @@ FloatingWindow {
             anchors.verticalCenterOffset: 2
             width: parent.width - 32 - 96
             elide: Text.ElideRight
-            text: root.query ? "Search Results" : root.page
+            text: root.query ? qsTr("Search Results") : qsTranslate("settings", root.page)
             font.pointSize: Theme.font.size.large
             font.weight: Font.Bold
         }

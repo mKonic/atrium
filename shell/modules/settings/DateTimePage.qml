@@ -26,11 +26,11 @@ Column {
         subtitle: root.error
 
         ControlRow {
-            title: "Set time automatically"
-            note: DateTime.canNtp ? "From the internet (systemd-timesyncd)." : "No network time service is installed."
+            title: qsTr("Set time automatically")
+            note: DateTime.canNtp ? qsTr("From the internet (systemd-timesyncd).") : qsTr("No network time service is installed.")
 
             Switch {
-                name: "Set time automatically"
+                name: qsTr("Set time automatically")
                 enabled: DateTime.canNtp
                 opacity: enabled ? 1 : 0.4
                 checked: DateTime.ntp
@@ -42,11 +42,11 @@ Column {
         }
 
         ControlRow {
-            title: "Time zone"
+            title: qsTr("Time zone")
             note: DateTime.timezoneLabel
 
             PillButton {
-                text: "Change…"
+                text: qsTr("Change…")
                 onClicked: zoneSheet.open()
             }
         }
@@ -57,7 +57,7 @@ Column {
 
         property string picked: ""
 
-        title: "Time Zone"
+        title: qsTr("Time Zone")
         action: "Set"
         ready: picked !== "" && picked !== DateTime.timezone
         onOpened: {
@@ -75,7 +75,7 @@ Column {
             id: search
 
             width: parent.width
-            placeholder: "Search for a city"
+            placeholder: qsTr("Search for a city")
         }
 
         ListView {

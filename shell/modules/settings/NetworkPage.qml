@@ -24,11 +24,11 @@ Column {
 
     MissingNote {
         needs: "networkmanager"
-        explanation: "Wired and Wi-Fi connections are set up through NetworkManager."
+        explanation: qsTr("Wired and Wi-Fi connections are set up through NetworkManager.")
     }
 
     MissingNote {
-        message: Network.available && !Network.hasWifi && root.wired.length === 0 ? "No network adapters found." : ""
+        message: Network.available && !Network.hasWifi && root.wired.length === 0 ? qsTr("No network adapters found.") : ""
     }
 
     // Looking for networks only while the page is open.
@@ -42,7 +42,7 @@ Column {
 
     Group {
         visible: root.wired.length > 0
-        title: "Ethernet"
+        title: qsTr("Ethernet")
 
         Repeater {
             model: root.wired
@@ -52,7 +52,7 @@ Column {
 
                 glyph: "lan"
                 name: modelData.name
-                note: modelData.connected ? "Connected" : "Not connected"
+                note: modelData.connected ? qsTr("Connected") : qsTr("Not connected")
                 active: modelData.connected
             }
         }
@@ -60,10 +60,10 @@ Column {
 
     Group {
         visible: Network.hasWifi
-        title: "Wi-Fi"
+        title: qsTr("Wi-Fi")
         headerActions: [
             Switch {
-                name: "Wi-Fi"
+                name: qsTr("Wi-Fi")
                 checked: Network.wifiEnabled
                 onToggled: Network.wifiEnabled = !Network.wifiEnabled
             }
@@ -72,7 +72,7 @@ Column {
         StyledText {
             visible: !Network.wifiEnabled || root.networks.length === 0
             padding: 10
-            text: Network.wifiEnabled ? "No networks in range." : "Wi-Fi is off."
+            text: Network.wifiEnabled ? qsTr("No networks in range.") : qsTr("Wi-Fi is off.")
             color: Theme.palette.secondaryLabel
         }
 
@@ -90,7 +90,7 @@ Column {
                 DeviceRow {
                     glyph: net.modelData.glyph
                     name: net.modelData.name
-                    note: net.modelData.connected ? "Connected" : net.modelData.known ? "Known" : net.modelData.security > 0 ? "Secured" : "Open"
+                    note: net.modelData.connected ? qsTr("Connected") : net.modelData.known ? qsTr("Known") : net.modelData.security > 0 ? qsTr("Secured") : qsTr("Open")
                     active: net.modelData.connected
                     busy: net.modelData.stateChanging
                     onClicked: {
@@ -107,13 +107,13 @@ Column {
 
                     PillButton {
                         visible: net.modelData.connected
-                        text: "Disconnect"
+                        text: qsTr("Disconnect")
                         onClicked: net.modelData.disconnect()
                     }
 
                     PillButton {
                         visible: net.modelData.known && !net.modelData.connected
-                        text: "Forget"
+                        text: qsTr("Forget")
                         onClicked: net.modelData.forget()
                     }
                 }
@@ -151,7 +151,7 @@ Column {
                             StyledText {
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: !password.text
-                                text: root.error || "Password"
+                                text: root.error || qsTr("Password")
                                 color: root.error ? Theme.palette.red : Theme.palette.tertiaryLabel
                                 font.pointSize: Theme.font.size.small
                             }
@@ -161,7 +161,7 @@ Column {
                     PillButton {
                         id: join
 
-                        text: "Join"
+                        text: qsTr("Join")
                         primary: true
                         enabled: password.text.length > 0
                         onClicked: {
@@ -189,10 +189,10 @@ Column {
 
     Group {
         visible: Vpn.available
-        title: "VPN"
+        title: qsTr("VPN")
         headerActions: [
             PillButton {
-                text: Vpn.importing ? "Importing…" : "Import…"
+                text: Vpn.importing ? qsTr("Importing…") : qsTr("Import…")
                 enabled: !Vpn.importing
                 onClicked: vpnPicker.open()
             }
@@ -202,7 +202,7 @@ Column {
             visible: Vpn.tunnels.length === 0
             width: parent.width
             padding: 10
-            text: "Import a WireGuard configuration: a .conf file, or a provider's .zip of them, as Mullvad gives."
+            text: qsTr("Import a WireGuard configuration: a .conf file, or a provider's .zip of them, as Mullvad gives.")
             wrapMode: Text.Wrap
             color: Theme.palette.secondaryLabel
         }
@@ -223,12 +223,12 @@ Column {
                 busy: modelData.busy
 
                 PillButton {
-                    text: modelData.connected || modelData.busy ? "Disconnect" : "Connect"
+                    text: modelData.connected || modelData.busy ? qsTr("Disconnect") : qsTr("Connect")
                     onClicked: modelData.toggle()
                 }
 
                 PillButton {
-                    text: "Remove"
+                    text: qsTr("Remove")
                     onClicked: modelData.remove()
                 }
             }
@@ -242,14 +242,14 @@ Column {
                 required property VpnTunnel modelData
 
                 visible: modelData.hasServers
-                title: Vpn.tunnels.length > 1 ? `${modelData.name}: Default Location` : "Default Location"
-                note: "Where it connects when turned on."
+                title: Vpn.tunnels.length > 1 ? qsTr("%1: Default Location").arg(modelData.name) : qsTr("Default Location")
+                note: qsTr("Where it connects when turned on.")
 
                 Dropdown {
                     fieldWidth: 260
                     options: modelData.places
                     value: modelData.defaultPlace
-                    placeholder: "Last Used"
+                    placeholder: qsTr("Last Used")
                     onPicked: v => modelData.defaultPlace = v
                 }
             }
@@ -268,9 +268,9 @@ Column {
     FilePicker {
         id: vpnPicker
 
-        title: "Import a VPN Configuration"
+        title: qsTr("Import a VPN Configuration")
         folder: StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-        nameFilter: "WireGuard configurations (*.conf *.zip)"
+        nameFilter: qsTr("WireGuard configurations (*.conf *.zip)")
         onPicked: file => {
             root.vpnNote = "";
             Vpn.importFile(file);

@@ -10,7 +10,7 @@ Pill {
 
     // For screen readers (AT-SPI).
     Accessible.role: Accessible.Button
-    Accessible.name: "Battery"
+    Accessible.name: qsTr("Battery")
     Accessible.description: `${Battery.percentage}%`
     Accessible.onPressAction: if (!greeter) Atrium.action("shell", "settings:Power")
 

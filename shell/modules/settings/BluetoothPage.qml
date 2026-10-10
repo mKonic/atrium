@@ -19,7 +19,7 @@ Column {
 
     MissingNote {
         needs: "bluez"
-        explanation: "Bluetooth devices are paired and connected through BlueZ (bluetooth.service)."
+        explanation: qsTr("Bluetooth devices are paired and connected through BlueZ (bluetooth.service).")
     }
 
     MissingNote {
@@ -37,11 +37,11 @@ Column {
 
     Group {
         visible: root.adapter !== null
-        title: "Bluetooth"
-        subtitle: root.adapter ? `This computer is ${root.adapter.name}.` : ""
+        title: qsTr("Bluetooth")
+        subtitle: root.adapter ? qsTr("This computer is %1.").arg(root.adapter.name) : ""
         headerActions: [
             Switch {
-                name: "Bluetooth"
+                name: qsTr("Bluetooth")
                 checked: root.adapter?.enabled ?? false
                 onToggled: root.adapter.enabled = !root.adapter.enabled
             }
@@ -50,7 +50,7 @@ Column {
         StyledText {
             visible: root.mine.length === 0
             padding: 10
-            text: root.adapter?.enabled ? "No devices yet." : "Bluetooth is off."
+            text: root.adapter?.enabled ? qsTr("No devices yet.") : qsTr("Bluetooth is off.")
             color: Theme.palette.secondaryLabel
         }
 
@@ -62,17 +62,17 @@ Column {
 
                 glyph: modelData.glyph
                 name: modelData.name || modelData.deviceName
-                note: modelData.connected ? "Connected" + (modelData.batteryAvailable ? ` · ${Math.round(modelData.battery * 100)}%` : "") : "Not connected"
+                note: modelData.connected ? qsTr("Connected") + (modelData.batteryAvailable ? ` · ${Math.round(modelData.battery * 100)}%` : "") : qsTr("Not connected")
                 active: modelData.connected
                 busy: modelData.state === BluetoothDeviceState.Connecting || modelData.state === BluetoothDeviceState.Disconnecting
 
                 PillButton {
-                    text: modelData.connected ? "Disconnect" : "Connect"
+                    text: modelData.connected ? qsTr("Disconnect") : qsTr("Connect")
                     onClicked: modelData.connected ? modelData.disconnect() : modelData.connect()
                 }
 
                 PillButton {
-                    text: "Forget"
+                    text: qsTr("Forget")
                     onClicked: modelData.forget()
                 }
             }
@@ -87,11 +87,11 @@ Column {
         readonly property string phone: PhoneClipboard.phone
 
         visible: root.adapter !== null
-        title: "Phone Clipboard"
-        subtitle: "Share the clipboard with your phone while it is connected: the last few copies when it connects, then every copy on either side."
+        title: qsTr("Phone Clipboard")
+        subtitle: qsTr("Share the clipboard with your phone while it is connected: the last few copies when it connects, then every copy on either side.")
         headerActions: [
             Switch {
-                name: "Phone Clipboard"
+                name: qsTr("Phone Clipboard")
                 checked: phoneClipboard.on
                 onToggled: Atrium.setSetting("bluetooth.phone_clipboard", !phoneClipboard.on)
             }
@@ -115,30 +115,30 @@ Column {
         DeviceRow {
             glyph: "download"
             name: "Atrium Link for Android"
-            note: "For rooted phones: install the module with KernelSU, then connect the phone."
+            note: qsTr("For rooted phones: install the module with KernelSU, then connect the phone.")
 
             PillButton {
-                text: "Download"
+                text: qsTr("Download")
                 onClicked: Qt.openUrlExternally(PhoneClipboard.moduleUrl)
             }
         }
 
         StyledText {
             padding: 10
-            text: "Phones without root: coming soon."
+            text: qsTr("Phones without root: coming soon.")
             color: Theme.palette.secondaryLabel
         }
     }
 
     Group {
         visible: root.adapter?.enabled ?? false
-        title: "Nearby"
-        subtitle: root.adapter?.discovering ? "Looking for devices…" : ""
+        title: qsTr("Nearby")
+        subtitle: root.adapter?.discovering ? qsTr("Looking for devices…") : ""
 
         StyledText {
             visible: root.nearby.length === 0
             padding: 10
-            text: "Nothing found yet. Put the device in pairing mode."
+            text: qsTr("Nothing found yet. Put the device in pairing mode.")
             color: Theme.palette.secondaryLabel
         }
 
@@ -155,7 +155,7 @@ Column {
                 busy: modelData.pairing
 
                 PillButton {
-                    text: device.modelData.pairing ? "Cancel" : "Pair"
+                    text: device.modelData.pairing ? qsTr("Cancel") : qsTr("Pair")
                     primary: !device.modelData.pairing
                     onClicked: device.modelData.pairing ? device.modelData.cancelPair() : device.modelData.pair()
                 }

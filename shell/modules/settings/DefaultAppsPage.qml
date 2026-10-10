@@ -21,7 +21,7 @@ Column {
                 required property var modelData
 
                 title: modelData.title
-                note: modelData.apps.length === 0 ? "No app for this is installed." : ""
+                note: modelData.apps.length === 0 ? qsTr("No app for this is installed.") : ""
 
                 Dropdown {
                     visible: kind.modelData.apps.length > 0
@@ -34,8 +34,8 @@ Column {
         }
 
         ControlRow {
-            title: "Terminal"
-            note: DefaultApps.terminals.length === 0 ? "No terminal is installed." : ""
+            title: qsTr("Terminal")
+            note: DefaultApps.terminals.length === 0 ? qsTr("No terminal is installed.") : ""
 
             Dropdown {
                 visible: DefaultApps.terminals.length > 0

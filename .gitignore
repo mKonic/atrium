@@ -7,3 +7,4 @@
 !/subprojects/scenefx/
 /subprojects/packagecache/
 /tests/box/
+translations/*.qm

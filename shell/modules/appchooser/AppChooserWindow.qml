@@ -15,7 +15,7 @@ FloatingWindow {
 
     property string chosen: AppChooser.last || (AppChooser.choices[0] ?? "")
 
-    title: "Open With"
+    title: qsTr("Open With")
     color: Theme.palette.windowBackground
     implicitWidth: 440
     implicitHeight: 520
@@ -41,7 +41,7 @@ FloatingWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideMiddle
-                text: AppChooser.subject ? `Open “${AppChooser.subject}” with` : "Open with"
+                text: AppChooser.subject ? qsTr("Open “%1” with").arg(AppChooser.subject) : qsTr("Open with")
                 font.pointSize: Theme.font.size.large
                 font.weight: Font.Bold
             }
@@ -71,7 +71,7 @@ FloatingWindow {
             StyledText {
                 visible: AppChooser.choices.length === 0
                 anchors.centerIn: parent
-                text: "No app here can open it."
+                text: qsTr("No app here can open it.")
                 color: Theme.palette.secondaryLabel
             }
 
@@ -153,7 +153,7 @@ FloatingWindow {
             spacing: 10
 
             PillButton {
-                text: "Cancel"
+                text: qsTr("Cancel")
                 onClicked: AppChooser.cancel()
             }
 
@@ -161,7 +161,7 @@ FloatingWindow {
                 primary: true
                 enabled: root.chosen !== ""
                 opacity: enabled ? 1 : 0.5
-                text: "Open"
+                text: qsTr("Open")
                 onClicked: AppChooser.choose(root.chosen)
             }
         }

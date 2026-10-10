@@ -17,15 +17,15 @@ Rectangle {
             return [];
         const list = [];
         if (item.running)
-            list.push({ icon: "add", text: "New Window", action: "launch" });
+            list.push({ icon: "add", text: qsTr("New Window"), action: "launch" });
         if (item.windowCount > 1)
-            list.push({ icon: "select_window", text: "Show All Windows", action: "expose" });
+            list.push({ icon: "select_window", text: qsTr("Show All Windows"), action: "expose" });
         if (item.apps.otherGpu && (Atrium.settings["dock.other_gpu"] ?? false))
-            list.push({ icon: "memory", text: `Launch on ${item.apps.otherGpu}`, action: "launch-gpu" });
-        list.push(item.pinned ? { icon: "keep_off", text: "Remove from Dock", action: "unpin" }
-                              : { icon: "keep", text: "Keep in Dock", action: "pin" });
+            list.push({ icon: "memory", text: qsTr("Launch on %1").arg(item.apps.otherGpu), action: "launch-gpu" });
+        list.push(item.pinned ? { icon: "keep_off", text: qsTr("Remove from Dock"), action: "unpin" }
+                              : { icon: "keep", text: qsTr("Keep in Dock"), action: "pin" });
         if (item.running)
-            list.push({ icon: "close", text: item.windowCount > 1 ? `Close ${item.windowCount} Windows` : "Quit",
+            list.push({ icon: "close", text: item.windowCount > 1 ? qsTr("Close %1 Windows").arg(item.windowCount) : qsTr("Quit"),
                         action: "close" });
         return list;
     }

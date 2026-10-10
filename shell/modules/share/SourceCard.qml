@@ -76,7 +76,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: Math.min(implicitWidth, root.width - (badge.visible ? badge.width + 6 : 0))
             elide: Text.ElideRight
-            text: root.screen ? root.source.name : (root.source.text || "Untitled")
+            text: root.screen ? root.source.name : (root.source.text || qsTr("Untitled"))
             font.weight: Font.Medium
         }
     }

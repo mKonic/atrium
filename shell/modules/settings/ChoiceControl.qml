@@ -50,7 +50,7 @@ Rectangle {
                 color: current ? Theme.palette.accent : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
 
                 Accessible.role: Accessible.RadioButton
-                Accessible.name: root.label(modelData)
+                Accessible.name: qsTranslate("settings", root.label(modelData))
                 Accessible.checkable: true
                 Accessible.checked: current
                 Accessible.onPressAction: if (!current) root.picked(modelData)
@@ -59,7 +59,7 @@ Rectangle {
                     id: text
 
                     anchors.centerIn: parent
-                    text: root.label(segment.modelData)
+                    text: qsTranslate("settings", root.label(segment.modelData))
                     font.pointSize: Theme.font.size.small
                     font.weight: segment.current ? Font.DemiBold : Font.Normal
                     color: segment.current ? Theme.palette.labelOnAccent : Theme.palette.label

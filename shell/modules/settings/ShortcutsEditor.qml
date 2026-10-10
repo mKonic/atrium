@@ -85,16 +85,16 @@ Rectangle {
 
         SectionHeader {
             width: parent.width
-            title: "Shortcuts"
-            subtitle: "Click a shortcut's keys and press new ones. Esc cancels."
+            title: qsTr("Shortcuts")
+            subtitle: qsTr("Click a shortcut's keys and press new ones. Esc cancels.")
 
             PillButton {
-                text: "Restore Defaults"
+                text: qsTr("Restore Defaults")
                 onClicked: Atrium.resetShortcuts()
             }
 
             PillButton {
-                text: "Add"
+                text: qsTr("Add")
                 icon: "add"
                 primary: true
                 onClicked: root.add()
@@ -213,7 +213,7 @@ Rectangle {
 
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: row.clash ? `Same keys as “${root.labels[row.clash.action] ?? row.clash.action}”. Only one of them will work.` : ""
+                        text: row.clash ? qsTr("Same keys as “%1”. Only one of them will work.").arg(root.labels[row.clash.action] ?? row.clash.action) : ""
                         font.pointSize: Theme.font.size.smaller
                         color: Theme.palette.secondaryLabel
                     }
@@ -298,7 +298,7 @@ Rectangle {
         readonly property var clash: keys ? Atrium.shortcuts.find(s => s.keys === keys) : undefined
 
         width: 480
-        title: "New Shortcut"
+        title: qsTr("New Shortcut")
         action: "Add"
         ready: keys !== "" && (hint === "" || argField.text.trim() !== "")
         onOpened: {
@@ -339,7 +339,7 @@ Rectangle {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 90
-                text: "Keys"
+                text: qsTr("Keys")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
             }
@@ -369,7 +369,7 @@ Rectangle {
             visible: !!addSheet.clash
             width: parent.width
             wrapMode: Text.WordWrap
-            text: addSheet.clash ? `Already “${root.labels[addSheet.clash.action] ?? addSheet.clash.action}”. Only one of them will work.` : ""
+            text: addSheet.clash ? qsTr("Already “%1”. Only one of them will work.").arg(root.labels[addSheet.clash.action] ?? addSheet.clash.action) : ""
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.orange
         }
@@ -380,7 +380,7 @@ Rectangle {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 90
-                text: "Does"
+                text: qsTr("Does")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
             }
@@ -400,7 +400,7 @@ Rectangle {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 90
-                text: "With"
+                text: qsTr("With")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
             }

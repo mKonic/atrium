@@ -12,7 +12,7 @@ Pill {
 
     // For screen readers (AT-SPI).
     Accessible.role: Accessible.StaticText
-    Accessible.name: "Network"
+    Accessible.name: qsTr("Network")
 
     readonly property bool bluetooth: (Bluetooth.adapter?.connectedNames ?? "") !== ""
 
@@ -32,7 +32,7 @@ Pill {
 
         font.family: Theme.font.sans
         font.pointSize: Theme.font.size.smaller
-        text: "888 KB/s"
+        text: qsTr("888 KB/s")
     }
 
     Row {

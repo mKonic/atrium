@@ -24,14 +24,14 @@ Column {
 
     MissingNote {
         needs: "udisks2"
-        explanation: "Drives are mounted and ejected through udisks2."
+        explanation: qsTr("Drives are mounted and ejected through udisks2.")
     }
 
     StyledText {
         visible: Disks.available && (Disks.disks.length === 0 || root.error !== "")
         width: parent.width
         wrapMode: Text.WordWrap
-        text: root.error || "No drives to show. Plug one in and it appears here."
+        text: root.error || qsTr("No drives to show. Plug one in and it appears here.")
         color: Theme.palette.secondaryLabel
     }
 
@@ -48,18 +48,18 @@ Column {
 
                 glyph: modelData.removable ? "usb" : "hard_drive"
                 name: modelData.name
-                note: modelData.mounted ? `${modelData.size} · ${modelData.mountPoint}` : `${modelData.size} · Not mounted`
+                note: modelData.mounted ? `${modelData.size} · ${modelData.mountPoint}` : qsTr("%1 · Not mounted").arg(modelData.size)
                 active: modelData.mounted
                 onClicked: Disks.open(modelData.path)
 
                 PillButton {
                     visible: disk.modelData.mounted
-                    text: "Open"
+                    text: qsTr("Open")
                     onClicked: Disks.open(disk.modelData.path)
                 }
 
                 PillButton {
-                    text: disk.modelData.mounted ? "Unmount" : "Mount"
+                    text: disk.modelData.mounted ? qsTr("Unmount") : qsTr("Mount")
                     onClicked: {
                         root.error = "";
                         disk.modelData.mounted ? Disks.unmount(disk.modelData.path) : Disks.mount(disk.modelData.path);

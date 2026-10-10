@@ -88,7 +88,7 @@ PanelWindow {
             // Today, in full.
             StyledText {
                 leftPadding: 4
-                text: Qt.formatDate(root.today, "dddd")
+                text: Qt.locale().toString(root.today, "dddd")
                 font.pointSize: Theme.font.size.smaller
                 font.weight: Font.DemiBold
                 color: Theme.palette.accent
@@ -97,7 +97,7 @@ PanelWindow {
             StyledText {
                 leftPadding: 4
                 bottomPadding: 6
-                text: Qt.formatDate(root.today, "d MMMM yyyy")
+                text: Qt.locale().toString(root.today, "d MMMM yyyy")
                 font.pointSize: Theme.font.size.larger
                 font.weight: Font.DemiBold
             }
@@ -169,7 +169,7 @@ PanelWindow {
                     }
 
                     NavButton {
-                        label: "Today"
+                        label: qsTr("Today")
                         opacity: root.thisMonth ? 0.4 : 1
                         enabled: !root.thisMonth
                         onTapped: {

@@ -33,16 +33,16 @@ Column {
 
     MissingNote {
         needs: "cups"
-        explanation: "Printing goes through CUPS (the cups package, with cups.socket enabled)."
+        explanation: qsTr("Printing goes through CUPS (the cups package, with cups.socket enabled).")
     }
 
     SectionHeader {
         visible: !Requirements.missing.cups
         width: parent.width
-        subtitle: root.error || (Printers.printers.length === 0 ? "No printers yet. Ones on your network show up by themselves." : "")
+        subtitle: root.error || (Printers.printers.length === 0 ? qsTr("No printers yet. Ones on your network show up by themselves.") : "")
 
         PillButton {
-            text: "Add…"
+            text: qsTr("Add…")
             icon: "add"
             onClicked: addSheet.open()
         }
@@ -59,14 +59,14 @@ Column {
             DeviceRow {
                 glyph: "print"
                 name: printer.modelData.label
-                note: [printer.modelData.isDefault ? "Default" : "",
+                note: [printer.modelData.isDefault ? qsTr("Default") : "",
                        printer.modelData.state === "printing" ? "Printing" : printer.modelData.state === "stopped" ? "Stopped" : "Idle",
                        printer.modelData.installed ? "" : "On the network"].filter(s => s).join(" · ")
                 active: printer.modelData.isDefault
 
                 PillButton {
                     visible: !printer.modelData.isDefault
-                    text: "Make Default"
+                    text: qsTr("Make Default")
                     onClicked: {
                         root.error = "";
                         Printers.setDefault(printer.modelData.name);
@@ -95,7 +95,7 @@ Column {
                     note: `${modelData.user} · ${modelData.size}`
 
                     PillButton {
-                        text: "Cancel"
+                        text: qsTr("Cancel")
                         onClicked: Printers.cancel(job.modelData.id)
                     }
                 }
@@ -106,7 +106,7 @@ Column {
     Sheet {
         id: addSheet
 
-        title: "Add a Printer"
+        title: qsTr("Add a Printer")
         action: "Add"
         ready: printerName.text.trim().length > 0 && address.text.trim().length > 0
         onOpened: {
@@ -123,20 +123,20 @@ Column {
             id: address
 
             width: parent.width
-            placeholder: "Address (192.168.1.20 or ipp://…)"
+            placeholder: qsTr("Address (192.168.1.20 or ipp://…)")
         }
 
         Field {
             id: printerName
 
             width: parent.width
-            placeholder: "Name"
+            placeholder: qsTr("Name")
         }
 
         StyledText {
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "For printers that print without a driver (AirPrint, IPP Everywhere): most made since 2015."
+            text: qsTr("For printers that print without a driver (AirPrint, IPP Everywhere): most made since 2015.")
             font.pointSize: Theme.font.size.small
             color: Theme.palette.secondaryLabel
         }

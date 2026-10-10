@@ -42,7 +42,7 @@ Item {
 
         StyledText {
             width: parent.width
-            text: root.setting.title
+            text: qsTranslate("settings", root.setting.title)
             wrapMode: Text.WordWrap
             font.weight: Font.Medium
         }
@@ -50,7 +50,7 @@ Item {
         StyledText {
             width: parent.width
             visible: text.length > 0
-            text: root.setting.description
+            text: qsTranslate("settings", root.setting.description)
             wrapMode: Text.WordWrap
             font.pointSize: Theme.font.size.small
             color: Theme.palette.secondaryLabel
@@ -128,7 +128,7 @@ Item {
         id: boolControl
 
         Switch {
-            name: root.setting.title
+            name: qsTranslate("settings", root.setting.title)
             checked: root.value === true
             onToggled: root.set(!checked)
         }
@@ -138,7 +138,7 @@ Item {
         id: numberControl
 
         NumberControl {
-            name: root.setting.title
+            name: qsTranslate("settings", root.setting.title)
             value: Number(root.value)
             min: root.setting.min ?? 0
             max: root.setting.max ?? 100
@@ -151,7 +151,7 @@ Item {
         id: choiceControl
 
         ChoiceControl {
-            name: root.setting.title
+            name: qsTranslate("settings", root.setting.title)
             value: String(root.value)
             choices: root.setting.choices ?? []
             onPicked: v => root.set(v)
@@ -163,10 +163,10 @@ Item {
         id: themeControl
 
         Dropdown {
-            name: root.setting.title
+            name: qsTranslate("settings", root.setting.title)
             fieldWidth: 220
             value: String(root.value ?? "")
-            placeholder: "Default"
+            placeholder: qsTr("Default")
             options: Themes.optionsFor(root.key)
             onPicked: v => root.set(v)
         }
@@ -177,7 +177,7 @@ Item {
         id: dropdownControl
 
         Dropdown {
-            name: root.setting.title
+            name: qsTranslate("settings", root.setting.title)
             fieldWidth: 180
             value: String(root.value)
             options: SettingsPages.choiceOptions(root.setting.choices ?? [])

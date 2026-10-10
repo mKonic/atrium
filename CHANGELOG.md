@@ -17,6 +17,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Increase contrast and text size in Settings > Accessibility: macOS's Increase Contrast colours with opaque text, firmer edges and solid panels, and bigger text in the shell; GTK and libadwaita apps follow both, Qt apps the text size when the font is set in Appearance.
 - With animations off, the shell's panels stop moving too, and apps are told to reduce motion.
 - Screen readers (Orca, through AT-SPI) can read and work the bar, Dock, launcher, Control Center, menus and Settings: every control has a name and a role.
+- atrium can be translated: the shell, Settings and the launcher follow the system language (Settings > Language & Region), live, with dates in it too; the catalogues are translations/atrium.ts and po/atrium.pot.
 - Clipboard History (Super+V): pin entries (Ctrl+.) to keep them on top, past the history limit and Clear All, and paste one with Ctrl+1..0; show only text, images, files, colours, links or emails; copied colours drawn as a swatch; its actions in Ctrl+K.
 - Quicklinks import from and export to a JSON file in Settings > Launcher.
 - The launcher offers to search the web for what was typed, with Google, DuckDuckGo, Bing, Brave Search, Startpage or Ecosia (Settings > Launcher).

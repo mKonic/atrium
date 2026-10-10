@@ -27,10 +27,10 @@ Column {
 
     SectionHeader {
         width: parent.width
-        subtitle: "Choose where an app's windows open, keep it in the Dock, or start it with its secret space."
+        subtitle: qsTr("Choose where an app's windows open, keep it in the Dock, or start it with its secret space.")
 
         PillButton {
-            text: root.picking ? "Cancel" : "Add App"
+            text: root.picking ? qsTr("Cancel") : qsTr("Add App")
             icon: root.picking ? "" : "add"
             primary: !root.picking
             onClicked: {
@@ -90,7 +90,7 @@ Column {
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: !search.text
-                        text: "Search apps"
+                        text: qsTr("Search apps")
                         color: Theme.palette.tertiaryLabel
                     }
                 }
@@ -161,7 +161,7 @@ Column {
             StyledText {
                 visible: Atrium.apps.length === 0
                 padding: 16
-                text: "No apps yet."
+                text: qsTr("No apps yet.")
                 color: Theme.palette.secondaryLabel
             }
 
@@ -291,10 +291,10 @@ Column {
                         }
 
                         Detail {
-                            label: "Keep in the Dock"
+                            label: qsTr("Keep in the Dock")
 
                             Switch {
-                                name: "Keep in the Dock"
+                                name: qsTr("Keep in the Dock")
                                 checked: app.modelData.dock !== null
                                 onToggled: Atrium.setPinned(app.modelData.app_id, !checked)
                             }
@@ -305,12 +305,12 @@ Column {
 
                             PillButton {
                                 visible: !!app.modelData.placement
-                                text: "Forget Its Size"
+                                text: qsTr("Forget Its Size")
                                 onClicked: Atrium.setApp(app.modelData.app_id, { placement: null })
                             }
 
                             PillButton {
-                                text: "Forget App"
+                                text: qsTr("Forget App")
                                 onClicked: Atrium.forgetApp(app.modelData.app_id)
                             }
                         }

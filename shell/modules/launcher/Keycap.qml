@@ -26,7 +26,7 @@ Row {
                 id: cap
 
                 anchors.centerIn: parent
-                text: ({ "Enter": "↵", "Up": "↑", "Down": "↓", "Left": "←", "Right": "→", "Mod": "Super",
+                text: ({ "Enter": "↵", "Up": "↑", "Down": "↓", "Left": "←", "Right": "→", "Mod": qsTr("Super"),
                          "Shift": "⇧", "Tab": "⇥", "Escape": "Esc", "Backspace": "⌫" })[parent.modelData] ?? parent.modelData
                 font.pointSize: Theme.font.size.small
                 color: root.dim ? Theme.palette.secondaryLabel : Theme.palette.label

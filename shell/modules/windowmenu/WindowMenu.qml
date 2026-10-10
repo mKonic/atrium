@@ -71,29 +71,29 @@ PanelWindow {
         title: root.live.title ?? ""
         Keys.onEscapePressed: Panels.open = ""
         actions: [
-            { icon: "minimize", text: "Minimize", run: () => Atrium.windowRequest(root.windowId, "minimize") },
+            { icon: "minimize", text: qsTr("Minimize"), run: () => Atrium.windowRequest(root.windowId, "minimize") },
             { icon: root.live.maximized ? "close_fullscreen" : "open_in_full",
-              text: root.live.maximized ? "Restore" : "Zoom",
+              text: root.live.maximized ? qsTr("Restore") : qsTr("Zoom"),
               run: () => Atrium.windowRequest(root.windowId, "maximize") },
-            { icon: "fullscreen", text: root.live.fullscreen ? "Exit Full Screen" : "Enter Full Screen",
+            { icon: "fullscreen", text: root.live.fullscreen ? qsTr("Exit Full Screen") : qsTr("Enter Full Screen"),
               run: () => Atrium.windowRequest(root.windowId, "fullscreen") },
             "-",
-            { icon: "keep", text: root.live.sticky ? "Show on This Space Only" : "Show on All Spaces",
+            { icon: "keep", text: root.live.sticky ? qsTr("Show on This Space Only") : qsTr("Show on All Spaces"),
               run: () => Atrium.windowRequest(root.windowId, "pin") },
-            { icon: "arrow_back", text: "Move to Previous Space", run: () => Atrium.action("move-to-space-prev") },
-            { icon: "arrow_forward", text: "Move to Next Space", run: () => Atrium.action("move-to-space-next") },
+            { icon: "arrow_back", text: qsTr("Move to Previous Space"), run: () => Atrium.action("move-to-space-prev") },
+            { icon: "arrow_forward", text: qsTr("Move to Next Space"), run: () => Atrium.action("move-to-space-next") },
             "-",
             // Window tabs, as a Mac's Window menu has them.
-            { icon: "tab", text: "Show Previous Tab", enabled: !!root.live.tabs,
+            { icon: "tab", text: qsTr("Show Previous Tab"), enabled: !!root.live.tabs,
               run: () => Atrium.windowRequest(root.windowId, "tab_prev") },
-            { icon: "tab", text: "Show Next Tab", enabled: !!root.live.tabs,
+            { icon: "tab", text: qsTr("Show Next Tab"), enabled: !!root.live.tabs,
               run: () => Atrium.windowRequest(root.windowId, "tab_next") },
-            { icon: "tab_move", text: "Move Tab to New Window", enabled: !!root.live.tabs,
+            { icon: "tab_move", text: qsTr("Move Tab to New Window"), enabled: !!root.live.tabs,
               run: () => Atrium.windowRequest(root.windowId, "tab_out") },
-            { icon: "tab_group", text: "Merge All Windows", enabled: Atrium.canMergeAll(root.windowId),
+            { icon: "tab_group", text: qsTr("Merge All Windows"), enabled: Atrium.canMergeAll(root.windowId),
               run: () => Atrium.windowRequest(root.windowId, "merge_all") },
             "-",
-            { icon: "close", text: "Close", danger: true, run: () => Atrium.closeWindow(root.windowId) }
+            { icon: "close", text: qsTr("Close"), danger: true, run: () => Atrium.closeWindow(root.windowId) }
         ]
         onPicked: if (Panels.open === "window-menu") Panels.open = ""
     }

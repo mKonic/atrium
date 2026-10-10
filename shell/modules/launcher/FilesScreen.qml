@@ -31,12 +31,12 @@ Item {
         if (!selected)
             return [];
         const all = [
-            { id: "open", title: selected.folder ? "Open Folder" : "Open File", glyph: "open_in_new", keys: "Enter", group: false },
-            { id: "reveal", title: "Show in Files", glyph: "folder_open", keys: "Ctrl+Enter", group: false },
-            { id: "copy-file", title: selected.folder ? "Copy Folder" : "Copy File", glyph: "content_copy", keys: "Ctrl+Shift+C", group: true },
-            { id: "copy-path", title: "Copy Path", glyph: "route", keys: "Ctrl+Alt+C", group: false },
-            { id: "copy-name", title: "Copy Name", glyph: "text_fields", keys: "", group: false },
-            { id: "trash", title: "Move to Trash", glyph: "delete", keys: "Ctrl+Delete", group: true },
+            { id: "open", title: selected.folder ? qsTr("Open Folder") : qsTr("Open File"), glyph: "open_in_new", keys: "Enter", group: false },
+            { id: "reveal", title: qsTr("Show in Files"), glyph: "folder_open", keys: "Ctrl+Enter", group: false },
+            { id: "copy-file", title: selected.folder ? qsTr("Copy Folder") : qsTr("Copy File"), glyph: "content_copy", keys: "Ctrl+Shift+C", group: true },
+            { id: "copy-path", title: qsTr("Copy Path"), glyph: "route", keys: "Ctrl+Alt+C", group: false },
+            { id: "copy-name", title: qsTr("Copy Name"), glyph: "text_fields", keys: "", group: false },
+            { id: "trash", title: qsTr("Move to Trash"), glyph: "delete", keys: "Ctrl+Delete", group: true },
         ];
         const q = query.toLowerCase();
         return q ? all.filter(a => a.title.toLowerCase().includes(q)) : all;
@@ -99,7 +99,7 @@ Item {
 
         x: 20
         y: 10
-        text: search.recent ? "Recently Used" : "Results"
+        text: search.recent ? qsTr("Recently Used") : qsTr("Results")
         font.pointSize: Theme.font.size.small
         font.weight: Font.Medium
         color: Theme.palette.secondaryLabel
@@ -285,7 +285,7 @@ Item {
     StyledText {
         anchors.centerIn: parent
         visible: screen.entries.length === 0 && !search.searching
-        text: search.recent ? "Type to search files and folders"
+        text: search.recent ? qsTr("Type to search files and folders")
             : ({ all: "No files found", folders: "No folders found", documents: "No documents found",
                  images: "No images found", audio: "No audio found", videos: "No videos found",
                  archives: "No archives found" })[search.filter] ?? "No files found"

@@ -88,7 +88,7 @@ PanelWindow {
                     anchors.left: parent.left
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Notifications"
+                    text: qsTr("Notifications")
                     font.pointSize: Theme.font.size.larger
                     font.weight: Font.DemiBold
                 }
@@ -119,7 +119,7 @@ PanelWindow {
 
                             StyledText {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "Do Not Disturb"
+                                text: qsTr("Do Not Disturb")
                                 font.pointSize: Theme.font.size.smaller
                                 color: center.dnd ? Theme.palette.labelOnAccent : Theme.palette.label
                             }
@@ -141,7 +141,7 @@ PanelWindow {
                             id: clearLabel
 
                             anchors.centerIn: parent
-                            text: "Clear All"
+                            text: qsTr("Clear All")
                             font.pointSize: Theme.font.size.smaller
                             color: Theme.palette.accent
                         }
@@ -182,7 +182,7 @@ PanelWindow {
 
                 StyledText {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: "No notifications"
+                    text: qsTr("No notifications")
                     color: Theme.palette.secondaryLabel
                 }
             }

@@ -67,11 +67,11 @@ Pill {
             Keys.onEscapePressed: Panels.open = ""
             actions: Disks.ejectable.map(d => ({
                 icon: "eject",
-                text: `Eject ${d.name}`,
+                text: qsTr("Eject %1").arg(d.name),
                 run: () => Disks.eject(d.path)
             })).concat(["-"]).concat(Disks.ejectable.map(d => ({
                 icon: "folder_open",
-                text: `Open ${d.name}`,
+                text: qsTr("Open %1").arg(d.name),
                 run: () => Disks.open(d.path)
             })))
             onPicked: Panels.open = ""

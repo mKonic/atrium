@@ -54,11 +54,11 @@ Rectangle {
 
         SectionHeader {
             width: parent.width
-            title: "Rules"
-            subtitle: "Windows matched by title or an app id pattern. For a whole app, set where it opens under Apps."
+            title: qsTr("Rules")
+            subtitle: qsTr("Windows matched by title or an app id pattern. For a whole app, set where it opens under Apps.")
 
             PillButton {
-                text: "Add"
+                text: qsTr("Add")
                 icon: "add"
                 primary: true
                 onClicked: sheet.edit(null)
@@ -74,7 +74,7 @@ Rectangle {
             visible: Atrium.rules.length === 0
             topPadding: 6
             bottomPadding: 6
-            text: "No rules."
+            text: qsTr("No rules.")
             color: Theme.palette.secondaryLabel
         }
 
@@ -107,7 +107,7 @@ Rectangle {
                     StyledText {
                         width: parent.width
                         elide: Text.ElideRight
-                        text: [rule.modelData.app_pattern ? `App id “${rule.modelData.app_pattern}”` : "",
+                        text: [rule.modelData.app_pattern ? qsTr("App id “%1”").arg(rule.modelData.app_pattern) : "",
                                rule.modelData.title_pattern ? `title “${rule.modelData.title_pattern}”` : ""]
                               .filter(s => s).join(", ")
                     }
@@ -129,12 +129,12 @@ Rectangle {
                     spacing: 8
 
                     PillButton {
-                        text: "Edit"
+                        text: qsTr("Edit")
                         onClicked: sheet.edit(rule.modelData)
                     }
 
                     PillButton {
-                        text: "Remove"
+                        text: qsTr("Remove")
                         onClicked: Atrium.removeRule(rule.modelData.id)
                     }
                 }
@@ -157,7 +157,7 @@ Rectangle {
         }
 
         width: 600
-        title: rule ? "Edit Rule" : "New Rule"
+        title: rule ? qsTr("Edit Rule") : qsTr("New Rule")
         action: rule ? "Save" : "Add"
         ready: appField.text.trim() !== "" || titleField.text.trim() !== ""
         onOpened: appField.focusField()
@@ -193,7 +193,7 @@ Rectangle {
         StyledText {
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "Patterns are regular expressions, matched anywhere and without regard to case: “firefox”, “^steam_app_”."
+            text: qsTr("Patterns are regular expressions, matched anywhere and without regard to case: “firefox”, “^steam_app_”.")
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel
         }
@@ -204,7 +204,7 @@ Rectangle {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 150
-                text: "App id"
+                text: qsTr("App id")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
             }
@@ -213,7 +213,7 @@ Rectangle {
                 id: appField
 
                 implicitWidth: 360
-                placeholder: "Any"
+                placeholder: qsTr("Any")
                 onAccepted: if (sheet.ready) sheet.submitted()
             }
         }
@@ -224,7 +224,7 @@ Rectangle {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 150
-                text: "Title"
+                text: qsTr("Title")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
             }
@@ -233,7 +233,7 @@ Rectangle {
                 id: titleField
 
                 implicitWidth: 360
-                placeholder: "Any"
+                placeholder: qsTr("Any")
                 onAccepted: if (sheet.ready) sheet.submitted()
             }
         }

@@ -133,7 +133,7 @@ Sheet {
             StyledText {
                 visible: folderModel.count === 0
                 anchors.centerIn: parent
-                text: "Nothing here to choose."
+                text: qsTr("Nothing here to choose.")
                 color: Theme.palette.secondaryLabel
             }
 
@@ -255,7 +255,7 @@ Sheet {
     StyledText {
         width: parent.width
         elide: Text.ElideMiddle
-        text: root.selected ? root.selected.slice(root.selected.lastIndexOf("/") + 1) : "Type / or ~ to go to an address."
+        text: root.selected ? root.selected.slice(root.selected.lastIndexOf("/") + 1) : qsTr("Type / or ~ to go to an address.")
         font.pointSize: Theme.font.size.smaller
         color: Theme.palette.secondaryLabel
     }

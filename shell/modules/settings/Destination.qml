@@ -31,9 +31,9 @@ Row {
         fieldWidth: 150
         value: root.kind
         options: [
-            { value: "any", label: "Anywhere" },
-            { value: "space", label: "A space" },
-            { value: "secret", label: "A secret space" }
+            { value: "any", label: qsTr("Anywhere") },
+            { value: "space", label: qsTr("A space") },
+            { value: "secret", label: qsTr("A secret space") }
         ]
         onPicked: v => {
             if (v === "any")
@@ -49,7 +49,7 @@ Row {
         visible: root.kind === "space"
         fieldWidth: 110
         value: String(root.space)
-        options: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ value: String(n), label: `Space ${n}` }))
+        options: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ value: String(n), label: qsTr("Space %1").arg(n) }))
         onPicked: v => root.changed({ space: Number(v), secret: "" })
     }
 

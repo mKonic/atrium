@@ -77,7 +77,7 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 anchors.margins: 8
                 z: 1
-                text: "Identify"
+                text: qsTr("Identify")
                 onClicked: Atrium.action("shell", "identify-displays")
             }
 
@@ -167,10 +167,10 @@ Rectangle {
         SectionHeader {
             width: parent.width
             title: root.output ? (root.output.make ? `${root.output.make} ${root.output.model}` : root.output.name) : ""
-            subtitle: root.output ? `${root.output.name} · ${root.output.geometry.width} × ${root.output.geometry.height} points` : ""
+            subtitle: root.output ? qsTr("%1 · %2 × %3 points").arg(root.output.name).arg(root.output.geometry.width).arg(root.output.geometry.height) : ""
 
             Switch {
-                name: "Use this display"
+                name: qsTr("Use this display")
                 visible: Atrium.outputs.length > 1
                 checked: root.output?.enabled ?? false
                 onToggled: root.configure({ enabled: !checked })
@@ -178,7 +178,7 @@ Rectangle {
         }
 
         Setting {
-            label: "Resolution"
+            label: qsTr("Resolution")
 
             StyledText {
                 visible: root.resolutions.length === 0
@@ -200,12 +200,12 @@ Rectangle {
         }
 
         Setting {
-            label: "Refresh rate"
+            label: qsTr("Refresh rate")
 
             StyledText {
                 visible: root.resolutions.length === 0
                 anchors.verticalCenter: parent.verticalCenter
-                text: (root.output?.mode.refresh ?? 0) > 0 ? `${(root.output.mode.refresh / 1000).toFixed(root.output.mode.refresh % 1000 ? 2 : 0)} Hz` : "Follows the host"
+                text: (root.output?.mode.refresh ?? 0) > 0 ? qsTr("%1 Hz").arg((root.output.mode.refresh / 1000).toFixed(root.output.mode.refresh % 1000 ? 2 : 0)) : qsTr("Follows the host")
                 font.pointSize: Theme.font.size.small
             }
 
@@ -215,7 +215,7 @@ Rectangle {
 
                 fieldWidth: 220
                 value: String(root.output?.mode.refresh ?? 0)
-                options: [...new Set(rates)].sort((a, b) => b - a).map(r => ({ value: String(r), label: `${(r / 1000).toFixed(r % 1000 ? 2 : 0)} Hz` }))
+                options: [...new Set(rates)].sort((a, b) => b - a).map(r => ({ value: String(r), label: qsTr("%1 Hz").arg((r / 1000).toFixed(r % 1000 ? 2 : 0)) }))
                 onPicked: v => root.configure({ width: root.output.mode.width, height: root.output.mode.height, refresh: Number(v) })
             }
         }
@@ -224,13 +224,13 @@ Rectangle {
             visible: root.resolutions.length === 0
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "This display doesn't list any modes (it's a window or a virtual display), so its resolution and refresh rate can't be changed here."
+            text: qsTr("This display doesn't list any modes (it's a window or a virtual display), so its resolution and refresh rate can't be changed here.")
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel
         }
 
         Setting {
-            label: "Scale"
+            label: qsTr("Scale")
 
             ChoiceControl {
                 value: String(root.output?.scale ?? 1)
@@ -240,13 +240,13 @@ Rectangle {
         }
 
         Setting {
-            label: "Rotation"
+            label: qsTr("Rotation")
 
             Dropdown {
                 fieldWidth: 220
                 value: String(root.output?.transform ?? 0)
                 options: [
-                    { value: "0", label: "Standard" },
+                    { value: "0", label: qsTr("Standard") },
                     { value: "1", label: "90°" },
                     { value: "2", label: "180°" },
                     { value: "3", label: "270°" }
@@ -258,15 +258,15 @@ Rectangle {
         // Only screens that can (FreeSync, G-Sync Compatible, Adaptive-Sync).
         Setting {
             visible: root.output?.adaptive_sync_supported ?? false
-            label: "Variable refresh"
+            label: qsTr("Variable refresh")
 
             Dropdown {
                 fieldWidth: 220
                 value: root.output?.adaptive_sync ?? "games"
                 options: [
-                    { value: "off", label: "Off" },
-                    { value: "games", label: "Games only" },
-                    { value: "on", label: "Always" }
+                    { value: "off", label: qsTr("Off") },
+                    { value: "games", label: qsTr("Games only") },
+                    { value: "on", label: qsTr("Always") }
                 ]
                 onPicked: v => root.configure({ adaptive_sync: v })
             }
@@ -274,7 +274,7 @@ Rectangle {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.output?.adaptive_sync_active ?? false
-                text: "On now"
+                text: qsTr("On now")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.accent
             }
@@ -284,7 +284,7 @@ Rectangle {
             visible: root.output?.adaptive_sync_supported ?? false
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "The screen waits for each frame instead of refreshing on a fixed beat: smoother games without tearing. Games only turns it on while a fullscreen game is in front, since some screens flicker with it on the desktop."
+            text: qsTr("The screen waits for each frame instead of refreshing on a fixed beat: smoother games without tearing. Games only turns it on while a fullscreen game is in front, since some screens flicker with it on the desktop.")
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel
         }
@@ -292,10 +292,10 @@ Rectangle {
         // Only screens whose EDID says they take HDR10 (PQ, BT.2020).
         Setting {
             visible: root.output?.hdr_supported ?? false
-            label: "HDR"
+            label: qsTr("HDR")
 
             Switch {
-                name: "HDR"
+                name: qsTr("HDR")
                 anchors.verticalCenter: parent.verticalCenter
                 checked: root.output?.hdr ?? false
                 onToggled: root.configure({ hdr: !checked })
@@ -304,7 +304,7 @@ Rectangle {
 
         Setting {
             visible: (root.output?.hdr_supported ?? false) && (root.output?.hdr ?? false)
-            label: "SDR brightness"
+            label: qsTr("SDR brightness")
 
             NumberControl {
                 value: root.output?.sdr_brightness ?? 30
@@ -314,7 +314,7 @@ Rectangle {
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: `${Math.round(root.output?.sdr_white_nits ?? 200)} nits`
+                text: qsTr("%1 nits").arg(Math.round(root.output?.sdr_white_nits ?? 200))
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
             }
@@ -322,7 +322,7 @@ Rectangle {
 
         Setting {
             visible: (root.output?.hdr_supported ?? false) && (root.output?.hdr ?? false)
-            label: "SDR color intensity"
+            label: qsTr("SDR color intensity")
 
             NumberControl {
                 value: root.output?.sdr_color ?? 100
@@ -345,24 +345,24 @@ Rectangle {
         // A calibrated screen's own profile, for SDR (as KDE and GNOME
         // take one per display).
         Setting {
-            label: "Color profile"
+            label: qsTr("Color profile")
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, 260)
                 elide: Text.ElideMiddle
-                text: (root.output?.icc ?? "") ? root.output.icc.split("/").pop() : "None"
+                text: (root.output?.icc ?? "") ? root.output.icc.split("/").pop() : qsTr("None")
                 font.pointSize: Theme.font.size.small
             }
 
             PillButton {
-                text: "Choose…"
+                text: qsTr("Choose…")
                 onClicked: iccPicker.open()
             }
 
             PillButton {
                 visible: (root.output?.icc ?? "") !== ""
-                text: "None"
+                text: qsTr("None")
                 onClicked: root.configure({ icc: "" })
             }
         }
@@ -371,24 +371,24 @@ Rectangle {
         // make it (an ICC profile with an MHC2 tag).
         Setting {
             visible: root.output?.hdr_supported ?? false
-            label: "HDR calibration"
+            label: qsTr("HDR calibration")
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, 260)
                 elide: Text.ElideMiddle
-                text: (root.output?.icc_hdr ?? "") ? root.output.icc_hdr.split("/").pop() : "None"
+                text: (root.output?.icc_hdr ?? "") ? root.output.icc_hdr.split("/").pop() : qsTr("None")
                 font.pointSize: Theme.font.size.small
             }
 
             PillButton {
-                text: "Choose…"
+                text: qsTr("Choose…")
                 onClicked: hdrPicker.open()
             }
 
             PillButton {
                 visible: (root.output?.icc_hdr ?? "") !== ""
-                text: "None"
+                text: qsTr("None")
                 onClicked: root.configure({ icc_hdr: "" })
             }
         }
@@ -397,18 +397,18 @@ Rectangle {
     FilePicker {
         id: hdrPicker
 
-        title: "Choose an HDR Calibration"
+        title: qsTr("Choose an HDR Calibration")
         folder: StandardPaths.writableLocation(StandardPaths.GenericDataLocation) + "/icc"
-        nameFilter: "Color profiles (*.icc *.icm)"
+        nameFilter: qsTr("Color profiles (*.icc *.icm)")
         onPicked: file => root.configure({ icc_hdr: file.toString().replace(/^file:\/\//, "") })
     }
 
     FilePicker {
         id: iccPicker
 
-        title: "Choose a Color Profile"
+        title: qsTr("Choose a Color Profile")
         folder: StandardPaths.writableLocation(StandardPaths.GenericDataLocation) + "/icc"
-        nameFilter: "Color profiles (*.icc *.icm)"
+        nameFilter: qsTr("Color profiles (*.icc *.icm)")
         onPicked: file => root.configure({ icc: file.toString().replace(/^file:\/\//, "") })
     }
 

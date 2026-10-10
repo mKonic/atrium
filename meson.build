@@ -87,6 +87,7 @@ paths.set_quoted('ATRIUM_DATADIR', get_option('prefix') / get_option('datadir') 
 paths.set_quoted('ATRIUM_SOURCE_DIR', meson.project_source_root())
 paths.set_quoted('ATRIUM_BUILD_DIR', meson.project_build_root())
 paths.set_quoted('ATRIUM_BINDIR', get_option('prefix') / get_option('bindir'))
+paths.set_quoted('ATRIUM_LOCALEDIR', get_option('prefix') / get_option('localedir'))
 paths.set_quoted('ATRIUM_QML_DIR', get_option('prefix') / get_option('libdir') / 'atrium' / 'qml')
 paths_h = configure_file(output: 'paths.hpp', configuration: paths)
 
@@ -119,6 +120,8 @@ install_data('data/lib/systemd/user/atrium-session.target', install_dir: get_opt
 # The shell's own font (Rubik), for every user and the greeter.
 install_subdir('data/share/atrium/fonts', install_dir: get_option('datadir') / 'atrium')
 install_data('data/share/atrium/greetd-config.toml', 'data/share/atrium/greeter-tmpfiles.conf', install_dir: get_option('datadir') / 'atrium')
+subdir('po')
+subdir('translations')
 subdir('shell/plugin/Atrium')
 subdir('shell/host')
 subdir('shell/portal')

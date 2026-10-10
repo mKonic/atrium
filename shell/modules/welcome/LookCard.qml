@@ -100,7 +100,7 @@ Column {
 
     StyledText {
         anchors.horizontalCenter: parent.horizontalCenter
-        text: root.light ? "Light" : "Dark"
+        text: root.light ? qsTr("Light") : qsTr("Dark")
         font.weight: root.chosen ? Font.Medium : Font.Normal
     }
 }

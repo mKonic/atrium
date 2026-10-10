@@ -145,7 +145,7 @@ Item {
         StyledText {
             anchors.centerIn: parent
             visible: screen.results.length === 0
-            text: "No Results"
+            text: qsTr("No Results")
             color: Theme.palette.secondaryLabel
         }
     }

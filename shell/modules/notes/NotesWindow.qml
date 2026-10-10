@@ -78,7 +78,7 @@ FloatingWindow {
             open(next.file);
     }
 
-    title: noteTitle || "Notes"
+    title: noteTitle || qsTr("Notes")
     visible: false
     titleBar: false
     color: Theme.palette.windowBackground
@@ -193,7 +193,7 @@ FloatingWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !search.text
-                    text: "Search"
+                    text: qsTr("Search")
                     color: Theme.palette.tertiaryLabel
                 }
             }
@@ -267,7 +267,7 @@ FloatingWindow {
                     StyledText {
                         width: parent.width
                         // The open one follows what's typed before it's saved.
-                        text: entry.current ? (root.noteTitle || "New Note") : (entry.modelData.title || "New Note")
+                        text: entry.current ? (root.noteTitle || qsTr("New Note")) : (entry.modelData.title || qsTr("New Note"))
                         elide: Text.ElideRight
                         font.weight: Font.DemiBold
                     }
@@ -293,7 +293,7 @@ FloatingWindow {
             StyledText {
                 anchors.centerIn: parent
                 visible: noteList.count === 0
-                text: root.query ? "No Results" : "No Notes"
+                text: root.query ? qsTr("No Results") : qsTr("No Notes")
                 color: Theme.palette.secondaryLabel
             }
         }
@@ -324,7 +324,7 @@ FloatingWindow {
             width: parent.width - 32 - 150
             visible: !renaming.visible
             elide: Text.ElideRight
-            text: root.noteTitle || "Notes"
+            text: root.noteTitle || qsTr("Notes")
             font.pointSize: Theme.font.size.large
             font.weight: Font.Bold
 
@@ -499,7 +499,7 @@ FloatingWindow {
 
             StyledText {
                 visible: editor.text.length === 0 && editor.preeditText.length === 0
-                text: "Start writing. # for a heading, - for a list, **bold**, *italic*, `code`."
+                text: qsTr("Start writing. # for a heading, - for a list, **bold**, *italic*, `code`.")
                 font.pointSize: Theme.font.size.larger
                 color: Theme.palette.tertiaryLabel
             }
@@ -531,13 +531,13 @@ FloatingWindow {
 
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "No note open"
+            text: qsTr("No note open")
             color: Theme.palette.secondaryLabel
         }
 
         DialogButton {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "New Note"
+            text: qsTr("New Note")
             primary: true
             onClicked: root.newNote()
         }

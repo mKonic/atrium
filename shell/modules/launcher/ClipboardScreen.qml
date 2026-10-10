@@ -44,7 +44,7 @@ Item {
         if (Clipboard.results.length === 0)
             return;
         screen.confirm({
-            title: "Clear Clipboard History?",
+            title: qsTr("Clear Clipboard History?"),
             detail: "Everything you copied is forgotten but the pins. What's on the clipboard now stays.",
             glyph: "delete_sweep",
             run: () => Clipboard.clear()
@@ -73,12 +73,12 @@ Item {
         if (!selected)
             return [];
         const all = [
-            { id: "paste", title: "Paste", glyph: "content_paste", keys: "Enter", group: false },
-            { id: "copy", title: "Copy", glyph: "content_copy", keys: "Ctrl+Enter", group: false },
-            { id: "pin", title: selected.pinned ? "Unpin Entry" : "Pin Entry",
+            { id: "paste", title: qsTr("Paste"), glyph: "content_paste", keys: "Enter", group: false },
+            { id: "copy", title: qsTr("Copy"), glyph: "content_copy", keys: "Ctrl+Enter", group: false },
+            { id: "pin", title: selected.pinned ? qsTr("Unpin Entry") : qsTr("Pin Entry"),
               glyph: selected.pinned ? "keep_off" : "keep", keys: "Ctrl+.", group: true },
-            { id: "delete", title: "Delete Entry", glyph: "delete", keys: "Shift+Delete", group: true },
-            { id: "clear", title: "Clear All", glyph: "delete_sweep", keys: "Ctrl+Shift+Delete", group: false },
+            { id: "delete", title: qsTr("Delete Entry"), glyph: "delete", keys: "Shift+Delete", group: true },
+            { id: "clear", title: qsTr("Clear All"), glyph: "delete_sweep", keys: "Ctrl+Shift+Delete", group: false },
         ];
         const q = query.toLowerCase();
         return q ? all.filter(a => a.title.toLowerCase().includes(q)) : all;
@@ -319,7 +319,7 @@ Item {
 
             StyledText {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: !Clipboard.available ? "Clipboard history isn't kept here"
+                text: !Clipboard.available ? qsTr("Clipboard history isn't kept here")
                     : screen.launcherModel.query.length > 0 ? "No Results" : Clipboard.emptyText
                 color: Theme.palette.secondaryLabel
             }

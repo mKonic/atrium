@@ -195,7 +195,7 @@ Rectangle {
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
-            text: root.wrong ? "Wrong password. Try again."
+            text: root.wrong ? qsTr("Wrong password. Try again.")
                 : root.flow?.supplementaryMessage ? root.flow.supplementaryMessage
                 : "Enter the password to allow this."
             font.pointSize: Theme.font.size.small
@@ -329,13 +329,13 @@ Rectangle {
 
             DialogButton {
                 width: (column.width - 10) / 2
-                text: "Cancel"
+                text: qsTr("Cancel")
                 onClicked: root.flow?.cancelAuthenticationRequest()
             }
 
             DialogButton {
                 width: (column.width - 10) / 2
-                text: "Allow"
+                text: qsTr("Allow")
                 primary: true
                 enabled: (root.flow?.isResponseRequired ?? false) && password.text.length > 0
                 onClicked: root.submit()

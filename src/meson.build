@@ -45,6 +45,7 @@ atrium_sources = files(
   'edid.cpp',
   'output.cpp',
   'handoff.cpp',
+  'i18n.cpp',
   'scene_dump.cpp',
   'access_keys_core.cpp',
   'night_light.cpp',

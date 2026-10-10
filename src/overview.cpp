@@ -1,4 +1,5 @@
 #include "overview.hpp"
+#include "i18n.hpp"
 
 #include "accent.hpp"
 #include "cairo_buffer.hpp"
@@ -412,7 +413,7 @@ void Overview::render_label(Thumb& t) {
     if (text.empty() && t.view->app_id())
         text = t.view->app_id();
     if (text.empty())
-        text = "Window";
+        text = tr("Window");
     const float scale = t.screen->output->wlr->scale;
 
     PangoFontDescription* font = pango_font_description_from_string("Sans Semi-Bold 10");

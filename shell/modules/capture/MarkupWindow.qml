@@ -12,7 +12,7 @@ import Atrium
 FloatingWindow {
     id: root
 
-    title: "Screenshot"
+    title: qsTr("Screenshot")
     color: Theme.palette.windowBackground
     visible: false
     implicitWidth: Math.max(640, Math.min(1200, canvas.imageSize.width + 48))
@@ -40,10 +40,10 @@ FloatingWindow {
 
             Repeater {
                 model: [
-                    { tool: "arrow", icon: "arrow_outward", tip: "Arrow" },
-                    { tool: "box", icon: "crop_square", tip: "Box" },
-                    { tool: "blur", icon: "blur_on", tip: "Blur" },
-                    { tool: "crop", icon: "crop", tip: "Crop" }
+                    { tool: "arrow", icon: "arrow_outward", tip: qsTr("Arrow") },
+                    { tool: "box", icon: "crop_square", tip: qsTr("Box") },
+                    { tool: "blur", icon: "blur_on", tip: qsTr("Blur") },
+                    { tool: "crop", icon: "crop", tip: qsTr("Crop") }
                 ]
 
                 ToolButton {
@@ -106,13 +106,13 @@ FloatingWindow {
 
             PillButton {
                 icon: "delete"
-                text: "Delete"
+                text: qsTr("Delete")
                 onClicked: Capture.deleteLast()
             }
 
             PillButton {
                 primary: true
-                text: "Done"
+                text: qsTr("Done")
                 onClicked: {
                     canvas.save();
                     Capture.cancel();

@@ -1,5 +1,7 @@
 #include "quicklink_files.hpp"
 
+#include <QCoreApplication>
+
 #include "compositor.hpp"
 #include "quicklink_archive_core.hpp"
 
@@ -29,8 +31,9 @@ std::vector<quicklinks::Quicklink> current() {
     return out;
 }
 
-QString count(int n, const char* one) {
-    return QString("%1 %2%3").arg(n).arg(one).arg(n == 1 ? "" : "s");
+// Messages in the user's language (context "quicklinks"), one and many apart.
+QString Q(const char* text) {
+    return QCoreApplication::translate("quicklinks", text);
 }
 
 } // namespace
@@ -52,7 +55,7 @@ void QuicklinkFiles::setBusy(bool busy) {
 void QuicklinkFiles::importFile(const QUrl& file) {
     QFile f(file.isLocalFile() ? file.toLocalFile() : file.toString());
     if (!f.open(QIODevice::ReadOnly)) {
-        emit finished("Couldn't read " + f.fileName() + ".", true);
+        emit finished(Q("Couldn't read %1.").arg(f.fileName()), true);
         return;
     }
     const QByteArray data = f.read(16 * 1024 * 1024);
@@ -68,10 +71,11 @@ void QuicklinkFiles::importFile(const QUrl& file) {
                                                          {"app", QString::fromStdString(q.app)},
                                                          {"icon", QString::fromStdString(q.icon)},
                                                          {"root", q.root}});
-    QString note = m.additions.empty() ? QString("Nothing new to import") : count(int(m.additions.size()), "quicklink") + " imported";
+    const int n = int(m.additions.size());
+    QString note = n == 0 ? Q("Nothing new to import.") : n == 1 ? Q("1 quicklink imported.") : Q("%1 quicklinks imported.").arg(n);
     if (m.skipped)
-        note += ", " + QString::number(m.skipped) + " already here or incomplete";
-    emit finished(note + ".", m.additions.empty());
+        note += " " + (m.skipped == 1 ? Q("1 was already here or incomplete.") : Q("%1 were already here or incomplete.").arg(m.skipped));
+    emit finished(note, n == 0);
 }
 
 void QuicklinkFiles::exportAll() {
@@ -87,13 +91,13 @@ void QuicklinkFiles::exportAll() {
                                           SLOT(saveChosen(uint, QVariantMap)));
     QDBusMessage ask = QDBusMessage::createMethodCall(kPortal, kPortalPath, "org.freedesktop.portal.FileChooser",
                                                       "SaveFile");
-    ask << QString() << QStringLiteral("Export Quicklinks")
+    ask << QString() << Q("Export Quicklinks")
         << QVariantMap{{"handle_token", token}, {"current_name", QStringLiteral("quicklinks.json")}, {"modal", true}};
     const QDBusReply<QDBusObjectPath> reply = QDBusConnection::sessionBus().call(ask);
     if (!reply.isValid()) {
         QDBusConnection::sessionBus().disconnect(kPortal, request_, "org.freedesktop.portal.Request", "Response", this,
                                                  SLOT(saveChosen(uint, QVariantMap)));
-        emit finished("There's no save dialog to ask where (xdg-desktop-portal isn't running).", true);
+        emit finished(Q("There's no save dialog to ask where (xdg-desktop-portal isn't running)."), true);
         return;
     }
     setBusy(true);
@@ -112,10 +116,12 @@ void QuicklinkFiles::saveChosen(uint response, const QVariantMap& results) {
     const std::string text = quicklinks::encode(list);
     if (!out.open(QIODevice::WriteOnly) || out.write(text.data(), qint64(text.size())) != qint64(text.size()) ||
         !out.commit()) {
-        emit finished("Couldn't write " + path + ".", true);
+        emit finished(Q("Couldn't write %1.").arg(path), true);
         return;
     }
-    emit finished(count(int(list.size()), "quicklink") + " exported to " + path + ".", false);
+    emit finished(list.size() == 1 ? Q("1 quicklink exported to %1.").arg(path)
+                                   : Q("%1 quicklinks exported to %2.").arg(list.size()).arg(path),
+                  false);
 }
 
 } // namespace atrium

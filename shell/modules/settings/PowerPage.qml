@@ -11,7 +11,7 @@ Column {
 
     Group {
         visible: Battery.present
-        title: "Battery"
+        title: qsTr("Battery")
 
         ControlRow {
             title: `${Battery.percentage}%`
@@ -25,11 +25,11 @@ Column {
 
         ControlRow {
             visible: Battery.chargeLimitSupported
-            title: "Limit charging"
-            note: `Stops at ${Battery.chargeLimit}%, which keeps the battery healthy when it's mostly plugged in.`
+            title: qsTr("Limit charging")
+            note: qsTr("Stops at %1%, which keeps the battery healthy when it's mostly plugged in.").arg(Battery.chargeLimit)
 
             Switch {
-                name: "Limit charging"
+                name: qsTr("Limit charging")
                 checked: Battery.chargeLimitEnabled
                 onToggled: Battery.setChargeLimitEnabled(!checked)
             }
@@ -38,11 +38,11 @@ Column {
 
     Group {
         visible: Battery.lidAction !== ""
-        title: "Lid"
+        title: qsTr("Lid")
 
         ControlRow {
-            title: "When the lid closes"
-            note: "Set in logind.conf (HandleLidSwitch)."
+            title: qsTr("When the lid closes")
+            note: qsTr("Set in logind.conf (HandleLidSwitch).")
 
             StyledText {
                 text: SettingsPages.choiceOptions([Battery.lidAction])[0]?.label ?? ""

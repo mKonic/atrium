@@ -52,7 +52,7 @@ LockWindow {
 
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDate(clock.date, "dddd d MMMM")
+            text: Qt.locale().toString(clock.date, "dddd d MMMM")
             font.pointSize: 17
             font.weight: Font.DemiBold
             color: Theme.dark.label
@@ -60,7 +60,7 @@ LockWindow {
 
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatTime(clock.date, "hh:mm")
+            text: Qt.locale().toString(clock.date, "hh:mm")
             font.pointSize: 84
             font.weight: Font.Bold
             color: Theme.dark.label
@@ -109,7 +109,7 @@ LockWindow {
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: password.text.length === 0
-                    text: Unlock.fingerprint ? "Fingerprint or Password" : "Enter Password"
+                    text: Unlock.fingerprint ? qsTr("Fingerprint or Password") : qsTr("Enter Password")
                     color: Theme.dark.secondaryLabel
                 }
             }

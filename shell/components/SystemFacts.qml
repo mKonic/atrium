@@ -34,7 +34,7 @@ Column {
 
     StyledText {
         anchors.horizontalCenter: parent.horizontalCenter
-        text: `atrium ${SystemInfo.version}`
+        text: qsTr("atrium %1").arg(SystemInfo.version)
         font.pointSize: Theme.font.size.small
         color: Theme.palette.secondaryLabel
     }
@@ -45,27 +45,27 @@ Column {
     }
 
     Fact {
-        label: "Name"
+        label: qsTr("Name")
         value: SystemInfo.hostname
     }
     Fact {
-        label: "Processor"
+        label: qsTr("Processor")
         value: SystemInfo.cpu
     }
     Fact {
-        label: "Graphics"
+        label: qsTr("Graphics")
         value: SystemInfo.gpus.join("\n")
     }
     Fact {
-        label: "Memory"
+        label: qsTr("Memory")
         value: SystemInfo.memory
     }
     Fact {
-        label: "Kernel"
+        label: qsTr("Kernel")
         value: SystemInfo.kernel
     }
     Fact {
-        label: "Uptime"
+        label: qsTr("Uptime")
         value: column.uptime
     }
 

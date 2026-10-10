@@ -13,25 +13,25 @@ Column {
     spacing: 12
 
     MissingNote {
-        message: (Atrium.nightLight.available ?? true) ? "" : "These screens can't change their colours."
-        explanation: "Night Light needs screens atrium drives itself; inside another desktop it does nothing."
+        message: (Atrium.nightLight.available ?? true) ? "" : qsTr("These screens can't change their colours.")
+        explanation: qsTr("Night Light needs screens atrium drives itself; inside another desktop it does nothing.")
     }
 
     Group {
         width: parent.width
-        title: "Night Light"
+        title: qsTr("Night Light")
 
         ControlRow {
-            title: "Schedule"
-            note: root.mode === "sunset" ? `Where your time zone is. ${Atrium.nightLight.note ?? ""}` : (Atrium.nightLight.note ?? "")
+            title: qsTr("Schedule")
+            note: root.mode === "sunset" ? qsTr("Where your time zone is. %1").arg(Atrium.nightLight.note ?? "") : (Atrium.nightLight.note ?? "")
 
             Dropdown {
                 fieldWidth: 220
                 options: [
-                    { value: "off", label: "Off" },
-                    { value: "sunset", label: "Sunset to Sunrise" },
-                    { value: "custom", label: "Custom" },
-                    { value: "always", label: "Always On" }
+                    { value: "off", label: qsTr("Off") },
+                    { value: "sunset", label: qsTr("Sunset to Sunrise") },
+                    { value: "custom", label: qsTr("Custom") },
+                    { value: "always", label: qsTr("Always On") }
                 ]
                 value: root.mode
                 onPicked: v => Atrium.setSetting("displays.night_light", v)
@@ -40,7 +40,7 @@ Column {
 
         ControlRow {
             visible: root.mode === "custom"
-            title: "From"
+            title: qsTr("From")
 
             Field {
                 width: 100
@@ -52,7 +52,7 @@ Column {
 
         ControlRow {
             visible: root.mode === "custom"
-            title: "To"
+            title: qsTr("To")
 
             Field {
                 width: 100
@@ -63,8 +63,8 @@ Column {
         }
 
         ControlRow {
-            title: "Warmth"
-            note: "From a little warmer to a lot."
+            title: qsTr("Warmth")
+            note: qsTr("From a little warmer to a lot.")
 
             NumberControl {
                 min: 0

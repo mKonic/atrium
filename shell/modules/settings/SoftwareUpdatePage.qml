@@ -67,7 +67,7 @@ Column {
 
                     StyledText {
                         width: parent.width
-                        text: card.name + ": " + (card.source.installing ? "Updating…"
+                        text: card.name + ": " + (card.source.installing ? qsTr("Updating…")
                             : card.source.checking ? "Checking…"
                             : !card.source.known ? "Not checked yet"
                             : card.source.count > 0 ? card.source.summary : card.idle)
@@ -78,7 +78,7 @@ Column {
 
                     StyledText {
                         width: parent.width
-                        text: card.source.installing ? (card.source.doing || "Getting ready")
+                        text: card.source.installing ? (card.source.doing || qsTr("Getting ready"))
                             : card.source.lastChecked ? `Last checked: ${card.source.lastChecked}` : ""
                         visible: text.length > 0
                         font.pointSize: Theme.font.size.small
@@ -97,14 +97,14 @@ Column {
                         visible: !card.source.installing
                         enabled: !card.source.checking
                         opacity: enabled ? 1 : 0.5
-                        text: "Check Now"
+                        text: qsTr("Check Now")
                         onClicked: card.source.check()
                     }
 
                     PillButton {
                         visible: !card.source.installing && card.source.count > 0
                         primary: true
-                        text: card.source.inTerminal ? "Update in Terminal…" : "Update Now"
+                        text: card.source.inTerminal ? qsTr("Update in Terminal…") : qsTr("Update Now")
                         onClicked: card.source.install()
                     }
                 }
@@ -147,7 +147,7 @@ Column {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - restart.width - 12
                     wrapMode: Text.WordWrap
-                    text: "Restart to finish: the system's core was updated."
+                    text: qsTr("Restart to finish: the system's core was updated.")
                     font.pointSize: Theme.font.size.small
                 }
 
@@ -155,7 +155,7 @@ Column {
                     id: restart
 
                     primary: true
-                    text: "Restart…"
+                    text: qsTr("Restart…")
                     onClicked: Atrium.action("shell", "session:restart")
                 }
             }
@@ -207,7 +207,7 @@ Column {
                                     id: securityLabel
 
                                     anchors.centerIn: parent
-                                    text: "Security"
+                                    text: qsTr("Security")
                                     font.pointSize: Theme.font.size.smaller
                                     color: Theme.palette.red
                                 }
@@ -269,7 +269,7 @@ Column {
 
                     StyledText {
                         width: parent.width
-                        text: AtriumRelease.installing ? `Installing atrium ${AtriumRelease.latest}…`
+                        text: AtriumRelease.installing ? qsTr("Installing atrium %1…").arg(AtriumRelease.latest)
                             : AtriumRelease.staged ? `atrium ${AtriumRelease.stagedVersion} is installed`
                             : AtriumRelease.newer ? `atrium ${AtriumRelease.latest} is available`
                             : `atrium ${AtriumRelease.current}` + (AtriumRelease.latest ? " is up to date" : "")
@@ -300,21 +300,21 @@ Column {
                         visible: !AtriumRelease.installing && !AtriumRelease.staged
                         enabled: !AtriumRelease.checking
                         opacity: enabled ? 1 : 0.5
-                        text: "Check Now"
+                        text: qsTr("Check Now")
                         onClicked: AtriumRelease.check()
                     }
 
                     PillButton {
                         visible: !AtriumRelease.installing && AtriumRelease.newer && !AtriumRelease.staged
                         primary: true
-                        text: "Install"
+                        text: qsTr("Install")
                         onClicked: AtriumRelease.install()
                     }
 
                     PillButton {
                         visible: AtriumRelease.staged
                         primary: true
-                        text: "Log Out…"
+                        text: qsTr("Log Out…")
                         onClicked: Atrium.action("shell", "session:logout")
                     }
                 }
@@ -378,7 +378,7 @@ Column {
     // --- the system --------------------------------------------------------------------
     MissingNote {
         visible: !Updates.available && !PacmanUpdates.available
-        message: "System updates need PackageKit (packagekit) or pacman's checkupdates (pacman-contrib)."
+        message: qsTr("System updates need PackageKit (packagekit) or pacman's checkupdates (pacman-contrib).")
     }
 
     SourceCard {

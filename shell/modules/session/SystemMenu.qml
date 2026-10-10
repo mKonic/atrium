@@ -32,19 +32,19 @@ PanelWindow {
         focus: true
         Keys.onEscapePressed: Panels.open = ""
         actions: [
-            { icon: "info", text: "About This Computer", run: () => Panels.open = "about" },
+            { icon: "info", text: qsTr("About This Computer"), run: () => Panels.open = "about" },
             "-",
-            { icon: "settings", text: "System Settings…", run: () => Atrium.action("shell", "settings") },
+            { icon: "settings", text: qsTr("System Settings…"), run: () => Atrium.action("shell", "settings") },
             "-",
-            { icon: "bedtime", text: "Sleep", run: () => Session.request("sleep") },
-            { icon: "restart_alt", text: "Restart…", run: () => Session.request("restart") },
-            { icon: "power_settings_new", text: "Shut Down…", run: () => Session.request("shutdown") },
+            { icon: "bedtime", text: qsTr("Sleep"), run: () => Session.request("sleep") },
+            { icon: "restart_alt", text: qsTr("Restart…"), run: () => Session.request("restart") },
+            { icon: "power_settings_new", text: qsTr("Shut Down…"), run: () => Session.request("shutdown") },
             "-",
-            { icon: "lock", text: "Lock Screen", run: () => Atrium.action("lock") }
+            { icon: "lock", text: qsTr("Lock Screen"), run: () => Atrium.action("lock") }
         ].concat(Session.canSwitchUser() ? [
-            { icon: "switch_account", text: "Switch User…", run: () => Atrium.action("switch-user") }
+            { icon: "switch_account", text: qsTr("Switch User…"), run: () => Atrium.action("switch-user") }
         ] : []).concat([
-            { icon: "logout", text: `Log Out ${SystemInfo.user}…`, run: () => Session.request("logout") }
+            { icon: "logout", text: qsTr("Log Out %1…").arg(SystemInfo.user), run: () => Session.request("logout") }
         ])
         onPicked: if (Panels.open === "system") Panels.open = ""
     }

@@ -14,11 +14,11 @@ Column {
     spacing: 20
 
     Group {
-        title: "Open at Login"
-        subtitle: Autostart.entries.length === 0 ? "Nothing opens at login yet." : ""
+        title: qsTr("Open at Login")
+        subtitle: Autostart.entries.length === 0 ? qsTr("Nothing opens at login yet.") : ""
         headerActions: [
             PillButton {
-                text: "Add…"
+                text: qsTr("Add…")
                 icon: "add"
                 onClicked: addSheet.open()
             }
@@ -82,7 +82,7 @@ Column {
 
         property string picked: ""
 
-        title: "Open at Login"
+        title: qsTr("Open at Login")
         action: "Add"
         ready: picked !== ""
         onOpened: {
@@ -99,7 +99,7 @@ Column {
             id: search
 
             width: parent.width
-            placeholder: "Search apps"
+            placeholder: qsTr("Search apps")
         }
 
         ListView {

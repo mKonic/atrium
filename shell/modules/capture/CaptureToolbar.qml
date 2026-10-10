@@ -40,7 +40,7 @@ Rectangle {
 
         ToolButton {
             icon: "close"
-            tip: "Close"
+            tip: qsTr("Close")
             onClicked: Capture.cancel()
         }
 
@@ -53,21 +53,21 @@ Rectangle {
 
         ToolButton {
             icon: "desktop_windows"
-            tip: "Entire screen"
+            tip: qsTr("Entire screen")
             chosen: Capture.kind === "screen"
             onClicked: Capture.kind = "screen"
         }
 
         ToolButton {
             icon: "web_asset"
-            tip: "Window"
+            tip: qsTr("Window")
             chosen: Capture.kind === "window"
             onClicked: Capture.kind = "window"
         }
 
         ToolButton {
             icon: "select"
-            tip: "Selection"
+            tip: qsTr("Selection")
             chosen: Capture.kind === "region"
             onClicked: Capture.kind = "region"
         }
@@ -83,7 +83,7 @@ Rectangle {
         ToolButton {
             visible: !Capture.forPortal && Recorder.available
             icon: "screen_record"
-            tip: "Record the screen"
+            tip: qsTr("Record the screen")
             onClicked: Capture.record()
         }
     }
@@ -93,7 +93,7 @@ Rectangle {
         anchors.top: parent.bottom
         anchors.topMargin: 8
         anchors.horizontalCenter: parent.horizontalCenter
-        text: Capture.kind === "screen" ? "Click a screen to take it"
+        text: Capture.kind === "screen" ? qsTr("Click a screen to take it")
             : Capture.kind === "window" ? "Click a window to take it"
             : "Drag across what to take"
         color: Theme.dark.label

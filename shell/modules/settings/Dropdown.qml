@@ -13,7 +13,7 @@ Rectangle {
     property var options: []
     property string value
     property int fieldWidth: 200
-    property string placeholder: "Choose…"  // while nothing is picked
+    property string placeholder: qsTr("Choose…")  // while nothing is picked
     // What it chooses, for screen readers (its label is the row's).
     property string name
     signal picked(string value)

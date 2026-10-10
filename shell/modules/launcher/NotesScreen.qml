@@ -92,7 +92,7 @@ Item {
 
                 StyledText {
                     width: parent.width
-                    text: row.modelData.title || "New Note"
+                    text: row.modelData.title || qsTr("New Note")
                     elide: Text.ElideRight
                 }
 
@@ -116,7 +116,7 @@ Item {
         StyledText {
             anchors.centerIn: parent
             visible: list.count === 0
-            text: screen.launcherModel.query ? "No Results" : "No Notes yet: Ctrl+N starts one"
+            text: screen.launcherModel.query ? qsTr("No Results") : qsTr("No Notes yet: Ctrl+N starts one")
             color: Theme.palette.secondaryLabel
         }
     }

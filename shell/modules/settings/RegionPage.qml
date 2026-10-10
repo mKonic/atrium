@@ -21,10 +21,10 @@ Column {
     }
 
     Group {
-        subtitle: root.error || "For everyone on this computer. Apps use them from the next login."
+        subtitle: root.error || qsTr("For everyone on this computer. Apps use them from the next login.")
 
         ControlRow {
-            title: "Language"
+            title: qsTr("Language")
 
             Dropdown {
                 fieldWidth: 300
@@ -35,7 +35,7 @@ Column {
         }
 
         ControlRow {
-            title: "Formats"
+            title: qsTr("Formats")
             note: LocaleSettings.sample
 
             Dropdown {

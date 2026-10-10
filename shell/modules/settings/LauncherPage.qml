@@ -47,7 +47,7 @@ Column {
     }
 
     // Apps a quicklink can open with, by name.
-    readonly property var apps: [{ value: "", label: "Default App" }].concat(
+    readonly property var apps: [{ value: "", label: qsTr("Default App") }].concat(
         DesktopEntries.applications.values.filter(e => !e.noDisplay)
             .map(e => ({ value: e.id, label: e.name }))
             .sort((a, b) => a.label.localeCompare(b.label)))
@@ -100,7 +100,7 @@ Column {
 
             SectionHeader {
                 width: parent.width
-                title: root.tab === "Windows" ? "Window Sizes" : root.tab
+                title: root.tab === "Windows" ? qsTr("Window Sizes") : root.tab
                 subtitle: ({
                     "Quicklinks": "Addresses, searches, files and folders opened from the palette. {argument} is asked for when it runs; {clipboard}, {date} and {time} are filled in.",
                     "Snippets": "Text typed where you are typing, from the palette or by typing its keyword (turn on keyword expansion above). {clipboard}, {date}, {time} and {argument} work here too.",
@@ -111,13 +111,13 @@ Column {
                 // Tinycast's Import and Export Quicklinks: a JSON file of them.
                 PillButton {
                     visible: root.tab === "Quicklinks"
-                    text: "Import…"
+                    text: qsTr("Import…")
                     onClicked: quicklinkImport.open()
                 }
 
                 PillButton {
                     visible: root.tab === "Quicklinks"
-                    text: QuicklinkFiles.busy ? "Exporting…" : "Export…"
+                    text: QuicklinkFiles.busy ? qsTr("Exporting…") : qsTr("Export…")
                     enabled: !QuicklinkFiles.busy && records.list.length > 0
                     onClicked: {
                         root.quicklinkNote = "";
@@ -126,7 +126,7 @@ Column {
                 }
 
                 PillButton {
-                    text: "Add"
+                    text: qsTr("Add")
                     icon: "add"
                     primary: true
                     onClicked: {
@@ -160,7 +160,7 @@ Column {
                 visible: records.list.length === 0
                 topPadding: 6
                 bottomPadding: 6
-                text: root.tab === "Windows" ? "No window sizes yet." : `No ${root.tab.toLowerCase()} yet.`
+                text: root.tab === "Windows" ? qsTr("No window sizes yet.") : qsTr("No %1 yet.").arg(root.tab.toLowerCase())
                 color: Theme.palette.secondaryLabel
             }
 
@@ -193,7 +193,7 @@ Column {
                         StyledText {
                             width: parent.width
                             elide: Text.ElideRight
-                            text: rec.modelData.name || "Untitled"
+                            text: rec.modelData.name || qsTr("Untitled")
                         }
 
                         StyledText {
@@ -216,7 +216,7 @@ Column {
                         spacing: 8
 
                         PillButton {
-                            text: "Edit"
+                            text: qsTr("Edit")
                             onClicked: {
                                 if (root.tab === "Quicklinks")
                                     quicklinkSheet.edit(rec.modelData);
@@ -230,7 +230,7 @@ Column {
                         }
 
                         PillButton {
-                            text: "Remove"
+                            text: qsTr("Remove")
                             onClicked: Atrium.removeRecord(records.table, rec.modelData.id)
                         }
                     }
@@ -271,8 +271,8 @@ Column {
 
             SectionHeader {
                 width: parent.width
-                title: "Window Layouts"
-                subtitle: "Arrangements the palette puts back in one go. Save one with Save Window Layout in the palette: it takes the windows on the space you're on."
+                title: qsTr("Window Layouts")
+                subtitle: qsTr("Arrangements the palette puts back in one go. Save one with Save Window Layout in the palette: it takes the windows on the space you're on.")
             }
 
             Item {
@@ -284,7 +284,7 @@ Column {
                 visible: layoutsColumn.list.length === 0
                 topPadding: 6
                 bottomPadding: 6
-                text: "No window layouts yet."
+                text: qsTr("No window layouts yet.")
                 color: Theme.palette.secondaryLabel
             }
 
@@ -319,7 +319,7 @@ Column {
                         }
 
                         StyledText {
-                            text: lay.modelData.windows === 1 ? "1 window" : `${lay.modelData.windows} windows`
+                            text: lay.modelData.windows === 1 ? qsTr("1 window") : qsTr("%1 windows").arg(lay.modelData.windows)
                             font.pointSize: Theme.font.size.small
                             color: Theme.palette.secondaryLabel
                         }
@@ -333,12 +333,12 @@ Column {
                         spacing: 8
 
                         PillButton {
-                            text: "Rename"
+                            text: qsTr("Rename")
                             onClicked: layoutSheet.edit(lay.modelData.name)
                         }
 
                         PillButton {
-                            text: "Remove"
+                            text: qsTr("Remove")
                             onClicked: lm.removeLayout(lay.modelData.name)
                         }
                     }
@@ -359,7 +359,7 @@ Column {
         }
 
         width: 520
-        title: "Rename Window Layout"
+        title: qsTr("Rename Window Layout")
         action: "Rename"
         ready: layoutName.text.trim() !== ""
         onOpened: layoutName.focusField()
@@ -460,13 +460,13 @@ Column {
 
             SectionHeader {
                 width: parent.width
-                title: "Search Items"
-                subtitle: "An alias finds an entry by a word of your own. A shortcut runs it from anywhere; click to record, Backspace clears. Hidden entries leave search, and keep their shortcut."
+                title: qsTr("Search Items")
+                subtitle: qsTr("An alias finds an entry by a word of your own. A shortcut runs it from anywhere; click to record, Backspace clears. Hidden entries leave search, and keep their shortcut.")
             }
 
             Field {
                 width: parent.width
-                placeholder: "Filter"
+                placeholder: qsTr("Filter")
                 onTextChanged: {
                     root.itemQuery = text;
                     items.refresh();
@@ -554,7 +554,7 @@ Column {
                             anchors.rightMargin: 10
                             anchors.verticalCenter: parent.verticalCenter
                             implicitWidth: 120
-                            placeholder: "Alias"
+                            placeholder: qsTr("Alias")
                             text: item.modelData.alias
                             // Stored as typed, trimmed when left.
                             onAccepted: lm.setAlias(item.modelData.key, text)
@@ -584,7 +584,7 @@ Column {
                             StyledText {
                                 anchors.centerIn: parent
                                 visible: item.modelData.keys.length === 0 && root.recording !== item.modelData.key
-                                text: "Record Shortcut"
+                                text: qsTr("Record Shortcut")
                                 font.pointSize: Theme.font.size.small
                                 color: Theme.palette.tertiaryLabel
                             }
@@ -601,7 +601,7 @@ Column {
 
                         // Shown in search: off hides it (only where this page can bring it back).
                         Switch {
-                            name: "Show in search"
+                            name: qsTr("Show in search")
                             id: hideSwitch
 
                             anchors.right: parent.right
@@ -740,24 +740,24 @@ Column {
         }
 
         table: "quicklinks"
-        title: record ? "Edit Quicklink" : "New Quicklink"
+        title: record ? qsTr("Edit Quicklink") : qsTr("New Quicklink")
         ready: qlName.text.trim() !== "" && qlUrl.text.trim() !== ""
         onOpened: qlName.focusField()
         onSubmitted: save({ name: qlName.text.trim(), url: qlUrl.text.trim(), app: app, root: inRoot })
 
         FormRow {
-            label: "Name"
+            label: qsTr("Name")
 
             Field {
                 id: qlName
 
                 implicitWidth: 400
-                placeholder: "Search GitHub"
+                placeholder: qsTr("Search GitHub")
             }
         }
 
         FormRow {
-            label: "Address or path"
+            label: qsTr("Address or path")
 
             Field {
                 id: qlUrl
@@ -769,7 +769,7 @@ Column {
         }
 
         FormRow {
-            label: "Open with"
+            label: qsTr("Open with")
 
             Dropdown {
                 fieldWidth: 400
@@ -780,10 +780,10 @@ Column {
         }
 
         FormRow {
-            label: "In root search"
+            label: qsTr("In root search")
 
             Switch {
-                name: "In root search"
+                name: qsTr("In root search")
                 checked: quicklinkSheet.inRoot
                 onToggled: quicklinkSheet.inRoot = !quicklinkSheet.inRoot
             }
@@ -802,35 +802,35 @@ Column {
         }
 
         table: "snippets"
-        title: record ? "Edit Snippet" : "New Snippet"
+        title: record ? qsTr("Edit Snippet") : qsTr("New Snippet")
         ready: snName.text.trim() !== "" && snText.text !== ""
         onOpened: snName.focusField()
         onSubmitted: save({ name: snName.text.trim(), keyword: snKeyword.text.trim(), text: snText.text })
 
         FormRow {
-            label: "Name"
+            label: qsTr("Name")
 
             Field {
                 id: snName
 
                 implicitWidth: 400
-                placeholder: "Email signature"
+                placeholder: qsTr("Email signature")
             }
         }
 
         FormRow {
-            label: "Keyword"
+            label: qsTr("Keyword")
 
             Field {
                 id: snKeyword
 
                 implicitWidth: 400
-                placeholder: "Optional, like ;sig"
+                placeholder: qsTr("Optional, like ;sig")
             }
         }
 
         FormRow {
-            label: "Text"
+            label: qsTr("Text")
 
             TextBox {
                 id: snText
@@ -860,25 +860,25 @@ Column {
         }
 
         table: "commands"
-        title: record ? "Edit Command" : "New Command"
+        title: record ? qsTr("Edit Command") : qsTr("New Command")
         ready: cmdName.text.trim() !== "" && cmdText.text.trim() !== ""
         onOpened: cmdName.focusField()
         onSubmitted: save({ name: cmdName.text.trim(), command: cmdText.text, directory: cmdDir.text.trim(),
                             icon: cmdIcon.text.trim(), output: output, terminal: terminal, confirm: confirm })
 
         FormRow {
-            label: "Name"
+            label: qsTr("Name")
 
             Field {
                 id: cmdName
 
                 implicitWidth: 400
-                placeholder: "Update mirrors"
+                placeholder: qsTr("Update mirrors")
             }
         }
 
         FormRow {
-            label: "Command"
+            label: qsTr("Command")
 
             TextBox {
                 id: cmdText
@@ -889,32 +889,32 @@ Column {
         }
 
         FormRow {
-            label: "Run in"
+            label: qsTr("Run in")
 
             Field {
                 id: cmdDir
 
                 implicitWidth: 400
-                placeholder: "Home folder"
+                placeholder: qsTr("Home folder")
             }
         }
 
         FormRow {
-            label: "Icon"
+            label: qsTr("Icon")
 
             Field {
                 id: cmdIcon
 
                 implicitWidth: 400
-                placeholder: "A Material Symbols name, like terminal"
+                placeholder: qsTr("A Material Symbols name, like terminal")
             }
         }
 
         FormRow {
-            label: "Show output"
+            label: qsTr("Show output")
 
             Switch {
-                name: "Show output"
+                name: qsTr("Show output")
                 checked: commandSheet.output
                 onToggled: {
                     commandSheet.output = !commandSheet.output;
@@ -925,10 +925,10 @@ Column {
         }
 
         FormRow {
-            label: "Run in terminal"
+            label: qsTr("Run in terminal")
 
             Switch {
-                name: "Run in terminal"
+                name: qsTr("Run in terminal")
                 checked: commandSheet.terminal
                 onToggled: {
                     commandSheet.terminal = !commandSheet.terminal;
@@ -939,10 +939,10 @@ Column {
         }
 
         FormRow {
-            label: "Ask first"
+            label: qsTr("Ask first")
 
             Switch {
-                name: "Ask first"
+                name: qsTr("Ask first")
                 checked: commandSheet.confirm
                 onToggled: commandSheet.confirm = !commandSheet.confirm
             }
@@ -964,24 +964,24 @@ Column {
         }
 
         table: "window_sizes"
-        title: record ? "Edit Window Size" : "New Window Size"
+        title: record ? qsTr("Edit Window Size") : qsTr("New Window Size")
         ready: sizeName.text.trim() !== ""
         onOpened: sizeName.focusField()
         onSubmitted: save({ name: sizeName.text.trim(), width: w, height: h })
 
         FormRow {
-            label: "Name"
+            label: qsTr("Name")
 
             Field {
                 id: sizeName
 
                 implicitWidth: 400
-                placeholder: "Reading"
+                placeholder: qsTr("Reading")
             }
         }
 
         FormRow {
-            label: "Width"
+            label: qsTr("Width")
 
             NumberControl {
                 width: 400
@@ -993,7 +993,7 @@ Column {
         }
 
         FormRow {
-            label: "Height"
+            label: qsTr("Height")
 
             NumberControl {
                 width: 400
@@ -1008,9 +1008,9 @@ Column {
     FilePicker {
         id: quicklinkImport
 
-        title: "Import Quicklinks"
+        title: qsTr("Import Quicklinks")
         folder: StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-        nameFilter: "Quicklinks (*.json)"
+        nameFilter: qsTr("Quicklinks (*.json)")
         onPicked: file => {
             root.quicklinkNote = "";
             QuicklinkFiles.importFile(file);

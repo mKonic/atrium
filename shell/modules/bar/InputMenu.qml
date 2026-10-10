@@ -78,7 +78,7 @@ Pill {
                 run: () => Atrium.setKeyboardLayout(i)
             })).concat(root.greeter ? [] : ["-", {
                 icon: "",
-                text: "Keyboard Settings…",
+                text: qsTr("Keyboard Settings…"),
                 run: () => Atrium.action("shell", "settings:Keyboard")
             }])
             onPicked: Panels.open = ""

@@ -10,8 +10,8 @@ Pill {
 
     // For screen readers (AT-SPI): the date and time, opening the calendar.
     Accessible.role: Accessible.Button
-    Accessible.name: Qt.formatDateTime(clock.date, "dddd d MMMM, " + ((Atrium.settings["clock.24_hour"] ?? false) ? "H:mm" : "h:mm AP"))
-    Accessible.description: "Calendar"
+    Accessible.name: Qt.locale().toString(clock.date, "dddd d MMMM, " + ((Atrium.settings["clock.24_hour"] ?? false) ? "H:mm" : "h:mm AP"))
+    Accessible.description: qsTr("Calendar")
     Accessible.onPressAction: Panels.toggle("calendar")
 
     readonly property bool open: Panels.open === "calendar"
@@ -49,7 +49,7 @@ Pill {
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
-            text: Qt.formatDateTime(clock.date, (Atrium.settings["clock.24_hour"] ?? false) ? "ddd d MMM   H:mm" : "ddd d MMM   h:mm AP")
+            text: Qt.locale().toString(clock.date, (Atrium.settings["clock.24_hour"] ?? false) ? "ddd d MMM   H:mm" : "ddd d MMM   h:mm AP")
             font.weight: Font.Medium
         }
     }

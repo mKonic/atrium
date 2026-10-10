@@ -37,16 +37,16 @@ Row {
 
     PillButton {
         anchors.verticalCenter: parent.verticalCenter
-        text: "Choose…"
+        text: qsTr("Choose…")
         onClicked: picker.open()
     }
 
     FilePicker {
         id: picker
 
-        title: "Choose a Wallpaper"
+        title: qsTr("Choose a Wallpaper")
         folder: StandardPaths.writableLocation(StandardPaths.PicturesLocation)
-        nameFilter: "Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)"
+        nameFilter: qsTr("Pictures (*.png *.jpg *.jpeg *.webp *.avif *.jxl *.bmp)")
         onPicked: file => root.picked(file)
     }
 }

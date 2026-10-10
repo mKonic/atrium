@@ -12,7 +12,7 @@ Item {
 
     // For screen readers (AT-SPI).
     Accessible.role: Accessible.Button
-    Accessible.name: "System menu"
+    Accessible.name: qsTr("System menu")
     Accessible.onPressAction: Panels.toggle("system")
 
     readonly property bool open: Panels.open === "system"

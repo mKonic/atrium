@@ -624,7 +624,7 @@ PanelWindow {
                 // The root advertises its one hop: Tab to Clipboard History.
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: lm.screen === "root" ? "Clipboard History" : (launcher.screenTitles[lm.screen] ?? "")
+                    text: lm.screen === "root" ? qsTr("Clipboard History") : (launcher.screenTitles[lm.screen] ?? "")
                     font.pointSize: Theme.font.size.smaller
                     color: Theme.palette.secondaryLabel
                 }
@@ -799,7 +799,7 @@ PanelWindow {
                     height: 36
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    text: "No Results"
+                    text: qsTr("No Results")
                     color: Theme.palette.secondaryLabel
                 }
 
@@ -855,7 +855,7 @@ PanelWindow {
                         leftPadding: 16
                         verticalAlignment: Text.AlignVCenter
                         visible: menuSearch.text.length === 0 && menuSearch.preeditText.length === 0
-                        text: launcher.menuSource === "filter" ? "Search types…" : "Search for actions…"
+                        text: launcher.menuSource === "filter" ? qsTr("Search types…") : qsTr("Search for actions…")
                         color: Theme.palette.tertiaryLabel
                     }
                 }
@@ -920,12 +920,12 @@ PanelWindow {
                         spacing: 10
 
                         DialogButton {
-                            text: "Cancel"
+                            text: qsTr("Cancel")
                             onClicked: launcher.confirming = null
                         }
 
                         DialogButton {
-                            text: "Confirm"
+                            text: qsTr("Confirm")
                             primary: true
                             onClicked: launcher.confirmNow()
                         }

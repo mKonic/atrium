@@ -1,4 +1,5 @@
 #include "logout.hpp"
+#include "i18n.hpp"
 
 #include "xsmp.hpp"
 
@@ -198,7 +199,10 @@ void Logout::cancel(const std::string& holdout) {
         server_.xsmp->cancel();
     const char* what = then_ == Then::Restart ? "Restart" : then_ == Then::ShutDown ? "Shut down" : "Log out";
     wlr_log(WLR_INFO, "logout: %s cancelled, %s didn't quit", what, holdout.c_str());
-    server_.notify(std::string(what) + " was cancelled", holdout + " didn't quit.");
+    const char* summary = then_ == Then::Restart    ? tr("Restart was cancelled")
+                          : then_ == Then::ShutDown ? tr("Shut down was cancelled")
+                                                    : tr("Log out was cancelled");
+    server_.notify(summary, trf("{} didn't quit.", holdout));
     // Not from inside this object's own timer.
     wl_event_loop_add_idle(server_.loop, [](void* d) { static_cast<Server*>(d)->logout.reset(); }, &server_);
 }

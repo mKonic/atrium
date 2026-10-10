@@ -14,9 +14,9 @@ PanelWindow {
 
     readonly property string action: Session.waitingFor
     readonly property var words: ({
-            "restart": { verb: "restart", button: "Restart Anyway", glyph: "restart_alt" },
-            "shutdown": { verb: "shut down", button: "Shut Down Anyway", glyph: "power_settings_new" },
-            "logout": { verb: "log out", button: "Log Out Anyway", glyph: "logout" }
+            "restart": { verb: "restart", button: qsTr("Restart Anyway"), glyph: "restart_alt" },
+            "shutdown": { verb: "shut down", button: qsTr("Shut Down Anyway"), glyph: "power_settings_new" },
+            "logout": { verb: "log out", button: qsTr("Log Out Anyway"), glyph: "logout" }
         })
     readonly property var w: words[action] ?? words.shutdown
     readonly property int count: Session.holdouts.length
@@ -82,7 +82,7 @@ PanelWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: root.count === 1 ? `${Session.holdouts[0]} hasn't quit`
+                text: root.count === 1 ? qsTr("%1 hasn't quit").arg(Session.holdouts[0])
                                        : `${root.count} apps haven't quit`
                 font.weight: Font.DemiBold
             }
@@ -99,7 +99,7 @@ PanelWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: (root.count === 1 ? "It may be asking about unsaved work. " : "They may be asking about unsaved work. ")
+                text: (root.count === 1 ? qsTr("It may be asking about unsaved work. ") : qsTr("They may be asking about unsaved work. "))
                       + (root.action === "logout" ? `If you do nothing, you will be logged out anyway in ${Session.waitingSeconds} seconds.`
                                                   : `If you do nothing, the computer will ${root.w.verb} anyway in ${Session.waitingSeconds} seconds.`)
                 font.pointSize: Theme.font.size.small
@@ -116,7 +116,7 @@ PanelWindow {
                 spacing: 10
 
                 DialogButton {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: Session.stopWaiting()
                 }
 

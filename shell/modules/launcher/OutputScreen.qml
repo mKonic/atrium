@@ -52,7 +52,7 @@ Item {
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
-            text: screen.launcherModel.outputRunning ? "Running" : screen.launcherModel.outputExit === 0 ? "Finished" : `Exited with ${screen.launcherModel.outputExit}`
+            text: screen.launcherModel.outputRunning ? qsTr("Running") : screen.launcherModel.outputExit === 0 ? qsTr("Finished") : qsTr("Exited with %1").arg(screen.launcherModel.outputExit)
             font.pointSize: Theme.font.size.smaller
             color: Theme.palette.secondaryLabel
         }

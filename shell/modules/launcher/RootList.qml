@@ -345,7 +345,7 @@ ListView {
 
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "No Results"
+            text: qsTr("No Results")
             color: Theme.palette.secondaryLabel
         }
     }

@@ -185,8 +185,8 @@ PanelWindow {
                 width: cc.greeter ? parent.width : main.span2
                 height: main.cell
                 icon: !Network.wifiEnabled ? "wifi_off" : cc.wifiNetwork ? "wifi" : "wifi_find"
-                title: "Wi-Fi"
-                subtitle: !Network.hasWifi ? "No Wi-Fi" : !Network.wifiEnabled ? "Off" : cc.wifiNetwork?.name ?? "Not connected"
+                title: qsTr("Wi-Fi")
+                subtitle: !Network.hasWifi ? qsTr("No Wi-Fi") : !Network.wifiEnabled ? qsTr("Off") : cc.wifiNetwork?.name ?? qsTr("Not connected")
                 on: Network.hasWifi && Network.wifiEnabled
                 expandable: Network.hasWifi
                 onToggled: Network.wifiEnabled = !Network.wifiEnabled
@@ -200,8 +200,8 @@ PanelWindow {
                 width: cc.greeter ? parent.width : main.span2
                 height: main.cell
                 icon: !cc.adapter?.enabled ? "bluetooth_disabled" : cc.adapter.connectedNames ? "bluetooth_connected" : "bluetooth"
-                title: "Bluetooth"
-                subtitle: !cc.adapter ? "No Bluetooth" : !cc.adapter.enabled ? "Off" : cc.adapter.connectedNames || "On"
+                title: qsTr("Bluetooth")
+                subtitle: !cc.adapter ? qsTr("No Bluetooth") : !cc.adapter.enabled ? qsTr("Off") : cc.adapter.connectedNames || qsTr("On")
                 on: cc.adapter?.enabled ?? false
                 expandable: !!cc.adapter
                 onToggled: if (cc.adapter) cc.adapter.enabled = !cc.adapter.enabled
@@ -226,7 +226,7 @@ PanelWindow {
                     width: main.cell
                     height: main.cell
                     icon: cc.dnd ? "do_not_disturb_on" : "do_not_disturb_off"
-                    title: cc.dnd ? "Do Not Disturb: On" : "Do Not Disturb"
+                    title: cc.dnd ? qsTr("Do Not Disturb: On") : qsTr("Do Not Disturb")
                     on: cc.dnd
                     onToggled: Atrium.setSetting("notifications.dnd", !cc.dnd)
                 }
@@ -236,7 +236,7 @@ PanelWindow {
                     width: main.cell
                     height: main.cell
                     icon: "nightlight"
-                    title: Atrium.nightLight.note || ((Atrium.nightLight.active ?? false) ? "Night Light: On" : "Night Light")
+                    title: Atrium.nightLight.note || ((Atrium.nightLight.active ?? false) ? qsTr("Night Light: On") : qsTr("Night Light"))
                     on: Atrium.nightLight.active ?? false
                     onToggled: Atrium.setNightLight(!(Atrium.nightLight.active ?? false))
                 }
@@ -246,7 +246,7 @@ PanelWindow {
                     width: main.cell
                     height: main.cell
                     icon: Recorder.recording ? "stop_circle" : "screen_record"
-                    title: Recorder.recording ? `Recording ${cc.formatTime(Recorder.seconds)}` : Recorder.available ? "Record Screen" : "Recording unavailable"
+                    title: Recorder.recording ? qsTr("Recording %1").arg(cc.formatTime(Recorder.seconds)) : Recorder.available ? qsTr("Record Screen") : qsTr("Recording unavailable")
                     on: Recorder.recording
                     onToggled: {
                         Panels.open = "";
@@ -259,7 +259,7 @@ PanelWindow {
                     width: main.cell
                     height: main.cell
                     icon: cc.profiles[cc.profile]?.icon ?? "bolt"
-                    title: `Power: ${cc.profiles[cc.profile]?.name ?? cc.profile}`
+                    title: qsTr("Power: %1").arg(cc.profiles[cc.profile]?.name ?? cc.profile)
                     on: cc.profile === "performance"
                     onToggled: Atrium.setSetting("power.profile", cc.profiles[cc.profile]?.next ?? "performance")
                 }
@@ -385,8 +385,8 @@ PanelWindow {
                 width: parent.width
                 height: main.cell
                 icon: "vpn_key"
-                title: cc.tunnel ? `VPN · ${cc.tunnel.name}` : "VPN"
-                subtitle: !cc.tunnel ? "Not set up"
+                title: cc.tunnel ? qsTr("VPN · %1").arg(cc.tunnel.name) : qsTr("VPN")
+                subtitle: !cc.tunnel ? qsTr("Not set up")
                           : cc.tunnel.error ? cc.tunnel.error
                           : cc.tunnel.busy ? "Connecting…"
                           : cc.tunnel.connected ? (cc.tunnel.location || "Connected")
@@ -413,7 +413,7 @@ PanelWindow {
                 SliderModule {
                     visible: Brightness.available
                     width: parent.width
-                    title: "Display"
+                    title: qsTr("Display")
                     lowIcon: "brightness_low"
                     highIcon: "brightness_high"
                     value: Brightness.value / 100
@@ -424,7 +424,7 @@ PanelWindow {
                 SliderModule {
                     visible: !!cc.sink
                     width: parent.width
-                    title: cc.sink?.label ? `Sound · ${cc.sink.label}` : "Sound"
+                    title: cc.sink?.label ? qsTr("Sound · %1").arg(cc.sink.label) : qsTr("Sound")
                     lowIcon: cc.sink?.muted ? "volume_off" : "volume_mute"
                     highIcon: "volume_up"
                     value: cc.sink?.muted ? 0 : cc.sink?.volume ?? 0
@@ -486,7 +486,7 @@ PanelWindow {
 
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: cc.page === "wifi" ? "Wi-Fi" : cc.page === "media" ? "Now Playing" : cc.page === "vpn" ? "VPN" : "Bluetooth"
+                        text: cc.page === "wifi" ? qsTr("Wi-Fi") : cc.page === "media" ? qsTr("Now Playing") : cc.page === "vpn" ? qsTr("VPN") : qsTr("Bluetooth")
                         font.pointSize: Theme.font.size.larger
                         font.weight: Font.DemiBold
                     }
@@ -524,7 +524,7 @@ PanelWindow {
                 // --- Wi-Fi ---
                 SectionLabel {
                     visible: cc.page === "wifi" && Network.wifiEnabled
-                    text: "Known Networks"
+                    text: qsTr("Known Networks")
                 }
 
                 Repeater {
@@ -535,7 +535,7 @@ PanelWindow {
 
                 Disclosure {
                     visible: cc.page === "wifi" && Network.wifiEnabled
-                    text: "Other Networks"
+                    text: qsTr("Other Networks")
                 }
 
                 Repeater {
@@ -547,7 +547,7 @@ PanelWindow {
                 // --- Bluetooth ---
                 SectionLabel {
                     visible: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false)
-                    text: "Devices"
+                    text: qsTr("Devices")
                 }
 
                 Repeater {
@@ -571,14 +571,14 @@ PanelWindow {
                     x: 14
                     topPadding: 4
                     bottomPadding: 8
-                    text: "No devices"
+                    text: qsTr("No devices")
                     color: Theme.palette.secondaryLabel
                 }
 
                 Disclosure {
                     visible: cc.page === "bluetooth" && (cc.adapter?.enabled ?? false)
-                    text: "Other Devices"
-                    note: cc.showOthers && cc.adapter?.discovering ? "Searching…" : ""
+                    text: qsTr("Other Devices")
+                    note: cc.showOthers && cc.adapter?.discovering ? qsTr("Searching…") : ""
                 }
 
                 Repeater {
@@ -601,7 +601,7 @@ PanelWindow {
                 // More than one: which is on.
                 SectionLabel {
                     visible: cc.page === "vpn" && Vpn.tunnels.length > 1
-                    text: "VPNs"
+                    text: qsTr("VPNs")
                 }
 
                 Repeater {
@@ -633,7 +633,7 @@ PanelWindow {
                 // Its servers: a country, or a city in it.
                 SectionLabel {
                     visible: cc.page === "vpn" && (cc.tunnel?.hasServers ?? false) && !cc.tunnel.countries[0]?.header
-                    text: "Location"
+                    text: qsTr("Location")
                 }
 
                 ListView {
@@ -666,7 +666,7 @@ PanelWindow {
                         Place {
                             name: country.modelData.name
                             chosen: country.here
-                            note: country.modelData.cities.length > 1 ? `${country.modelData.cities.length} cities` : country.modelData.cities[0]?.name ?? ""
+                            note: country.modelData.cities.length > 1 ? qsTr("%1 cities").arg(country.modelData.cities.length) : country.modelData.cities[0]?.name ?? ""
                             disclosable: country.modelData.cities.length > 1
                             disclosed: country.open
                             onClicked: cc.tunnel.choose(country.modelData.code)
@@ -682,7 +682,7 @@ PanelWindow {
                                 indent: 24
                                 name: modelData.name
                                 chosen: country.here && cc.tunnel?.city === modelData.code
-                                note: modelData.servers > 1 ? `${modelData.servers} servers` : ""
+                                note: modelData.servers > 1 ? qsTr("%1 servers").arg(modelData.servers) : ""
                                 onClicked: cc.tunnel.choose(country.modelData.code, modelData.code)
                             }
                         }
@@ -704,7 +704,7 @@ PanelWindow {
                     StyledText {
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: cc.page === "wifi" ? "Wi-Fi Settings…" : cc.page === "media" ? "Sound Settings…"
+                        text: cc.page === "wifi" ? qsTr("Wi-Fi Settings…") : cc.page === "media" ? qsTr("Sound Settings…")
                               : cc.page === "vpn" ? "VPN Settings…" : "Bluetooth Settings…"
                     }
 
@@ -801,7 +801,7 @@ PanelWindow {
                             StyledText {
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: !password.text
-                                text: cc.joinError || "Password"
+                                text: cc.joinError || qsTr("Password")
                                 color: cc.joinError ? Theme.palette.red : Theme.palette.tertiaryLabel
                                 font.pointSize: Theme.font.size.small
                             }

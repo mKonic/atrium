@@ -12,9 +12,9 @@ PanelWindow {
 
     readonly property string action: Session.pending
     readonly property var words: ({
-            "restart": { verb: "restart", button: "Restart", glyph: "restart_alt" },
-            "shutdown": { verb: "shut down", button: "Shut Down", glyph: "power_settings_new" },
-            "logout": { verb: "log out", button: "Log Out", glyph: "logout" }
+            "restart": { verb: "restart", button: qsTr("Restart"), glyph: "restart_alt" },
+            "shutdown": { verb: "shut down", button: qsTr("Shut Down"), glyph: "power_settings_new" },
+            "logout": { verb: "log out", button: qsTr("Log Out"), glyph: "logout" }
         })
     readonly property var w: words[action] ?? words.shutdown
 
@@ -91,7 +91,7 @@ PanelWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: root.action === "logout" ? "Are you sure you want to quit all apps and log out now?"
+                text: root.action === "logout" ? qsTr("Are you sure you want to quit all apps and log out now?")
                                                : `Are you sure you want to ${root.w.verb} your computer now?`
                 font.weight: Font.DemiBold
             }
@@ -100,7 +100,7 @@ PanelWindow {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-                text: root.action === "logout" ? `If you do nothing, you will be logged out automatically in ${Session.secondsLeft} seconds.`
+                text: root.action === "logout" ? qsTr("If you do nothing, you will be logged out automatically in %1 seconds.").arg(Session.secondsLeft)
                                                : `If you do nothing, the computer will ${root.w.verb} automatically in ${Session.secondsLeft} seconds.`
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
@@ -112,7 +112,7 @@ PanelWindow {
                 spacing: 8
 
                 Switch {
-                    name: "Reopen windows when logging back in"
+                    name: qsTr("Reopen windows when logging back in")
                     anchors.verticalCenter: parent.verticalCenter
                     checked: Atrium.settings["session.reopen_windows"] ?? true
                     onToggled: Atrium.setSetting("session.reopen_windows", !checked)
@@ -120,7 +120,7 @@ PanelWindow {
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Reopen windows when logging back in"
+                    text: qsTr("Reopen windows when logging back in")
                     font.pointSize: Theme.font.size.small
                 }
             }
@@ -135,7 +135,7 @@ PanelWindow {
                 spacing: 10
 
                 DialogButton {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: Session.cancel()
                 }
 

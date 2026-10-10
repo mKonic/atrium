@@ -17,7 +17,7 @@ FloatingWindow {
     property string chosen
     readonly property var sources: tab === "screens" ? ShareChooser.screens : ShareChooser.windows
 
-    title: "Share Your Screen"
+    title: qsTr("Share Your Screen")
     color: Theme.palette.windowBackground
     implicitWidth: 760
     implicitHeight: 540
@@ -106,7 +106,7 @@ FloatingWindow {
         StyledText {
             anchors.centerIn: grid
             visible: root.sources.length === 0
-            text: "There is nothing to share."
+            text: qsTr("There is nothing to share.")
             color: Theme.palette.secondaryLabel
         }
 
@@ -131,7 +131,7 @@ FloatingWindow {
                 spacing: 10
 
                 PillButton {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: ShareChooser.cancel()
                 }
 
@@ -139,7 +139,7 @@ FloatingWindow {
                     primary: true
                     enabled: root.chosen !== ""
                     opacity: enabled ? 1 : 0.5
-                    text: "Share"
+                    text: qsTr("Share")
                     onClicked: ShareChooser.choose(root.chosen)
                 }
             }

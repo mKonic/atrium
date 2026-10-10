@@ -12,7 +12,7 @@ import shell.services
 ShellRoot {
     FloatingWindow {
         visible: true
-        title: "Application Not Responding"
+        title: qsTr("Application Not Responding")
         color: Theme.palette.windowBackground
         implicitWidth: card.width
         implicitHeight: card.height

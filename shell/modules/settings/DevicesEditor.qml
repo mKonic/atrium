@@ -60,11 +60,11 @@ Column {
             }
 
             title: modelData.name
-            subtitle: modelData.touchpad ? "Touchpad" : "Mouse"
+            subtitle: modelData.touchpad ? qsTr("Touchpad") : qsTr("Mouse")
             headerActions: [
                 PillButton {
                     visible: device.own
-                    text: "Use Shared Settings"
+                    text: qsTr("Use Shared Settings")
                     onClicked: Atrium.setDevice(device.modelData.name,
                                                 { speed: null, acceleration: null, natural_scroll: null, left_handed: null })
                 }
@@ -75,13 +75,13 @@ Column {
                 padding: 10
                 width: parent.width
                 wrapMode: Text.Wrap
-                text: "This device has nothing to adjust here (in a session inside another one, the pointer belongs to the outer one)."
+                text: qsTr("This device has nothing to adjust here (in a session inside another one, the pointer belongs to the outer one).")
                 color: Theme.palette.secondaryLabel
             }
 
             Row_ {
                 visible: device.can.speed ?? false
-                label: "Pointer speed"
+                label: qsTr("Pointer speed")
 
                 NumberControl {
                     value: device.modelData.speed ?? Atrium.settings["pointer.speed"] ?? 0
@@ -94,7 +94,7 @@ Column {
 
             Row_ {
                 visible: device.can.speed ?? false
-                label: "Acceleration"
+                label: qsTr("Acceleration")
 
                 ChoiceControl {
                     value: device.modelData.acceleration ?? Atrium.settings["pointer.acceleration"] ?? "adaptive"
@@ -105,10 +105,10 @@ Column {
 
             Row_ {
                 visible: device.can.natural_scroll ?? false
-                label: "Natural scrolling"
+                label: qsTr("Natural scrolling")
 
                 Switch {
-                    name: "Natural scrolling"
+                    name: qsTr("Natural scrolling")
                     checked: device.modelData.natural_scroll
                              ?? Atrium.settings[device.modelData.touchpad ? "touchpad.natural_scroll" : "pointer.natural_scroll"] ?? true
                     onToggled: device.set("natural_scroll", !checked)
@@ -117,10 +117,10 @@ Column {
 
             Row_ {
                 visible: device.can.left_handed ?? false
-                label: "Left-handed"
+                label: qsTr("Left-handed")
 
                 Switch {
-                    name: "Left-handed"
+                    name: qsTr("Left-handed")
                     checked: device.modelData.left_handed ?? Atrium.settings["pointer.left_handed"] ?? false
                     onToggled: device.set("left_handed", !checked)
                 }

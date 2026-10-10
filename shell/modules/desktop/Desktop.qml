@@ -100,19 +100,19 @@ PanelWindow {
             const p = desktop.menu?.path ?? "";
             if (!p)
                 return [
-                    { icon: "create_new_folder", text: "New Folder", run: () => files.newFolder() },
-                    { icon: "terminal", text: "Open Terminal Here", run: () => files.terminalHere() },
-                    { icon: "folder_open", text: "Open in Files", run: () => files.openFolder() }
+                    { icon: "create_new_folder", text: qsTr("New Folder"), run: () => files.newFolder() },
+                    { icon: "terminal", text: qsTr("Open Terminal Here"), run: () => files.terminalHere() },
+                    { icon: "folder_open", text: qsTr("Open in Files"), run: () => files.openFolder() }
                 ];
             const single = files.targets(p).length === 1;
             return [
-                { icon: "open_in_new", text: "Open", run: () => files.open(p) },
+                { icon: "open_in_new", text: qsTr("Open"), run: () => files.open(p) },
                 ...(single ? [
-                    { icon: "edit", text: "Rename", run: () => files.renaming = p },
-                    { icon: "content_copy", text: "Copy Path", run: () => files.copyPath(p) }
+                    { icon: "edit", text: qsTr("Rename"), run: () => files.renaming = p },
+                    { icon: "content_copy", text: qsTr("Copy Path"), run: () => files.copyPath(p) }
                 ] : []),
                 "-",
-                { icon: "delete", text: "Move to Trash", danger: true, run: () => files.trash(p) }
+                { icon: "delete", text: qsTr("Move to Trash"), danger: true, run: () => files.trash(p) }
             ];
         }
         onPicked: desktop.menu = null

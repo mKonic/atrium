@@ -69,7 +69,7 @@ Item {
     // For screen readers: the app, and whether (and how much) it's open.
     Accessible.role: Accessible.Button
     Accessible.name: name
-    Accessible.description: !running ? "" : windowCount > 1 ? `Running, ${windowCount} windows` : "Running"
+    Accessible.description: !running ? "" : windowCount > 1 ? qsTr("Running, %1 windows").arg(windowCount) : qsTr("Running")
     Accessible.onPressAction: activate()
 
     function activate(): void {
