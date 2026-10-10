@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+
+## [v0.3.0] - 2026-10-10
 ### Added
 - atrium-doctor (or `atrium doctor`): whether atrium and the Qt plugins around it still work with what's installed (a library gone, a Qt plugin built for another Qt, like qtengine after a Qt upgrade), and `--fix` to fix it: the latest release, else the latest atrium built from source; AUR packages rebuilt from the AUR. pacman says so after any update that breaks something, a notification says so at login, and when the shell can't start at all the doctor opens in a terminal.
 - Tap Super to show (Settings > Dock): a tap of Super alone brings out the menu bar, the Dock or both while they're out of sight (over a fullscreen app, on a tiled space, or with Hide the Dock), and another tap sends them away.
