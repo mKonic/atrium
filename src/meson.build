@@ -91,6 +91,16 @@ executable('atriumctl',
   install: true,
 )
 
+# Whether what atrium was built against is still what's installed, and
+# fixing it (tools/doctor): nothing but the C++ runtime, so it runs when
+# that has moved under atrium.
+executable('atrium-doctor', '../tools/doctor/main.cpp', '../tools/doctor/doctor_core.cpp',
+  '../shell/plugin/Atrium/updates_core.cpp',
+  include_directories: include_directories('../shell/plugin/Atrium'),
+  dependencies: [json],
+  install: true,
+)
+
 # atrium's own grim (tools/screenshot).
 executable('atrium-screenshot', '../tools/screenshot/main.cpp', '../tools/screenshot/shot_core.cpp', capture_client_protocols,
   include_directories: include_directories('../protocols'),

@@ -33,4 +33,20 @@ inline std::string terminal_run_args(const std::string& program) {
     return "-e";
 }
 
+// For `sh -c`: `command` (already quoted for sh) in `configured` (the
+// terminal setting, a command line) or, when that's empty, the first of
+// xdg-terminal-exec and kTerminals installed.
+inline std::string terminal_running(const std::string& configured, const std::string& command) {
+    if (!configured.empty()) {
+        const std::string program = configured.substr(0, configured.find(' '));
+        const std::string run = terminal_run_args(program.substr(program.rfind('/') + 1));
+        return "exec " + configured + (run.empty() ? "" : " " + run) + " " + command;
+    }
+    std::string out = "if command -v xdg-terminal-exec >/dev/null; then exec xdg-terminal-exec " + command + "; fi";
+    for (const Terminal& t : kTerminals)
+        out += std::string("; if command -v ") + t.program + " >/dev/null; then exec " + t.program +
+               (*t.run ? std::string(" ") + t.run : "") + " " + command + "; fi";
+    return out;
+}
+
 } // namespace atrium

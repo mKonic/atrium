@@ -3,6 +3,7 @@
 #include "child_watch.hpp"
 #include "paths.hpp"
 #include "server.hpp"
+#include "terminal.hpp"
 
 #include <csignal>
 #include <cstdlib>
@@ -182,8 +183,17 @@ void ShellProcess::exited(int status) {
         quick_failures_ = 0;
     else
         ++quick_failures_;
-    if (quick_failures_ == kSafeAfter)
+    if (quick_failures_ == kSafeAfter) {
         wlr_log(WLR_ERROR, "shell: keeps failing; next tries in safe mode (no effects)");
+        // Most often something it uses was updated without it (Qt): when
+        // atrium-doctor finds that, it opens in a terminal to fix it, as the
+        // shell isn't there to say so.
+        if (!doctor_offered_ && !server_.config.greeter) {
+            doctor_offered_ = true;
+            server_.spawn("atrium-doctor --brief | grep -q . && { " +
+                          terminal_running(server_.config.terminal, "atrium-doctor --shell-failed") + "; }");
+        }
+    }
     schedule(quick_failures_ == 0 ? 500 : std::min(30000, 1000 << std::min(quick_failures_ - 1, 5)));
 }
 

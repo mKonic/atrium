@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Checking that atrium works with what's installed...
+When = PostTransaction
+Exec = /usr/bin/atrium-doctor --brief

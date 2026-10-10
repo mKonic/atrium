@@ -1,9 +1,0 @@
-[Trigger]
-Operation = Upgrade
-Type = Package
-Target = qt6-base
-
-[Action]
-Description = Checking for AUR Qt plugins built for the old Qt...
-When = PostTransaction
-Exec = /usr/share/libalpm/scripts/atrium-qt-check after

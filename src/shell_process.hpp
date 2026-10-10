@@ -43,6 +43,7 @@ private:
     pid_t pid_ = -1;
     double started_ms_ = 0;
     int quick_failures_ = 0;
+    bool doctor_offered_ = false;  // atrium-doctor opened in a terminal this session
     static constexpr int kSafeAfter = 3;  // quick failures before safe mode
     int pipe_[2] = {-1, -1};  // the SIGCHLD handler reports the shell's exit here
     int watch_ = -1;

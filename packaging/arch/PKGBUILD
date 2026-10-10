@@ -92,10 +92,9 @@ package() {
   # scenefx is linked in and wlroots goes to /usr/lib/atrium (an install
   # script); their headers and pkg-config files stay out.
   meson install -C build --destdir "$pkgdir" --skip-subprojects
-  # Names the AUR Qt plugins (atrium's lock screen among them) left built
-  # for the old Qt when an upgrade moves Qt to a new minor version.
-  install -Dm755 "$srcdir/atrium/packaging/arch/atrium-qt-check" "$pkgdir/usr/share/libalpm/scripts/atrium-qt-check"
-  install -Dm644 -t "$pkgdir/usr/share/libalpm/hooks" "$srcdir"/atrium/packaging/arch/atrium-qt-{before,after}.hook
+  # After every pacman transaction: whether atrium, and the Qt plugins
+  # around it, still work with what's installed (atrium-doctor).
+  install -Dm644 -t "$pkgdir/usr/share/libalpm/hooks" "$srcdir/atrium/packaging/arch/atrium-doctor.hook"
   # Qt's symbols are versioned: built against Qt 6.N, the shell won't start
   # on an older one. Said here, pacman brings Qt up to date instead of
   # installing a desktop that can't start (a release on a system behind it).

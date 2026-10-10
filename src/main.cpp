@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <getopt.h>
+#include <cstring>
 #include <unistd.h>
 
 #ifdef ATRIUM_JOURNAL
@@ -24,6 +25,7 @@ void usage(const char* argv0) {
         "  -g, --greeter       the login screen, for atrium-login or greetd\n"
         "  -d, --debug         verbose logging\n"
         "  -v, --version       print the version and exit\n"
+        "      doctor          whether atrium works with what's installed (atrium-doctor)\n"
         "      --dump-schema   print the settings' pages, titles, descriptions and choices (JSON) and exit\n",
         argv0);
 }
@@ -31,6 +33,14 @@ void usage(const char* argv0) {
 } // namespace
 
 int main(int argc, char** argv) {
+    // `atrium doctor ...` is atrium-doctor, which runs even when atrium
+    // itself can't (it links nothing atrium does).
+    if (argc > 1 && std::strcmp(argv[1], "doctor") == 0) {
+        argv[1] = const_cast<char*>("atrium-doctor");
+        execvp(argv[1], argv + 1);
+        std::perror("atrium-doctor");
+        return 127;
+    }
     const char* startup = nullptr;
     const char* registry_file = std::getenv("ATRIUM_REGISTRY");
     bool debug = false;

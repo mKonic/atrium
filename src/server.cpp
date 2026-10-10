@@ -895,8 +895,12 @@ void Server::run(const char* startup_cmd) {
         start_phone_link();
         restore_power_and_brightness();
     }
-    if (!nested && !config.greeter)
+    if (!nested && !config.greeter) {
         note_last_session();
+        // Whether what atrium uses was updated without it: a notification
+        // once the shell is up when it was (atrium-doctor waits for that).
+        spawn("exec atrium-doctor --notify");
+    }
     // At the login screen, the input method for names in Chinese, Japanese
     // or Korean: fcitx5 with the machine's defaults (/etc/xdg/fcitx5), when
     // it's installed. Its own settings go in the runtime dir: one it saved

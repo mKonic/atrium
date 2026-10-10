@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- atrium-doctor (or `atrium doctor`): whether atrium and the Qt plugins around it still work with what's installed (a library gone, a Qt plugin built for another Qt, like qtengine after a Qt upgrade), and `--fix` to fix it: the latest release, else the latest atrium built from source; AUR packages rebuilt from the AUR. pacman says so after any update that breaks something, a notification says so at login, and when the shell can't start at all the doctor opens in a terminal.
 - Tap Super to show (Settings > Dock): a tap of Super alone brings out the menu bar, the Dock or both while they're out of sight (over a fullscreen app, on a tiled space, or with Hide the Dock), and another tap sends them away.
 - Settings > Accessibility with KWin's typing aids: sticky keys (a modifier pressed and let go applies to the next key or click, pressed twice it locks), slow keys (a key counts once held a moment) and bounce keys (a key pressed again straight away is ignored), each with its beeps.
 - Zoom, as KWin's: the screen magnified around the pointer with Super+Alt+= and Super+Alt+- (Super+Alt+8 turns it off and on) or Super+Ctrl and scroll, following the pointer proportionally or centred (Settings > Accessibility).
@@ -30,7 +31,6 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
 - The shell's icons going back to Breeze and the distribution logo to a generic icon when the Qt theme plugin didn't load (qtengine after a Qt upgrade): the shell keeps qtengine's icon theme without it, and finds loose icons in /usr/share/icons, where CachyOS keeps its logo.
-- An upgrade that moves Qt to a new version now names the AUR packages whose Qt plugins (atrium's lock screen, qtengine) need rebuilding for it.
 - Headsets whose mixer reports gain above its own 0 dB (the fifine H13) distorting into static at high volume: 100% is now the device's own 0 dB, and a level past it (raised before, or by another mixer) comes back down to it.
 - The text console flashing up between logging out and the login screen: the login screen now comes to the front before the session ends.
 - A black screen for a second or two after logging in when the session runs a different refresh rate or HDR than the login screen: atrium-login now brings the login screen up the way the last session set the displays, and the session takes the screen over without a modeset.
