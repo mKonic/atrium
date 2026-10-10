@@ -18,6 +18,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - With animations off, the shell's panels stop moving too, and apps are told to reduce motion.
 - Screen readers (Orca, through AT-SPI) can read and work the bar, Dock, launcher, Control Center, menus and Settings: every control has a name and a role.
 - atrium can be translated: the shell, Settings and the launcher follow the system language (Settings > Language & Region), live, with dates in it too; the catalogues are translations/atrium.ts and po/atrium.pot.
+- GTK 3 apps that draw their own title bar, and Chrome or Chromium set to their GTK look, get traffic lights in their own header bar, as GTK 4 apps already did.
 - Clipboard History (Super+V): pin entries (Ctrl+.) to keep them on top, past the history limit and Clear All, and paste one with Ctrl+1..0; show only text, images, files, colours, links or emails; copied colours drawn as a swatch; its actions in Ctrl+K.
 - Quicklinks import from and export to a JSON file in Settings > Launcher.
 - The launcher offers to search the web for what was typed, with Google, DuckDuckGo, Bing, Brave Search, Startpage or Ecosia (Settings > Launcher).
@@ -26,6 +27,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - External monitors' brightness no longer needs ddcutil: atrium talks DDC/CI to them itself, finds them faster and doesn't stall the screen while it looks.
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
+- GTK 3 apps logging theme errors for atrium's window buttons (GTK 4-only properties).
 - atrium crashing when a screen was plugged in while a window was opening, minimizing or changing size.
 - An empty Dock, and pins lost on the next change, after running a build whose settings had another shape: atrium adds the columns its settings need on every start.
 

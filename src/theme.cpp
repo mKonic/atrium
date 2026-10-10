@@ -31,6 +31,10 @@ using json = nlohmann::json;
 constexpr char kWindowControls[] = {
 #embed "../data/gtk/windowcontrols.css"
     , 0};
+// GTK 3's header bars have their own nodes (and no GTK 4 properties).
+constexpr char kWindowControlsGtk3[] = {
+#embed "../data/gtk/windowcontrols-gtk3.css"
+    , 0};
 constexpr char kGtk4[] = {
 #embed "../data/gtk/gtk-4.0.css"
     , 0};
@@ -162,7 +166,8 @@ void install_gtk_theme(bool light, std::string_view accent) {
 
     bool ok = write_if_changed(dir / "index.theme", kIndex);
     for (const char* v : {"gtk-4.0", "gtk-3.0"}) {
-        ok &= write_if_changed(dir / v / "windowcontrols.css", kWindowControls);
+        ok &= write_if_changed(dir / v / "windowcontrols.css",
+                               std::string_view(v) == "gtk-4.0" ? kWindowControls : kWindowControlsGtk3);
         ok &= write_if_changed(dir / v / "assets/close.svg", kCloseSvg);
         ok &= write_if_changed(dir / v / "assets/minimize.svg", kMinimizeSvg);
         ok &= write_if_changed(dir / v / "assets/maximize.svg", kMaximizeSvg);

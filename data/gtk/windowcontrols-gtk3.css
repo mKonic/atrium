@@ -1,0 +1,62 @@
+/* GTK 3's header-bar buttons (GTK 3 apps that draw their own title bar, and
+ * Chromium or Electron set to their GTK look), as windowcontrols.css does
+ * for GTK 4: 12px round buttons in macOS colours, the glyph on hover. GTK 3
+ * has no windowcontrols node: the buttons are .titlebutton in the bar, and
+ * the circle is the button itself. GTK 3 boxes don't take :hover, so the
+ * glyph shows on the button under the pointer only. */
+
+headerbar button.titlebutton,
+.titlebar button.titlebutton {
+  min-width: 12px;
+  min-height: 12px;
+  margin: 0 4px;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background-image: none;
+  box-shadow: inset 0 0 0 0.75px rgba(0, 0, 0, 0.2);
+  outline: none;
+}
+
+/* GTK's own icon stays, unseen: hidden, and its colour (symbolic icons
+ * follow it) clear for Chromium, which paints the icon itself. */
+headerbar button.titlebutton,
+.titlebar button.titlebutton {
+  color: transparent;
+}
+headerbar button.titlebutton image,
+.titlebar button.titlebutton image {
+  opacity: 0;
+}
+
+headerbar button.titlebutton.close,
+.titlebar button.titlebutton.close { background-color: #ff5f57; }
+headerbar button.titlebutton.minimize,
+.titlebar button.titlebutton.minimize { background-color: #febc2e; }
+headerbar button.titlebutton.maximize,
+.titlebar button.titlebutton.maximize { background-color: #28c840; }
+
+headerbar button.titlebutton.close:active,
+.titlebar button.titlebutton.close:active { background-color: #c74a44; }
+headerbar button.titlebutton.minimize:active,
+.titlebar button.titlebutton.minimize:active { background-color: #c69224; }
+headerbar button.titlebutton.maximize:active,
+.titlebar button.titlebutton.maximize:active { background-color: #1f9c32; }
+
+/* atrium's own glyphs, over the circle while it's hovered. */
+headerbar button.titlebutton:hover,
+.titlebar button.titlebutton:hover {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 8px 8px;
+}
+headerbar button.titlebutton.close:hover,
+.titlebar button.titlebutton.close:hover { background-image: url("assets/close.svg"); }
+headerbar button.titlebutton.minimize:hover,
+.titlebar button.titlebutton.minimize:hover { background-image: url("assets/minimize.svg"); }
+headerbar button.titlebutton.maximize:hover,
+.titlebar button.titlebutton.maximize:hover { background-image: url("assets/maximize.svg"); }
+
+/* Unfocused windows: gray, until hovered. */
+headerbar:backdrop button.titlebutton:not(:hover),
+.titlebar:backdrop button.titlebutton:not(:hover) { background-color: #45464c; }
