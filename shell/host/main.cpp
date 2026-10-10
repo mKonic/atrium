@@ -90,6 +90,20 @@ void pick_icon_theme() {
     }
 }
 
+// Unthemed icons, as the icon theme spec looks them up: loose files in
+// ~/.icons, each data dir's icons/ and /usr/share/pixmaps. Qt searches only
+// pixmaps, so a distribution logo at /usr/share/icons/<LOGO>.svg (CachyOS's)
+// was found only while a platform theme added the rest.
+void add_icon_base_dirs() {
+    QStringList dirs{QDir::homePath() + "/.icons"};
+    for (const QString& data : QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation))
+        dirs << data + "/icons";
+    for (const QString& dir : QIcon::fallbackSearchPaths())
+        if (!dirs.contains(dir))
+            dirs << dir;
+    QIcon::setFallbackSearchPaths(dirs);
+}
+
 // The fonts atrium brings along (Rubik, which Arch only has in the AUR):
 // installed, else the source tree's. Given to fontconfig before Qt starts,
 // not QFontDatabase::addApplicationFont: that registers a variable font's
@@ -199,6 +213,7 @@ int main(int argc, char** argv) {
     app.setQuitOnLastWindowClosed(false);
     app.setProperty("atriumShellDir", info.absolutePath());
     pick_icon_theme();
+    add_icon_base_dirs();
 
     QQmlEngine engine;
     // The Atrium modules: built next to this binary when it runs from the

@@ -27,6 +27,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - External monitors' brightness no longer needs ddcutil: atrium talks DDC/CI to them itself, finds them faster and doesn't stall the screen while it looks.
 - The Dock menu's Launch on the other graphics card is off unless turned on in Settings > Dock.
 ### Fixed
+- The distribution logo in the bar and About falling back to a generic icon when the Qt theme plugin didn't load (qtengine after a Qt upgrade): loose icons in /usr/share/icons, where CachyOS keeps its logo, are found without one.
+- An upgrade that moves Qt to a new version now names the AUR packages whose Qt plugins (atrium's lock screen, qtengine) need rebuilding for it.
 - Headsets whose mixer reports gain above its own 0 dB (the fifine H13) distorting into static at high volume: 100% is now the device's own 0 dB, and a level past it (raised before, or by another mixer) comes back down to it.
 - The text console flashing up between logging out and the login screen: the login screen now comes to the front before the session ends.
 - A black screen for a second or two after logging in when the session runs a different refresh rate or HDR than the login screen: atrium-login now brings the login screen up the way the last session set the displays, and the session takes the screen over without a modeset.
