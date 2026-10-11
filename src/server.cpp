@@ -1163,7 +1163,9 @@ void Server::update_outputs() {
     }
 
     // The cursor image can end up at 0,0 after outputs come back; re-place it.
+    const double fx = seat->cursor->x, fy = seat->cursor->y;
     wlr_cursor_move(seat->cursor, nullptr, 0, 0);
+    seat->log_jump("the screens changed", nullptr, fx, fy);
 
     wlr_output_manager_v1_set_configuration(output_manager, config_out);
     if (ipc)

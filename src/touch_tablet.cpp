@@ -195,8 +195,11 @@ void Seat::focus_for_touch(const Hit& hit) {
 void Seat::emulate_absolute(wlr_input_device* device, double x, double y, uint32_t time) {
     double lx, ly;
     wlr_cursor_absolute_to_layout_coords(cursor, device, x, y, &lx, &ly);
+    const double fx = cursor->x, fy = cursor->y;
     motion(time ? time : 1, device, lx - cursor->x, ly - cursor->y, lx - cursor->x, ly - cursor->y);
     wlr_seat_pointer_notify_frame(wlr);
+    log_jump("pen or touch working the pointer", device, fx, fy,
+             "absolute " + std::to_string(x) + "," + std::to_string(y));
 }
 
 void Seat::emulate_button(uint32_t button_code, bool pressed, uint32_t time) {
@@ -312,7 +315,10 @@ void Seat::tool_proximity(wlr_tablet_tool_proximity_event* e) {
     }
     if (!surface)
         return;
+    const double fx = cursor->x, fy = cursor->y;
     wlr_cursor_warp_absolute(cursor, &e->tablet->base, e->x, e->y);
+    log_jump("pen came into range", &e->tablet->base, fx, fy,
+             "tablet " + std::to_string(e->x) + "," + std::to_string(e->y));
     // The pointer leaves while the pen is there (as GNOME does), so the app
     // isn't torn between the two.
     wlr_seat_pointer_notify_clear_focus(wlr);
@@ -357,10 +363,14 @@ void Seat::tool_axis(wlr_tablet_tool_axis_event* e) {
             wlr_seat_pointer_notify_clear_focus(wlr);
             wlr_tablet_v2_tablet_tool_notify_proximity_in(tool->v2, tablet->v2, surface);
         }
+        const double fx = cursor->x, fy = cursor->y;
         if (tool->relative)
             wlr_cursor_move(cursor, &e->tablet->base, dx, dy);
         else
             wlr_cursor_warp_absolute(cursor, &e->tablet->base, tool->x, tool->y);
+        log_jump("pen moved", &e->tablet->base, fx, fy,
+                 "tablet " + std::to_string(tool->x) + "," + std::to_string(tool->y) + ", axes " +
+                     std::to_string(e->updated_axes));
         wlr_tablet_v2_tablet_tool_notify_motion(tool->v2, lx - ox, ly - oy);
         if (e->tool->pressure && (e->updated_axes & WLR_TABLET_TOOL_AXIS_PRESSURE))
             wlr_tablet_v2_tablet_tool_notify_pressure(tool->v2, e->pressure);

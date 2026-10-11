@@ -161,6 +161,13 @@ private:
     void new_constraint(wlr_pointer_constraint_v1* constraint);
     void activate_constraint(wlr_pointer_constraint_v1* constraint);
     void warp_to_constraint_hint();
+public:
+    // A cursor jump (one move of more than kJumpLog pixels) in the log, with
+    // what made it: finding the cause of jumps that don't happen on demand.
+    static constexpr double kJumpLog = 150;
+    void log_jump(const char* why, const wlr_input_device* device, double from_x, double from_y,
+                  const std::string& detail = {});
+private:
 
     friend struct KeyboardGroup;
 

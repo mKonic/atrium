@@ -668,8 +668,11 @@ void Eis::deactivate(std::optional<std::pair<double, double>> at) {
     for (eis_device* d : {s->pointer, s->absolute, s->keyboard})
         if (d)
             eis_device_stop_emulating(d);
-    if (at)
+    if (at) {
+        const double fx = server_.seat->cursor->x, fy = server_.seat->cursor->y;
         wlr_cursor_warp(server_.seat->cursor, nullptr, at->first, at->second);
+        server_.seat->log_jump("input capture ended", nullptr, fx, fy);
+    }
     server_.seat->set_default_cursor();
     server_.seat->refresh_pointer();
     if (server_.ipc)

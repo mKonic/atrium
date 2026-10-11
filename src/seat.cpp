@@ -131,6 +131,7 @@ Seat::Seat(Server& srv) : server(srv) {
     });
     cursor_motion_absolute_.connect(&cursor->events.motion_absolute,
         [this](wlr_pointer_motion_absolute_event* e) {
+            const double fx = cursor->x, fy = cursor->y;
             // Virtual pointers send time 0 and expect a warp.
             if (!e->time_msec)
                 wlr_cursor_warp_absolute(cursor, &e->pointer->base, e->x, e->y);
@@ -138,6 +139,9 @@ Seat::Seat(Server& srv) : server(srv) {
             wlr_cursor_absolute_to_layout_coords(cursor, &e->pointer->base, e->x, e->y, &lx, &ly);
             double dx = lx - cursor->x, dy = ly - cursor->y;
             motion(e->time_msec, &e->pointer->base, dx, dy, dx, dy);
+            char raw[96];
+            std::snprintf(raw, sizeof raw, "absolute %.4f,%.4f, time %u", e->x, e->y, e->time_msec);
+            log_jump("absolute pointer", &e->pointer->base, fx, fy, raw);
         });
     cursor_button_.connect(&cursor->events.button, [this](wlr_pointer_button_event* e) { button(e); });
     cursor_axis_.connect(&cursor->events.axis, [this](wlr_pointer_axis_event* e) { axis(e); });
@@ -1064,8 +1068,14 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
             }
         }
 
+        const double fx = cursor->x, fy = cursor->y;
         wlr_cursor_move(cursor, device, dx, dy);
+        char raw[96];
+        std::snprintf(raw, sizeof raw, "delta %.1f,%.1f (unaccelerated %.1f,%.1f)", dx, dy, dx_unaccel, dy_unaccel);
+        log_jump("pointer motion", device, fx, fy, raw);
+        const double cx = cursor->x, cy = cursor->y;
         hot_corner(time);
+        log_jump("hot corner push-back", nullptr, cx, cy);
         server.note_activity();
         if (server.config.shake_to_find && mode == Mode::Normal && shake_.feed(time, cursor->x, cursor->y))
             shake_grow();
@@ -1841,8 +1851,20 @@ void Seat::warp_to_constraint_hint() {
     double ox, oy;
     owner.view->surface_origin(ox, oy);
     const double sx = c->current.cursor_hint.x, sy = c->current.cursor_hint.y;
+    const double fx = cursor->x, fy = cursor->y;
     wlr_cursor_warp(cursor, nullptr, ox + sx, oy + sy);
     wlr_seat_pointer_warp(c->seat, sx, sy);
+    log_jump("pointer lock ended, to the app's hint", nullptr, fx, fy,
+             "hint " + std::to_string(sx) + "," + std::to_string(sy));
+}
+
+void Seat::log_jump(const char* why, const wlr_input_device* device, double from_x, double from_y,
+                    const std::string& detail) {
+    if (std::hypot(cursor->x - from_x, cursor->y - from_y) <= kJumpLog)
+        return;
+    wlr_log(WLR_ERROR, "cursor jumped %.0f,%.0f -> %.0f,%.0f: %s%s%s%s%s", from_x, from_y, cursor->x, cursor->y, why,
+            device ? " (" : "", device && device->name ? device->name : "", device ? ")" : "",
+            detail.empty() ? "" : ("; " + detail).c_str());
 }
 
 } // namespace atrium
