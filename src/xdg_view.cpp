@@ -22,9 +22,9 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
         geom.width = g.width;
         geom.height = g.height;
         handle_map();
-        if (toplevel->requested.fullscreen)
-            set_fullscreen(true);
-        else if (toplevel->requested.maximized)
+        if (!fullscreen && toplevel->scheduled.fullscreen)
+            send_fullscreen(false);  // told so before it mapped, and it took the request back
+        if (!fullscreen && toplevel->requested.maximized)
             set_maximized(true);
     });
     unmap_.connect(&s->events.unmap, [this](void*) { handle_unmap(); });
@@ -39,7 +39,7 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
     request_fullscreen_.connect(&toplevel->events.request_fullscreen, [this, reply](void*) {
         if (mapped && toplevel->requested.fullscreen != fullscreen)
             set_fullscreen(toplevel->requested.fullscreen);
-        else
+        else if (mapped || !toplevel->base->initialized || !announce_fullscreen())
             reply();
     });
     request_maximize_.connect(&toplevel->events.request_maximize, [this, reply](void*) {
@@ -109,8 +109,13 @@ void XdgView::commit() {
         // there. Otherwise reopen at the size the app last had, or let it
         // pick its own.
         remembered_ = server.placement_for(this);
-        const bool secret = server.focused_output && toplevel->app_id &&
-            !apply_rules(server.config.rules, toplevel->app_id, toplevel->title ? toplevel->title : "").secret.empty();
+        const RuleResult wish = toplevel->app_id
+            ? apply_rules(server.config.rules, toplevel->app_id, toplevel->title ? toplevel->title : "") : RuleResult{};
+        const bool secret = server.focused_output && !wish.secret.empty();
+        if (wish.fullscreen.value_or(false))
+            opens_fullscreen_ = true;
+        if (announce_fullscreen())
+            return;
         if (secret && !toplevel->parent) {
             const wlr_box f = geometry::secret_frame(server.focused_output->usable, server.config.secret_margin);
             wlr_xdg_toplevel_set_size(toplevel, f.width, std::max(1, f.height - (wants_ssd() ? Titlebar::kHeight : 0)));
@@ -198,6 +203,27 @@ void XdgView::send_activated(bool a) {
 
 void XdgView::send_maximized(bool m) {
     wlr_xdg_toplevel_set_maximized(toplevel, m);
+}
+
+// Opening fullscreen (it asked, or a rule says so): told before it maps, its
+// first frame is drawn that size, and it opens as it will be instead of
+// small and then jumping.
+bool XdgView::announce_fullscreen() {
+    Output* o = server.focused_output;
+    const bool f = o && (toplevel->requested.fullscreen || opens_fullscreen_);
+    if (f) {
+        wlr_xdg_toplevel_set_fullscreen(toplevel, true);
+        wlr_xdg_toplevel_set_size(toplevel, o->box.width, o->box.height);
+    } else if (toplevel->scheduled.fullscreen) {
+        wlr_xdg_toplevel_set_fullscreen(toplevel, false);  // it took the request back
+        wlr_xdg_toplevel_set_size(toplevel, 0, 0);
+        return true;
+    }
+    return f;
+}
+
+bool XdgView::asks_fullscreen() const {
+    return toplevel->requested.fullscreen;
 }
 
 void XdgView::send_fullscreen(bool f) {

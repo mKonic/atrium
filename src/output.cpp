@@ -594,9 +594,10 @@ void Output::refit_views() {
         else if (v->snapped)
             v->request_geometry(geometry::snap_box(usable, v->snapped, server.config.snap_gap));
     }
+    // Not under one still opening: it grows over the desktop as any window.
     wlr_scene_node_set_enabled(&fullscreen_bg->node,
         std::ranges::any_of(server.views, [this](View* v) {
-            return v->output == this && v->fullscreen_front() && v->visible();
+            return v->output == this && v->fullscreen_front() && v->visible() && !v->opening();
         }));
 }
 

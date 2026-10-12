@@ -126,6 +126,7 @@ public:
     void set_minimized(bool minimized);
     // Fullscreen and in front: over the panels, with the backdrop behind it.
     bool fullscreen_front() const { return fullscreen && !covered; }
+    bool opening() const { return opening_; }
     // The tree its tree belongs under: its space's windows, or their
     // fullscreen layer while it is fullscreen in front.
     wlr_scene_tree* home_tree() const;
@@ -225,6 +226,8 @@ protected:
     virtual void send_activated(bool activated) = 0;
     virtual void send_maximized(bool maximized) = 0;
     virtual void send_fullscreen(bool fullscreen) = 0;
+    // The app asked to open fullscreen.
+    virtual bool asks_fullscreen() const = 0;
     virtual void send_suspended(bool) {}
     virtual void notify_position() {}  // X11 windows are told where they are
     // True while the client has not yet acked the last size we asked for.
@@ -363,6 +366,7 @@ protected:
     void send_activated(bool activated) override;
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;
+    bool asks_fullscreen() const override;
     void send_suspended(bool suspended) override;
     bool awaiting_configure() const override;
     wlr_scene_tree* create_content(wlr_scene_tree* parent) override;
@@ -379,6 +383,8 @@ private:
 
     Listener<> commit_, map_, unmap_, destroy_;
     Listener<> request_fullscreen_, request_maximize_, request_minimize_;
+    bool opens_fullscreen_ = false;  // a rule's, known before it maps
+    bool announce_fullscreen();
     Listener<wlr_xdg_toplevel_move_event> request_move_;
     Listener<wlr_xdg_toplevel_resize_event> request_resize_;
     Listener<wlr_xdg_toplevel_show_window_menu_event> request_window_menu_;

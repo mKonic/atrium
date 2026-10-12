@@ -170,6 +170,8 @@ void View::handle_map() {
     server.notify_window(*this, "opened");
     if (wish.fullscreen.value_or(false))
         set_fullscreen(true, true);  // the user's rule
+    else if (asks_fullscreen())
+        set_fullscreen(true);
     else if (wish.maximized.value_or(false))
         set_maximized(true);
     else if (const SessionWindow* w = server.sessions ? server.sessions->restoring(this) : nullptr; w && w->fullscreen)
@@ -182,7 +184,7 @@ void View::handle_map() {
         snap(remembered_->snapped);
     remembered_.reset();
     // A new window of the app in front, with tabs preferred, opens as its tab.
-    if (!wish.fullscreen.value_or(false) && !wish.maximized.value_or(false))
+    if (!fullscreen && !wish.maximized.value_or(false))
         server.open_as_tab(this, front);
     // A window a rule sent to a space you aren't looking at opens quietly,
     // unless the rule says to follow it there (Hyprland's "workspace N" to
@@ -220,7 +222,11 @@ void View::handle_map() {
             opening_ = false;
             if (tree && !minimized)
                 wlr_scene_node_set_enabled(&tree->node, true);
+            if (fullscreen && output)
+                output->refit_views();  // its backdrop, held back till it landed
         });
+        if (fullscreen && output)
+            output->refit_views();
     }
     server.overview->view_mapped(this);
 }

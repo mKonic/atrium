@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Fixed
+- An app that opens fullscreen (an image viewer, a video player) no longer flickers between black and the wallpaper for half a second first: it opens at its fullscreen size and grows in over the desktop as any window does.
 
 ## [v0.3.0] - 2026-10-10
 ### Added

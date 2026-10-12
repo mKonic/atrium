@@ -117,9 +117,7 @@ void XwaylandView::map() {
     handle_map();
     if (unmanaged())
         return;
-    if (xsurface->fullscreen)
-        set_fullscreen(true);
-    else if (xsurface->maximized_horz && xsurface->maximized_vert)
+    if (!fullscreen && xsurface->maximized_horz && xsurface->maximized_vert)
         set_maximized(true);
     apply_states();
 }
@@ -226,6 +224,10 @@ void XwaylandView::send_activated(bool a) {
 
 void XwaylandView::send_maximized(bool m) {
     wlr_xwayland_surface_set_maximized(xsurface, m, m);
+}
+
+bool XwaylandView::asks_fullscreen() const {
+    return xsurface->fullscreen;
 }
 
 void XwaylandView::send_fullscreen(bool f) {

@@ -38,6 +38,7 @@ protected:
     void send_activated(bool activated) override;
     void send_maximized(bool maximized) override;
     void send_fullscreen(bool fullscreen) override;
+    bool asks_fullscreen() const override;
     void notify_position() override { configure(geom); }
     wlr_scene_tree* create_content(wlr_scene_tree* parent) override;
 
