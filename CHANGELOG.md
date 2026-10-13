@@ -14,6 +14,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Changed
 - The menu bar and the Dock now follow one rule for coming out and going away, timed against macOS and KDE Plasma. Out of sight (Hide the Dock, a tiled space, a fullscreen window), they come when the pointer rests on the very top or bottom row of the screen for a fifth of a second, anywhere along it, not at a touch in passing or with a button held; they stay while the pointer is in their strip, beside them too, or one of their menus is open, and go as soon as it leaves.
 ### Fixed
+- On a tiled space, windows sliding under the menu bar (a maximized one always, the tiles after the next change) or leaving an empty strip where the Dock had been: tiles now start below the bar and reach down into the Dock's room, whichever order things happen in.
 - Qt and KDE apps (Dolphin, for one) opening a title bar's height shorter every time they were closed and opened again.
 - An app that opens fullscreen (an image viewer, a video player) no longer flickers between black and the wallpaper for half a second first: it opens at its fullscreen size and grows in over the desktop as any window does.
 

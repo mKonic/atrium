@@ -559,6 +559,15 @@ void Output::arrange_layers() {
     if (!wlr_box_equal(&area, &usable)) {
         usable = area;
         refit_views();
+        // Tiles fill the usable area too: laid out again, or they keep the
+        // room of a Dock that has since stepped aside (or sit under one
+        // that came back).
+        std::vector<Space*> tiled;
+        for (View* v : server.views)
+            if (v->output == this && v->space && v->space->tiled && std::ranges::find(tiled, v->space) == tiled.end())
+                tiled.push_back(v->space);
+        for (Space* s : tiled)
+            server.retile(s);
     }
 
     for (int i = 3; i >= 0; --i)

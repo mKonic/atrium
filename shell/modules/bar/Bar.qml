@@ -19,7 +19,10 @@ PanelWindow {
     }
 
     implicitHeight: Theme.bar.height
-    exclusiveZone: tiled ? 0 : implicitHeight
+    // Its strip stays its own on a tiled space too, where only the space
+    // pill is left in it: tiles never go under the bar, and nothing shifts
+    // when a space changes between tiling and floating.
+    exclusiveZone: implicitHeight
     color: "transparent"
     WlrLayershell.namespace: "atrium-bar"
 
