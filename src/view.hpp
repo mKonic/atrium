@@ -1,4 +1,5 @@
 #pragma once
+#include "decoration_core.hpp"
 #include "listener.hpp"
 #include "placements.hpp"
 #include "titlebar.hpp"
@@ -391,6 +392,7 @@ private:
     Listener<> set_title_, set_app_id_, pong_;
     Listener<> decoration_request_, decoration_destroy_;
     Listener<> kde_mode_, kde_destroy_;
+    DecorationLatch decoration_latch_;
 };
 
 // window_hints.cpp

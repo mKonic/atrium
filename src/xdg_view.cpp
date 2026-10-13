@@ -27,7 +27,10 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
         if (!fullscreen && toplevel->requested.maximized)
             set_maximized(true);
     });
-    unmap_.connect(&s->events.unmap, [this](void*) { handle_unmap(); });
+    unmap_.connect(&s->events.unmap, [this](void*) {
+        decoration_latch_.unmapped();
+        handle_unmap();
+    });
     destroy_.connect(&toplevel->events.destroy, [this](void*) { delete this; });
 
     // xdg-shell wants a configure in reply to every state request, even one
@@ -128,6 +131,10 @@ void XdgView::commit() {
     }
     if (!mapped)
         return;
+
+    // A decoration object the client dropped (decoration_core.hpp).
+    if (decoration_latch_.commit(true))
+        refresh_decoration_mode();
 
     // Crop to the window geometry: client-side shadows are the client's
     // business, ours are drawn by the compositor.
@@ -249,7 +256,7 @@ void XdgView::set_decoration(wlr_xdg_toplevel_decoration_v1* d) {
         decoration_ = nullptr;
         decoration_request_.disconnect();
         decoration_destroy_.disconnect();
-        refresh_decoration_mode();
+        decoration_latch_.dropped();
     });
     apply_decoration_mode();
 }
@@ -261,7 +268,7 @@ void XdgView::set_kde_decoration(wlr_server_decoration* d) {
         kde_decoration_ = nullptr;
         kde_mode_.disconnect();
         kde_destroy_.disconnect();
-        refresh_decoration_mode();
+        decoration_latch_.dropped();
     });
     refresh_decoration_mode();
 }
