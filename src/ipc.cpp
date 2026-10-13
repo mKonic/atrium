@@ -837,6 +837,8 @@ json Ipc::handle(Client& c, const json& req) {
                 {"mode", {{"width", o->wlr->width}, {"height", o->wlr->height}, {"refresh", o->wlr->refresh}}},
                 {"modes", modes},
                 {"scale", o->wlr->scale},
+                {"edge", server_.seat->edge_on(o->wlr->name)},
+                {"panel_band", {{"top", o->panel_band[0]}, {"bottom", o->panel_band[1]}}},
                 {"transform", int(o->wlr->transform)},
                 {"refresh", o->wlr->refresh / 1000.0},
                 {"focused", o == server_.focused_output},
@@ -983,6 +985,21 @@ json Ipc::handle(Client& c, const json& req) {
         }
         server_.dock_icons[req["output"].get<std::string>()] = std::move(icons);
         return ok();
+    }
+    if (cmd == "panel.band") {
+        // {output, edge: "top"|"bottom", size}: how deep the panel there is.
+        if (!req.contains("output") || !req["output"].is_string() || !req.contains("edge") || !req["edge"].is_string() ||
+            !req.contains("size") || !req["size"].is_number_integer())
+            return fail("panel.band needs \"output\", \"edge\" and \"size\"");
+        const std::string edge = req["edge"];
+        if (edge != "top" && edge != "bottom")
+            return fail("panel.band's edge is \"top\" or \"bottom\"");
+        for (Output* o : server_.outputs)
+            if (o->wlr->name == req["output"].get<std::string>()) {
+                o->panel_band[edge == "bottom"] = std::max(1, req["size"].get<int>());
+                return ok();
+            }
+        return fail("no such output");
     }
     if (cmd == "night_light")
         return server_.night_light ? ok(server_.night_light->state()) : fail("no night light here");

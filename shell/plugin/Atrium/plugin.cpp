@@ -56,6 +56,7 @@
 #include "compositor.hpp"
 #include "notifications.hpp"
 #include "notification_server.hpp"
+#include "reveal.hpp"
 #include "views.hpp"
 #include "search.hpp"
 
@@ -308,6 +309,7 @@ public:
                                          [](QQmlEngine*, QJSEngine*) -> QObject* { return new Emojis; });
         qmlRegisterType<NetSpeed>(uri, 1, 0, "NetSpeed");
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
+        qmlRegisterType<PanelReveal>(uri, 1, 0, "PanelReveal");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
         qmlRegisterType<LauncherModel>(uri, 1, 0, "LauncherModel");

@@ -127,6 +127,9 @@ public:
     // Where the Dock on `output` shows each app ({x, y, width, height, windows}):
     // minimised windows shrink into their icon.
     Q_INVOKABLE void setDockIcons(const QString& output, const QVariantList& icons);
+    // How deep the panel at an output's "top" or "bottom" is, for the pointer
+    // keeping it out (src/panel_edge_core.hpp).
+    Q_INVOKABLE void setPanelBand(const QString& output, const QString& edge, int size);
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
     // A display's mode, scale, rotation, place or power: { width, height,
     // refresh, scale, transform, x, y, enabled }.

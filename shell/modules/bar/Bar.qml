@@ -23,25 +23,39 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "atrium-bar"
 
-    // Over a fullscreen app the bar hides above the screen and slides in
-    // when the pointer reaches the top edge, as macOS's menu bar does.
+    // Out of sight over a fullscreen app, and down to its space pill on a
+    // tiled space, until the pointer rests at the top of the screen, as
+    // macOS's menu bar: PanelReveal has the rule, the same as the Dock's.
     readonly property bool fullscreen: output.fullscreen
+    readonly property bool tiled: output.tiled && !fullscreen
 
     OutputState {
         id: output
 
         name: bar.screen?.name ?? ""
     }
-    property bool revealed: !fullscreen
-    readonly property bool tiled: output.tiled && !fullscreen
-    // The whole bar, or just the space pill.
-    readonly property bool chrome: !tiled || hover.hovered || summoned.running
 
-    onFullscreenChanged: revealed = !fullscreen
+    PanelReveal {
+        id: reveal
+
+        hides: bar.fullscreen || bar.tiled
+        edge: output.edge === "top"
+        hovered: hover.hovered
+        // The panels it opens are on the screen with the keyboard.
+        held: Panels.open !== "" && Atrium.focusedOutput?.name === output.name
+    }
+
+    readonly property bool revealed: !fullscreen || reveal.out
+    // The whole bar, or just the space pill.
+    readonly property bool chrome: !tiled || reveal.out
+
+    // How deep it is, for the pointer keeping it out.
+    readonly property string band: output.name + implicitHeight
+    onBandChanged: Atrium.setPanelBand(output.name, "top", implicitHeight)
 
     // Over a fullscreen app it waits under the app while hidden (so the app
     // keeps its whole screen, pointer and direct scanout) and comes over when
-    // the pointer reaches the top edge.
+    // brought out.
     // Lifted over it only once brought over; going fullscreen it slides away
     // under the app, never flashing over it.
     property bool lifted: false
@@ -53,42 +67,16 @@ PanelWindow {
     Connections {
         target: output
 
-        function onEdgeChanged() {
-            if (!bar.fullscreen)
-                return;
-            if (output.edge === "top")
-                bar.revealed = true;
-            else if (!hover.hovered)
-                hideTimer.restart();
-        }
-
-        // A tap of Super (Settings > Dock > Tap Super to show): out of sight
-        // over a fullscreen app, or just its space pill on a tiled space, the
-        // bar comes for a few seconds, and stays while used; out, it goes.
+        // A tap of Super (Settings > Dock > Tap Super to show).
         function onBarSummoned() {
-            if (!bar.fullscreen && !bar.tiled)
-                return;
-            if (summoned.running || (bar.fullscreen && bar.revealed)) {
-                summoned.stop();
-                bar.revealed = !bar.fullscreen;
-                return;
-            }
-            bar.revealed = true;
-            summoned.restart();
+            reveal.summon();
         }
     }
 
-    Timer {
-        id: summoned
-
-        interval: 3000
-        onTriggered: if (!hover.hovered) hideTimer.restart()
-    }
-
-    // All of the bar's place once revealed (its content is still sliding in
-    // from above then), just the top edge while hidden.
+    // All of the bar's place once out (its content is still sliding in from
+    // above then); hidden, nothing but the space pill a tiled space leaves.
     mask: Region {
-        item: bar.revealed ? place : edge
+        item: bar.revealed && bar.chrome ? place : bar.tiled ? spaces : null
     }
 
     Item {
@@ -99,31 +87,6 @@ PanelWindow {
 
     HoverHandler {
         id: hover
-
-        onHoveredChanged: {
-            if (hovered) {
-                bar.revealed = true;
-            } else if (bar.fullscreen) {
-                summoned.stop();
-                hideTimer.restart();
-            }
-        }
-    }
-
-    Timer {
-        id: hideTimer
-
-        interval: 450
-        onTriggered: bar.revealed = !bar.fullscreen || hover.hovered || output.edge === "top" || summoned.running
-    }
-
-    Item {
-        id: edge
-
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 2
     }
 
     Item {

@@ -249,9 +249,7 @@ Seat::Seat(Server& srv) : server(srv) {
     keyboards_ = std::make_unique<KeyboardGroup>(*this, false);
 
     edge_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
-        auto* self = static_cast<Seat*>(data);
-        self->edge_held_ = true;
-        self->reach_edge();
+        static_cast<Seat*>(data)->reach_edge();
         return 0;
     }, this);
 }
@@ -919,13 +917,10 @@ int Seat::key_repeat(KeyboardGroup& g) {
 
 // --- pointer -------------------------------------------------------------------
 
-// Over a window made fullscreen with the green button (or a shortcut) the
-// bar and the Dock wait under it, out of the way of its pointer (and of
-// direct scanout); holding the pointer against the top or bottom of that
-// screen for a moment tells the shell to bring them over, as macOS does.
-// Not over fullscreen the app asked for itself (a video, a game: an RTS
-// scrolls at the edges), nor while the app holds the pointer, as Windows,
-// GNOME and KDE do; a tap of Mod brings the bar there instead.
+// The bar and the Dock, out of sight (over a fullscreen window, on a tiled
+// space, or set to hide), come when the pointer has rested on the top or
+// bottom row of their screen: panel_edge_core.hpp has the rule. The shell
+// hears which edge, and brings them out.
 bool Seat::is_mod_key(xkb_keysym_t sym) const {
     switch (server.config.mod) {
     case WLR_MODIFIER_LOGO: return sym == XKB_KEY_Super_L || sym == XKB_KEY_Super_R;
@@ -936,52 +931,47 @@ bool Seat::is_mod_key(xkb_keysym_t sym) const {
 }
 
 void Seat::reach_edge() {
-    const char* edge = nullptr;
-    Output* o = server.output_at(cursor->x, cursor->y);
-    if (o && !active_constraint_ && o->fullscreen_bg->node.enabled) {
-        // On a title bar brought out below the menu bar counts as the top:
-        // both stay while it is used.
-        int revealed = 0;
-        bool by_user = false;
-        for (View* v : server.views)
-            if (v->output == o && v->visible()) {
-                revealed = std::max(revealed, v->revealed_titlebar_bottom());
-                if (v->fullscreen_front())
-                    by_user = by_user || v->fullscreen_by_user;
-            }
-        if (by_user && cursor->y < o->box.y + std::max(1, revealed))
-            edge = "top";
-        else if (by_user && cursor->y >= o->box.y + o->box.height - 1)
-            edge = "bottom";
-    }
-    const std::string at = edge ? o->wlr->name : "";
-    if (edge == edge_reached_ && at == edge_output_) {
-        edge_pending_ = nullptr;
-        return;
-    }
-    // Arriving waits a moment, so passing over the edge doesn't count; going
-    // from one revealed edge to leaving it doesn't.
-    if (edge && !edge_reached_) {
-        if (edge != edge_pending_ || at != edge_pending_output_) {
-            edge_pending_ = edge;
-            edge_pending_output_ = at;
-            wl_event_source_timer_update(edge_timer_, kEdgeHoldMs);
-            return;
+    Output* o = server.locked ? nullptr : server.output_at(cursor->x, cursor->y);
+    panel_edge::Pointer p;
+    if (o) {
+        p.screen = int(std::ranges::find(server.outputs, o) - server.outputs.begin());
+        p.top = o->box.y;
+        p.bottom = o->box.y + o->box.height;
+        p.y = cursor->y;
+        p.blocked = active_constraint_ || (wlr->pointer_state.button_count > 0 && !wlr->drag);
+        p.top_band = o->panel_band[0];
+        p.bottom_band = o->panel_band[1];
+        if (o->fullscreen_bg->node.enabled) {
+            // Only fullscreen the user started gives its edges up; a title
+            // bar brought out below the menu bar is part of the top.
+            p.over = panel_edge::Over::AppFullscreen;
+            for (View* v : server.views)
+                if (v->output == o && v->visible()) {
+                    p.top_band = std::max(p.top_band, v->revealed_titlebar_bottom());
+                    if (v->fullscreen_front() && v->fullscreen_by_user)
+                        p.over = panel_edge::Over::UserFullscreen;
+                }
         }
-        if (!edge_held_)
-            return;
     }
-    edge_pending_ = nullptr;
-    edge_held_ = false;
-    wl_event_source_timer_update(edge_timer_, 0);
-    // Leaving says so too ("" on the screen it left), so a bar brought over
-    // stays while the pointer rests on the edge.
+    timespec ts{};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    const double now = double(ts.tv_sec) * 1000 + double(ts.tv_nsec) / 1e6;
+    const panel_edge::Edge was = edge_.reached();
+    const panel_edge::Edge is = edge_.update(p, now);
+    const auto wake = edge_.wake_in(now);
+    wl_event_source_timer_update(edge_timer_, wake ? int(std::ceil(*wake)) : 0);
+
+    const std::string at = is != panel_edge::Edge::None ? o->wlr->name : "";
+    if (is == was && at == edge_output_)
+        return;
+    // Leaving says so too ("" on the screen it left), so a panel brought
+    // out goes when the pointer is done with it.
     if (!edge_output_.empty() && at != edge_output_ && server.ipc)
         server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", edge_output_}, {"edge", ""}});
-    edge_reached_ = edge;
     edge_output_ = at;
-    if (edge && server.ipc)
-        server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", at}, {"edge", edge}});
+    if (is != panel_edge::Edge::None && server.ipc)
+        server.ipc->broadcast("outputs", {{"event", "output.edge"}, {"output", at},
+                                          {"edge", is == panel_edge::Edge::Top ? "top" : "bottom"}});
 }
 
 // KWin's Edge::activatesForPointer and checkBlocking: not while the pointer

@@ -46,6 +46,9 @@ public:
 
     wlr_box box{};     // whole output, layout coordinates
     wlr_box usable{};  // box minus exclusive zones of panels and docks
+    // How deep the shell's panels at the top and the bottom are: where the
+    // pointer keeps one it brought out (panel_edge_core.hpp).
+    std::array<int, 2> panel_band{1, 1};
     std::array<hot_corners::Edge, 4> corners;  // its hot corners, by hot_corners::Corner
 
     std::vector<LayerSurface*> layers[4];  // indexed by zwlr_layer_shell_v1_layer

@@ -636,6 +636,11 @@ void Compositor::setDockIcons(const QString& output, const QVariantList& icons) 
     change({{"cmd", "dock.icons"}, {"output", output}, {"icons", QJsonArray::fromVariantList(icons)}});
 }
 
+void Compositor::setPanelBand(const QString& output, const QString& edge, int size) {
+    if (!output.isEmpty())
+        change({{"cmd", "panel.band"}, {"output", output}, {"edge", edge}, {"size", size}});
+}
+
 void Compositor::setPinned(const QString& appId, bool pinned) {
     QStringList pins = dockPins();
     if (pinned == pins.contains(appId))

@@ -15,6 +15,7 @@ atrium_sources = files(
   'popup_blur.cpp',
   'icc_core.cpp',
   'hot_corners_core.cpp',
+  'panel_edge_core.cpp',
   'button_remap.cpp',
   'eis_core.cpp',
   'eis.cpp',

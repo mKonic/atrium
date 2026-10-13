@@ -2,6 +2,7 @@
 #include "access_keys_core.hpp"
 #include "config.hpp"
 #include "listener.hpp"
+#include "panel_edge_core.hpp"
 #include "shake.hpp"
 
 #include <array>
@@ -40,6 +41,13 @@ struct KeyboardGroup {
 
 class Seat {
 public:
+    // The edge of that screen the pointer has reached ("top", "bottom" or ""),
+    // as the shell last heard it.
+    std::string edge_on(const std::string& output) const {
+        if (output != edge_output_ || edge_.reached() == panel_edge::Edge::None)
+            return "";
+        return edge_.reached() == panel_edge::Edge::Top ? "top" : "bottom";
+    }
     explicit Seat(Server& server);
     ~Seat();
     Seat(const Seat&) = delete;
@@ -217,13 +225,10 @@ private:
     bool edge_carried_ = false;
     void push_edge(double dx);
     void hot_corner(uint32_t time);
-    const char* edge_reached_ = nullptr;  // screen edge the pointer rests on over a fullscreen app
-    std::string edge_output_;             // ... and its screen's name
-    // Arriving at an edge counts once the pointer has stayed there a moment.
-    static constexpr int kEdgeHoldMs = 400;
-    const char* edge_pending_ = nullptr;
-    std::string edge_pending_output_;
-    bool edge_held_ = false;
+    // The screen edge the pointer has reached, for the panel hidden there
+    // (panel_edge_core.hpp), and the screen's name.
+    panel_edge::Tracker edge_;
+    std::string edge_output_;
     wl_event_source* edge_timer_ = nullptr;
     void reach_edge();
     uint32_t mod_tap_ = 0;  // the Mod key pressed alone, a tap if released so

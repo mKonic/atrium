@@ -73,7 +73,8 @@ PanelWindow {
     property var menuItem: null
 
     // Out of sight over a fullscreen app or a tiled space (or always, with
-    // dock.autohide) until the pointer reaches the bottom edge.
+    // dock.autohide) until the pointer rests at the bottom of the screen, as
+    // macOS's Dock: PanelReveal has the rule, the same as the menu bar's.
     readonly property bool fullscreen: output.fullscreen
 
     OutputState {
@@ -84,16 +85,27 @@ PanelWindow {
     readonly property bool autohide: Atrium.settings["dock.autohide"] ?? false
     // Nothing pinned and nothing open: no Dock at all, not an empty shelf.
     readonly property bool empty: dockApps.count === 0
-    // One Dock, on DockPlace.screen; the other screens keep only the edge
-    // that brings it over.
-    readonly property bool home: (Atrium.settings["dock.every_screen"] ?? false) || DockPlace.screen === (screen?.name ?? "")
-    readonly property bool hides: fullscreen || output.tiled || autohide || empty || !home
-    property bool revealed: !hides
+    // One Dock, on DockPlace.screen (dock.every_screen puts one on each).
+    readonly property bool home: (Atrium.settings["dock.every_screen"] ?? false) || DockPlace.screen === output.name
+    readonly property bool hides: fullscreen || output.tiled || autohide || !home
 
-    onHidesChanged: revealed = !hides
+    PanelReveal {
+        id: reveal
+
+        hides: dock.hides
+        edge: dock.home && output.edge === "bottom"
+        hovered: dock.home && hover.hovered
+        held: dock.menuItem !== null || dock.dragItem !== null
+    }
+
+    readonly property bool revealed: reveal.out && home && !empty
+
+    // How deep it is, for the pointer keeping it out.
+    readonly property string band: output.name + shelfHeight
+    onBandChanged: Atrium.setPanelBand(output.name, "bottom", shelfHeight + gap)
 
     // Hidden over a fullscreen app it waits under the app, and comes over
-    // when the pointer reaches the bottom edge (see Bar.qml).
+    // when brought out (see Bar.qml).
     // Still sliding out counts as shown: it drops under the app once gone.
     readonly property bool shelfShown: shelf.anchors.bottomMargin > -(shelfHeight + 4)
     // Lifted over it only once brought over; going fullscreen it slides away
@@ -107,88 +119,25 @@ PanelWindow {
     Connections {
         target: output
 
-        function onEdgeChanged() {
-            if (!dock.fullscreen || !dock.home)
-                return;
-            if (output.edge === "bottom")
-                dock.revealed = !dock.empty;
-            else if (!hover.hovered && !dock.menuItem)
-                hideTimer.restart();
-        }
-
-        // A tap of Super (Settings > Dock > Tap Super to show): out of sight,
-        // the Dock comes for a few seconds (to this screen, when there is
-        // one Dock), and stays while used; out, it goes.
+        // A tap of Super (Settings > Dock > Tap Super to show); with one
+        // Dock, it comes to this screen.
         function onDockSummoned() {
             if (dock.empty)
                 return;
-            if (!dock.home)
-                DockPlace.screen = dock.screen?.name ?? "";
-            if (!dock.hides)
-                return;
-            if (dock.revealed && !dock.menuItem) {
-                summoned.stop();
-                dock.revealed = false;
-                return;
-            }
-            dock.revealed = true;
-            summoned.restart();
+            DockPlace.screen = output.name;
+            reveal.summon();
         }
-    }
-
-    Timer {
-        id: summoned
-
-        interval: 3000
-        onTriggered: if (!hover.hovered && !dock.menuItem) hideTimer.restart()
     }
 
     HoverHandler {
         id: hover
-
-        onHoveredChanged: {
-            if (!dock.home) {
-                // Resting at the bottom of this screen moves the Dock here.
-                claimTimer.running = hovered;
-                return;
-            }
-            if (hovered) {
-                dock.revealed = !dock.empty;
-            } else if (dock.hides && !dock.menuItem) {
-                summoned.stop();
-                hideTimer.restart();
-            }
-        }
     }
 
+    // Resting at the bottom of another screen moves the Dock there.
     Timer {
-        id: claimTimer
-
-        interval: 500
-        onTriggered: DockPlace.screen = dock.screen?.name ?? ""
-    }
-
-    onHomeChanged: if (home && hover.hovered) revealed = !empty
-
-    Timer {
-        id: hideTimer
-
-        interval: 450
-        onTriggered: dock.revealed = !dock.empty && (!dock.hides || hover.hovered || dock.menuItem !== null || summoned.running || (dock.fullscreen && output.edge === "bottom"))
-    }
-
-    onMenuItemChanged: {
-        if (!menuItem && hides && !hover.hovered)
-            hideTimer.restart();
-    }
-
-    Item {
-        id: edge
-
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 2
+        interval: 300
+        running: !dock.home && output.edge === "bottom"
+        onTriggered: DockPlace.screen = output.name
     }
 
     // Where the shelf rests plus the gap under it down to the screen edge,
@@ -204,8 +153,7 @@ PanelWindow {
     }
 
     anchors.bottom: true
-    // Away from its screen, the whole bottom edge brings it over.
-    implicitWidth: home ? Math.max(shelf.width + 40, menu.width + 40) : (screen?.width ?? 0)
+    implicitWidth: Math.max(shelf.width + 40, menu.width + 40)
     // Room above the shelf for the hovered app's name, magnified icons and
     // its menu, however many rows that has.
     implicitHeight: shelfHeight + gap + Math.max(150, menu.height + menu.anchors.bottomMargin + 16)
@@ -216,7 +164,7 @@ PanelWindow {
     WlrLayershell.keyboardFocus: menuItem ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     mask: Region {
-        item: dock.revealed ? reach : edge
+        item: dock.revealed ? reach : null
 
         Region {
             item: dock.menuItem ? menu : null
