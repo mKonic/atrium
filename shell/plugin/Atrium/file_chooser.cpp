@@ -190,6 +190,12 @@ QVariantMap FileChooser::accept(const QStringList& picked, const QString& folder
     return {};
 }
 
+QVariantMap FileChooser::activate(const QString& item, const QString& folder, const QString& name) {
+    if (QFileInfo(item).isDir())
+        return {{"enter", item}};
+    return accept({item}, folder, name);
+}
+
 QVariantMap FileChooser::makeFolder(const QString& folder, const QString& name) const {
     const QString trimmed = name.trimmed();
     if (!files::valid_name(trimmed.toStdString()))

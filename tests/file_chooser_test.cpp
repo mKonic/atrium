@@ -72,6 +72,23 @@ TEST(FileChooser, AnswersWithUrisAndChoices) {
     EXPECT_EQ(answered(c).value("uris").toArray(), (QJsonArray{"file:///tmp/a%20b.txt"}));
 }
 
+TEST(FileChooser, DoubleClickGoesIntoAFolder) {
+    QTemporaryDir dir;
+    QDir(dir.path()).mkdir("sub");
+    QFile(dir.filePath("a.txt")).open(QIODevice::WriteOnly);
+    // Choosing a folder: a double click opens it up, the button answers with it.
+    FileChooser folders(request({{"mode", "open"}, {"directory", true}, {"folder", dir.path()}}));
+    EXPECT_EQ(folders.activate(dir.filePath("sub"), dir.path(), "").value("enter").toString(), dir.filePath("sub"));
+    EXPECT_TRUE(folders.answer().isEmpty());
+    EXPECT_TRUE(folders.accept({dir.filePath("sub")}, dir.path(), "").isEmpty());
+    EXPECT_EQ(answered(folders).value("uris").toArray().size(), 1);
+    // Choosing a file: a folder is gone into, a file is the answer.
+    FileChooser files(request({{"mode", "open"}, {"folder", dir.path()}}));
+    EXPECT_EQ(files.activate(dir.filePath("sub"), dir.path(), "").value("enter").toString(), dir.filePath("sub"));
+    EXPECT_TRUE(files.activate(dir.filePath("a.txt"), dir.path(), "").isEmpty());
+    EXPECT_EQ(answered(files).value("uris").toArray().size(), 1);
+}
+
 TEST(FileChooser, SavesUnderAName) {
     QTemporaryDir dir;
     QDir(dir.path()).mkdir("sub");

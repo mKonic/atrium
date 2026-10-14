@@ -16,6 +16,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Fixed
 - On a tiled space, windows sliding under the menu bar (a maximized one always, the tiles after the next change) or leaving an empty strip where the Dock had been: tiles now start below the bar and reach down into the Dock's room, whichever order things happen in.
 - Qt and KDE apps (Dolphin, for one) opening a title bar's height shorter every time they were closed and opened again.
+- When an app asks for a folder, a double click on a folder now opens it instead of choosing it; the Choose button picks the folder.
 - An app that opens fullscreen (an image viewer, a video player) no longer flickers between black and the wallpaper for half a second first: it opens at its fullscreen size and grows in over the desktop as any window does.
 
 ## [v0.3.0] - 2026-10-10

@@ -69,6 +69,10 @@ public:
     //   {}                 answered, the dialog ends
     Q_INVOKABLE QVariantMap accept(const QStringList& picked, const QString& folder, const QString& name,
                                    bool replace = false);
+    // A double click on `item`. A folder is gone into, also while it is
+    // folders being chosen: the button is what answers with one. A file is
+    // the answer, as with accept().
+    Q_INVOKABLE QVariantMap activate(const QString& item, const QString& folder, const QString& name);
     // A new folder `name` in `folder`: { path } or { error }.
     Q_INVOKABLE QVariantMap makeFolder(const QString& folder, const QString& name) const;
 

@@ -19,7 +19,10 @@ FloatingWindow {
     property string confirm  // asked before replacing a file
 
     function accept(replace: bool): void {
-        const next = FileChooser.accept(folderModel.selection, folderModel.folder, nameField.text, replace);
+        apply(FileChooser.accept(folderModel.selection, folderModel.folder, nameField.text, replace));
+    }
+
+    function apply(next: var): void {
         error = next.error ?? "";
         confirm = next.confirm ?? "";
         if (next.enter)
@@ -367,7 +370,7 @@ FloatingWindow {
                             }
                             onDoubleClicked: {
                                 folderModel.select(row.index);
-                                root.accept(false);
+                                root.apply(FileChooser.activate(folderModel.selection[0] ?? "", folderModel.folder, nameField.text));
                             }
                         }
                     }
