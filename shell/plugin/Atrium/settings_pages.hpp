@@ -32,6 +32,11 @@ public:
     // as "Right Alt".
     Q_INVOKABLE QVariantList choiceOptions(const QStringList& choices) const;
     Q_INVOKABLE QString chord(int key, int modifiers, const QString& modifier) const;
+    // Modifiers alone as a shortcut is written ("Mod+Ctrl"), for an app's
+    // push-to-talk; "" for fewer than two.
+    Q_INVOKABLE QString modifierChord(int modifiers, const QString& modifier) const;
+    // The Qt modifier a modifier key is (Qt::Key_Control: ControlModifier).
+    Q_INVOKABLE int modifierOf(int key) const;
 
     // Extra mouse buttons (pointer.buttons): a pressed Qt button as evdev
     // (0 for none), its name, what each can do, and the list with one

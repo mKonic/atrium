@@ -196,7 +196,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
     } else if (kind == "registry.changed") {
         refreshTable(e.value("table").toString());
     } else if (kind == "shortcut.activated" || kind == "shortcut.deactivated") {
-        emit portalShortcut(e.value("app").toString(), e.value("id").toString(), kind == "shortcut.activated");
+        emit portalShortcut(e.value("app").toString(), e.value("id").toString(), kind == "shortcut.activated",
+                            e.value("cancelled").toBool());
     } else if (kind == "privacy.casts") {
         casts_ = e.value("casts").toArray().toVariantList();
         emit castsChanged();
@@ -674,6 +675,10 @@ void Compositor::setRule(qint64 id, const QVariantMap& fields) {
 
 void Compositor::removeRule(qint64 id) {
     change({{"cmd", "rule.remove"}, {"rule", id}});
+}
+
+void Compositor::setLivePortalShortcuts(const QStringList& shortcuts) {
+    request({{"cmd", "portal.live"}, {"shortcuts", QJsonArray::fromStringList(shortcuts)}});
 }
 
 void Compositor::addShortcut(const QVariantMap& fields) {

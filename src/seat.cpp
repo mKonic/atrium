@@ -606,8 +606,21 @@ void Seat::clear_keyboard_focus() {
 }
 
 const Keybind* Seat::find_binding(uint32_t mods, xkb_keysym_t sym) const {
-    const Keybind* bind = find_keybind(server.config.keybinds, mods, sym);
+    // NoSymbol is a modifier-only chord's (find_chord), never a key's.
+    return sym == XKB_KEY_NoSymbol ? nullptr : usable(find_keybind(server.config.keybinds, mods, sym));
+}
+
+const Keybind* Seat::find_chord(uint32_t mods) const {
+    const Keybind* bind = usable(find_keybind(server.config.keybinds, mods, XKB_KEY_NoSymbol));
+    return bind && bind->action == Action::Portal ? bind : nullptr;
+}
+
+const Keybind* Seat::usable(const Keybind* bind) const {
     if (!bind || (server.locked && !bind->locked))
+        return nullptr;
+    // An app's shortcut takes its keys only while the app listens for it
+    // (a portal session has it bound); otherwise they're the focused app's.
+    if (bind->action == Action::Portal && !server.portal_live.contains(bind->arg))
         return nullptr;
     // At the login screen nothing may be started as the greeter's user.
     if (server.config.greeter && bind->action != Action::SwitchVt)
@@ -788,6 +801,27 @@ void Seat::key_through(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         server.summon_panels();
     }
 
+    // An app's modifier-only shortcut (push-to-talk on Ctrl+Super, Wispr
+    // Flow's): held while exactly those modifiers are, which still reach the
+    // client. Any other key with them ends it as cancelled, then does what
+    // it would (Ctrl+Super+L is still the user's).
+    if (const uint32_t bit = modifier_bit(g.syms[0])) {
+        const uint32_t after = clean_mods(pressed ? g.mods | bit : g.mods & ~bit);
+        if (!chord_held_.empty() && (pressed || (bit & chord_mods_))) {
+            server.portal_shortcut(chord_held_, false, pressed);
+            chord_held_.clear();
+        } else if (pressed && chord_held_.empty()) {
+            if (const Keybind* chord = find_chord(after)) {
+                chord_held_ = chord->arg;
+                chord_mods_ = after;
+                server.portal_shortcut(chord_held_, true);
+            }
+        }
+    } else if (pressed && !chord_held_.empty()) {
+        server.portal_shortcut(chord_held_, false, true);
+        chord_held_.clear();
+    }
+
     const Keybind* bind = nullptr;
     if (e->state == WL_KEYBOARD_KEY_STATE_PRESSED)
         for (xkb_keysym_t sym : g.syms)
@@ -921,6 +955,22 @@ int Seat::key_repeat(KeyboardGroup& g) {
 // space, or set to hide), come when the pointer has rested on the top or
 // bottom row of their screen: panel_edge_core.hpp has the rule. The shell
 // hears which edge, and brings them out.
+uint32_t Seat::modifier_bit(xkb_keysym_t sym) {
+    switch (sym) {
+    case XKB_KEY_Shift_L:
+    case XKB_KEY_Shift_R: return WLR_MODIFIER_SHIFT;
+    case XKB_KEY_Control_L:
+    case XKB_KEY_Control_R: return WLR_MODIFIER_CTRL;
+    case XKB_KEY_Alt_L:
+    case XKB_KEY_Alt_R:
+    case XKB_KEY_Meta_L:
+    case XKB_KEY_Meta_R: return WLR_MODIFIER_ALT;
+    case XKB_KEY_Super_L:
+    case XKB_KEY_Super_R: return WLR_MODIFIER_LOGO;
+    default: return 0;
+    }
+}
+
 bool Seat::is_mod_key(xkb_keysym_t sym) const {
     switch (server.config.mod) {
     case WLR_MODIFIER_LOGO: return sym == XKB_KEY_Super_L || sym == XKB_KEY_Super_R;

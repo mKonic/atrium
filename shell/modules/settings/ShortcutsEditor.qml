@@ -13,6 +13,10 @@ Rectangle {
 
     required property var window
     property var recording: null  // the shortcut id being recorded
+    // An app's shortcut may be modifiers alone (push-to-talk on Ctrl+Super):
+    // two or more pressed and let go with no key between.
+    property bool recordingApp: false
+    property int heldModifiers: 0
 
     // What a shortcut can do, in words; and whether it needs an argument.
     readonly property var labels: ({
@@ -68,8 +72,25 @@ Rectangle {
                 return;
             }
             const keys = SettingsPages.chord(event.key, event.modifiers, Atrium.settings["shortcuts.modifier"] ?? "super");
+            if (!keys) {
+                // A modifier on its own: wait for the key, or (an app's) for
+                // the modifiers to be let go.
+                root.heldModifiers |= event.modifiers | SettingsPages.modifierOf(event.key);
+                return;
+            }
+            root.heldModifiers = 0;
+            Atrium.setShortcut(root.recording, { keys: keys });
+            root.recording = null;
+        }
+        Keys.onReleased: event => {
+            event.accepted = true;
+            if (root.recording === null || !root.heldModifiers)
+                return;
+            const keys = root.recordingApp
+                ? SettingsPages.modifierChord(root.heldModifiers, Atrium.settings["shortcuts.modifier"] ?? "super") : "";
+            root.heldModifiers = 0;
             if (!keys)
-                return;  // a modifier on its own: wait for the key
+                return;
             Atrium.setShortcut(root.recording, { keys: keys });
             root.recording = null;
         }
@@ -137,6 +158,8 @@ Rectangle {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             root.recording = appRow.modelData.id;
+                            root.recordingApp = true;
+                            root.heldModifiers = 0;
                             catcher.forceActiveFocus();
                         }
                     }
@@ -236,6 +259,8 @@ Rectangle {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             root.recording = row.modelData.id;
+                            root.recordingApp = false;
+                            root.heldModifiers = 0;
                             catcher.forceActiveFocus();
                         }
                     }

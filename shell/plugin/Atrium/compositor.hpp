@@ -138,6 +138,9 @@ public:
     Q_INVOKABLE void setRule(qint64 id, const QVariantMap& fields);
     Q_INVOKABLE void removeRule(qint64 id);
     Q_INVOKABLE void addShortcut(const QVariantMap& fields);
+    // The portal backend: the app shortcuts ("APP/ID") its sessions listen
+    // for, the only ones whose keys atrium takes.
+    void setLivePortalShortcuts(const QStringList& shortcuts);
     Q_INVOKABLE void setShortcut(qint64 id, const QVariantMap& fields);
     Q_INVOKABLE void removeShortcut(qint64 id);
     Q_INVOKABLE void resetShortcuts();
@@ -163,7 +166,8 @@ public:
 
 signals:
     // An app's global shortcut (bound through the portal) pressed or let go.
-    void portalShortcut(const QString& app, const QString& id, bool pressed);
+    // `cancelled`: let go because another key joined a modifier-only chord.
+    void portalShortcut(const QString& app, const QString& id, bool pressed, bool cancelled);
     // An input capture taking or giving back the input (capture.*).
     void captureEvent(const QJsonObject& event);
     void keyboardChanged();

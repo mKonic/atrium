@@ -131,6 +131,20 @@ std::optional<KeyChord> parse_chord(const std::string& text) {
             return std::nullopt;
     }
 
+    // Modifiers alone ("Ctrl+Super", an app's push-to-talk): held while
+    // exactly they are (Seat::key_through), no key with them. One modifier
+    // alone is no shortcut: it's everyone's.
+    if (const std::string last = lower(parts.back()); last == "mod" || modifier_from_name(last)) {
+        if (parts.size() < 2)
+            return std::nullopt;
+        if (last == "mod")
+            chord.uses_mod = true;
+        else
+            chord.mods |= modifier_from_name(last);
+        chord.sym = XKB_KEY_NoSymbol;
+        return chord;
+    }
+
     xkb_keysym_t sym = xkb_keysym_from_name(parts.back().c_str(), XKB_KEYSYM_NO_FLAGS);
     if (sym == XKB_KEY_NoSymbol)
         sym = xkb_keysym_from_name(parts.back().c_str(), XKB_KEYSYM_CASE_INSENSITIVE);

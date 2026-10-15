@@ -1454,12 +1454,15 @@ Interface Server::interface() const {
 
 // An app's global shortcut pressed or let go: the portal backend hears it
 // and tells the app (push-to-talk needs both).
-void Server::portal_shortcut(const std::string& arg, bool pressed) {
+void Server::portal_shortcut(const std::string& arg, bool pressed, bool cancelled) {
     const size_t slash = arg.find('/');
     if (!ipc || slash == std::string::npos)
         return;
-    ipc->broadcast("portal", {{"event", pressed ? "shortcut.activated" : "shortcut.deactivated"},
-                              {"app", arg.substr(0, slash)}, {"id", arg.substr(slash + 1)}});
+    json e{{"event", pressed ? "shortcut.activated" : "shortcut.deactivated"}, {"app", arg.substr(0, slash)},
+           {"id", arg.substr(slash + 1)}};
+    if (cancelled)
+        e["cancelled"] = true;
+    ipc->broadcast("portal", e);
 }
 
 void Server::keyboard_layout_changed() {

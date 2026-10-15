@@ -121,14 +121,16 @@ public:
 
     PortalSession* session(const QString& path) const { return sessions_.value(path); }
     void addSession(PortalSession* s);
-    void dropSession(const QString& path) { sessions_.remove(path); }
+    void dropSession(const QString& path);
+    // Tells atrium which app shortcuts are listened for now.
+    void updateLive();
     // The app's shortcuts as atrium has them: [{id, keys, row}] by id.
     QHash<QString, QVariantMap> shortcutsOf(const QString& app) const;
     // "Ctrl+Shift+A" from "ctrl+shift+a".
     static QString describe(const QString& keys);
 
 signals:
-    void pressed(const QString& app, const QString& id, bool down);
+    void pressed(const QString& app, const QString& id, bool down, bool cancelled);
 
 private:
     PortalBackend();

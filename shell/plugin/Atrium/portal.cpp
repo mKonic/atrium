@@ -152,6 +152,25 @@ PortalBackend::PortalBackend() {
     new AppChooserAdaptor(this);
     new PrintAdaptor(this);
     connect(Compositor::instance(), &Compositor::portalShortcut, this, &PortalBackend::pressed);
+    // A restarted compositor knows of no session yet.
+    connect(Compositor::instance(), &Compositor::connectedChanged, this, [this] {
+        if (Compositor::instance()->connected())
+            updateLive();
+    });
+}
+
+void PortalBackend::dropSession(const QString& path) {
+    sessions_.remove(path);
+    updateLive();
+}
+
+void PortalBackend::updateLive() {
+    QStringList live;
+    for (PortalSession* s : std::as_const(sessions_))
+        for (const QString& id : std::as_const(s->ids))
+            live.append(s->app() + "/" + id);
+    live.removeDuplicates();
+    Compositor::instance()->setLivePortalShortcuts(live);
 }
 
 bool PortalBackend::start() {
@@ -196,7 +215,7 @@ GlobalShortcutsAdaptor::GlobalShortcutsAdaptor(PortalBackend* parent) : QDBusAbs
             if (auto* s = qobject_cast<PortalSession*>(o); s && !s->ids.isEmpty())
                 emit ShortcutsChanged(QDBusObjectPath(s->path()), listFor(s));
     });
-    connect(parent, &PortalBackend::pressed, this, [this](const QString& app, const QString& id, bool down) {
+    connect(parent, &PortalBackend::pressed, this, [this](const QString& app, const QString& id, bool down, bool cancelled) {
         const qulonglong now = qulonglong(QDateTime::currentMSecsSinceEpoch());
         // Every session of that app that bound it (an app may hold several).
         for (QObject* o : backend_->children()) {
@@ -205,8 +224,9 @@ GlobalShortcutsAdaptor::GlobalShortcutsAdaptor(PortalBackend* parent) : QDBusAbs
                 continue;
             if (down)
                 emit Activated(QDBusObjectPath(s->path()), id, now, {});
-            else
-                emit Deactivated(QDBusObjectPath(s->path()), id, now, {});
+            else  // "cancelled": atrium's own hint, for an app to drop what the hold began
+                emit Deactivated(QDBusObjectPath(s->path()), id, now,
+                                 cancelled ? QVariantMap{{"cancelled", true}} : QVariantMap{});
         }
     });
 }
@@ -243,8 +263,11 @@ uint GlobalShortcutsAdaptor::BindShortcuts(const QDBusObjectPath&, const QDBusOb
         if (!have.contains(sc.id)) {
             // The portal's spelling ("CTRL+SHIFT+p", "LOGO+x") in atrium's.
             QStringList parts = sc.options.value("preferred_trigger").toString().split('+', Qt::SkipEmptyParts);
-            for (qsizetype i = 0; i + 1 < parts.size(); ++i)
-                parts[i] = PortalBackend::describe(parts[i]);
+            // The modifiers; the key too when there is none ("CTRL+LOGO" held alone).
+            static const QStringList kModifiers{"ctrl", "control", "shift", "alt", "logo", "super", "mod"};
+            for (qsizetype i = 0; i < parts.size(); ++i)
+                if (i + 1 < parts.size() || kModifiers.contains(parts[i].toLower()))
+                    parts[i] = PortalBackend::describe(parts[i]);
             keys = parts.join('+');
             Compositor::instance()->addShortcut(
                 {{"keys", keys}, {"action", "portal"}, {"arg", s->app() + "/" + sc.id}});
@@ -258,6 +281,7 @@ uint GlobalShortcutsAdaptor::BindShortcuts(const QDBusObjectPath&, const QDBusOb
         out.append({sc.id, options});
     }
     results = {{"shortcuts", QVariant::fromValue(out)}};
+    backend_->updateLive();
     return 0;
 }
 

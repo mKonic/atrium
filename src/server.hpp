@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace atrium {
@@ -89,7 +90,10 @@ struct Owner {
 class Server {
 public:
     // An app's global shortcut (Action::Portal) pressed or let go.
-    void portal_shortcut(const std::string& arg, bool pressed);
+    // `cancelled`: let go because another key joined it (a chord).
+    void portal_shortcut(const std::string& arg, bool pressed, bool cancelled = false);
+    // "APP/ID" of every app shortcut a portal session listens for now.
+    std::unordered_set<std::string> portal_live;
     // The layout changed (a switch key, a new keymap, a window's own): tell
     // the shell, and remember it for the window with keyboard.per_window.
     void keyboard_layout_changed();

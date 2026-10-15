@@ -158,6 +158,33 @@ QString SettingsPages::chord(int key, int modifiers, const QString& modifier) co
     return parts.join('+');
 }
 
+QString SettingsPages::modifierChord(int modifiers, const QString& modifier) const {
+    const std::pair<Qt::KeyboardModifier, const char*> mods[] = {{Qt::MetaModifier, "super"},
+                                                                 {Qt::ControlModifier, "ctrl"},
+                                                                 {Qt::AltModifier, "alt"},
+                                                                 {Qt::ShiftModifier, "shift"}};
+    QStringList parts;
+    for (const auto& [qt, id] : mods)
+        if ((modifiers & qt) && modifier == id)
+            parts.push_back("Mod");
+    for (const auto& [qt, id] : mods)
+        if ((modifiers & qt) && modifier != id)
+            parts.push_back(QString::fromLatin1(id).left(1).toUpper() + QString::fromLatin1(id).mid(1));
+    return parts.size() < 2 ? QString() : parts.join('+');
+}
+
+int SettingsPages::modifierOf(int key) const {
+    switch (key) {
+    case Qt::Key_Control: return Qt::ControlModifier;
+    case Qt::Key_Shift: return Qt::ShiftModifier;
+    case Qt::Key_Alt: return Qt::AltModifier;
+    case Qt::Key_Meta:
+    case Qt::Key_Super_L:
+    case Qt::Key_Super_R: return Qt::MetaModifier;
+    default: return 0;
+    }
+}
+
 int SettingsPages::evdevButton(int qtButton) const {
     return int(button_remap::evdev_button(uint32_t(qtButton)));
 }

@@ -155,6 +155,10 @@ private:
     int key_repeat(KeyboardGroup& group);
     // While locked, only bindings marked for the lock screen.
     const Keybind* find_binding(uint32_t mods, xkb_keysym_t sym) const;
+    // An app's modifier-only shortcut for exactly these modifiers.
+    const Keybind* find_chord(uint32_t mods) const;
+    const Keybind* usable(const Keybind* bind) const;
+    static uint32_t modifier_bit(xkb_keysym_t sym);
     bool shortcuts_inhibited() const;
 
     void motion(uint32_t time, wlr_input_device* device, double dx, double dy,
@@ -211,6 +215,8 @@ private:
     };
     std::unordered_map<uint32_t, std::unique_ptr<SlowPress>> slow_presses_;
     std::unordered_map<uint32_t, std::string> portal_held_;  // keycode → portal shortcut held down
+    std::string chord_held_;  // the modifier-only portal shortcut held down
+    uint32_t chord_mods_ = 0;
 
     View* grab_view_ = nullptr;
     double grab_x_ = 0, grab_y_ = 0;  // cursor at grab start

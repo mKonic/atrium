@@ -20,6 +20,22 @@ TEST(Chord, NamedKeysAndCase) {
     EXPECT_EQ(parse_chord("Mod++")->sym, xkb_keysym_t(XKB_KEY_plus));
 }
 
+TEST(Chord, ModifiersAlone) {
+    // An app's push-to-talk: no key, held while exactly these are.
+    auto c = parse_chord("Ctrl+Super");
+    ASSERT_TRUE(c);
+    EXPECT_EQ(c->mods, uint32_t(WLR_MODIFIER_CTRL | WLR_MODIFIER_LOGO));
+    EXPECT_EQ(c->sym, xkb_keysym_t(XKB_KEY_NoSymbol));
+    auto m = parse_chord("Alt+Mod");
+    ASSERT_TRUE(m);
+    EXPECT_TRUE(m->uses_mod);
+    EXPECT_EQ(m->mods, uint32_t(WLR_MODIFIER_ALT));
+    EXPECT_EQ(m->sym, xkb_keysym_t(XKB_KEY_NoSymbol));
+    // One modifier alone is everyone's.
+    EXPECT_FALSE(parse_chord("Super"));
+    EXPECT_FALSE(parse_chord("Mod"));
+}
+
 TEST(Chord, RejectsNonsense) {
     EXPECT_FALSE(parse_chord(""));
     EXPECT_FALSE(parse_chord("Mod+"));

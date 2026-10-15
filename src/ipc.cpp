@@ -308,6 +308,16 @@ std::optional<json> registry_command(Server& server, const std::string& cmd, con
         changed("shortcuts");
         return ok(shortcut_json(k));
     }
+    if (cmd == "portal.live") {
+        // The portal backend: the app shortcuts sessions listen for now.
+        if (!req.contains("shortcuts") || !req["shortcuts"].is_array())
+            return fail("portal.live needs \"shortcuts\" ([\"APP/ID\", ...])");
+        server.portal_live.clear();
+        for (const json& s : req["shortcuts"])
+            if (s.is_string())
+                server.portal_live.insert(s.get<std::string>());
+        return ok();
+    }
     if (cmd == "shortcut.remove") {
         if (!req.contains("shortcut") || !req["shortcut"].is_number_integer())
             return fail("shortcut.remove needs a \"shortcut\" (its id)");

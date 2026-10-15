@@ -13,7 +13,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ## [Unreleased]
 ### Added
 - A paired phone's microphone as a microphone here: turn on Share the microphone for this PC in the Atrium Link app, and "<phone> microphone" shows up in every app's list. The phone only records while something here does, and closes the microphone a few seconds after. Settings > Phone says whether it's shared or in use.
+- Apps' global shortcuts can be modifiers alone, held (Ctrl+Super for push-to-talk, as Wispr Flow has on Windows): they work while exactly those are down, and another key pressed with them hands the keys back (Ctrl+Super+L still does what it did) and tells the app to drop what the hold began. Settings records them for apps' shortcuts: press the modifiers and let go.
 ### Changed
+- An app's global shortcut takes its keys only while the app is listening for it, as on KDE Plasma: the keys of an app that isn't running reach the focused window again, and an app can hold a key like Escape just while it needs it.
 - The menu bar and the Dock now follow one rule for coming out and going away, timed against macOS and KDE Plasma. Out of sight (Hide the Dock, a tiled space, a fullscreen window), they come when the pointer rests on the very top or bottom row of the screen for a fifth of a second, anywhere along it, not at a touch in passing or with a button held; they stay while the pointer is in their strip, beside them too, or one of their menus is open, and go as soon as it leaves.
 ### Fixed
 - On a tiled space, windows sliding under the menu bar (a maximized one always, the tiles after the next change) or leaving an empty strip where the Dock had been: tiles now start below the bar and reach down into the Dock's room, whichever order things happen in.
