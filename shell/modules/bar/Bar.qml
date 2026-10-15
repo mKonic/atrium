@@ -218,6 +218,13 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacing.small
 
+            // Indicators that come and go sit at the row's outer edge, so
+            // appearing moves nothing else.
+            PrivacyIndicator {
+                anchors.verticalCenter: parent.verticalCenter
+                bar: bar
+            }
+
             RecordingIndicator {
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -251,11 +258,6 @@ PanelWindow {
 
             Bell {
                 anchors.verticalCenter: parent.verticalCenter
-            }
-
-            PrivacyIndicator {
-                anchors.verticalCenter: parent.verticalCenter
-                bar: bar
             }
 
             ControlButton {
