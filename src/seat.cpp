@@ -810,7 +810,9 @@ void Seat::key_through(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         if (!chord_held_.empty() && (pressed || (bit & chord_mods_))) {
             server.portal_shortcut(chord_held_, false, pressed);
             chord_held_.clear();
-        } else if (pressed && chord_held_.empty()) {
+        }
+        // A chord may grow into another (Ctrl+Super, then Alt: Ctrl+Super+Alt).
+        if (pressed && chord_held_.empty()) {
             if (const Keybind* chord = find_chord(after)) {
                 chord_held_ = chord->arg;
                 chord_mods_ = after;
