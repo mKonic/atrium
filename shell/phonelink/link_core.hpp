@@ -40,6 +40,12 @@
 //              connection (Connect, or the phone's call=), 0 when it came by
 //              itself: a phone not taking this PC automatically answers 0
 //              with DISCONNECT
+// MIC_STATE    (phone) u8 state (MicState), reason (UTF-8): whether its user
+//              shares its microphone with this PC (sent once ready, and on
+//              every change)
+// MIC_START    (PC) u16 UDP port to send to, u16 frames per packet: something
+//              here records from the phone's microphone
+// MIC_STOP     (PC) nothing: nothing does any more
 //
 // Both send HELLO. Then the PC goes on with what it knows:
 // - It has a key for the phone's id: AUTH. The phone answers AUTH and PROOF
@@ -71,6 +77,9 @@
 // The PC asks for lost ones with
 //   u8 0xA8, u8 0, u16 count, u32 counter, sealed u32 seq * count
 // the nonce (kNackLabel, counter).
+// The microphone's datagrams are the same with their own magic bytes and
+// nonce labels (kMic: 0xA9, 0xAA; 5, 6), from their own UDP socket on each
+// end (the phone's on the same port number again), and PCM 48 kHz mono s16le.
 
 #include <cstdint>
 #include <functional>
@@ -113,9 +122,16 @@ enum class Type : std::uint8_t {
     MediaCommand = 20,
     Disconnect = 21,
     Want = 22,
+    MicState = 23,
+    MicStart = 24,
+    MicStop = 25,
 };
 
 enum class AudioState : std::uint8_t { Stopped = 0, Streaming = 1, Failed = 2 };
+
+// Off: not shared. Ready: shared, closed until MIC_START. Live: recording.
+// Failed: shared, but it couldn't record (the reason says why).
+enum class MicState : std::uint8_t { Off = 0, Ready = 1, Live = 2, Failed = 3 };
 
 struct Identity {
     std::string id;  // kIdSize bytes
@@ -235,6 +251,17 @@ inline constexpr std::uint8_t kAudioMagic = 0xA7, kNackMagic = 0xA8;
 inline constexpr std::uint32_t kAudioLabel = 3, kNackLabel = 4;
 inline constexpr std::size_t kAudioHeader = 12;
 
+// One stream's datagrams: the phone's sound, or its microphone.
+struct Datagrams {
+    std::uint8_t audioMagic, nackMagic;
+    std::uint32_t audioLabel, nackLabel;
+    std::uint32_t channels;
+
+    constexpr std::uint32_t frameBytes() const { return channels * 2; }
+};
+inline constexpr Datagrams kSound{kAudioMagic, kNackMagic, kAudioLabel, kNackLabel, kChannels};
+inline constexpr Datagrams kMic{0xA9, 0xAA, 5, 6, 1};
+
 enum AudioFlags : std::uint8_t {
     Discontinuity = 1,  // the first after a gap the phone made (silence, a restart)
 };
@@ -243,17 +270,18 @@ struct AudioPacket {
     std::uint8_t flags = 0;
     std::uint32_t seq = 0;
     std::uint32_t timestamp = 0;
-    std::string pcm;  // frames * kFrameBytes
+    std::string pcm;  // frames * the stream's frame bytes
 
-    std::uint32_t frames() const { return std::uint32_t(pcm.size() / kFrameBytes); }
+    std::uint32_t frames(const Datagrams& kind = kSound) const { return std::uint32_t(pcm.size() / kind.frameBytes()); }
 };
 
-std::string packAudio(std::string_view key, const AudioPacket& p);
-std::optional<AudioPacket> unpackAudio(std::string_view key, std::string_view datagram);
+std::string packAudio(std::string_view key, const AudioPacket& p, const Datagrams& kind = kSound);
+std::optional<AudioPacket> unpackAudio(std::string_view key, std::string_view datagram, const Datagrams& kind = kSound);
 
-std::string packNack(std::string_view key, std::uint32_t counter, const std::vector<std::uint32_t>& seqs);
+std::string packNack(std::string_view key, std::uint32_t counter, const std::vector<std::uint32_t>& seqs,
+                     const Datagrams& kind = kSound);
 // The counter goes in `counter` (callers drop repeats).
 std::optional<std::vector<std::uint32_t>> unpackNack(std::string_view key, std::string_view datagram,
-                                                     std::uint32_t* counter = nullptr);
+                                                     std::uint32_t* counter = nullptr, const Datagrams& kind = kSound);
 
 } // namespace atrium::phonelink

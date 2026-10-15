@@ -90,6 +90,18 @@ Column {
                         onToggled: PhoneLink.setAutoConnect(phone.modelData.id, !phone.modelData.auto)
                     }
                 }
+
+                // The phone's own switch shares it (Atrium Link app).
+                ControlRow {
+                    visible: phone.linked && phone.modelData.state !== "connecting"
+                    title: qsTr("Microphone")
+                    note: ({
+                            off: qsTr("Not shared. Turn on Share the microphone in Atrium Link on the phone."),
+                            ready: qsTr("Apps here can record from it; it turns on while they do."),
+                            live: qsTr("In use"),
+                            failed: qsTr("Can't record: ") + phone.modelData.micError,
+                        })[phone.modelData.mic ?? "off"] ?? ""
+                }
             }
         }
 

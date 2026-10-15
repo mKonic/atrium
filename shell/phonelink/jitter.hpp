@@ -30,7 +30,8 @@ struct JitterStats {
 class JitterBuffer {
 public:
     // `target`: frames kept between the newest packet and playback.
-    explicit JitterBuffer(std::uint32_t target);
+    // `channels`: interleaved s16 samples per frame.
+    explicit JitterBuffer(std::uint32_t target, std::uint32_t channels = kChannels);
 
     void setTarget(std::uint32_t target) { target_ = target; }
     std::uint32_t target() const { return target_; }
@@ -63,7 +64,7 @@ private:
     void resync(std::int64_t ts);
     void conceal(std::int16_t* out, std::uint32_t frames);
 
-    std::uint32_t target_;
+    std::uint32_t target_, channels_;
     bool synced_ = false, haveSeq_ = false;
     std::int64_t play_ = 0, newestEnd_ = 0, start_ = 0;  // start_: the first packet since a resync
     std::uint32_t lastTs32_ = 0, lastSeq32_ = 0;

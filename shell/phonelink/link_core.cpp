@@ -388,53 +388,55 @@ std::optional<std::pair<MediaCommand, std::uint32_t>> unpackMediaCommand(std::st
     return std::pair{MediaCommand(b[0]), get(b, 1, 4)};
 }
 
-std::string packAudio(std::string_view key, const AudioPacket& p) {
+std::string packAudio(std::string_view key, const AudioPacket& p, const Datagrams& kind) {
     std::string d;
-    d += char(kAudioMagic);
+    d += char(kind.audioMagic);
     d += char(p.flags);
-    put16(d, std::uint16_t(p.frames()));
+    put16(d, std::uint16_t(p.frames(kind)));
     put32(d, p.seq);
     put32(d, p.timestamp);
-    d += seal(key, nonce(kAudioLabel, p.seq), d, p.pcm);
+    d += seal(key, nonce(kind.audioLabel, p.seq), d, p.pcm);
     return d;
 }
 
-std::optional<AudioPacket> unpackAudio(std::string_view key, std::string_view d) {
-    if (d.size() < kAudioHeader + kTag || std::uint8_t(d[0]) != kAudioMagic)
+std::optional<AudioPacket> unpackAudio(std::string_view key, std::string_view d, const Datagrams& kind) {
+    if (d.size() < kAudioHeader + kTag || std::uint8_t(d[0]) != kind.audioMagic)
         return std::nullopt;
     AudioPacket p;
     p.flags = std::uint8_t(d[1]);
     const std::uint32_t frames = get(d, 2, 2);
     p.seq = get(d, 4, 4);
     p.timestamp = get(d, 8, 4);
-    if (d.size() != kAudioHeader + frames * kFrameBytes + kTag)
+    if (d.size() != kAudioHeader + frames * kind.frameBytes() + kTag)
         return std::nullopt;
-    auto pcm = open(key, nonce(kAudioLabel, p.seq), d.substr(0, kAudioHeader), d.substr(kAudioHeader));
+    auto pcm = open(key, nonce(kind.audioLabel, p.seq), d.substr(0, kAudioHeader), d.substr(kAudioHeader));
     if (!pcm)
         return std::nullopt;
     p.pcm = std::move(*pcm);
     return p;
 }
 
-std::string packNack(std::string_view key, std::uint32_t counter, const std::vector<std::uint32_t>& seqs) {
+std::string packNack(std::string_view key, std::uint32_t counter, const std::vector<std::uint32_t>& seqs,
+                     const Datagrams& kind) {
     std::string d, body;
-    d += char(kNackMagic);
+    d += char(kind.nackMagic);
     d += '\0';
     put16(d, std::uint16_t(seqs.size()));
     put32(d, counter);
     for (const std::uint32_t s : seqs)
         put32(body, s);
-    d += seal(key, nonce(kNackLabel, counter), d, body);
+    d += seal(key, nonce(kind.nackLabel, counter), d, body);
     return d;
 }
 
-std::optional<std::vector<std::uint32_t>> unpackNack(std::string_view key, std::string_view d, std::uint32_t* counter) {
-    if (d.size() < 8 + kTag || std::uint8_t(d[0]) != kNackMagic)
+std::optional<std::vector<std::uint32_t>> unpackNack(std::string_view key, std::string_view d, std::uint32_t* counter,
+                                                     const Datagrams& kind) {
+    if (d.size() < 8 + kTag || std::uint8_t(d[0]) != kind.nackMagic)
         return std::nullopt;
     const std::uint32_t count = get(d, 2, 2), c = get(d, 4, 4);
     if (d.size() != 8 + count * 4 + kTag)
         return std::nullopt;
-    auto body = open(key, nonce(kNackLabel, c), d.substr(0, 8), d.substr(8));
+    auto body = open(key, nonce(kind.nackLabel, c), d.substr(0, 8), d.substr(8));
     if (!body)
         return std::nullopt;
     std::vector<std::uint32_t> seqs;

@@ -1,21 +1,22 @@
 #pragma once
 // One stream of a phone's audio: the UDP socket it arrives on, the jitter
-// buffer, and a PipeWire playback node that pulls from it. Datagrams are
-// read on a thread of their own and the node's process callback runs on
-// PipeWire's; neither waits on Qt's loop.
+// buffer, and a PipeWire node that pulls from it: a playback stream for the
+// phone's sound (kSound), or a source apps record from for its microphone
+// (kMic). Datagrams are read on a thread of their own and the node's process
+// callback runs on PipeWire's; neither waits on Qt's loop.
 
 #include "jitter.hpp"
 
 #include <netinet/in.h>
+#include <pipewire/stream.h>
+#include <pipewire/thread-loop.h>
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
-
-struct pw_thread_loop;
-struct pw_stream;
 
 namespace atrium::phonelink {
 
@@ -24,14 +25,16 @@ public:
     // `key`: the session's datagram key. `nackCounter`: where this stream's
     // asks count from; a session's must never repeat (it's a nonce).
     // `phone`: where its datagrams come from (its link port), as a v4-mapped
-    // or v6 address.
+    // or v6 address. A source calls `used` (on PipeWire's thread) when
+    // something starts or stops recording from it.
     Playback(std::string key, std::uint32_t nackCounter, const std::string& phoneName, std::uint32_t targetFrames,
-             const sockaddr_in6& phone);
+             const sockaddr_in6& phone, const Datagrams& kind = kSound, std::function<void(bool)> used = {});
     ~Playback();
 
     bool ok() const { return fd_ >= 0 && stream_; }
     std::uint16_t port() const { return port_; }
     std::uint32_t nackCounter() const { return nackCounter_; }
+    const sockaddr_in6& phone() const { return phone_; }
     JitterStats stats();
     bool playing();
 
@@ -40,7 +43,10 @@ private:
     void knock();
     static void process(void* data);
     void process();
+    static void stateChanged(void* data, enum pw_stream_state old, enum pw_stream_state state, const char* error);
 
+    const Datagrams kind_;
+    std::function<void(bool)> used_;
     std::string key_;
     std::uint32_t target_;
     int fd_ = -1;

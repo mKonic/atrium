@@ -442,6 +442,10 @@ void Daemon::message(Conn* c, Type type, const std::string& body) {
         }
         return;
     }
+    if (type == Type::MicState) {
+        micMessage(c, body);
+        return;
+    }
     if (type != Type::AudioState || body.empty())
         return;
     const auto state = AudioState(std::uint8_t(body[0]));
@@ -480,12 +484,80 @@ void Daemon::drop(Conn* c, const QString& why) {
         code_.clear();
     }
     conns_.remove(c->id);
+    closeMic(c);
     updateMedia();
     c->socket->disconnect(this);
     c->socket->abort();
     // Not from inside the socket's own signal.
     QTimer::singleShot(0, this, [c] { delete c; });
     updateStatus();
+}
+
+// --- the microphone ----------------------------------------------------------
+
+void Daemon::micMessage(Conn* c, const std::string& body) {
+    if (body.empty() || !c->link->ready())
+        return;
+    const auto state = MicState(std::uint8_t(body[0]));
+    c->micState = state;
+    c->micError = state == MicState::Failed ? QString::fromUtf8(body.data() + 1, qsizetype(body.size() - 1)) : QString();
+    qCInfo(lc) << c->name << "microphone:" << int(state) << c->micError;
+    if (state == MicState::Off) {
+        closeMic(c);
+        return;
+    }
+    if (c->mic || !c->playback)
+        return;
+    const QString id = c->id;
+    c->mic = std::make_unique<Playback>(
+        c->link->datagramKey(), c->micNackCounter, c->name.toStdString(), target_, c->playback->phone(), kMic,
+        [this, id](bool used) { QMetaObject::invokeMethod(this, [this, id, used] { micUsed(id, used); }); });
+    if (!c->mic->ok()) {
+        c->mic.reset();
+        c->micError = QStringLiteral("can't make a microphone here");
+        return;
+    }
+    c->micIdle = new QTimer(this);
+    c->micIdle->setSingleShot(true);
+    // Recording often comes again soon (one dictation after another): the
+    // phone's microphone stays open a little while.
+    c->micIdle->setInterval(3000);
+    connect(c->micIdle, &QTimer::timeout, this, [this, id] {
+        Conn* k = conns_.value(id);
+        if (k && k->mic && !k->micUsed && k->micStarted && k->link->ready()) {
+            k->micStarted = false;
+            apply(k, k->link->message(Type::MicStop, {}));
+        }
+    });
+}
+
+void Daemon::micUsed(const QString& id, bool used) {
+    Conn* c = conns_.value(id);
+    if (!c || !c->mic || !c->link->ready())
+        return;
+    c->micUsed = used;
+    if (!used) {
+        c->micIdle->start();
+    } else {
+        c->micIdle->stop();
+        if (!c->micStarted) {
+            c->micStarted = true;
+            qCInfo(lc) << "recording from" << c->name;
+            apply(c, c->link->message(Type::MicStart, be16(c->mic->port()) + be16(kPacketFrames)));
+        }
+    }
+    updateStatus();
+}
+
+void Daemon::closeMic(Conn* c) {
+    if (c->micStarted && c->link->ready() && !c->closed)
+        apply(c, c->link->message(Type::MicStop, {}));
+    c->micStarted = c->micUsed = false;
+    if (c->mic)
+        c->micNackCounter = c->mic->nackCounter();
+    c->mic.reset();
+    delete c->micIdle;
+    c->micIdle = nullptr;
 }
 
 // The phone whose sound plays here, else any with a media session.
@@ -636,7 +708,17 @@ void Daemon::updateStatus() {
         } else {
             state = QStringLiteral("connecting");  // between tries
         }
+        QString mic = QStringLiteral("off"), micError;
+        if (Conn* c = conns_.value(id); c && c->link->ready()) {
+            micError = c->micError;
+            mic = !c->micError.isEmpty()                                     ? QStringLiteral("failed")
+                  : c->micState == MicState::Off                            ? QStringLiteral("off")
+                  : c->micStarted || c->micState == MicState::Live          ? QStringLiteral("live")
+                                                                             : QStringLiteral("ready");
+        }
         phones.push_back({{QStringLiteral("id"), id},
+                          {QStringLiteral("mic"), mic},
+                          {QStringLiteral("micError"), micError},
                           {QStringLiteral("name"), it->name},
                           {QStringLiteral("auto"), it->autoConnect},
                           {QStringLiteral("state"), state},

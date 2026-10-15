@@ -15,12 +15,17 @@
 //   "streaming", "connected" (the phone isn't sending sound), "connecting",
 //   "failed" (its sound can't come here: error says why), "disconnected"
 //   (by hand, or not connecting by itself), "away" (not on the network) or
-//   "forgot" (the phone no longer has this PC paired).
+//   "forgot" (the phone no longer has this PC paired); mic one of "off"
+//   (the phone doesn't share its microphone), "ready", "live" (something
+//   here records from it) or "failed" (micError says why).
 // - Nearby, unpaired phones on the network: [{id, name, ready, state,
 //   error}], ready while the phone is pairing, state "pairing" while
 //   PairWith is under way, error why the last try didn't pair.
 //
-// The phone's media session shows up as an MPRIS player (mpris.hpp).
+// The phone's media session shows up as an MPRIS player (mpris.hpp), and a
+// phone that shares its microphone as a PipeWire source, "<phone>
+// microphone": the phone opens its microphone only while something here
+// records from it.
 
 #include "link_core.hpp"
 #include "mpris.hpp"
@@ -113,6 +118,13 @@ private:
         std::unique_ptr<Link> link;
         std::unique_ptr<Playback> playback;
         std::uint32_t nackCounter = 0;
+        // The microphone: its source while the phone shares it.
+        std::unique_ptr<Playback> mic;
+        std::uint32_t micNackCounter = 0;
+        MicState micState = MicState::Off;
+        QString micError;
+        bool micUsed = false, micStarted = false;
+        QTimer* micIdle = nullptr;
         bool streaming = false, closed = false;
         QString name, failed;
         Media media;
@@ -140,6 +152,9 @@ private:
     void apply(Conn* c, std::vector<Event> events);
     void message(Conn* c, Type type, const std::string& body);
     void drop(Conn* c, const QString& why);
+    void micMessage(Conn* c, const std::string& body);
+    void micUsed(const QString& id, bool used);
+    void closeMic(Conn* c);
     void updateMedia();
     void loadPaired();
     void savePaired();

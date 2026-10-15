@@ -5,7 +5,7 @@
 
 namespace atrium::phonelink {
 
-JitterBuffer::JitterBuffer(std::uint32_t target) : target_(target) {}
+JitterBuffer::JitterBuffer(std::uint32_t target, std::uint32_t channels) : target_(target), channels_(channels) {}
 
 std::int64_t JitterBuffer::unwrapTs(std::uint32_t ts) {
     const std::int64_t v = lastTs_ + std::int32_t(ts - lastTs32_);
@@ -28,7 +28,7 @@ void JitterBuffer::resync(std::int64_t ts) {
 }
 
 void JitterBuffer::push(const AudioPacket& p, std::uint64_t now) {
-    const std::uint32_t frames = p.frames();
+    const std::uint32_t frames = std::uint32_t(p.pcm.size() / (2 * channels_));
     if (!frames)
         return;
     stats_.received++;
@@ -73,7 +73,7 @@ void JitterBuffer::push(const AudioPacket& p, std::uint64_t now) {
     }
     if (resent)
         stats_.recovered++;
-    std::vector<std::int16_t> pcm(frames * kChannels);
+    std::vector<std::int16_t> pcm(frames * channels_);
     std::memcpy(pcm.data(), p.pcm.data(), pcm.size() * 2);
     packets_.emplace(ts, std::move(pcm));
     newestEnd_ = std::max(newestEnd_, ts + std::int64_t(frames));
@@ -83,7 +83,7 @@ void JitterBuffer::push(const AudioPacket& p, std::uint64_t now) {
         const std::int64_t to = newestEnd_ - target_;
         stats_.skipped += std::uint64_t(to - play_);
         play_ = to;
-        while (!packets_.empty() && packets_.begin()->first + std::int64_t(packets_.begin()->second.size() / kChannels) <= play_)
+        while (!packets_.empty() && packets_.begin()->first + std::int64_t(packets_.begin()->second.size() / channels_) <= play_)
             packets_.erase(packets_.begin());
     }
 }
@@ -91,36 +91,37 @@ void JitterBuffer::push(const AudioPacket& p, std::uint64_t now) {
 void JitterBuffer::conceal(std::int16_t* out, std::uint32_t frames) {
     // The last packet played again, fading out over a packet's length, then
     // silence.
-    const std::uint32_t lastFrames = std::uint32_t(last_.size() / kChannels);
+    const std::uint32_t lastFrames = std::uint32_t(last_.size() / channels_);
     for (std::uint32_t i = 0; i < frames; i++) {
         if (!lastFrames || concealGain_ <= 0) {
-            out[i * kChannels] = out[i * kChannels + 1] = 0;
+            for (std::uint32_t c = 0; c < channels_; c++)
+                out[i * channels_ + c] = 0;
             continue;
         }
         const std::uint32_t at = concealPos_++ % lastFrames;
-        for (std::uint32_t c = 0; c < kChannels; c++)
-            out[i * kChannels + c] = std::int16_t(float(last_[at * kChannels + c]) * concealGain_);
+        for (std::uint32_t c = 0; c < channels_; c++)
+            out[i * channels_ + c] = std::int16_t(float(last_[at * channels_ + c]) * concealGain_);
         concealGain_ = std::max(0.f, concealGain_ - 1.f / float(kPacketFrames));
     }
 }
 
 void JitterBuffer::pull(std::int16_t* out, std::uint32_t frames) {
     if (!synced_) {
-        std::memset(out, 0, std::size_t(frames) * kChannels * 2);
+        std::memset(out, 0, std::size_t(frames) * channels_ * 2);
         return;
     }
     std::uint32_t done = 0;
     while (done < frames) {
         // Packets wholly behind the play position are spent.
-        while (!packets_.empty() && packets_.begin()->first + std::int64_t(packets_.begin()->second.size() / kChannels) <= play_)
+        while (!packets_.empty() && packets_.begin()->first + std::int64_t(packets_.begin()->second.size() / channels_) <= play_)
             packets_.erase(packets_.begin());
         const std::uint32_t want = frames - done;
         auto it = packets_.begin();
         if (it != packets_.end() && it->first <= play_) {
             const auto& pcm = it->second;
             const std::int64_t offset = play_ - it->first;
-            const std::uint32_t n = std::min<std::uint32_t>(want, std::uint32_t(pcm.size() / kChannels - offset));
-            std::memcpy(out + done * kChannels, pcm.data() + offset * kChannels, std::size_t(n) * kChannels * 2);
+            const std::uint32_t n = std::min<std::uint32_t>(want, std::uint32_t(pcm.size() / channels_ - offset));
+            std::memcpy(out + done * channels_, pcm.data() + offset * channels_, std::size_t(n) * channels_ * 2);
             // Remember what played, for concealing a loss right after.
             last_.assign(pcm.begin(), pcm.end());
             concealPos_ = std::uint32_t(offset + n);
@@ -133,7 +134,7 @@ void JitterBuffer::pull(std::int16_t* out, std::uint32_t frames) {
         std::uint32_t n = want;
         if (it != packets_.end())
             n = std::uint32_t(std::min<std::int64_t>(want, it->first - play_));
-        conceal(out + done * kChannels, n);
+        conceal(out + done * channels_, n);
         // Concealed audio inside the stream is a loss; running past the end
         // with nothing more coming is the phone being quiet.
         if (it != packets_.end() && play_ >= start_)

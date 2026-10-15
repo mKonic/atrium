@@ -2,7 +2,6 @@
 
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
-#include <spa/param/props.h>
 
 #include <QLoggingCategory>
 
@@ -34,8 +33,10 @@ const pw_stream_events kEvents = [] {
 } // namespace
 
 Playback::Playback(std::string key, std::uint32_t nackCounter, const std::string& phoneName, std::uint32_t targetFrames,
-                   const sockaddr_in6& phone)
-    : key_(std::move(key)), target_(targetFrames), nackCounter_(nackCounter), phone_(phone), buffer_(targetFrames) {
+                   const sockaddr_in6& phone, const Datagrams& kind, std::function<void(bool)> used)
+    : kind_(kind), used_(std::move(used)), key_(std::move(key)), target_(targetFrames), nackCounter_(nackCounter),
+      phone_(phone), buffer_(targetFrames, kind.channels) {
+    const bool mic = kind.audioMagic == kMic.audioMagic;
     fd_ = socket(AF_INET6, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
     if (fd_ < 0) {
         qCWarning(lcPlay) << "no UDP socket:" << strerror(errno);
@@ -67,29 +68,46 @@ Playback::Playback(std::string key, std::uint32_t nackCounter, const std::string
     static pw_stream_events events = [] {
         pw_stream_events e = kEvents;
         e.process = &Playback::process;
+        e.state_changed = &Playback::stateChanged;
         return e;
     }();
     loop_ = pw_thread_loop_new("phonelink", nullptr);
     const std::string latency = std::to_string(kPacketFrames) + "/" + std::to_string(kRate);
-    pw_properties* props = pw_properties_new(
-        PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback", PW_KEY_MEDIA_ROLE, "Music",
-        PW_KEY_NODE_NAME, "atrium-phonelink", PW_KEY_NODE_DESCRIPTION, phoneName.c_str(), PW_KEY_MEDIA_NAME,
-        phoneName.c_str(), PW_KEY_APP_NAME, "Phone", PW_KEY_APP_ICON_NAME, "phone", PW_KEY_NODE_LATENCY,
-        latency.c_str(), nullptr);
-    stream_ = pw_stream_new_simple(pw_thread_loop_get_loop(loop_), "Phone audio", props, &events, this);
+    pw_properties* props;
+    if (mic) {
+        // A microphone in every app's list, open on the phone only while
+        // something records from it (used_).
+        const std::string description = phoneName + " microphone";
+        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CLASS, "Audio/Source", PW_KEY_NODE_NAME,
+                                  "atrium-phonelink-mic", PW_KEY_NODE_DESCRIPTION, description.c_str(),
+                                  PW_KEY_MEDIA_NAME, description.c_str(), PW_KEY_APP_NAME, "Phone",
+                                  PW_KEY_DEVICE_ICON_NAME, "audio-input-microphone", PW_KEY_NODE_LATENCY,
+                                  latency.c_str(), nullptr);
+    } else {
+        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Playback", PW_KEY_MEDIA_ROLE,
+                                  "Music", PW_KEY_NODE_NAME, "atrium-phonelink", PW_KEY_NODE_DESCRIPTION,
+                                  phoneName.c_str(), PW_KEY_MEDIA_NAME, phoneName.c_str(), PW_KEY_APP_NAME, "Phone",
+                                  PW_KEY_APP_ICON_NAME, "phone", PW_KEY_NODE_LATENCY, latency.c_str(), nullptr);
+    }
+    stream_ = pw_stream_new_simple(pw_thread_loop_get_loop(loop_), mic ? "Phone microphone" : "Phone audio", props,
+                                   &events, this);
 
     std::uint8_t pod[1024];
     spa_pod_builder b = SPA_POD_BUILDER_INIT(pod, sizeof pod);
     spa_audio_info_raw info{};
     info.format = SPA_AUDIO_FORMAT_S16_LE;
     info.rate = kRate;
-    info.channels = kChannels;
-    info.position[0] = SPA_AUDIO_CHANNEL_FL;
-    info.position[1] = SPA_AUDIO_CHANNEL_FR;
+    info.channels = kind.channels;
+    if (kind.channels == 1) {
+        info.position[0] = SPA_AUDIO_CHANNEL_MONO;
+    } else {
+        info.position[0] = SPA_AUDIO_CHANNEL_FL;
+        info.position[1] = SPA_AUDIO_CHANNEL_FR;
+    }
     const spa_pod* params[] = {spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info)};
     if (!stream_ || pw_stream_connect(stream_, PW_DIRECTION_OUTPUT, PW_ID_ANY,
-                                      pw_stream_flags(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS |
-                                                      PW_STREAM_FLAG_RT_PROCESS),
+                                      pw_stream_flags((mic ? 0 : PW_STREAM_FLAG_AUTOCONNECT) |
+                                                      PW_STREAM_FLAG_MAP_BUFFERS | PW_STREAM_FLAG_RT_PROCESS),
                                       params, 1) < 0) {
         qCWarning(lcPlay) << "no PipeWire stream";
         if (stream_)
@@ -138,7 +156,7 @@ void Playback::receive() {
             const ssize_t n = recv(fd_, d, sizeof d, 0);
             if (n <= 0)
                 break;
-            std::optional<AudioPacket> a = unpackAudio(key_, std::string_view(d, std::size_t(n)));
+            std::optional<AudioPacket> a = unpackAudio(key_, std::string_view(d, std::size_t(n)), kind_);
             if (!a)
                 continue;  // not the phone's, or not this session's
             std::lock_guard l(mutex_);
@@ -151,7 +169,7 @@ void Playback::receive() {
             lost = buffer_.nacks(now);
         }
         if (!lost.empty()) {
-            const std::string n = packNack(key_, nackCounter_++, lost);
+            const std::string n = packNack(key_, nackCounter_++, lost, kind_);
             sendto(fd_, n.data(), n.size(), 0, reinterpret_cast<const sockaddr*>(&phone_), sizeof phone_);
         }
         if (now - lastKnock > 10'000'000) {
@@ -175,6 +193,17 @@ void Playback::knock() {
 
 void Playback::process(void* data) { static_cast<Playback*>(data)->process(); }
 
+// A source runs while something records from it, and pauses after.
+void Playback::stateChanged(void* data, pw_stream_state old, pw_stream_state state, const char*) {
+    auto* self = static_cast<Playback*>(data);
+    if (!self->used_)
+        return;
+    if (state == PW_STREAM_STATE_STREAMING)
+        self->used_(true);
+    else if (old == PW_STREAM_STATE_STREAMING)
+        self->used_(false);
+}
+
 void Playback::process() {
     pw_buffer* b = pw_stream_dequeue_buffer(stream_);
     if (!b)
@@ -184,7 +213,7 @@ void Playback::process() {
         pw_stream_queue_buffer(stream_, b);
         return;
     }
-    std::uint32_t frames = d.maxsize / kFrameBytes;
+    std::uint32_t frames = d.maxsize / kind_.frameBytes();
     if (b->requested && b->requested < frames)
         frames = std::uint32_t(b->requested);
     bool playing;
@@ -197,18 +226,17 @@ void Playback::process() {
     }
     // The phone's clock against the sound card's: play a touch faster or
     // slower to stay at the target.
+    // (pw_stream_set_rate is the RT-safe way; set_control from here isn't.)
     if (playing) {
-        float rate = float(drift_.update(level, target_, frames));
-        pw_stream_set_control(stream_, SPA_PROP_rate, 1, &rate, 0);
+        pw_stream_set_rate(stream_, drift_.update(level, target_, frames));
     } else if (wasPlaying_) {
         drift_.reset();
-        float rate = 1;
-        pw_stream_set_control(stream_, SPA_PROP_rate, 1, &rate, 0);
+        pw_stream_set_rate(stream_, 1.0);
     }
     wasPlaying_ = playing;
     d.chunk->offset = 0;
-    d.chunk->stride = kFrameBytes;
-    d.chunk->size = frames * kFrameBytes;
+    d.chunk->stride = int(kind_.frameBytes());
+    d.chunk->size = frames * kind_.frameBytes();
     pw_stream_queue_buffer(stream_, b);
 }
 

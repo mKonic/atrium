@@ -362,6 +362,50 @@ TEST(PhonelinkDatagram, NackRoundTrip) {
     EXPECT_FALSE(unpackAudio(key, packNack(key, 1, {1})));
 }
 
+TEST(PhonelinkDatagram, Microphone) {
+    const std::string key(32, 'a');
+    AudioPacket p{Discontinuity, 7, 480, std::string(kPacketFrames * kMic.frameBytes(), '\x22')};
+    const std::string d = packAudio(key, p, kMic);
+    EXPECT_EQ(d.size(), kAudioHeader + 480 + kTag);
+    auto q = unpackAudio(key, d, kMic);
+    ASSERT_TRUE(q);
+    EXPECT_EQ(q->frames(kMic), kPacketFrames);
+    EXPECT_EQ(q->pcm, p.pcm);
+    // Golden, from Python's cryptography; the module pins the same bytes.
+    EXPECT_EQ(hex(packAudio(key, {0, 1, 2, "abcd"}, kMic)), "a900000200000001000000024b8c8aef3e11a4fb30b95f6fc68241c69937959d");
+    EXPECT_EQ(hex(packNack(key, 9, {1, 5}, kMic)), "aa000002000000095509529152c1d64c4b82dc2d8de8ad5d0476ea78ae9d63a2");
+    // The microphone's datagrams and the sound's never pass for each other.
+    EXPECT_FALSE(unpackAudio(key, d));
+    EXPECT_FALSE(unpackAudio(key, packAudio(key, {0, 1, 2, "abcd"}), kMic));
+    EXPECT_FALSE(unpackNack(key, packNack(key, 9, {1}), nullptr, kMic));
+    EXPECT_FALSE(unpackNack(key, packNack(key, 9, {1}, kMic)));
+    // Same header, other nonce label: a sound datagram relabelled as the
+    // microphone's doesn't open.
+    std::string relabelled = packAudio(key, {0, 1, 2, "abcd"});
+    relabelled[0] = char(kMic.audioMagic);
+    EXPECT_FALSE(unpackAudio(key, relabelled, kMic));
+}
+
+TEST(PhonelinkLink, MicMessagesPassOnceReady) {
+    Pair p;
+    p.pc.link.setPairing(true);
+    p.phone.link.setPairing(true);
+    p.connect();
+    p.phone.apply(p.phone.link.accept());
+    p.pc.apply(p.pc.link.accept());
+    pump(p.pc, p.phone);
+    ASSERT_TRUE(p.pc.ready && p.phone.ready);
+    p.phone.apply(p.phone.link.message(Type::MicState, std::string("\x01", 1)));
+    p.pc.apply(p.pc.link.message(Type::MicStart, "\x13\x88\x00\xf0"));
+    p.pc.apply(p.pc.link.message(Type::MicStop, ""));
+    pump(p.pc, p.phone);
+    ASSERT_EQ(p.pc.messages.size(), 1u);
+    EXPECT_EQ(p.pc.messages[0].first, Type::MicState);
+    ASSERT_EQ(p.phone.messages.size(), 2u);
+    EXPECT_EQ(p.phone.messages[0].first, Type::MicStart);
+    EXPECT_EQ(p.phone.messages[1].first, Type::MicStop);
+}
+
 // --- jitter buffer -----------------------------------------------------------
 
 // A packet whose frames are its frame indices (left) and their negation (right).
@@ -382,6 +426,29 @@ std::vector<std::int16_t> pull(JitterBuffer& j, std::uint32_t frames) {
 }
 
 constexpr std::uint32_t kTarget = 4 * kPacketFrames;
+
+TEST(PhonelinkJitter, Mono) {
+    // The microphone: one sample a frame, a loss concealed in mono too.
+    JitterBuffer j(kTarget, 1);
+    for (std::uint32_t i = 0; i < 8; i++) {
+        if (i == 5)
+            continue;
+        AudioPacket p{0, i, i * kPacketFrames, {}};
+        for (std::uint32_t f = 0; f < kPacketFrames; f++) {
+            const std::int16_t v = std::int16_t(i * kPacketFrames + f + 1);
+            p.pcm.append(reinterpret_cast<const char*>(&v), 2);
+        }
+        j.push(p, 0);
+    }
+    std::vector<std::int16_t> out(8 * kPacketFrames + kTarget, 7777);
+    j.pull(out.data(), std::uint32_t(out.size()));
+    for (std::uint32_t f = 0; f < 5 * kPacketFrames; f++)
+        ASSERT_EQ(out[kTarget + f], std::int16_t(f + 1)) << f;
+    for (std::uint32_t f = 6 * kPacketFrames; f < 8 * kPacketFrames; f++)
+        ASSERT_EQ(out[kTarget + f], std::int16_t(f + 1)) << f;
+    EXPECT_EQ(j.stats().concealed, kPacketFrames);
+    EXPECT_TRUE(std::none_of(out.begin(), out.end(), [](std::int16_t s) { return s == 7777; }));
+}
 
 TEST(PhonelinkJitter, PlaysInOrderAfterTheTarget) {
     JitterBuffer j(kTarget);

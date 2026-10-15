@@ -6,7 +6,7 @@ phonelink_moc = qt6.compile_moc(headers: ['daemon.hpp', 'mpris.hpp', '../plugin/
 executable('atrium-phonelink', 'main.cpp', 'daemon.cpp', 'mpris.cpp', 'playback.cpp', 'avahi_qt.cpp', 'link_core.cpp', 'crypto.cpp',
   'jitter.cpp', '../plugin/Atrium/compositor.cpp', '../plugin/Atrium/identify_core.cpp', '../../src/accent.cpp', '../../src/palette.cpp', '../../src/records.cpp',
   phonelink_moc,
-  dependencies: [phonelink_qt, atrium_runtime_dep, json, dependency('libcrypto'), dependency('libpipewire-0.3'),
+  dependencies: [phonelink_qt, atrium_runtime_dep, json, dependency('libcrypto'), dependency('libpipewire-0.3', version: '>=1.4'),
     dependency('avahi-client'), dependency('wayland-client')],
   include_directories: include_directories('../plugin/Atrium', '../../src', '../..'),
   cpp_args: meson.get_compiler('cpp').get_supported_arguments('-Wno-sfinae-incomplete'),

@@ -11,6 +11,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Added
+- A paired phone's microphone as a microphone here: turn on Share the microphone for this PC in the Atrium Link app, and "<phone> microphone" shows up in every app's list. The phone only records while something here does, and closes the microphone a few seconds after. Settings > Phone says whether it's shared or in use.
 ### Changed
 - The menu bar and the Dock now follow one rule for coming out and going away, timed against macOS and KDE Plasma. Out of sight (Hide the Dock, a tiled space, a fullscreen window), they come when the pointer rests on the very top or bottom row of the screen for a fifth of a second, anywhere along it, not at a touch in passing or with a button held; they stay while the pointer is in their strip, beside them too, or one of their menus is open, and go as soon as it leaves.
 ### Fixed
