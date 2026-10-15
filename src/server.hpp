@@ -6,6 +6,9 @@
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <sys/types.h>
+
+#include <chrono>
 #include <filesystem>
 
 #include <map>
@@ -129,6 +132,15 @@ public:
     // The serial of the last key or button press (KWin's
     // lastInteractionSerial): an activation token from before it is stale.
     uint32_t last_interaction_serial = 0;
+    // A tray icon just clicked: its app may bring itself forward for a few
+    // seconds, until anything else is pressed, even asking with a stale token
+    // of its own (Electron's, which takes none from the tray).
+    struct ActivationGrant {
+        pid_t pid = 0;
+        uint32_t serial = 0;
+        std::chrono::steady_clock::time_point until;
+    } activation_grant;
+    bool granted(const View* view) const;
     // X11 apps' scale (KWin's xwaylandScale): the largest screen scale when
     // they scale themselves, else 1. Xwayland sees everything at it.
     double xwayland_scale = 1;

@@ -1,4 +1,5 @@
 #include "tray.hpp"
+#include "compositor.hpp"
 #include "dbus_menu.hpp"
 
 #include <QCoreApplication>
@@ -15,6 +16,7 @@
 #include <QHash>
 #include <QIcon>
 #include <QMutex>
+#include <QPointer>
 #include <QUrl>
 #include <QtEndian>
 
@@ -193,12 +195,39 @@ void SystemTrayItem::call(const QString& method, const QVariantList& args) {
     QDBusConnection::sessionBus().asyncCall(m);
 }
 
+// Wayland keeps focus from an app asking for it with no token from the
+// user's input. The click's goes to those that take one (KDE's
+// ProvideXdgActivationToken, Qt's and GTK's icons), and the app is let
+// through for a moment for those that don't (Electron's).
+void SystemTrayItem::withToken(std::function<void()> then) const {
+    Compositor* compositor = Compositor::instance();
+    if (!compositor) {
+        then();
+        return;
+    }
+    const uint pid = QDBusConnection::sessionBus().interface()->servicePid(service_);
+    compositor->activationToken([service = service_, path = path_, then = std::move(then)](const QString& token) {
+        if (!token.isEmpty()) {
+            QDBusMessage m = QDBusMessage::createMethodCall(service, path, kItem, "ProvideXdgActivationToken");
+            m << token;
+            QDBusConnection::sessionBus().asyncCall(m);
+        }
+        then();
+    }, pid);
+}
+
 void SystemTrayItem::activate() {
-    call("Activate", {0, 0});
+    withToken([self = QPointer(this)] {
+        if (self)
+            self->call("Activate", {0, 0});
+    });
 }
 
 void SystemTrayItem::secondaryActivate() {
-    call("SecondaryActivate", {0, 0});
+    withToken([self = QPointer(this)] {
+        if (self)
+            self->call("SecondaryActivate", {0, 0});
+    });
 }
 
 void SystemTrayItem::scroll(int delta, bool horizontal) {
@@ -210,7 +239,7 @@ QVariantList SystemTrayItem::menu() const {
 }
 
 void SystemTrayItem::trigger(int id) const {
-    dbusmenu::trigger(service_, menu_, id);
+    withToken([service = service_, menu = menu_, id] { dbusmenu::trigger(service, menu, id); });
 }
 
 // --- TrayWatcher -------------------------------------------------------------

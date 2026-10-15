@@ -95,7 +95,8 @@ public:
     Q_INVOKABLE void focusWindow(int id);
     // An xdg-activation token minted as from the user's input (empty if
     // atrium couldn't make one), for an app to raise its own window with.
-    void activationToken(std::function<void(const QString&)> done);
+    // With a pid, that app may come forward a moment even without it.
+    void activationToken(std::function<void(const QString&)> done, qint64 pid = 0);
     Q_INVOKABLE void closeWindow(int id);
     // Clipboard history, kept by atrium: the entries, newest first ({id,
     // mime, time, size, preview, file}); not ok when atrium keeps none.

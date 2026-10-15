@@ -53,6 +53,8 @@ private slots:
 private:
     void apply(const QVariantMap& props);
     void call(const QString& method, const QVariantList& args);
+    // Then, once there is a token from the click that did it.
+    void withToken(std::function<void()> then) const;
 
     QString service_, path_;
     QString id_, title_, icon_, status_, menu_, iconName_, themePath_;

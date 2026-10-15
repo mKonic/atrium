@@ -729,12 +729,18 @@ json Ipc::handle(Client& c, const json& req) {
 
     // A token for xdg-activation, as from the user's input: the shell hands
     // it to an app whose notification was clicked, so the app raises the
-    // window it came from (Notifications spec 1.2, ActivationToken).
+    // window it came from (Notifications spec 1.2, ActivationToken). It is
+    // as fresh as the click that asked for it. With a pid (a tray icon's), that
+    // app may bring itself forward a moment even without it.
     if (cmd == "activation.token") {
         wlr_xdg_activation_token_v1* token = wlr_xdg_activation_token_v1_create(server_.activation);
         if (!token)
             return fail("couldn't make a token");
         token->seat = server_.seat->wlr;
+        token->serial = server_.last_interaction_serial;
+        if (req.contains("pid") && req["pid"].is_number_integer())
+            server_.activation_grant = {req["pid"].get<pid_t>(), server_.last_interaction_serial,
+                                        std::chrono::steady_clock::now() + std::chrono::seconds(3)};
         return ok(std::string(wlr_xdg_activation_token_v1_get_name(token)));
     }
 

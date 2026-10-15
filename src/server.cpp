@@ -1559,6 +1559,30 @@ void Server::cycle_focus(int direction) {
     focus_view(direction > 0 ? candidates.back() : candidates[1]);
 }
 
+bool Server::granted(const View* view) const {
+    const ActivationGrant& g = activation_grant;
+    if (g.pid <= 0 || g.serial != last_interaction_serial || std::chrono::steady_clock::now() > g.until)
+        return false;
+    wlr_surface* s = view->surface();
+    if (view->kind == View::Kind::X11 || !s || !s->resource)
+        return false;
+    pid_t pid = 0;
+    wl_client_get_credentials(wl_resource_get_client(s->resource), &pid, nullptr, nullptr);
+    // The window's process or one under the icon's (a browser's windows and
+    // its tray icon can sit in different processes of it).
+    for (int depth = 0; pid > 1 && depth < 16; ++depth) {
+        if (pid == g.pid)
+            return true;
+        std::ifstream stat("/proc/" + std::to_string(pid) + "/stat");
+        std::string line;
+        std::getline(stat, line);
+        const size_t close = line.rfind(')');
+        if (close == std::string::npos || std::sscanf(line.c_str() + close + 1, " %*c %d", &pid) != 1)
+            return false;
+    }
+    return false;
+}
+
 void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* event) {
     Owner owner = owner_of(event->surface);
     View* view = owner.view;
@@ -1567,7 +1591,7 @@ void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* ev
     // Asked for before it has shown (a terminal launched from a shortcut
     // does): it takes focus as it opens.
     if (!view->mapped) {
-        view->activate_on_map = event->token && event->token->seat;
+        view->activate_on_map = (event->token && event->token->seat) || granted(view);
         return;
     }
 
@@ -1578,7 +1602,7 @@ void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* ev
     // attention.
     const bool fresh = event->token && event->token->seat &&
                        int32_t(event->token->serial - last_interaction_serial) >= 0;
-    if (!focused_view || fresh) {
+    if (!focused_view || fresh || granted(view)) {
         if (view->minimized)
             view->set_minimized(false);
         focus_view(view);

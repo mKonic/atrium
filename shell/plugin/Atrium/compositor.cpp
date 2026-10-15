@@ -378,8 +378,11 @@ void Compositor::focusWindow(int id) {
     request({{"cmd", "window.focus"}, {"window", id}});
 }
 
-void Compositor::activationToken(std::function<void(const QString&)> done) {
-    requestFull({{"cmd", "activation.token"}}, [done = std::move(done)](const QJsonObject& reply) {
+void Compositor::activationToken(std::function<void(const QString&)> done, qint64 pid) {
+    QJsonObject req{{"cmd", "activation.token"}};
+    if (pid > 0)
+        req["pid"] = pid;
+    requestFull(req, [done = std::move(done)](const QJsonObject& reply) {
         done(reply.value("ok").toBool() ? reply.value("result").toString() : QString());
     });
 }
