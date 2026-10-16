@@ -35,6 +35,7 @@ atrium_sources = files(
   'xwayland_grab.cpp',
   'x11_listen.cpp',
   'x11_listen_core.cpp',
+  'launch_feedback.cpp',
   'ipc.cpp',
   'background_effect.cpp',
   'glass.cpp',

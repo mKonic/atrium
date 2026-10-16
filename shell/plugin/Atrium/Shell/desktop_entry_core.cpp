@@ -156,6 +156,11 @@ std::optional<Entry> parse(std::string_view text, std::string_view locale) {
     e.hidden = truthy(raw("Hidden"));
     e.terminal = truthy(raw("Terminal"));
     e.prefers_non_default_gpu = truthy(raw("PrefersNonDefaultGPU"));
+    {
+        const std::string kde = raw("X-KDE-StartupNotify"), plain = raw("StartupNotify");
+        const std::string& v = !kde.empty() ? kde : plain;
+        e.startup_notify = v.empty() || truthy(v);
+    }
     for (const std::string& id : split_list(raw("Actions"))) {
         auto a = groups.find("Desktop Action " + id);
         if (a == groups.end())

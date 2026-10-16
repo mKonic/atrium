@@ -96,11 +96,20 @@ void DesktopEntry::executeOnOtherGpu() const {
     launch(command(), DesktopEntries::otherGpuEnv());
 }
 
+void DesktopEntry::executeWith(const QVariantMap& env) const {
+    launch(command(), e_.prefers_non_default_gpu ? DesktopEntries::preferredGpuEnv() : gpus::Env{}, env);
+}
+
+void DesktopEntry::executeOnOtherGpuWith(const QVariantMap& env) const {
+    launch(command(), DesktopEntries::otherGpuEnv(), env);
+}
+
 void DesktopEntry::open(const QStringList& targets) const {
     launch(argv(e_.exec, targets));
 }
 
-void DesktopEntry::launch(QStringList argv, const std::vector<std::pair<std::string, std::string>>& gpu_env) const {
+void DesktopEntry::launch(QStringList argv, const std::vector<std::pair<std::string, std::string>>& gpu_env,
+                          const QVariantMap& extra_env) const {
     if (argv.isEmpty())
         return;
     if (e_.terminal) {
@@ -120,10 +129,12 @@ void DesktopEntry::launch(QStringList argv, const std::vector<std::pair<std::str
                            "--slice=app-graphical.slice", "--unit=" + unit, "--"} + argv;
     }
     QProcess p;
-    if (!gpu_env.empty()) {
+    if (!gpu_env.empty() || !extra_env.isEmpty()) {
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         for (const auto& [k, v] : gpu_env)
             env.insert(QString::fromStdString(k), QString::fromStdString(v));
+        for (auto it = extra_env.begin(); it != extra_env.end(); ++it)
+            env.insert(it.key(), it.value().toString());
         p.setProcessEnvironment(env);
     }
     p.setProgram(argv.takeFirst());

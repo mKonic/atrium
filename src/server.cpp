@@ -12,6 +12,7 @@
 #include "toplevel_icon.hpp"
 #include "appmenu.hpp"
 #include "commit_pacing.hpp"
+#include "launch_feedback.hpp"
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
@@ -780,6 +781,7 @@ void Server::teardown() {
     toplevel_icons.reset();
     appmenus.reset();
     commit_pacing.reset();
+    launch_feedback.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
@@ -1586,6 +1588,10 @@ bool Server::granted(const View* view) const {
 }
 
 void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* event) {
+    // The app started with this token has shown up (KWin ends its launch feedback here).
+    if (launch_feedback && event->token)
+        if (const char* name = wlr_xdg_activation_token_v1_get_name(event->token))
+            launch_feedback->finish_token(name);
     Owner owner = owner_of(event->surface);
     View* view = owner.view;
     if (!view || view == focused_view)

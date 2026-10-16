@@ -54,8 +54,7 @@ QString text(const QObject* o, const char* name) {
 }
 
 void execute(QObject* entry) {
-    if (entry)
-        QMetaObject::invokeMethod(entry, "execute");
+    Compositor::instance()->launchEntry(entry);
 }
 
 } // namespace
@@ -479,7 +478,7 @@ QString DockApps::otherGpu() const {
 
 void DockApps::launchOnOtherGpu(const QString& appId) {
     if (QObject* entry = index_.byId(appId))
-        QMetaObject::invokeMethod(entry, "executeOnOtherGpu");
+        Compositor::instance()->launchEntry(entry, true);
 }
 
 void DockApps::setPinned(const QString& appId, bool pinned) {

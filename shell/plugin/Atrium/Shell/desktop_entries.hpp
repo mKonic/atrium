@@ -8,6 +8,7 @@
 #include <QFileSystemWatcher>
 #include <QHash>
 #include <QObject>
+#include <QVariantMap>
 #include <QStringList>
 #include <QTimer>
 
@@ -47,6 +48,7 @@ class DesktopEntry : public QObject {
     Q_PROPERTY(QStringList command READ command CONSTANT)
     Q_PROPERTY(QString workingDirectory READ workingDirectory CONSTANT)
     Q_PROPERTY(QString startupClass READ startupClass CONSTANT)
+    Q_PROPERTY(bool startupNotify READ startupNotify CONSTANT)
     Q_PROPERTY(QStringList keywords READ keywords CONSTANT)
     Q_PROPERTY(QStringList categories READ categories CONSTANT)
     Q_PROPERTY(QStringList mimeTypes READ mimeTypes CONSTANT)
@@ -67,6 +69,7 @@ public:
     QStringList command() const { return argv(e_.exec); }
     QString workingDirectory() const { return QString::fromStdString(e_.path); }
     QString startupClass() const { return QString::fromStdString(e_.startup_wm_class); }
+    bool startupNotify() const { return e_.startup_notify; }
     QStringList keywords() const;
     QStringList categories() const;
     QStringList mimeTypes() const;
@@ -78,12 +81,16 @@ public:
     Q_INVOKABLE void execute() const;
     // "Launch on …": on the GPU that isn't the default, whatever it prefers.
     Q_INVOKABLE void executeOnOtherGpu() const;
+    // The same, with variables added to its environment (an activation token).
+    Q_INVOKABLE void executeWith(const QVariantMap& env) const;
+    Q_INVOKABLE void executeOnOtherGpuWith(const QVariantMap& env) const;
     // Opened with these files or addresses (its Exec's %f %u %F %U).
     Q_INVOKABLE void open(const QStringList& targets) const;
 
     QStringList argv(const std::string& exec, const QStringList& targets = {}) const;
     // With `gpu_env`, on another GPU.
-    void launch(QStringList argv, const std::vector<std::pair<std::string, std::string>>& gpu_env = {}) const;
+    void launch(QStringList argv, const std::vector<std::pair<std::string, std::string>>& gpu_env = {},
+                const QVariantMap& extra_env = {}) const;
 
 private:
     QString id_;

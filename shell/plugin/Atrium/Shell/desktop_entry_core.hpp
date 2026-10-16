@@ -37,6 +37,9 @@ struct Entry {
     bool hidden = false;
     bool terminal = false;
     bool prefers_non_default_gpu = false;  // PrefersNonDefaultGPU: a game on a laptop's discrete GPU
+    // StartupNotify (or X-KDE-StartupNotify): show launch feedback. Unset
+    // counts as yes, as KWin reads it.
+    bool startup_notify = true;
     std::vector<Action> actions;
 };
 

@@ -1,4 +1,5 @@
 #include "ipc.hpp"
+#include "launch_feedback.hpp"
 #include "appmenu.hpp"
 #include "clipboard_history.hpp"
 #include "eis.hpp"
@@ -741,7 +742,15 @@ json Ipc::handle(Client& c, const json& req) {
         if (req.contains("pid") && req["pid"].is_number_integer())
             server_.activation_grant = {req["pid"].get<pid_t>(), server_.last_interaction_serial,
                                         std::chrono::steady_clock::now() + std::chrono::seconds(3)};
-        return ok(std::string(wlr_xdg_activation_token_v1_get_name(token)));
+        const std::string name = wlr_xdg_activation_token_v1_get_name(token);
+        // An app being started (the Dock, the launcher): its icon bounces by
+        // the pointer until it opens (KWin's launch feedback).
+        if (req.contains("app_id") && req["app_id"].is_string() && server_.launch_feedback) {
+            token->app_id = strdup(req["app_id"].get<std::string>().c_str());
+            if (req.value("feedback", false))
+                server_.launch_feedback->start(name, req["app_id"].get<std::string>(), req.value("icon", std::string()));
+        }
+        return ok(name);
     }
 
     // Clipboard history: the entries (each one's data in its file), copying

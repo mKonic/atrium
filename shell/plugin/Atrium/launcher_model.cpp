@@ -781,7 +781,7 @@ void LauncherModel::runEntry(const Entry& e, const QVariantList& args, bool from
             }
         }
         if (QObject* d = index_.byId(e.target))
-            QMetaObject::invokeMethod(d, "execute");
+            Compositor::instance()->launchEntry(d);
         return;
     }
     case Kind::Settings:
@@ -1280,7 +1280,7 @@ void LauncherModel::quitApp(const Entry& e, bool restart) {
         waiter->deleteLater();
         if (!left)
             if (QObject* d = index_.byId(target))
-                QMetaObject::invokeMethod(d, "execute");
+                Compositor::instance()->launchEntry(d);
     });
     waiter->start(100);
 }
@@ -1465,11 +1465,11 @@ void LauncherModel::runAction(int row, const QString& id) {
     } else if (id == "new-window") {
         emit closeRequested();
         if (QObject* d = index_.byId(e.target))
-            QMetaObject::invokeMethod(d, "execute");
+            Compositor::instance()->launchEntry(d);
     } else if (id == "other-gpu") {
         emit closeRequested();
         if (QObject* d = index_.byId(e.target))
-            QMetaObject::invokeMethod(d, "executeOnOtherGpu");
+            Compositor::instance()->launchEntry(d, true);
     } else if (id.startsWith("desktop-action:")) {
         emit closeRequested();
         if (auto* d = qobject_cast<shell::DesktopEntry*>(index_.byId(e.target))) {

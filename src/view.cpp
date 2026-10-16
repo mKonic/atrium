@@ -1,4 +1,5 @@
 #include "view.hpp"
+#include "launch_feedback.hpp"
 
 #include "background_effect.hpp"
 
@@ -125,6 +126,9 @@ void View::handle_map() {
         return;
     }
     View* const front = server.focused_view;  // before this one takes over
+    // A window opening ends the launch feedback (KWin: a new active window does).
+    if (server.launch_feedback)
+        server.launch_feedback->window_opened();
 
     // A new window brings the others back, as in KWin.
     server.set_showing_desktop(false);

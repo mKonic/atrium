@@ -110,6 +110,9 @@ public:
     // Take `before` bytes back from before the cursor and type `text` there.
     Q_INVOKABLE void replaceText(int before, const QString& text);
     // "minimize", "maximize", "fullscreen", "pin", "to_space" ({number}), ...
+    // Starts a desktop entry (a DesktopEntry) with an activation token, its
+    // icon bouncing by the pointer until it opens (KWin's launch feedback).
+    Q_INVOKABLE void launchEntry(QObject* entry, bool otherGpu = false);
     Q_INVOKABLE void windowRequest(int id, const QString& command, const QVariantMap& fields = {});
     Q_INVOKABLE void action(const QString& name, const QVariant& arg = {});
     QVariantMap switcher() const { return switcher_; }

@@ -7,6 +7,11 @@
 #include "records.hpp"
 
 #include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
+#include <QPointer>
+#include <QStandardPaths>
+#include <QTimer>
 #include <QIcon>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -384,6 +389,63 @@ void Compositor::activationToken(std::function<void(const QString&)> done, qint6
         req["pid"] = pid;
     requestFull(req, [done = std::move(done)](const QJsonObject& reply) {
         done(reply.value("ok").toBool() ? reply.value("result").toString() : QString());
+    });
+}
+
+namespace {
+
+// The app's icon as a PNG the compositor can draw, made once per app.
+QString launchIcon(const QObject* entry, const QString& id) {
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + "/atrium-launch";
+    const QString file = dir + "/" + QString(id).replace('/', '_') + ".png";
+    if (QFileInfo::exists(file))
+        return file;
+    const QString name = entry->property("icon").toString();
+    const QIcon icon = name.startsWith('/') ? QIcon(name) : QIcon::fromTheme(name, QIcon::fromTheme("system-run"));
+    if (icon.isNull())
+        return {};
+    QDir().mkpath(dir);
+    return icon.pixmap(QSize(64, 64)).save(file, "PNG") ? file : QString();
+}
+
+} // namespace
+
+void Compositor::launchEntry(QObject* entry, bool otherGpu) {
+    if (!entry)
+        return;
+    const char* plain = otherGpu ? "executeOnOtherGpu" : "execute";
+    if (!connected()) {
+        QMetaObject::invokeMethod(entry, plain);
+        return;
+    }
+    QString id = entry->property("id").toString();
+    if (id.endsWith(".desktop"))
+        id.chop(8);
+    const bool feedback = entry->property("startupNotify").toBool();
+    QJsonObject req{{"cmd", "activation.token"}, {"app_id", id}, {"feedback", feedback}};
+    if (feedback)
+        req["icon"] = launchIcon(entry, id);
+    // Started once: with the token when it comes, without if it doesn't soon.
+    auto started = std::make_shared<bool>(false);
+    QPointer<QObject> e(entry);
+    QTimer::singleShot(500, this, [started, e, plain] {
+        if (!*started && e) {
+            *started = true;
+            QMetaObject::invokeMethod(e, plain);
+        }
+    });
+    requestFull(req, [started, e, plain, otherGpu](const QJsonObject& reply) {
+        if (*started || !e)
+            return;
+        *started = true;
+        const QString token = reply.value("ok").toBool() ? reply.value("result").toString() : QString();
+        if (token.isEmpty()) {
+            QMetaObject::invokeMethod(e, plain);
+            return;
+        }
+        // Wayland apps take XDG_ACTIVATION_TOKEN, X11 ones DESKTOP_STARTUP_ID.
+        const QVariantMap env{{"XDG_ACTIVATION_TOKEN", token}, {"DESKTOP_STARTUP_ID", token}};
+        QMetaObject::invokeMethod(e, otherGpu ? "executeOnOtherGpuWith" : "executeWith", Q_ARG(QVariantMap, env));
     });
 }
 
