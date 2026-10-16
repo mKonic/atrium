@@ -151,6 +151,10 @@ void Server::switch_space(Output* output, int number, View* carry) {
             wlr_scene_node_set_position(&output->fullscreen_bg->node, output->box.x, output->box.y);
             output->refit_views();
             prune_space(old);
+            // The pointer was handed over while the space was still off
+            // screen: the app under it now gets it, and sets its own cursor
+            // (a fullscreen video's hidden one) without waiting for a move.
+            seat->refresh_pointer();
         });
     } else if (old) {
         old->set_shown(false);
