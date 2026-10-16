@@ -7,6 +7,7 @@
 #include "server.hpp"
 #include "toplevel_icon.hpp"
 #include "appmenu.hpp"
+#include "commit_pacing.hpp"
 #include "view.hpp"
 
 #include <cstdlib>
@@ -28,6 +29,7 @@ void Server::setup_window_hints() {
 
     toplevel_icons = std::make_unique<ToplevelIcons>(*this);
     appmenus = std::make_unique<AppMenus>(*this);
+    commit_pacing = std::make_unique<CommitPacing>(*this);
 
     auto* tags = wlr_xdg_toplevel_tag_manager_v1_create(display, 1);
     set_tag_.connect(&tags->events.set_tag, [this](wlr_xdg_toplevel_tag_manager_v1_set_tag_event* e) {

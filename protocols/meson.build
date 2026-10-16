@@ -33,6 +33,8 @@ own_protocol_xmls = [
   wl_protocol_dir / 'staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml',
   wl_protocol_dir / 'unstable/text-input/text-input-unstable-v1.xml',
   wl_protocol_dir / 'staging/pointer-warp/pointer-warp-v1.xml',
+  wl_protocol_dir / 'staging/fifo/fifo-v1.xml',
+  wl_protocol_dir / 'staging/commit-timing/commit-timing-v1.xml',
   'atrium-glass-v1.xml',
   'appmenu.xml',
 ]

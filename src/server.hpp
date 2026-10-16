@@ -35,6 +35,7 @@ class ToplevelDrags;
 class SessionManagement;
 class ToplevelIcons;
 class AppMenus;
+class CommitPacing;
 class NightLight;
 class SessionLock;
 class Overview;
@@ -389,6 +390,7 @@ public:
     std::unique_ptr<SessionManagement> sessions;
     std::unique_ptr<ToplevelIcons> toplevel_icons;
     std::unique_ptr<AppMenus> appmenus;  // where windows' menus are on D-Bus
+    std::unique_ptr<CommitPacing> commit_pacing;  // fifo-v1, commit-timing-v1
     std::unique_ptr<NightLight> night_light;
     wlr_gamma_control_manager_v1* gamma_manager = nullptr;  // apps that set gamma themselves
     uint64_t next_view_id = 1;

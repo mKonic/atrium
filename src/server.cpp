@@ -11,6 +11,7 @@
 #include "session_management.hpp"
 #include "toplevel_icon.hpp"
 #include "appmenu.hpp"
+#include "commit_pacing.hpp"
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
 #include <cstring>
@@ -778,6 +779,7 @@ void Server::teardown() {
     sessions.reset();
     toplevel_icons.reset();
     appmenus.reset();
+    commit_pacing.reset();
     seat.reset();
 
     // wlroots needs the backend destroyed by hand before the display, or the
