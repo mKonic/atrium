@@ -120,7 +120,8 @@ void FileChooserAdaptor::ask(const QString& mode, const QDBusObjectPath& handle,
     // Saving over a file starts in its folder, with its name.
     QString folder = path(options.value("current_folder"));
     QString name = options.value("current_name").toString();
-    if (const QString file = path(options.value("current_file")); !file.isEmpty()) {
+    const QString file = path(options.value("current_file"));
+    if (!file.isEmpty()) {
         folder = file.section('/', 0, -2);
         name = file.section('/', -1);
     }
@@ -140,6 +141,7 @@ void FileChooserAdaptor::ask(const QString& mode, const QDBusObjectPath& handle,
         {"choices", choices},
         {"folder", folder},
         {"name", name},
+        {"file", file},
         {"files", files},
     };
     const bool open = mode == "open";
@@ -160,7 +162,7 @@ void FileChooserAdaptor::ask(const QString& mode, const QDBusObjectPath& handle,
                  if (const int f = reply.value("filter").toInt(-1); f >= 0 && f < filters.size())
                      results.insert("current_filter", QVariant::fromValue(filters[f]));
                  if (open)
-                     results.insert("writable", true);
+                     results.insert("writable", reply.value("writable").toBool(true));
                  return {uint(0), results};
              },
              false, window);

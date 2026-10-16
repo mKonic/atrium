@@ -33,7 +33,7 @@ TEST(FileChooser, ReadsTheRequest) {
     };
     FileChooser c(request({{"mode", "open"}, {"accept", "_Insert"}, {"multiple", true}, {"filters", filters},
                            {"filter", 1}, {"folder", "/nonexistent"}}));
-    EXPECT_EQ(c.title(), "Open");
+    EXPECT_EQ(c.title(), "Open File");
     EXPECT_EQ(c.acceptLabel(), "Insert");
     EXPECT_TRUE(c.multiple());
     EXPECT_EQ(c.filters(), (QStringList{"Images", "Text"}));
@@ -72,88 +72,111 @@ TEST(FileChooser, AnswersWithUrisAndChoices) {
     EXPECT_EQ(answered(c).value("uris").toArray(), (QJsonArray{"file:///tmp/a%20b.txt"}));
 }
 
-TEST(FileChooser, DoubleClickGoesIntoAFolder) {
+TEST(FileChooser, AcceptFollowsGtksTable) {
     QTemporaryDir dir;
     QDir(dir.path()).mkdir("sub");
-    QFile(dir.filePath("a.txt")).open(QIODevice::WriteOnly);
-    // Choosing a folder: a double click opens it up, the button answers with it.
-    FileChooser folders(request({{"mode", "open"}, {"directory", true}, {"folder", dir.path()}}));
-    EXPECT_EQ(folders.activate(dir.filePath("sub"), dir.path(), "").value("enter").toString(), dir.filePath("sub"));
-    EXPECT_TRUE(folders.answer().isEmpty());
-    EXPECT_TRUE(folders.accept({dir.filePath("sub")}, dir.path(), "").isEmpty());
-    EXPECT_EQ(answered(folders).value("uris").toArray().size(), 1);
-    // Choosing a file: a folder is gone into, a file is the answer.
-    FileChooser files(request({{"mode", "open"}, {"folder", dir.path()}}));
-    EXPECT_EQ(files.activate(dir.filePath("sub"), dir.path(), "").value("enter").toString(), dir.filePath("sub"));
-    EXPECT_TRUE(files.activate(dir.filePath("a.txt"), dir.path(), "").isEmpty());
-    EXPECT_EQ(answered(files).value("uris").toArray().size(), 1);
+    const QString sub = dir.filePath("sub"), a = dir.filePath("a.txt"), b = dir.filePath("b.txt");
+    FileChooser c(request({{"mode", "open"}, {"multiple", true}}));
+    EXPECT_EQ(c.acceptList({}, dir.path()), QVariantMap{});  // nothing picked, nothing done
+    EXPECT_TRUE(c.answer().isEmpty());
+    EXPECT_EQ(c.acceptList({sub}, dir.path()), (QVariantMap{{"enter", sub}}));
+    // A folder among files: GTK answers only when all are files.
+    EXPECT_EQ(c.acceptList({a, sub}, dir.path()), QVariantMap{});
+    EXPECT_TRUE(c.answer().isEmpty());
+    c.acceptList({a, b}, dir.path());
+    EXPECT_EQ(answered(c).value("uris").toArray().size(), 2);
+
+    // Choosing a folder: the one picked, else the one it's in. A double
+    // click is the list's business (it goes in); the button answers.
+    FileChooser d(request({{"mode", "open"}, {"directory", true}}));
+    EXPECT_EQ(d.action(), "folder");
+    EXPECT_EQ(d.acceptList({a}, dir.path()), QVariantMap{});
+    EXPECT_TRUE(d.answer().isEmpty());
+    d.acceptList({}, dir.path());
+    EXPECT_EQ(answered(d).value("uris").toArray(), (QJsonArray{QUrl::fromLocalFile(dir.path()).toString()}));
+
+    FileChooser s(request({{"mode", "save"}}));
+    EXPECT_EQ(s.acceptList({sub}, dir.path()), (QVariantMap{{"enter", sub}}));
+    EXPECT_EQ(s.acceptList({}, dir.path()), (QVariantMap{{"entry", true}}));
 }
 
-TEST(FileChooser, SavesUnderAName) {
+TEST(FileChooser, SavesWhatsTyped) {
     QTemporaryDir dir;
     QDir(dir.path()).mkdir("sub");
     QFile(dir.filePath("taken.txt")).open(QIODevice::WriteOnly);
     FileChooser c(request({{"mode", "save"}, {"name", "taken.txt"}, {"folder", dir.path()}}));
+    c.setRecentFile({});
     EXPECT_EQ(c.folder(), dir.path());
-    EXPECT_EQ(c.name(), "taken.txt");
-    EXPECT_TRUE(c.exists(dir.path(), "taken.txt"));
-    EXPECT_TRUE(c.saveProblem(dir.path(), "taken.txt").isEmpty());  // replacing it is asked about, not refused
-    EXPECT_FALSE(c.saveProblem(dir.path(), "  ").isEmpty());
-    EXPECT_FALSE(c.saveProblem(dir.path(), "a/b").isEmpty());
-    EXPECT_FALSE(c.saveProblem(dir.path(), "sub").isEmpty());
-    EXPECT_FALSE(c.saveProblem(dir.path() + "/missing", "x").isEmpty());
-    c.save(dir.path(), "a/b");  // refused: no answer
+    EXPECT_TRUE(c.startsSomewhere());
+    EXPECT_EQ(c.acceptText("", dir.path()), (QVariantMap{{"focus", true}}));
+    // A folder typed is gone into, the field cleared.
+    EXPECT_EQ(c.acceptText("sub", dir.path()), (QVariantMap{{"enter", dir.filePath("sub")}, {"clear", true}}));
+    EXPECT_EQ(c.acceptText("sub/", dir.path()), (QVariantMap{{"enter", dir.filePath("sub")}, {"clear", true}}));
+    EXPECT_TRUE(c.acceptText("missing/x.txt", dir.path()).contains("error"));
+    EXPECT_TRUE(c.acceptText("taken.txt/x", dir.path()).value("error").toString().contains("not a folder"));
+    const QVariantMap ask = c.acceptText("taken.txt", dir.path());
+    EXPECT_TRUE(ask.value("confirm").toString().contains("already exists"));
     EXPECT_TRUE(c.answer().isEmpty());
-    c.save(dir.path(), " new.txt ");
+    // A path relative to the folder, spaces around the name dropped.
+    c.acceptText("sub/ new.txt ", dir.path());
     EXPECT_EQ(answered(c).value("uris").toArray(),
+              (QJsonArray{QUrl::fromLocalFile(dir.filePath("sub/new.txt")).toString()}));
+}
+
+TEST(FileChooser, LocationFieldOpensAndMakesFolders) {
+    QTemporaryDir dir;
+    QFile(dir.filePath("a.txt")).open(QIODevice::WriteOnly);
+    FileChooser o(request({{"mode", "open"}}));
+    o.setRecentFile({});
+    EXPECT_EQ(o.acceptText("", dir.path()), (QVariantMap{{"list", true}}));
+    // A file that isn't there is still an answer when opening (GTK: Emacs uses it).
+    o.acceptText("new.txt", dir.path());
+    EXPECT_EQ(answered(o).value("uris").toArray(),
               (QJsonArray{QUrl::fromLocalFile(dir.filePath("new.txt")).toString()}));
+
+    FileChooser f(request({{"mode", "open"}, {"directory", true}}));
+    f.setRecentFile({});
+    EXPECT_TRUE(f.acceptText("a.txt", dir.path()).value("error").toString().contains("only select folders"));
+    // A folder typed that isn't there is made, then chosen.
+    f.acceptText("made", dir.path());
+    EXPECT_TRUE(QFileInfo(dir.filePath("made")).isDir());
+    EXPECT_EQ(answered(f).value("uris").toArray(),
+              (QJsonArray{QUrl::fromLocalFile(dir.filePath("made")).toString()}));
 }
 
 TEST(FileChooser, SavesSeveralUnderFreeNames) {
     QTemporaryDir dir;
     QFile(dir.filePath("a.png")).open(QIODevice::WriteOnly);
     FileChooser c(request({{"mode", "saveFiles"}, {"files", QJsonArray{"a.png", "b.png", "b.png"}}}));
+    EXPECT_EQ(c.action(), "folder");
     EXPECT_EQ(c.saveFilesPaths(dir.path()),
               (QStringList{dir.filePath("a 2.png"), dir.filePath("b.png"), dir.filePath("b 2.png")}));
 }
 
-TEST(FileChooser, AcceptOpensFilesAndGoesIntoFolders) {
+TEST(FileChooser, ReadOnlyAndRecent) {
     QTemporaryDir dir;
-    QDir(dir.path()).mkdir("sub");
-    const QString sub = dir.filePath("sub"), a = dir.filePath("a.txt"), b = dir.filePath("b.txt");
-    FileChooser c(request({{"mode", "open"}, {"multiple", true}}));
-    EXPECT_EQ(c.accept({}, dir.path(), {}), QVariantMap{});  // nothing picked, nothing done
-    EXPECT_TRUE(c.answer().isEmpty());
-    EXPECT_EQ(c.accept({sub}, dir.path(), {}), (QVariantMap{{"enter", sub}}));
-    // Files picked with a folder: the files.
-    EXPECT_EQ(c.accept({a, sub, b}, dir.path(), {}), QVariantMap{});
-    EXPECT_EQ(answered(c).value("uris").toArray().size(), 2);
-
-    // A folder chooser takes the folder picked, else the one it's in.
-    FileChooser d(request({{"mode", "open"}, {"directory", true}}));
-    d.accept({}, dir.path(), {});
-    EXPECT_EQ(answered(d).value("uris").toArray(), (QJsonArray{QUrl::fromLocalFile(dir.path()).toString()}));
+    QFile(dir.filePath("a.txt")).open(QIODevice::WriteOnly);
+    FileChooser c(request({{"mode", "open"}, {"app", "org.example.App"}}));
+    c.setRecentFile(dir.filePath("recent.xbel"));
+    EXPECT_EQ(c.acceptLabel(), "Select");
+    c.setReadOnly(true);
+    c.open({dir.filePath("a.txt")});
+    EXPECT_FALSE(answered(c).value("writable").toBool(true));
+    QFile recent(dir.filePath("recent.xbel"));
+    ASSERT_TRUE(recent.open(QIODevice::ReadOnly));
+    const QByteArray xbel = recent.readAll();
+    EXPECT_TRUE(xbel.contains(QUrl::fromLocalFile(dir.filePath("a.txt")).toEncoded()));
+    EXPECT_TRUE(xbel.contains("org.example.App"));
 }
 
-TEST(FileChooser, AcceptAsksBeforeReplacing) {
-    QTemporaryDir dir;
-    QDir(dir.path()).mkdir("sub");
-    QFile(dir.filePath("taken.txt")).open(QIODevice::WriteOnly);
-    FileChooser c(request({{"mode", "save"}}));
-    EXPECT_EQ(c.accept({dir.filePath("sub")}, dir.path(), "x"), (QVariantMap{{"enter", dir.filePath("sub")}}));
-    EXPECT_TRUE(c.accept({}, dir.path(), "").contains("error"));
-    EXPECT_TRUE(c.accept({}, dir.path(), "taken.txt").contains("confirm"));
-    EXPECT_TRUE(c.answer().isEmpty());
-    EXPECT_EQ(c.accept({}, dir.path(), "taken.txt", true), QVariantMap{});
-    EXPECT_EQ(answered(c).value("uris").toArray(),
-              (QJsonArray{QUrl::fromLocalFile(dir.filePath("taken.txt")).toString()}));
-}
-
-TEST(FileChooser, MakesFolders) {
+TEST(FileChooser, ChecksNamesAndMakesFolders) {
     QTemporaryDir dir;
     FileChooser c(request({{"mode", "save"}}));
-    EXPECT_EQ(c.makeFolder(dir.path(), " New "), (QVariantMap{{"path", dir.filePath("New")}}));
+    EXPECT_EQ(c.makeFolder(dir.path(), "New"), (QVariantMap{{"path", dir.filePath("New")}}));
     EXPECT_TRUE(QFileInfo(dir.filePath("New")).isDir());
-    EXPECT_TRUE(c.makeFolder(dir.path(), "New").contains("error"));
+    EXPECT_EQ(c.makeFolder(dir.path(), "New").value("error"), "A folder with that name already exists");
     EXPECT_TRUE(c.makeFolder(dir.path(), "a/b").contains("error"));
+    EXPECT_EQ(c.checkName(dir.path(), ".x", true).value("warning"), "Folder names starting with a “.” are hidden");
+    const QVariantMap renamed = c.rename(dir.filePath("New"), "Old");
+    EXPECT_EQ(renamed.value("path"), dir.filePath("Old"));
 }

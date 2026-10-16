@@ -7,378 +7,545 @@ import shell.modules.settings
 import shell.services
 import Atrium
 
-// Opening or saving for an app, as a Mac's open and save panels: where it
-// is on top (and the name to save under), the usual places on the left, the
-// folder's files on the right; the app's file types and its own choices
-// along the bottom. Closing the window or Cancel answers nothing.
+// Opening or saving for an app: GTK 3's file chooser (what the GTK portal
+// showed before), in atrium's look. Places on the left; the path bar (or a
+// typed location, or a search) on top; the list; the app's file types and
+// choices along the bottom. Behaviour, keys and wording follow
+// gtkfilechooserwidget.c; the rules live in ChooserModel and FileChooser.
 FloatingWindow {
     id: root
 
-    readonly property bool saving: FileChooser.mode !== "open"
-    property string error
-    property string confirm  // asked before replacing a file
+    readonly property string action: FileChooser.action  // open, save, folder
+    readonly property bool saving: action === "save"
+    property bool locating: false  // the location field instead of the path bar
+    property string sidebarCurrent: model.mode === "recent" ? "recent" : otherLocations ? "other" : model.folder
+    property bool otherLocations: false
 
-    function accept(replace: bool): void {
-        apply(FileChooser.accept(folderModel.selection, folderModel.folder, nameField.text, replace));
+    // Remembered view (GTK's org.gtk.Settings.FileChooser).
+    function setting(key: string, fallback: var): var {
+        return Atrium.settings["filechooser." + key] ?? fallback;
+    }
+    function remember(key: string, value: var): void {
+        Atrium.setSetting("filechooser." + key, value);
     }
 
-    function apply(next: var): void {
-        error = next.error ?? "";
-        confirm = next.confirm ?? "";
+    // --- answering ---------------------------------------------------------
+
+    // The dialog's default button, or Return: GTK's should_respond, by
+    // which part has the focus.
+    function accept(): void {
+        if (prompt.open || otherLocations)
+            return;
+        // Recent and search answer with what's picked, never where the list is.
+        if (model.mode !== "browse" && !saving && model.selection.length === 0)
+            return;
+        if (saving || (locating && locationField.text !== ""))
+            applyText(FileChooser.acceptText(saving ? nameField.text : locationField.text, model.folder));
+        else
+            applyList(FileChooser.acceptList(model.selection, model.folder));
+    }
+
+    function applyList(next: var): void {
         if (next.enter)
-            folderModel.folder = next.enter;
+            go(next.enter);
+        else if (next.entry)
+            applyText(FileChooser.acceptText(nameField.text, model.folder));
     }
 
-    // A typed address: a folder is gone into, a file is the answer.
-    function go(path: string): void {
-        const r = folderModel.resolve(path);
-        if (r.isDir) {
-            folderModel.folder = r.path;
-            pathBar.stop();
-            list.forceActiveFocus();
-        } else if (root.saving && r.path) {
-            folderModel.folder = r.path.slice(0, r.path.lastIndexOf("/")) || "/";
-            nameField.text = r.path.slice(r.path.lastIndexOf("/") + 1);
-            pathBar.stop();
-        } else if (r.allowed) {
-            FileChooser.open([r.path]);
-        } else {
-            error = r.exists ? "That kind of file can't be opened here." : `There's no ${path.trim()}.`;
+    function applyText(next: var, typed: string): void {
+        if (next.enter) {
+            go(next.enter);
+            if (next.clear && !saving)
+                locationField.setText("");
+            else if (next.clear)
+                nameField.text = nameField.text.slice(nameField.text.lastIndexOf("/") + 1);
+        } else if (next.error) {
+            prompt.ask({ title: next.error, detail: next.detail ?? "", cancel: false });
+        } else if (next.confirm) {
+            const text = saving ? nameField.text : locationField.text;
+            prompt.ask({
+                title: next.confirm,
+                detail: next.detail,
+                accept: qsTr("Replace"),
+                run: () => applyText(FileChooser.acceptText(text, model.folder, true))
+            });
+        } else if (next.focus) {
+            nameField.focusField();
+        } else if (next.list) {
+            applyList(FileChooser.acceptList(model.selection, model.folder));
         }
+    }
+
+    // A double click or Return on a row (later: the row goes away when the folder changes).
+    function activate(index: int): void {
+        Qt.callLater(() => {
+            const r = model.activate(index);
+            if (r.enter) {
+                otherLocations = false;
+                list.focusList();
+            } else if (r.answer) {
+                if (saving)
+                    applyText(FileChooser.acceptText(model.row(index).name, model.folder));
+                else
+                    applyList(FileChooser.acceptList(model.selection, model.folder));
+            }
+        });
+    }
+
+    function go(path: string): void {
+        otherLocations = false;
+        model.folder = path;
+        list.focusList();
+    }
+
+    function open(location: string): void {
+        if (location === "recent") {
+            otherLocations = false;
+            model.showRecent();
+        } else if (location === "other") {
+            otherLocations = true;
+        } else if (location !== "") {
+            go(location);
+        }
+    }
+
+    // --- the header's modes --------------------------------------------------
+
+    function startLocation(text: string): void {
+        if (model.mode === "search")
+            model.stopSearch();
+        if (saving) {
+            nameField.focusField();
+            if (text !== "")
+                nameField.setText(text);
+            return;
+        }
+        locating = true;
+        locationField.setText(text);
+        locationField.focusField();
+    }
+
+    function stopLocation(): void {
+        locating = false;
+        list.focusList();
+    }
+
+    function toggleSearch(): void {
+        if (model.mode === "search") {
+            model.stopSearch();
+            list.focusList();
+        } else {
+            locating = false;
+            otherLocations = false;
+            model.startSearch();
+            searchField.focusField();
+        }
+    }
+
+    // Ctrl+V: a path or URI pasted is picked, else typed as a location.
+    function paste(): void {
+        clip.text = "";
+        clip.paste();
+        const text = clip.text.trim();
+        if (text === "")
+            return;
+        const r = model.resolve(text);
+        if (r.exists && !r.isDir)
+            model.selectPath(r.path);
+        else
+            startLocation(text);
+    }
+
+    // --- view settings -------------------------------------------------------
+
+    function toggle(key: string, value: bool): void {
+        remember(key, value);
     }
 
     title: FileChooser.title
     color: Theme.palette.windowBackground
-    implicitWidth: 860
-    implicitHeight: 580
-    minimumSize: Qt.size(620, 420)
+    implicitWidth: setting("width", 0) > 0 ? setting("width", 0) : 900
+    implicitHeight: setting("height", 0) > 0 ? setting("height", 0) : 600
+    minimumSize: Qt.size(640, 420)
     onVisibleChanged: if (!visible) FileChooser.cancel()
+    onWidthChanged: saveSize.restart()
+    onHeightChanged: saveSize.restart()
 
-    // Escape closes what was asked first, else the dialog (a typed address
-    // takes its own Escape).
+    Timer {
+        id: saveSize
+
+        interval: 600
+        onTriggered: {
+            root.remember("width", Math.round(root.width));
+            root.remember("height", Math.round(root.height));
+        }
+    }
+
+    ChooserModel {
+        id: model
+
+        action: root.action
+        multiple: FileChooser.multiple
+        patterns: FileChooser.patterns
+        showHidden: root.setting("show_hidden", false)
+        foldersFirst: root.setting("folders_first", false)
+        sortColumn: root.setting("sort_column", "name")
+        ascending: root.setting("sort_ascending", true)
+        showTime: root.setting("show_time", false)
+        clock24: Atrium.settings["clock.24_hour"] ?? true
+        onShowHiddenChanged: if (showHidden !== root.setting("show_hidden", false)) root.remember("show_hidden", showHidden)
+        onFilterInTheWay: FileChooser.filter = -1
+    }
+
+    ChooserPlaces {
+        id: places
+
+        // Recent is offered when opening or choosing a folder (GTK hides it when saving).
+        showRecent: !root.saving
+    }
+
+    Component.onCompleted: {
+        // Where it starts: where the app said, else Recent (GTK's startup
+        // mode), else home. A file to save over is picked in its folder.
+        model.folder = FileChooser.folder;
+        if (!FileChooser.startsSomewhere && !saving && setting("startup", "recent") === "recent")
+            model.showRecent();
+        if (FileChooser.file !== "")
+            model.selectPath(FileChooser.file);
+        if (saving) {
+            nameField.setText(FileChooser.name);
+            nameField.focusField();
+            // The name without its suffix, to type over.
+            const dot = FileChooser.name.lastIndexOf(".");
+            nameField.select(0, dot > 0 ? dot : FileChooser.name.length);
+        } else {
+            list.focusList();
+        }
+    }
+
+    // Clipboard text, through a field nobody sees.
+    TextInput {
+        id: clip
+
+        visible: false
+    }
+
+    // --- keys (GTK's bindings) ---------------------------------------------
+
+    Shortcut { sequence: "Ctrl+L"; onActivated: root.locating && !root.saving ? root.stopLocation() : root.startLocation("") }
+    Shortcut { sequence: "Ctrl+V"; enabled: !root.locating && !nameField.editing && !searchField.editing; onActivated: root.paste() }
+    Shortcut { sequences: ["Alt+Up"]; onActivated: model.up() }
+    Shortcut { sequences: ["Alt+Down"]; onActivated: model.down() }
+    Shortcut { sequence: "Alt+Home"; onActivated: root.go(model.home) }
+    Shortcut { sequence: "Alt+D"; onActivated: root.open(places.places.find(p => p.name === "Desktop")?.path ?? "") }
+    Shortcut { sequence: "Ctrl+H"; onActivated: root.remember("show_hidden", !model.showHidden) }
+    Shortcut { sequences: ["Alt+S", "Ctrl+F"]; onActivated: root.toggleSearch() }
+    Shortcut { sequence: "Alt+R"; enabled: !root.saving; onActivated: root.open("recent") }
+    Shortcut { sequence: "Alt+P"; onActivated: sidebar.focusList() }
+    Repeater {
+        model: 10
+
+        Item {
+            required property int index
+
+            Shortcut {
+                sequence: "Alt+" + ((index + 1) % 10)
+                onActivated: root.open(places.nthBookmark(index))
+            }
+        }
+    }
+
+    // Escape steps back: a question, a menu, the location field, a search; then cancels.
     Shortcut {
         sequence: "Escape"
-        enabled: !pathBar.editing
+        enabled: !locationField.editing && !nameField.editing
         onActivated: {
-            if (root.confirm !== "")
-                root.confirm = "";
-            else if (newFolderBox.visible)
-                newFolderBox.visible = false;
+            if (prompt.open)
+                prompt.close();
+            else if (menu.visible)
+                menu.visible = false;
+            else if (model.mode === "search")
+                root.toggleSearch();
+            else if (root.locating)
+                root.stopLocation();
             else
                 FileChooser.cancel();
         }
     }
 
-    FolderModel {
-        id: folderModel
-
-        folder: FileChooser.folder
-        patterns: FileChooser.patterns
-        foldersOnly: FileChooser.directory
-        multiple: FileChooser.multiple
-    }
-
     Item {
-        anchors.fill: parent
-        anchors.margins: 16
+        id: page
 
-        // --- where, and the name to save under -----------------------------
+        anchors.fill: parent
+        anchors.margins: 14
+
+        // --- name to save under --------------------------------------------
         Row {
             id: saveRow
 
-            visible: root.saving && FileChooser.mode === "save"
+            visible: root.saving
             height: visible ? 32 : 0
             spacing: 10
             anchors.horizontalCenter: parent.horizontalCenter
+            z: 3
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Save As:")
+                text: qsTr("Name:")
+            }
+
+            PathField {
+                id: nameField
+
+                width: 360
+                model: model
+                inlineCompletion: false
+                onAccepted: root.accept()
+                onEscaped: FileChooser.cancel()
+                // Typing a folder path here moves the list along with it.
+                onTextChanged: {
+                    const slash = text.lastIndexOf("/");
+                    if (slash >= 0) {
+                        const r = model.resolve(text);
+                        if (r.dir !== "" && r.dir !== model.folder && model.resolve(r.dir + "/").isDir)
+                            model.folder = r.dir;
+                    }
+                }
+            }
+        }
+
+        // --- where -----------------------------------------------------------
+        Item {
+            id: header
+
+            anchors.top: saveRow.bottom
+            anchors.topMargin: saveRow.visible ? 12 : 0
+            width: parent.width
+            height: 32
+            z: 2
+
+            TrailBar {
+                visible: !root.locating && model.mode === "browse" && !root.otherLocations
+                anchors.left: parent.left
+                anchors.right: tools.left
+                anchors.rightMargin: 8
+                height: parent.height
+                model: model
+            }
+
+            StyledText {
+                visible: model.mode === "recent" || root.otherLocations
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.otherLocations ? qsTr("Other Locations") : qsTr("Recent")
+                font.weight: Font.DemiBold
+            }
+
+            PathField {
+                id: locationField
+
+                visible: root.locating && model.mode === "browse"
+                anchors.left: parent.left
+                anchors.right: tools.left
+                anchors.rightMargin: 8
+                height: parent.height
+                model: model
+                placeholder: qsTr("Location")
+                inlineCompletion: true
+                onAccepted: root.accept()
+                onEscaped: root.stopLocation()
             }
 
             Field {
-                id: nameField
+                id: searchField
 
-                width: 320
-                text: FileChooser.name
-                onAccepted: root.accept(false)
-                Component.onCompleted: if (root.saving) {
-                    focusField();
-                    // The name picked, without its suffix, to type over.
-                    const dot = text.lastIndexOf(".");
-                    select(0, dot > 0 ? dot : text.length);
+                readonly property bool editing: activeFocus
+                visible: model.mode === "search"
+                anchors.left: parent.left
+                anchors.right: tools.left
+                anchors.rightMargin: 8
+                height: parent.height
+                placeholder: qsTr("Search in %1").arg(model.folder === model.home ? qsTr("Home") : model.folder.slice(model.folder.lastIndexOf("/") + 1) || "/")
+                onTextChanged: model.query = text
+                onAccepted: list.focusList()
+                Keys.onEscapePressed: root.toggleSearch()
+                Keys.onDownPressed: list.focusList()
+            }
+
+            Row {
+                id: tools
+
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+
+                // GTK's spinner, while a search is still walking.
+                MaterialIcon {
+                    visible: model.searching
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "progress_activity"
+                    color: Theme.palette.secondaryLabel
+                    RotationAnimation on rotation { running: model.searching; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+                }
+
+                ToolButton {
+                    // Create Folder: not when opening (GTK), nor in Recent.
+                    visible: root.action !== "open" && model.mode === "browse" && !root.otherLocations
+                    icon: "create_new_folder"
+                    name: qsTr("Create Folder")
+                    onClicked: prompt.ask({
+                        title: qsTr("Folder Name"),
+                        field: true,
+                        text: "",
+                        accept: qsTr("Create"),
+                        check: t => FileChooser.checkName(model.folder, t, true),
+                        run: t => {
+                            const r = FileChooser.makeFolder(model.folder, t);
+                            if (r.path)
+                                root.go(r.path);
+                            else
+                                prompt.ask({ title: qsTr("The folder could not be created"), detail: r.error, cancel: false });
+                        }
+                    })
+                }
+
+                ToolButton {
+                    icon: "search"
+                    name: qsTr("Search")
+                    checked: model.mode === "search"
+                    onClicked: root.toggleSearch()
                 }
             }
         }
 
-        PathBar {
-            id: pathBar
-
-            anchors.top: saveRow.bottom
-            anchors.topMargin: saveRow.visible ? 14 : 0
-            width: parent.width
-            model: folderModel
-            onChose: path => root.go(path)
-            onDone: list.forceActiveFocus()
-        }
-
-        // --- places and files ----------------------------------------------
+        // --- places, files, preview ------------------------------------------
         Item {
             id: middle
 
-            anchors.top: pathBar.bottom
-            anchors.topMargin: 12
+            anchors.top: header.bottom
+            anchors.topMargin: 10
             anchors.bottom: footer.top
-            anchors.bottomMargin: 12
+            anchors.bottomMargin: 10
             width: parent.width
 
-            Column {
-                id: places
+            PlacesSidebar {
+                id: sidebar
 
-                width: 170
-                spacing: 2
+                width: Math.max(100, Math.min(400, root.setting("sidebar_width", 148) + split.drag))
+                height: parent.height
+                places: places
+                current: root.sidebarCurrent
+                onOpen: location => root.open(location)
+                onMenuAt: (row, x, y) => menu.showFor("place", row, sidebar.mapToItem(page, x, y))
+                onError: text => prompt.ask({ title: qsTr("Unable to mount"), detail: text, cancel: false })
+            }
 
-                Repeater {
-                    model: folderModel.places
+            // The sidebar's edge drags wider or narrower.
+            MouseArea {
+                id: split
 
-                    Rectangle {
-                        id: place
+                property real drag: 0
+                property real startX
 
-                        required property var modelData
-                        readonly property bool current: folderModel.folder === modelData.path
-
-                        width: places.width
-                        height: 30
-                        radius: 7
-                        color: current ? Theme.palette.secondaryFill : placeArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
-
-                        Row {
-                            x: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 8
-
-                            MaterialIcon {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: place.modelData.icon
-                                color: Theme.palette.accent
-                            }
-
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: places.width - 44
-                                elide: Text.ElideRight
-                                text: place.modelData.name
-                                font.pointSize: Theme.font.size.small
-                            }
-                        }
-
-                        MouseArea {
-                            id: placeArea
-
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: root.go(place.modelData.path)
-                        }
-                    }
+                x: sidebar.width + 2
+                width: 8
+                height: parent.height
+                cursorShape: Qt.SplitHCursor
+                onPressed: mouse => startX = mouse.x
+                onPositionChanged: mouse => drag += mouse.x - startX
+                onReleased: {
+                    root.remember("sidebar_width", Math.round(sidebar.width));
+                    drag = 0;
                 }
             }
 
-            Rectangle {
-                anchors.left: places.right
+            FileList {
+                id: list
+
+                visible: !root.otherLocations
+                anchors.left: sidebar.right
+                anchors.leftMargin: 12
+                anchors.right: preview.visible ? preview.left : parent.right
+                anchors.rightMargin: preview.visible ? 12 : 0
+                height: parent.height
+                model: model
+                showSize: root.setting("show_size", true)
+                showType: root.setting("show_type", true)
+                onActivated: index => root.activate(index)
+                onAcceptRequested: root.accept()
+                onMenuAt: (x, y) => menu.showFor("list", null, list.mapToItem(page, x, y))
+                onSortBy: column => {
+                    if (column === model.sortColumn)
+                        root.remember("sort_ascending", !model.ascending);
+                    else {
+                        root.remember("sort_column", column);
+                        root.remember("sort_ascending", true);
+                    }
+                }
+                onToSidebar: sidebar.focusList()
+                onDropped: paths => {
+                    // One folder: gone into (opening or saving); else what's dropped is picked.
+                    if (paths.length === 1 && model.resolve(paths[0]).isDir && root.action !== "folder")
+                        root.go(paths[0]);
+                    else
+                        for (const p of paths)
+                            model.selectPath(p);
+                }
+
+                Keys.onPressed: event => {
+                    const t = event.text;
+                    if (t === "" || event.modifiers & (Qt.ControlModifier | Qt.AltModifier) || t.charCodeAt(0) < 32)
+                        return;
+                    if ((t === "/" || t === "~" || t === ".") && !root.saving) {
+                        root.startLocation(t === "~" ? "~" : t);
+                    } else if (model.mode !== "search") {
+                        root.toggleSearch();
+                        searchField.text = t;
+                    } else {
+                        return;
+                    }
+                    event.accepted = true;
+                }
+            }
+
+            OtherLocations {
+                visible: root.otherLocations
+                anchors.left: sidebar.right
                 anchors.leftMargin: 12
                 anchors.right: parent.right
                 height: parent.height
-                radius: 10
-                color: Theme.palette.groupedBackground
-                border.width: 1
-                border.color: Theme.palette.separator
-                clip: true
+                places: places
+                onOpen: path => root.go(path)
+            }
 
-                // Column headings.
-                Item {
-                    id: heading
+            // The GTK portal's preview: a picture picked, shown at 128 px.
+            Item {
+                id: preview
 
-                    width: parent.width
-                    height: 28
+                readonly property string file: model.selection.length === 1 ? model.selection[0] : ""
+                readonly property bool picture: file !== "" && /\.(png|jpe?g|gif|webp|bmp|svg|avif|tiff?|ico|heic)$/i.test(file)
 
-                    StyledText {
-                        x: 44
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("Name")
-                        font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.secondaryLabel
-                    }
+                visible: picture && !root.otherLocations && previewImage.status !== Image.Error
+                anchors.right: parent.right
+                width: 148
+                height: parent.height
 
-                    StyledText {
-                        x: parent.width - 290
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("Date Modified")
-                        font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.secondaryLabel
-                    }
+                Image {
+                    id: previewImage
 
-                    StyledText {
-                        x: parent.width - 96
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("Size")
-                        font.pointSize: Theme.font.size.smaller
-                        color: Theme.palette.secondaryLabel
-                    }
-
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: 1
-                        color: Theme.palette.separator
-                    }
-                }
-
-                StyledText {
-                    visible: folderModel.count === 0
-                    anchors.centerIn: parent
-                    text: FileChooser.directory ? qsTr("No folders here.") : qsTr("Nothing here.")
-                    color: Theme.palette.secondaryLabel
-                }
-
-                ListView {
-                    id: list
-
-                    anchors.top: heading.bottom
-                    anchors.bottom: parent.bottom
-                    width: parent.width
-                    anchors.margins: 4
-                    clip: true
-                    focus: !root.saving
-                    model: folderModel
-                    currentIndex: -1
-                    boundsBehavior: Flickable.StopAtBounds
-
-                    Connections {
-                        target: folderModel
-
-                        function onFolderChanged(): void {
-                            list.currentIndex = -1;
-                            list.positionViewAtBeginning();
-                            root.error = "";
-                        }
-                    }
-
-                    function step(by: int, extend: bool): void {
-                        currentIndex = Math.max(0, Math.min(count - 1, currentIndex + by));
-                        folderModel.select(currentIndex, extend ? FolderModel.Extend : FolderModel.Only);
-                    }
-
-                    Keys.onUpPressed: event => step(-1, event.modifiers & Qt.ShiftModifier)
-                    Keys.onDownPressed: event => step(1, event.modifiers & Qt.ShiftModifier)
-                    Keys.onReturnPressed: root.accept(false)
-                    Keys.onEnterPressed: root.accept(false)
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Backspace) {
-                            folderModel.up();
-                            event.accepted = true;
-                        } else if (event.text === "/" || event.text === "~" || (event.key === Qt.Key_L && event.modifiers & Qt.ControlModifier)) {
-                            pathBar.type(event.text === "~" ? "~/" : event.text === "/" ? "/" : folderModel.folder + "/");
-                            event.accepted = true;
-                        } else if (event.key === Qt.Key_H && event.modifiers & Qt.ControlModifier) {
-                            folderModel.showHidden = !folderModel.showHidden;
-                            event.accepted = true;
-                        }
-                    }
-
-                    delegate: Rectangle {
-                        id: row
-
-                        required property int index
-                        required property string path
-                        required property string name
-                        required property bool isDir
-                        required property bool isImage
-                        required property string icon
-                        required property string size
-                        required property string modified
-                        required property bool selected
-
-                        width: list.width
-                        height: 30
-                        radius: 6
-                        color: selected ? Theme.palette.accent : rowArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
-                        // Saving: only folders are there to go into.
-                        opacity: root.saving && !isDir ? 0.45 : 1
-
-                        // A picture shows itself; one that can't be read, its icon.
-                        IconImage {
-                            visible: !row.isImage || thumb.status === Image.Error
-                            x: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            implicitSize: 20
-                            source: Shell.iconPath(row.isDir ? "folder" : row.icon, "text-x-generic")
-                            asynchronous: true
-                        }
-
-                        Image {
-                            id: thumb
-
-                            visible: row.isImage && status !== Image.Error
-                            x: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 20
-                            height: 20
-                            source: row.isImage ? "file://" + row.path : ""
-                            sourceSize: Qt.size(40, 40)
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                        }
-
-                        StyledText {
-                            x: 40
-                            width: parent.width - 340
-                            anchors.verticalCenter: parent.verticalCenter
-                            elide: Text.ElideMiddle
-                            text: row.name
-                            font.pointSize: Theme.font.size.small
-                            color: row.selected ? Theme.palette.labelOnAccent : Theme.palette.label
-                        }
-
-                        StyledText {
-                            x: parent.width - 286
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: row.modified
-                            font.pointSize: Theme.font.size.smaller
-                            color: row.selected ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
-                        }
-
-                        StyledText {
-                            x: parent.width - 92
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: row.isDir ? "—" : row.size
-                            font.pointSize: Theme.font.size.smaller
-                            color: row.selected ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
-                        }
-
-                        MouseArea {
-                            id: rowArea
-
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: mouse => {
-                                list.currentIndex = row.index;
-                                folderModel.select(row.index, mouse.modifiers & Qt.ControlModifier ? FolderModel.Toggle : mouse.modifiers & Qt.ShiftModifier ? FolderModel.Extend : FolderModel.Only);
-                                if (root.saving && !row.isDir)
-                                    nameField.text = row.name;
-                                else
-                                    list.forceActiveFocus();
-                            }
-                            onDoubleClicked: {
-                                folderModel.select(row.index);
-                                root.apply(FileChooser.activate(folderModel.selection[0] ?? "", folderModel.folder, nameField.text));
-                            }
-                        }
-                    }
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 10
+                    width: 128
+                    height: 128
+                    source: preview.picture ? "file://" + preview.file : ""
+                    sourceSize: Qt.size(256, 256)
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    autoTransform: true
                 }
             }
         }
 
-        // --- the app's types and choices, and the answer -------------------
+        // --- the app's types and choices, and the answer -----------------------
         Item {
             id: footer
 
@@ -390,18 +557,10 @@ FloatingWindow {
                 id: options
 
                 anchors.left: parent.left
-                anchors.right: buttons.left
+                anchors.right: filterBox.left
                 anchors.rightMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 12
-
-                Dropdown {
-                    visible: FileChooser.filters.length > 1 && !FileChooser.directory
-                    fieldWidth: 200
-                    options: FileChooser.filters.map((name, i) => ({ value: String(i), label: name }))
-                    value: String(FileChooser.filter)
-                    onPicked: v => FileChooser.filter = Number(v)
-                }
 
                 Repeater {
                     model: FileChooser.choices
@@ -432,11 +591,47 @@ FloatingWindow {
                             visible: !choice.toggle
                             fieldWidth: 160
                             options: choice.modelData.options.map(o => ({ value: o.id, label: o.label }))
-                            value: choice.modelData.value
+                            value: choice.modelData.value || (choice.modelData.options[0]?.id ?? "")
                             onPicked: v => FileChooser.setChoice(choice.modelData.id, v)
                         }
                     }
                 }
+
+                // The GTK portal adds this when opening.
+                Row {
+                    visible: root.action === "open"
+                    spacing: 8
+
+                    Switch {
+                        name: qsTr("Open files read-only")
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: FileChooser.readOnly
+                        onToggled: FileChooser.readOnly = !FileChooser.readOnly
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Open files read-only")
+                        font.pointSize: Theme.font.size.small
+                    }
+                }
+            }
+
+            // Which files are shown (GTK: "Select which types of files are shown").
+            Dropdown {
+                id: filterBox
+
+                visible: FileChooser.filters.length > 0
+                anchors.right: buttons.left
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                width: visible ? implicitWidth : 0
+                fieldWidth: 200
+                enabled: model.mode !== "search"
+                options: FileChooser.filters.map((name, i) => ({ value: String(i), label: name }))
+                value: String(FileChooser.filter)
+                placeholder: qsTr("All Files")
+                onPicked: v => FileChooser.filter = Number(v)
             }
 
             Row {
@@ -447,170 +642,159 @@ FloatingWindow {
                 spacing: 10
 
                 PillButton {
-                    visible: root.saving || FileChooser.directory
-                    text: qsTr("New Folder")
-                    onClicked: {
-                        newFolder.text = "untitled folder";
-                        newFolderBox.visible = true;
-                        newFolder.focusField();
-                        newFolder.select(0, newFolder.text.length);
-                    }
-                }
-
-                PillButton {
                     text: qsTr("Cancel")
                     onClicked: FileChooser.cancel()
                 }
 
                 PillButton {
+                    // GTK: sensitive while there's something to answer with.
+                    readonly property bool can: root.saving ? nameField.text.trim() !== ""
+                                              : root.action === "folder" ? model.mode === "browse" || model.selection.length > 0
+                                              : model.selection.length > 0 || (root.locating && locationField.text !== "")
                     primary: true
-                    enabled: root.saving || FileChooser.directory || folderModel.selection.length > 0
-                    opacity: enabled ? 1 : 0.5
+                    enabled: can
+                    opacity: can ? 1 : 0.5
                     text: FileChooser.acceptLabel
-                    onClicked: root.accept(false)
+                    onClicked: root.accept()
                 }
             }
         }
-
-        StyledText {
-            anchors.bottom: footer.top
-            anchors.bottomMargin: 2
-            anchors.right: parent.right
-            visible: root.error !== ""
-            text: root.error
-            color: Theme.palette.red
-            font.pointSize: Theme.font.size.smaller
-        }
     }
 
-    // --- asked first: a new folder's name, or replacing a file ---------------
-    Rectangle {
+    // --- menus -------------------------------------------------------------------
+
+    // The list's menu (GTK's file list popover) and the sidebar's.
+    Item {
+        id: menuLayer
+
         anchors.fill: parent
-        visible: newFolderBox.visible || root.confirm !== ""
-        color: Theme.palette.scrim
+        visible: menu.visible
+        z: 10
 
         MouseArea {
             anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onPressed: menu.visible = false
+        }
+
+        Menu {
+            id: menu
+
+            property string kind
+            property var place
+
+            function showFor(what: string, row: var, at: point): void {
+                kind = what;
+                place = row;
+                actions = what === "list" ? listActions() : placeActions(row);
+                x = Math.max(8, Math.min(at.x + page.x, root.width - width - 8));
+                y = Math.max(8, Math.min(at.y + page.y, root.height - height - 8));
+                visible = true;
+                forceActiveFocus();
+            }
+
+            function check(on: bool): string {
+                return on ? "check" : "";
+            }
+
+            function listActions(): var {
+                const sel = model.selection;
+                const one = sel.length === 1;
+                const folders = sel.length > 0 && model.allFolders;
+                const out = [];
+                if (model.mode !== "browse")
+                    out.push({ icon: "subdirectory_arrow_right", text: qsTr("Visit File"), enabled: sel.length > 0, run: () => model.selectPath(sel[0]) });
+                out.push({ icon: "folder_open", text: qsTr("Open With File Manager"), enabled: one && folders, run: () => FileChooser.openInFileManager(sel[0]) });
+                out.push({ icon: "content_copy", text: qsTr("Copy Location"), enabled: sel.length > 0, run: () => FileChooser.copyLocations(sel) });
+                out.push({ icon: "bookmark_add", text: qsTr("Add to Bookmarks"), enabled: folders, run: () => sel.forEach(p => places.addBookmark(p, -1)) });
+                // Changing files is only offered when saving (GTK).
+                if (root.saving && model.mode === "browse") {
+                    out.push({ icon: "edit", text: qsTr("Rename…"), enabled: one, run: () => root.rename(sel[0]) });
+                    out.push({ icon: "delete", text: qsTr("Move to Trash"), enabled: one, run: () => {
+                        const r = FileChooser.trash(sel[0]);
+                        if (r.error)
+                            prompt.ask({ title: r.error, cancel: false });
+                    } });
+                }
+                out.push("-");
+                out.push({ text: qsTr("Show Hidden Files"), trailing: check(model.showHidden), run: () => root.remember("show_hidden", !model.showHidden) });
+                out.push({ text: qsTr("Show Size Column"), trailing: check(list.showSize), run: () => root.remember("show_size", !list.showSize) });
+                out.push({ text: qsTr("Show Type Column"), trailing: check(list.showType), run: () => root.remember("show_type", !list.showType) });
+                out.push({ text: qsTr("Show Time"), trailing: check(model.showTime), run: () => root.remember("show_time", !model.showTime) });
+                out.push({ text: qsTr("Sort Folders before Files"), trailing: check(model.foldersFirst), run: () => root.remember("folders_first", !model.foldersFirst) });
+                return out;
+            }
+
+            function placeActions(row: var): var {
+                const out = [{ icon: "folder_open", text: qsTr("Open"), enabled: row.kind !== "drive" || row.mounted, run: () => root.open(row.path) }];
+                if (row.kind === "bookmark") {
+                    out.push({ icon: "bookmark_remove", text: qsTr("Remove"), run: () => places.removeBookmark(row.path) });
+                    out.push({ icon: "edit", text: qsTr("Rename…"), run: () => prompt.ask({
+                        title: qsTr("Rename Bookmark"), field: true, text: row.name, accept: qsTr("Rename"),
+                        run: t => places.renameBookmark(row.path, t)
+                    }) });
+                } else if (row.kind === "folder" || row.kind === "home") {
+                    out.push({ icon: "bookmark_add", text: qsTr("Add Bookmark"), enabled: !places.isBookmarked(row.path), run: () => places.addBookmark(row.path, -1) });
+                } else if (row.kind === "drive") {
+                    out.push("-");
+                    if (!row.mounted)
+                        out.push({ icon: "hard_drive", text: qsTr("Mount"), run: () => places.mount(row.device) });
+                    else {
+                        out.push({ icon: "eject", text: qsTr("Unmount"), run: () => places.unmount(row.device) });
+                        out.push({ icon: "eject", text: qsTr("Eject"), run: () => places.eject(row.device) });
+                    }
+                }
+                return out;
+            }
+
+            visible: false
+            onPicked: visible = false
+            Keys.onEscapePressed: visible = false
         }
     }
 
-    Rectangle {
-        id: newFolderBox
-
-        visible: false
-        anchors.centerIn: parent
-        width: 340
-        height: newFolderColumn.implicitHeight + 40
-        radius: 14
-        color: Theme.palette.windowBackground
-        border.width: 1
-        border.color: Theme.palette.separator
-
-        property string error
-
-        function create(): void {
-            const r = FileChooser.makeFolder(folderModel.folder, newFolder.text);
-            error = r.error ?? "";
-            if (r.path) {
-                visible = false;
-                folderModel.folder = r.path;
-                list.forceActiveFocus();
+    function rename(path: string): void {
+        const name = path.slice(path.lastIndexOf("/") + 1);
+        const dot = name.lastIndexOf(".");
+        prompt.ask({
+            title: qsTr("Name"),
+            field: true,
+            text: name,
+            select: dot > 0 ? dot : name.length,
+            accept: qsTr("Rename"),
+            check: t => t === name ? {} : FileChooser.checkName(model.folder, t, model.resolve(path).isDir),
+            run: t => {
+                const r = FileChooser.rename(path, t);
+                if (r.error)
+                    prompt.ask({ title: qsTr("The file could not be renamed"), detail: r.error, cancel: false });
+                else if (r.path)
+                    model.selectPath(r.path);
             }
-        }
-
-        Column {
-            id: newFolderColumn
-
-            anchors.centerIn: parent
-            width: parent.width - 40
-            spacing: 12
-
-            StyledText {
-                text: qsTr("New Folder")
-                font.weight: Font.DemiBold
-            }
-
-            Field {
-                id: newFolder
-
-                width: parent.width
-                onAccepted: newFolderBox.create()
-            }
-
-            StyledText {
-                visible: newFolderBox.error !== ""
-                width: parent.width
-                wrapMode: Text.Wrap
-                text: newFolderBox.error
-                color: Theme.palette.red
-                font.pointSize: Theme.font.size.smaller
-            }
-
-            Row {
-                anchors.right: parent.right
-                spacing: 10
-
-                PillButton {
-                    text: qsTr("Cancel")
-                    onClicked: newFolderBox.visible = false
-                }
-
-                PillButton {
-                    primary: true
-                    text: qsTr("Create")
-                    onClicked: newFolderBox.create()
-                }
-            }
-        }
+        });
     }
 
-    Rectangle {
-        visible: root.confirm !== ""
-        anchors.centerIn: parent
-        width: 380
-        height: confirmColumn.implicitHeight + 40
-        radius: 14
-        color: Theme.palette.windowBackground
-        border.width: 1
-        border.color: Theme.palette.separator
+    Prompt {
+        id: prompt
 
-        Column {
-            id: confirmColumn
+        z: 20
+        onOpenChanged: if (!open) (root.saving ? nameField.focusField() : list.focusList())
+    }
 
-            anchors.centerIn: parent
-            width: parent.width - 40
-            spacing: 14
+    // Saving: picking a file in the list puts its name in the field (its
+    // name part picked, to type over), as GTK does; folders don't.
+    Connections {
+        target: model
 
-            StyledText {
-                width: parent.width
-                wrapMode: Text.Wrap
-                text: root.confirm
-                font.weight: Font.DemiBold
-            }
-
-            StyledText {
-                width: parent.width
-                wrapMode: Text.Wrap
-                text: qsTr("Replacing it overwrites what's in it now.")
-                color: Theme.palette.secondaryLabel
-                font.pointSize: Theme.font.size.small
-            }
-
-            Row {
-                anchors.right: parent.right
-                spacing: 10
-
-                PillButton {
-                    text: qsTr("Cancel")
-                    onClicked: root.confirm = ""
-                }
-
-                PillButton {
-                    primary: true
-                    text: qsTr("Replace")
-                    onClicked: root.accept(true)
-                }
-            }
+        function onSelectionChanged(): void {
+            if (!root.saving || model.selection.length !== 1 || model.allFolders)
+                return;
+            const p = model.selection[0];
+            const name = p.slice(p.lastIndexOf("/") + 1);
+            if (nameField.text === name)
+                return;
+            nameField.setText(name);
+            const dot = name.lastIndexOf(".");
+            nameField.select(0, dot > 0 ? dot : name.length);
         }
     }
 }

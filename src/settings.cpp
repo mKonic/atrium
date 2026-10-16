@@ -849,6 +849,31 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "node_modules, __pycache__, *.pyc, *.o, *.tmp and *~.",
         json::array(), [](Config&, const json&) {}));
 
+    // The open and save dialog's view, remembered as GTK's file chooser
+    // remembers it (org.gtk.Settings.FileChooser); kept by the dialog itself.
+    {
+        auto keep = [&](const char* key, SettingType type, const char* title, json def) {
+            s.push_back(make(key, type, "Files", title, "", std::move(def), [](Config&, const json&) {}));
+            s.back().custom = true;
+        };
+        keep("filechooser.show_hidden", SettingType::Bool, "Show hidden files", false);
+        keep("filechooser.show_size", SettingType::Bool, "Show the Size column", true);
+        keep("filechooser.show_type", SettingType::Bool, "Show the Type column", true);
+        keep("filechooser.show_time", SettingType::Bool, "Show the time", false);
+        keep("filechooser.folders_first", SettingType::Bool, "Sort folders before files", false);
+        keep("filechooser.sort_ascending", SettingType::Bool, "Sort ascending", true);
+        keep("filechooser.sort_column", SettingType::Choice, "Sort by", "name");
+        s.back().choices = {"name", "size", "type", "modified"};
+        keep("filechooser.startup", SettingType::Choice, "Starts in", "recent");
+        s.back().choices = {"recent", "folder"};
+        keep("filechooser.sidebar_width", SettingType::Int, "Sidebar width", 148);
+        s.back().min = 100, s.back().max = 600;
+        keep("filechooser.width", SettingType::Int, "Window width", 0);
+        s.back().min = 0, s.back().max = 16384;
+        keep("filechooser.height", SettingType::Int, "Window height", 0);
+        s.back().min = 0, s.back().max = 16384;
+    }
+
     // Shortcuts (the modifier must apply before the bindings that use it)
     s.push_back(choice("shortcuts.modifier", "Keyboard Shortcuts", "Shortcut key",
         "The key written as Mod in shortcuts.", {"super", "alt", "ctrl"}, modifier_name(d.mod),

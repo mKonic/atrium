@@ -1,2 +1,9 @@
 module shell.modules.filechooser
 FileChooserWindow 1.0 FileChooserWindow.qml
+PlacesSidebar 1.0 PlacesSidebar.qml
+PathField 1.0 PathField.qml
+TrailBar 1.0 TrailBar.qml
+FileList 1.0 FileList.qml
+Prompt 1.0 Prompt.qml
+ToolButton 1.0 ToolButton.qml
+OtherLocations 1.0 OtherLocations.qml

@@ -9,6 +9,8 @@
 #include "brightness.hpp"
 #include "desktop_files.hpp"
 #include "folder_model.hpp"
+#include "chooser_model.hpp"
+#include "chooser_places.hpp"
 #include "levels.hpp"
 #include "session.hpp"
 #include "greeter.hpp"
@@ -319,6 +321,8 @@ public:
         qmlRegisterType<DockApps>(uri, 1, 0, "DockApps");
         qmlRegisterType<DesktopFiles>(uri, 1, 0, "DesktopFiles");
         qmlRegisterType<FolderModel>(uri, 1, 0, "FolderModel");
+        qmlRegisterType<ChooserModel>(uri, 1, 0, "ChooserModel");
+        qmlRegisterType<ChooserPlaces>(uri, 1, 0, "ChooserPlaces");
     }
 };
 
