@@ -220,6 +220,8 @@ void Server::rebuild_from_registry() {
 Server::~Server() {
     if (lid_idle_)
         wl_event_source_remove(lid_idle_);
+    if (gpu_reset_idle_)
+        wl_event_source_remove(gpu_reset_idle_);
     // A clean end: the next start has nothing to report.
     if (!session_marker_.empty()) {
         std::error_code ec;
@@ -278,7 +280,7 @@ void Server::setup() {
     renderer = fx_renderer_create(backend);
     if (!renderer)
         die("couldn't create renderer");
-    gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
+    gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_lost(); });
     apply_screen_shader();
     give_backends_renderer();
 
@@ -1189,6 +1191,22 @@ void Server::set_screen_power(Output* o, bool on) {
     update_outputs();
 }
 
+// The renderer emits lost from inside a render pass (fx_begin_buffer_pass),
+// with the failing call and the signal's own emission still on the stack:
+// it can't be destroyed there. Rebuild it once both have unwound, and only
+// once however many passes noticed (Umbriel's renderer recovery).
+void Server::gpu_lost() {
+    if (gpu_reset_idle_)
+        return;
+    gpu_reset_idle_ = wl_event_loop_add_idle(wl_display_get_event_loop(display), [](void* data) {
+        auto* self = static_cast<Server*>(data);
+        self->gpu_reset_idle_ = nullptr;
+        self->gpu_reset();
+    }, this);
+    if (!gpu_reset_idle_)
+        die("couldn't schedule the renderer's recovery");
+}
+
 void Server::gpu_reset() {
     wlr_renderer* old_renderer = renderer;
     wlr_allocator* old_allocator = allocator;
@@ -1200,10 +1218,12 @@ void Server::gpu_reset() {
     if (!allocator)
         die("couldn't recreate allocator");
 
-    gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_reset(); });
+    gpu_reset_.connect(&renderer->events.lost, [this](void*) { gpu_lost(); });
     wlr_compositor_set_renderer(compositor, renderer);
-    for (Output* o : outputs)
+    for (Output* o : outputs) {
         wlr_output_init_render(o->wlr, allocator, renderer);
+        wlr_output_schedule_frame(o->wlr);
+    }
 
     give_backends_renderer();
     wlr_allocator_destroy(old_allocator);

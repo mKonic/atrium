@@ -434,7 +434,9 @@ private:
     void activation_request(wlr_xdg_activation_v1_request_activate_event* event);
     void new_toplevel_capture(wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request* request);
     void new_idle_inhibitor(wlr_idle_inhibitor_v1* inhibitor);
+    void gpu_lost();
     void gpu_reset();
+    wl_event_source* gpu_reset_idle_ = nullptr;
     void disconnect_listeners();
     void workspace_requests(wlr_ext_workspace_v1_commit_event* event);
     // Hints windows give about themselves: icon, tag, modal dialogs,
