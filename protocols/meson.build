@@ -35,6 +35,7 @@ own_protocol_xmls = [
   wl_protocol_dir / 'staging/pointer-warp/pointer-warp-v1.xml',
   wl_protocol_dir / 'staging/fifo/fifo-v1.xml',
   wl_protocol_dir / 'staging/commit-timing/commit-timing-v1.xml',
+  wl_protocol_dir / 'unstable/xwayland-keyboard-grab/xwayland-keyboard-grab-unstable-v1.xml',
   'atrium-glass-v1.xml',
   'appmenu.xml',
 ]

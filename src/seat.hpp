@@ -73,6 +73,13 @@ public:
     // pointer-warp-v1: the app on `surface` moves the pointer to (sx, sy) on it.
     void warp_from_client(wlr_surface* surface, double sx, double sy);
     void create_pointer_warp();
+    // xwayland-keyboard-grab-v1: an X11 app has the keyboard on `surface`.
+    bool xwayland_grabbed(wlr_surface* surface) const;
+    void create_xwayland_grab();
+    wl_global* xwayland_grab_global = nullptr;
+    struct XwaylandGrabs {
+        ~XwaylandGrabs();
+    } xwayland_grabs_;
 
     void begin_move(View* view);
     void begin_resize(View* view, uint32_t edges);

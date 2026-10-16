@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- An X11 app that grabs the keyboard (virt-manager, a remote desktop, an X11 game) gets every key while it's focused, the desktop's shortcuts too, as on KDE Plasma (xwayland-keyboard-grab-v1).
 - Games on Vulkan's FIFO mode (Mesa, NVIDIA) pace their frames to the screen through fifo-v1 and can ask for a frame to show at a set time through commit-timing-v1, as on KWin and Hyprland, instead of throttling on frame callbacks.
 - Games, SDL3 apps and Wine can move the pointer within their own window (pointer-warp-v1, as KWin and Hyprland have it); while the pointer is locked to a game, where it asks is where the pointer shows when the lock ends.
 - Input methods (fcitx5, Mozc) in Chromium and Electron apps started with --enable-wayland-ime (VS Code, Discord, Vesktop): atrium now speaks text-input-v1 too, the version they use unless told to use v3, as Hyprland does.

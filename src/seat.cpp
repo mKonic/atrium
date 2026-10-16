@@ -216,6 +216,7 @@ Seat::Seat(Server& srv) : server(srv) {
     });
 
     create_pointer_warp();
+    create_xwayland_grab();
     new_constraint_.connect(&server.pointer_constraints->events.new_constraint,
         [this](wlr_pointer_constraint_v1* c) { new_constraint(c); });
 
@@ -645,7 +646,7 @@ bool Seat::shortcuts_inhibited() const {
     wl_list_for_each(inhibitor, &server.shortcuts_inhibit_manager->inhibitors, link)
         if (inhibitor->active && inhibitor->surface == focused && inhibitor->seat == wlr)
             return true;
-    return false;
+    return xwayland_grabbed(focused);
 }
 
 // Typing aids, as KWin's input filters, on real keyboards (not an input

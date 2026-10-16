@@ -4,6 +4,7 @@
 // arrive through security-context.
 #include "output.hpp"
 #include "sandbox.hpp"
+#include "seat.hpp"
 #include "server.hpp"
 #include "toplevel_icon.hpp"
 #include "appmenu.hpp"
@@ -47,11 +48,14 @@ void Server::setup_window_hints() {
     // clipboard behind their back, fake input, or change the desktop.
     security_context_manager = wlr_security_context_manager_v1_create(display);
     wl_display_set_global_filter(display, [](const wl_client* client, const wl_global* global, void* data) {
-        auto* manager = static_cast<wlr_security_context_manager_v1*>(data);
-        if (!wlr_security_context_manager_v1_lookup_client(manager, client))
+        auto* server = static_cast<Server*>(data);
+        // The Xwayland keyboard grab is Xwayland's alone (KWin, Mutter).
+        if (server->seat && global == server->seat->xwayland_grab_global)
+            return server->xwayland && server->xwayland->server && client == server->xwayland->server->client;
+        if (!wlr_security_context_manager_v1_lookup_client(server->security_context_manager, client))
             return true;
         return !privileged_protocol(wl_global_get_interface(global)->name);
-    }, security_context_manager);
+    }, this);
 }
 
 void forget_icon(const View& view) {
