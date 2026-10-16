@@ -215,6 +215,7 @@ Seat::Seat(Server& srv) : server(srv) {
         });
     });
 
+    create_pointer_warp();
     new_constraint_.connect(&server.pointer_constraints->events.new_constraint,
         [this](wlr_pointer_constraint_v1* c) { new_constraint(c); });
 

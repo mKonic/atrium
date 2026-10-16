@@ -30,6 +30,7 @@ atrium_sources = files(
   'geometry.cpp',
   'input_method.cpp',
   'text_input_v1.cpp',
+  'pointer_warp.cpp',
   'ipc.cpp',
   'background_effect.cpp',
   'glass.cpp',

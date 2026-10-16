@@ -70,6 +70,9 @@ public:
     // Re-evaluate what is under the cursor without it having moved
     // (after a window maps, moves, closes or changes stacking).
     void refresh_pointer() { motion(0, nullptr, 0, 0, 0, 0); }
+    // pointer-warp-v1: the app on `surface` moves the pointer to (sx, sy) on it.
+    void warp_from_client(wlr_surface* surface, double sx, double sy);
+    void create_pointer_warp();
 
     void begin_move(View* view);
     void begin_resize(View* view, uint32_t edges);
