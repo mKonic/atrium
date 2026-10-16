@@ -83,6 +83,7 @@ atrium_sources = files(
   'view.cpp',
   'window_copy.cpp',
   'xdg_view.cpp',
+  'xwayland_focus.cpp',
   'xwayland_view.cpp',
 )
 

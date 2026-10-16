@@ -50,6 +50,7 @@ class Logind;
 class Idle;
 class Logout;
 class Xsmp;
+class XwaylandFocus;
 class ClipboardHistory;
 class Space;
 struct TabGroup;
@@ -347,6 +348,7 @@ public:
     wlr_tearing_control_manager_v1* tearing_manager = nullptr;
 #ifdef ATRIUM_XWAYLAND
     wlr_xwayland* xwayland = nullptr;
+    std::unique_ptr<XwaylandFocus> xwayland_focus;  // ATRIUM_XWAYLAND only
 #endif
 
     // Zoom, as KWin's: every screen magnified around the pointer, `zoom`

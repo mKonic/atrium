@@ -38,6 +38,7 @@
 #include "tabs.hpp"
 #include "titlebar.hpp"
 #include "view.hpp"
+#include "xwayland_focus.hpp"
 #include "xwayland_view.hpp"
 #include "wrapper.hpp"
 #include "child_watch.hpp"
@@ -485,6 +486,7 @@ void Server::setup() {
             wlr_client_set_scale_override(xwayland->server->client, xwayland_scale);
             wlr_xdg_output_manager_v1_refresh(xdg_output_manager_);
         });
+        xwayland_focus = std::make_unique<XwaylandFocus>(*this);
         xwayland_ready_.connect(&xwayland->events.ready, [this](void*) {
             allow_root_x11(xwayland->display_name);
             set_x_resources();
@@ -737,6 +739,7 @@ void Server::teardown() {
     ipc.reset();
     disconnect_listeners();
 #ifdef ATRIUM_XWAYLAND
+    xwayland_focus.reset();
     wlr_xwayland_destroy(xwayland);
     xwayland = nullptr;
 #endif
