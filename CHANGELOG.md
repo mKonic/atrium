@@ -12,6 +12,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 ### Added
+- Hide the pointer when it's still (Settings > Mouse & Touchpad), as KWin's Hide Cursor: after 1 to 30 seconds without moving it, the pointer hides until you move it, click or scroll. A click or a scroll now also brings back a pointer hidden while typing.
 - Launch feedback, as on KDE Plasma: an app started from the Dock or the launcher bounces its icon beside the pointer until its window opens (5 seconds at most; apps whose desktop file says StartupNotify=false don't). Apps started this way also get an activation token, so their first window comes to the front.
 - Settings > Keyboard can let X11 apps hear keys and extra mouse buttons pressed in other apps, for their global shortcuts (push-to-talk in an X11 Discord, OBS, TeamSpeak), with KWin's four levels: Never (the default), Modifier Keys, Shortcuts, Always.
 - An X11 app that grabs the keyboard (virt-manager, a remote desktop, an X11 game) gets every key while it's focused, the desktop's shortcuts too, as on KDE Plasma (xwayland-keyboard-grab-v1).

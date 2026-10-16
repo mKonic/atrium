@@ -284,6 +284,8 @@ Seat::~Seat() {
     start_drag_.disconnect();
     new_constraint_.disconnect();
     x11_focus_change_.disconnect();
+    if (idle_hide_)
+        wl_event_source_remove(idle_hide_);
     constraints_.clear();
     pointers_.clear();
     virtual_keyboards_.clear();
@@ -1091,6 +1093,8 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         typing_hidden_ = false;
         wlr_seat_pointer_clear_focus(wlr);
     }
+    if (time && !(device && device->type == WLR_INPUT_DEVICE_TOUCH))
+        restart_idle_hide();
     if (time) {
         wlr_relative_pointer_manager_v1_send_relative_motion(server.relative_pointer_manager, wlr,
             uint64_t(time) * 1000, dx, dy, dx_unaccel, dy_unaccel);
@@ -1285,7 +1289,31 @@ void Seat::pointer_focus(View*, wlr_surface* surface, double sx, double sy, uint
     wlr_seat_pointer_notify_motion(wlr, time, sx, sy);
 }
 
+void Seat::pointer_activity() {
+    if (typing_hidden_) {
+        typing_hidden_ = false;
+        wlr_seat_pointer_clear_focus(wlr);
+        refresh_pointer();
+    }
+    restart_idle_hide();
+}
+
+void Seat::restart_idle_hide() {
+    if (!idle_hide_)
+        idle_hide_ = wl_event_loop_add_timer(server.loop, [](void* data) {
+            auto* self = static_cast<Seat*>(data);
+            // Still all this while: hidden until it's used (KWin's hidecursor).
+            if (self->mode == Mode::Normal && !self->shaking_ && !self->typing_hidden_) {
+                self->typing_hidden_ = true;
+                wlr_cursor_unset_image(self->cursor);
+            }
+            return 0;
+        }, this);
+    wl_event_source_timer_update(idle_hide_, server.config.hide_pointer_idle > 0 ? server.config.hide_pointer_idle * 1000 : 0);
+}
+
 void Seat::button(wlr_pointer_button_event* e) {
+    pointer_activity();
     // A button set to do something else (Settings > Mouse & Touchpad), as
     // KWin's buttonrebinds filter turns it into keys, another button or
     // nothing. A press keeps its remap until the release, even if the setting
@@ -1630,6 +1658,7 @@ bool Seat::titlebar_button(wlr_pointer_button_event* e, const Hit& hit) {
 void Seat::axis(wlr_pointer_axis_event* e) {
     if (server.eis && server.eis->axis(*e))
         return;
+    pointer_activity();
     server.note_activity();
     // Mod + scroll steps through spaces, with Alt taking the focused window
     // along, as caelestia's Super + wheel does. A wheel steps once a notch; a

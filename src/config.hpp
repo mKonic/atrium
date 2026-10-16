@@ -182,6 +182,7 @@ struct Config {
     libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
     bool natural_scroll = true;
     bool hide_pointer_typing = false;  // pointer.hide_while_typing: Hyprland's cursor:hide_on_key_press
+    int hide_pointer_idle = 0;  // pointer.hide_when_idle: seconds still before it hides (KWin's hidecursor); 0 never
     bool numlock = false;              // keyboard.numlock: Num Lock on at start (Hyprland's numlock_by_default)
     bool shake_to_find = true;  // pointer.shake_to_find: shaking grows the arrow
     bool touchpad_natural_scroll = true;

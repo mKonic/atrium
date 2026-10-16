@@ -656,6 +656,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "Content follows the wheel, like a touchscreen.", &Config::natural_scroll, d));
     s.push_back(boolean("pointer.hide_while_typing", "Mouse & Touchpad", "Hide the pointer while typing",
         "A key press hides the pointer until the mouse moves.", &Config::hide_pointer_typing, d));
+    s.push_back(choice("pointer.hide_when_idle", "Mouse & Touchpad", "Hide the pointer when it's still",
+        "After this many seconds without moving it, the pointer hides until you move it, click or scroll.",
+        {"never", "1", "3", "5", "10", "30"}, "never",
+        [](Config& c, const json& v) { c.hide_pointer_idle = v == "never" ? 0 : std::atoi(v.get<std::string>().c_str()); }));
     s.push_back(boolean("pointer.shake_to_find", "Mouse & Touchpad", "Shake to find the pointer",
         "Shaking the pointer quickly makes it big for a moment, so you can see where it is.", &Config::shake_to_find, d));
     s.push_back(boolean("pointer.left_handed", "Mouse & Touchpad", "Left-handed",
