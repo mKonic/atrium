@@ -922,6 +922,12 @@ void View::set_activated(bool a) {
     const bool was = activated;
     activated = a;
     send_activated(a);
+    if (a && unfullscreen_parked_) {
+        const bool fresh = std::chrono::steady_clock::now() - *unfullscreen_parked_ <= std::chrono::milliseconds(750);
+        unfullscreen_parked_.reset();
+        if (fresh && fullscreen)
+            set_fullscreen(false);
+    }
     if (handle_)
         wlr_foreign_toplevel_handle_v1_set_activated(handle_, a);
     // The focus ring fades from one tile to the next, as caelestia's border
@@ -1033,7 +1039,26 @@ void View::set_tile_bar_hidden(bool hidden) {
     server.seat->refresh_pointer();
 }
 
+// Wine games drop fullscreen when they lose focus (Alt+Tab to a chat) and
+// would be torn out of it for good. An unfullscreen asked while inactive
+// waits: coming back within 750 ms of asking applies it, any later and the
+// window stays fullscreen; a newer request or any compositor change drops it.
+// Asking for the state it already has changes nothing (Wine repeats itself).
+// From Umbriel (view/deferred_unfullscreen.h).
+void View::client_fullscreen(bool f) {
+    if (f == fullscreen) {
+        unfullscreen_parked_.reset();
+        return;
+    }
+    if (!f && !activated) {
+        unfullscreen_parked_ = std::chrono::steady_clock::now();
+        return;
+    }
+    set_fullscreen(f);
+}
+
 void View::set_fullscreen(bool f, bool by_user) {
+    unfullscreen_parked_.reset();
     wobble_stop();
     if (f == fullscreen || unmanaged() || !tree)
         return;

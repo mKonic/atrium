@@ -4,6 +4,7 @@
 #include "placements.hpp"
 #include "titlebar.hpp"
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -103,6 +104,9 @@ public:
     // `by_user`: the green button, a shortcut, a rule (not the app asking):
     // only then do the bar, title bar and Dock come over at the screen's edges.
     void set_fullscreen(bool fullscreen, bool by_user = false);
+    // The app asks for fullscreen on or off (an unfullscreen while inactive
+    // waits, see client_fullscreen in view.cpp).
+    void client_fullscreen(bool fullscreen);
     // Fill half or a quarter of the screen (geometry::snap_zone bits); TOP
     // alone maximizes.
     void snap(uint32_t zone);
@@ -181,6 +185,7 @@ public:
     bool maximized = false;
     bool fullscreen = false;
     bool fullscreen_by_user = false;  // see set_fullscreen
+    std::optional<std::chrono::steady_clock::time_point> unfullscreen_parked_;  // see client_fullscreen
     bool covered = false;  // fullscreen, with another window brought in front of it
     int fullscreen_home = 0;  // the space it left for one of its own (windows.fullscreen_space)
     uint32_t snapped = 0;  // snap zone the window fills, 0 when free

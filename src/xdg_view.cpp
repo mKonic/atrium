@@ -40,9 +40,10 @@ XdgView::XdgView(Server& srv, wlr_xdg_toplevel* t) : View(srv, Kind::Xdg), tople
             wlr_xdg_surface_schedule_configure(toplevel->base);
     };
     request_fullscreen_.connect(&toplevel->events.request_fullscreen, [this, reply](void*) {
-        if (mapped && toplevel->requested.fullscreen != fullscreen)
-            set_fullscreen(toplevel->requested.fullscreen);
-        else if (mapped || !toplevel->base->initialized || !announce_fullscreen())
+        if (mapped && (toplevel->requested.fullscreen != fullscreen || unfullscreen_parked_)) {
+            client_fullscreen(toplevel->requested.fullscreen);
+            reply();  // parked or unchanged, it still hears its state
+        } else if (mapped || !toplevel->base->initialized || !announce_fullscreen())
             reply();
     });
     request_maximize_.connect(&toplevel->events.request_maximize, [this, reply](void*) {
