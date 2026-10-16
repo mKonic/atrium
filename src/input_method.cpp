@@ -14,7 +14,7 @@
 
 namespace atrium {
 
-InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
+InputMethodRelay::InputMethodRelay(Server& server) : server_(server), text_inputs_v1_(server.display) {
     pending_timer_ = wl_event_loop_add_timer(server.loop, [](void* data) {
         // No field took it: the shell copies it instead.
         auto* self = static_cast<InputMethodRelay*>(data);
@@ -33,6 +33,7 @@ InputMethodRelay::InputMethodRelay(Server& server) : server_(server) {
     input_methods_manager_ = wlr_input_method_manager_v2_create(server.display);
     new_text_input_.connect(&text_inputs_manager_->events.new_text_input,
         [this](wlr_text_input_v3* t) { new_text_input(t); });
+    text_inputs_v1_.on_new = [this](TextInputV1* t) { new_text_input_v1(t); };
     new_input_method_.connect(&input_methods_manager_->events.new_input_method,
         [this](wlr_input_method_v2* im) { new_input_method(im); });
     // The IME follows the keyboard, wherever focus moves and however.
@@ -47,6 +48,8 @@ InputMethodRelay::~InputMethodRelay() {
     if (settle_timer_)
         wl_event_source_remove(settle_timer_);
     popups_.clear();
+    text_inputs_v1_.on_new = text_inputs_v1_.on_activate = text_inputs_v1_.on_deactivate = nullptr;
+    text_inputs_v1_.on_commit = text_inputs_v1_.on_destroy = nullptr;
     text_inputs_.clear();
     new_text_input_.disconnect();
     new_input_method_.disconnect();
@@ -92,9 +95,55 @@ bool InputMethodRelay::forward_modifiers(wlr_keyboard* keyboard, wl_client* virt
 
 // --- text inputs (apps) ------------------------------------------------------------
 
+void InputMethodRelay::TextInput::enter(wlr_surface* s) {
+    if (v1)
+        v1->enter(s);
+    else
+        wlr_text_input_v3_send_enter(input, s);
+}
+
+void InputMethodRelay::TextInput::leave() {
+    if (v1)
+        v1->leave();
+    else
+        wlr_text_input_v3_send_leave(input);
+}
+
+bool InputMethodRelay::TextInput::cursor(wlr_box& box) const {
+    if (v1) {
+        if (!v1->has_cursor_rect)
+            return false;
+        box = {v1->cx, v1->cy, v1->cw, v1->ch};
+        return true;
+    }
+    if (!(input->current.features & WLR_TEXT_INPUT_V3_FEATURE_CURSOR_RECTANGLE))
+        return false;
+    box = input->current.cursor_rectangle;
+    return true;
+}
+
+void InputMethodRelay::TextInput::commit_text(const char* text) {
+    if (v1) {
+        v1->send(nullptr, 0, text, 0, 0);
+        return;
+    }
+    wlr_text_input_v3_send_commit_string(input, text);
+    wlr_text_input_v3_send_done(input);
+}
+
+void InputMethodRelay::TextInput::replace(uint32_t before, const char* text) {
+    if (v1) {
+        v1->send(nullptr, 0, text, before, 0);
+        return;
+    }
+    wlr_text_input_v3_send_delete_surrounding_text(input, before, 0);
+    wlr_text_input_v3_send_commit_string(input, text);
+    wlr_text_input_v3_send_done(input);
+}
+
 InputMethodRelay::TextInput* InputMethodRelay::find_active() const {
     for (const auto& t : text_inputs_)
-        if (t->input->focused_surface && t->input->current_enabled && t->ready)
+        if (t->surface() && t->enabled() && t->ready)
             return t.get();
     return nullptr;
 }
@@ -119,30 +168,39 @@ void InputMethodRelay::update_active() {
 // A window's field. The shell's own (the picker's search) is where the
 // request came from, going away as it arrives: never its target.
 bool InputMethodRelay::takes_text(const TextInput* t) const {
-    return t && t->input->focused_surface && !wlr_layer_surface_v1_try_from_wlr_surface(t->input->focused_surface);
+    return t && t->surface() && !wlr_layer_surface_v1_try_from_wlr_surface(t->surface());
 }
 
 // Enter the focused surface on the text inputs of its client, leave elsewhere.
 void InputMethodRelay::update_focused_surfaces() {
     for (const auto& t : text_inputs_) {
-        wlr_text_input_v3* input = t->input;
         wlr_surface* target = nullptr;
         // Also without an IME: atrium itself types into fields (emoji).
-        if (focused_ && wl_resource_get_client(input->resource) == wl_resource_get_client(focused_->resource))
+        // A v1 field only on the surface it asked for (activate).
+        if (focused_ && t->client() == wl_resource_get_client(focused_->resource) && (!t->v1 || t->v1->asked == focused_))
             target = focused_;
-        if (input->focused_surface == target)
+        if (t->surface() == target)
             continue;
-        t->ready = false;
-        if (input->focused_surface)
-            wlr_text_input_v3_send_leave(input);
+        if (t->surface())
+            t->leave();
         if (target)
-            wlr_text_input_v3_send_enter(input, target);
+            t->enter(target);
+        // v1 has no enable: entering the surface it asked for is.
+        t->ready = t->v1 && target;
     }
 }
 
 void InputMethodRelay::send_state() {
     if (!im_)
         return;
+    if (TextInputV1* v1 = active_->v1) {
+        if (v1->has_surrounding)
+            wlr_input_method_v2_send_surrounding_text(im_, v1->surrounding.c_str(), v1->cursor, v1->anchor);
+        wlr_input_method_v2_send_text_change_cause(im_, 0);  // input_method: v1 says nothing else
+        wlr_input_method_v2_send_content_type(im_, v1->hint, v1->purpose);
+        wlr_input_method_v2_send_done(im_);
+        return;
+    }
     wlr_text_input_v3* input = active_->input;
     if (input->active_features & WLR_TEXT_INPUT_V3_FEATURE_SURROUNDING_TEXT)
         wlr_input_method_v2_send_surrounding_text(im_, input->current.surrounding.text,
@@ -191,6 +249,48 @@ void InputMethodRelay::new_text_input(wlr_text_input_v3* input) {
     update_focused_surfaces();
 }
 
+void InputMethodRelay::new_text_input_v1(TextInputV1* input) {
+    auto t = std::make_unique<TextInput>(input);
+    text_inputs_.push_back(std::move(t));
+    // The relay keeps one set of callbacks for every v1 field.
+    auto find = [this](TextInputV1* v1) -> TextInput* {
+        for (const auto& p : text_inputs_)
+            if (p->v1 == v1)
+                return p.get();
+        return nullptr;
+    };
+    text_inputs_v1_.on_activate = [this](TextInputV1*) {
+        update_focused_surfaces();
+        update_active();
+        if (active_ && active_->v1) {
+            place_popups();
+            send_state();
+        }
+    };
+    text_inputs_v1_.on_deactivate = [this, find](TextInputV1* v1) {
+        if (TextInput* tp = find(v1)) {
+            tp->leave();
+            tp->ready = false;
+        }
+        update_active();
+    };
+    text_inputs_v1_.on_commit = [this, find](TextInputV1* v1) {
+        TextInput* tp = find(v1);
+        if (tp && active_ == tp) {
+            place_popups();
+            send_state();
+            if (!pending_text_.empty() && takes_text(tp))
+                wl_event_source_timer_update(settle_timer_, kSettleMs);
+        }
+    };
+    text_inputs_v1_.on_destroy = [this](TextInputV1* v1) {
+        if (active_ && active_->v1 == v1)
+            active_ = nullptr;
+        std::erase_if(text_inputs_, [v1](const auto& p) { return p->v1 == v1; });
+        update_active();
+    };
+}
+
 void InputMethodRelay::insert_text(const std::string& text) {
     pending_text_ = text;
     if (takes_text(active_)) {
@@ -204,15 +304,12 @@ void InputMethodRelay::insert_text(const std::string& text) {
 bool InputMethodRelay::replace_text(size_t before, const std::string& text) {
     if (!takes_text(active_))
         return false;
-    wlr_text_input_v3_send_delete_surrounding_text(active_->input, uint32_t(before), 0);
-    wlr_text_input_v3_send_commit_string(active_->input, text.c_str());
-    wlr_text_input_v3_send_done(active_->input);
+    active_->replace(uint32_t(before), text.c_str());
     return true;
 }
 
 void InputMethodRelay::commit_pending() {
-    wlr_text_input_v3_send_commit_string(active_->input, pending_text_.c_str());
-    wlr_text_input_v3_send_done(active_->input);
+    active_->commit_text(pending_text_.c_str());
     pending_text_.clear();
     wl_event_source_timer_update(pending_timer_, 0);
     wl_event_source_timer_update(settle_timer_, 0);
@@ -244,6 +341,11 @@ void InputMethodRelay::new_input_method(wlr_input_method_v2* im) {
     im_commit_.connect(&im->events.commit, [this](void*) {
         if (!active_)
             return;
+        if (TextInputV1* v1 = active_->v1) {
+            v1->send(im_->current.preedit.text, im_->current.preedit.cursor_begin, im_->current.commit_text,
+                     im_->current.delete_.before_length, im_->current.delete_.after_length);
+            return;
+        }
         wlr_text_input_v3* input = active_->input;
         if (im_->current.preedit.text)
             wlr_text_input_v3_send_preedit_string(input, im_->current.preedit.text,
@@ -320,7 +422,7 @@ void InputMethodRelay::place(Popup& popup) {
         return;
 
     wlr_box cursor{};
-    if (active_->input->current.features & WLR_TEXT_INPUT_V3_FEATURE_CURSOR_RECTANGLE) {
+    if (wlr_box rect{}; active_->cursor(rect)) {
         double ox = 0, oy = 0;
         bool known = true;
         const Owner owner = Server::owner_of(focused_);
@@ -335,7 +437,7 @@ void InputMethodRelay::place(Popup& popup) {
             known = false;
         }
         if (known) {
-            cursor = active_->input->current.cursor_rectangle;
+            cursor = rect;
             cursor.x += int(ox);
             cursor.y += int(oy);
         }

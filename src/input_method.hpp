@@ -1,5 +1,6 @@
 #pragma once
 #include "listener.hpp"
+#include "text_input_v1.hpp"
 
 #include <memory>
 #include <string>
@@ -15,7 +16,9 @@ class Server;
 // and what it composes comes back to the app as preedit and commit strings.
 // Its candidate popup is placed under the text cursor.
 //
-// Ported from dwl's ime.h.
+// Ported from dwl's ime.h. Apps on text-input-v1 (Chromium, Electron) go
+// through the same relay (text_input_v1.hpp), as Hyprland's TextInput
+// wraps both.
 class InputMethodRelay {
 public:
     explicit InputMethodRelay(Server& server);
@@ -37,9 +40,22 @@ public:
     bool takes_text_now() const { return takes_text(active_); }
 
 private:
+    // An app's text field: text-input-v3 (wlroots) or v1 (atrium's own).
     struct TextInput {
         explicit TextInput(wlr_text_input_v3* i) : input(i) {}
-        wlr_text_input_v3* input;
+        explicit TextInput(TextInputV1* i) : v1(i) {}
+        wlr_text_input_v3* input = nullptr;
+        TextInputV1* v1 = nullptr;
+
+        wlr_surface* surface() const { return v1 ? v1->entered : input->focused_surface; }
+        wl_client* client() const { return v1 ? v1->client() : wl_resource_get_client(input->resource); }
+        bool enabled() const { return v1 ? v1->entered != nullptr : input->current_enabled; }
+        void enter(wlr_surface* s);
+        void leave();
+        // A cursor rectangle in surface coordinates, if the app gave one.
+        bool cursor(wlr_box& box) const;
+        void commit_text(const char* text);
+        void replace(uint32_t before, const char* text);
         // Enabled since it last entered a surface. wlroots keeps the old
         // enabled state across leave and enter; text sent before the app
         // enables again is dropped.
@@ -54,6 +70,7 @@ private:
     };
 
     void new_text_input(wlr_text_input_v3* input);
+    void new_text_input_v1(TextInputV1* input);
     void new_input_method(wlr_input_method_v2* im);
     void new_popup(wlr_input_popup_surface_v2* surface);
     void set_focus(wlr_surface* surface);
@@ -70,6 +87,7 @@ private:
 
     Server& server_;
     wlr_text_input_manager_v3* text_inputs_manager_;
+    TextInputsV1 text_inputs_v1_;
     wlr_input_method_manager_v2* input_methods_manager_;
     wlr_input_method_v2* im_ = nullptr;
     wlr_surface* focused_ = nullptr;
