@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 
 namespace atrium {
 
@@ -58,8 +59,11 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     request_configure_.connect(&xsurface->events.request_configure,
         [this](wlr_xwayland_surface_configure_event* e) { request_configure(e); });
     request_fullscreen_.connect(&xsurface->events.request_fullscreen, [this](void*) {
-        if (mapped)
-            set_fullscreen(xsurface->fullscreen);
+        if (mapped) {
+            client_fullscreen(xsurface->fullscreen);
+            if (xsurface->fullscreen != fullscreen)
+                wlr_xwayland_surface_set_fullscreen(xsurface, fullscreen);  // parked: still is
+        }
     });
     request_maximize_.connect(&xsurface->events.request_maximize, [this](void*) {
         if (mapped && layout_owned())
@@ -181,6 +185,20 @@ void XwaylandView::request_configure(wlr_xwayland_surface_configure_event* e) {
     }
     // A floating X11 window may move and resize itself, except while the
     // compositor owns its geometry.
+    if (fullscreen && (e->mask & (XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT))) {
+        const wlr_box full = content_box(geom);
+        const int full_w = to_x(server, full.width), full_h = to_x(server, full.height);
+        const int x = (e->mask & XCB_CONFIG_WINDOW_X) ? e->x : xsurface->x;
+        const int y = (e->mask & XCB_CONFIG_WINDOW_Y) ? e->y : xsurface->y;
+        const int w = (e->mask & XCB_CONFIG_WINDOW_WIDTH) ? e->width : xsurface->width;
+        const int h = (e->mask & XCB_CONFIG_WINDOW_HEIGHT) ? e->height : xsurface->height;
+        const bool emulated = x == xsurface->x && y == xsurface->y && w > 0 && h > 0 && w <= full_w &&
+                              h <= full_h && (w != full_w || h != full_h);
+        if (emulated)
+            emulated_mode_ = std::pair{w, h};
+        else
+            emulated_mode_.reset();
+    }
     if (fullscreen || maximized) {
         configure(geom);
         return;
@@ -198,8 +216,11 @@ void XwaylandView::set_geometry() {
 
 void XwaylandView::configure(const wlr_box& frame) {
     const wlr_box box = content_box(frame);
+    int w = to_x(server, box.width), h = to_x(server, box.height);
+    if (fullscreen && emulated_mode_)
+        std::tie(w, h) = *emulated_mode_;
     wlr_xwayland_surface_configure(xsurface, int16_t(to_x(server, box.x)), int16_t(to_x(server, box.y)),
-                                   uint16_t(to_x(server, box.width)), uint16_t(to_x(server, box.height)));
+                                   uint16_t(w), uint16_t(h));
 }
 
 void XwaylandView::rescaled() {
@@ -217,6 +238,10 @@ wlr_scene_tree* XwaylandView::create_content(wlr_scene_tree* parent) {
 }
 
 void XwaylandView::send_activated(bool a) {
+    // A WM_CHANGE_STATE that went unanswered can leave Wine waiting for
+    // WM_STATE to say NormalState before it restores itself (Umbriel).
+    if (a && !minimized)
+        wlr_xwayland_surface_set_minimized(xsurface, false);
     wlr_xwayland_surface_activate(xsurface, a);
     if (a)
         wlr_xwayland_surface_restack(xsurface, nullptr, XCB_STACK_MODE_ABOVE);
@@ -231,6 +256,7 @@ bool XwaylandView::asks_fullscreen() const {
 }
 
 void XwaylandView::send_fullscreen(bool f) {
+    emulated_mode_.reset();
     wlr_xwayland_surface_set_fullscreen(xsurface, f);
 }
 

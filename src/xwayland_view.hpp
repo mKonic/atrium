@@ -52,6 +52,11 @@ private:
     void map();
     void unmap();
     void request_configure(wlr_xwayland_surface_configure_event* event);
+    // A fullscreen game that switched to a smaller RandR mode (Xwayland's
+    // emulated modes) sized itself to it at the screen's corner: Xwayland
+    // scales it up to the screen only while it keeps exactly that size. In X
+    // units; dropped when fullscreen changes. From Umbriel (view_role.cpp).
+    std::optional<std::pair<int, int>> emulated_mode_;
     void set_geometry();
     void commit();
 
