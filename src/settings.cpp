@@ -849,6 +849,18 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         "node_modules, __pycache__, *.pyc, *.o, *.tmp and *~.",
         json::array(), [](Config&, const json&) {}));
 
+    // X11 apps listening in (KWin's Legacy X11 App Support).
+    s.push_back(choice("keyboard.x11_listen", "Keyboard", "X11 apps hear keys typed in other apps",
+        "For X11 apps' global shortcuts, like push-to-talk in an X11 Discord or OBS. Never is the safest. "
+        "Modifier Keys lets them hear only Super, Ctrl, Alt, Shift and keys that type nothing (F1, media keys), so "
+        "modifier-only shortcuts work. Shortcuts adds any key pressed with Ctrl, Alt or Super. Always lets every X11 "
+        "app see everything you type in every app, passwords too.",
+        {"never", "modifier_keys", "shortcuts", "always"}, "never",
+        [](Config& c, const json& v) { c.x11_listen_keys = v.get<std::string>(); }));
+    s.push_back(boolean("keyboard.x11_listen_buttons", "Keyboard", "X11 apps hear extra mouse buttons",
+        "Side and other extra buttons pressed over other apps reach X11 apps too, for their global shortcuts.",
+        &Config::x11_listen_buttons, d));
+
     // The open and save dialog's view, remembered as GTK's file chooser
     // remembers it (org.gtk.Settings.FileChooser); kept by the dialog itself.
     {

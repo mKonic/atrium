@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 namespace atrium {
@@ -76,6 +77,13 @@ public:
     // xwayland-keyboard-grab-v1: an X11 app has the keyboard on `surface`.
     bool xwayland_grabbed(wlr_surface* surface) const;
     void create_xwayland_grab();
+    // X11 apps hearing keys and buttons pressed elsewhere (keyboard.x11_listen).
+    void x11_listen_key(wlr_keyboard* kb, const wlr_keyboard_key_event* e, uint32_t keysym);
+    void x11_listen_button(uint32_t time, uint32_t button, wl_pointer_button_state state);
+    void x11_listen_focus(wlr_surface* surface);
+    std::set<uint32_t> x11_pressed_;
+    wlr_keyboard_modifiers x11_mods_{};
+    Listener<wlr_seat_keyboard_focus_change_event> x11_focus_change_;
     wl_global* xwayland_grab_global = nullptr;
     struct XwaylandGrabs {
         ~XwaylandGrabs();

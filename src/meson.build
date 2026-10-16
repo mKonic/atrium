@@ -33,6 +33,8 @@ atrium_sources = files(
   'pointer_warp.cpp',
   'commit_pacing.cpp',
   'xwayland_grab.cpp',
+  'x11_listen.cpp',
+  'x11_listen_core.cpp',
   'ipc.cpp',
   'background_effect.cpp',
   'glass.cpp',

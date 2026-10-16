@@ -217,6 +217,8 @@ Seat::Seat(Server& srv) : server(srv) {
 
     create_pointer_warp();
     create_xwayland_grab();
+    x11_focus_change_.connect(&wlr->keyboard_state.events.focus_change,
+        [this](wlr_seat_keyboard_focus_change_event* e) { x11_listen_focus(e->new_surface); });
     new_constraint_.connect(&server.pointer_constraints->events.new_constraint,
         [this](wlr_pointer_constraint_v1* c) { new_constraint(c); });
 
@@ -281,6 +283,7 @@ Seat::~Seat() {
     request_start_drag_.disconnect();
     start_drag_.disconnect();
     new_constraint_.disconnect();
+    x11_focus_change_.disconnect();
     constraints_.clear();
     pointers_.clear();
     virtual_keyboards_.clear();
@@ -887,6 +890,9 @@ void Seat::key_through(KeyboardGroup& g, wlr_keyboard_key_event* e) {
         return;
     }
 
+    // X11 apps listening in the background hear it too, if allowed.
+    x11_listen_key(kb, e, g.syms[0]);
+
     // An input method composing text takes the keys first.
     if (server.input_method && server.input_method->forward_key(kb, g.owner, e))
         return;
@@ -1468,6 +1474,7 @@ void Seat::button_event(wlr_pointer_button_event* e) {
         mode = Mode::Normal;
     }
     wlr_seat_pointer_notify_button(wlr, e->time_msec, e->button, e->state);
+    x11_listen_button(e->time_msec, e->button, e->state);
     // Sticky keys: a click with a latched modifier (Ctrl+click), then it ends.
     if (e->state == WL_POINTER_BUTTON_STATE_RELEASED && sticky_.latched()) {
         sticky_.button_released();

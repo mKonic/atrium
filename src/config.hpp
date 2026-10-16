@@ -210,6 +210,11 @@ struct Config {
     uint32_t mod = WLR_MODIFIER_LOGO;
     std::string terminal;  // empty: kDefaultTerminal
     bool snippet_expansion = false;  // typed snippet keywords become the snippet
+    // KWin's "Legacy X11 App Support": X11 apps hear keys and extra mouse
+    // buttons pressed in other apps' windows (push-to-talk under X11):
+    // "never", "modifier_keys", "shortcuts" (and keys with Ctrl/Alt/Super), "always".
+    std::string x11_listen_keys = "never";
+    bool x11_listen_buttons = false;
     std::string shell = "builtin";  // desktop shell: "builtin", a command, or "none"
     bool clipboard_history = true;  // keep copies for the Super+V picker (clipboard_history.hpp)
     std::string power_profile = "performance";  // power-profiles-daemon profile set at login
