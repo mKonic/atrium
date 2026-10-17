@@ -38,6 +38,7 @@ struct KeyboardGroup {
     Listener<wlr_keyboard_key_event> key;
     Listener<> modifiers;
     Listener<> destroy;  // virtual keyboards only
+    Listener<> keymap;   // virtual keyboards only
 };
 
 class Seat {

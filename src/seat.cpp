@@ -79,9 +79,22 @@ KeyboardGroup::KeyboardGroup(Seat& s, bool virt) : seat(s), is_virtual(virt) {
     group = wlr_keyboard_group_create();
     group->data = this;
 
-    xkb_keymap* keymap = compile_keymap(seat.server.config);
+    // A virtual keyboard starts with the real one's keymap: the very same
+    // object, see below.
+    xkb_keymap* keymap = virt ? xkb_keymap_ref(seat.physical_keyboard()->keymap) : compile_keymap(seat.server.config);
     wlr_keyboard_set_keymap(&group->keyboard, keymap);
     xkb_keymap_unref(keymap);
+    // An IME (fcitx5) hands back the keymap it was given, compiled anew.
+    // The seat speaks for the IME's keyboard for each of its keys and then
+    // for the real one again, and wlroots tells keymaps apart by pointer:
+    // every client would get "a new" keymap twice a key, and Xwayland
+    // recompiles each one. The same keymap stays the real one's object.
+    if (virt)
+        this->keymap.connect(&group->keyboard.events.keymap, [this](void*) {
+            xkb_keymap* real = seat.physical_keyboard()->keymap;
+            if (group->keyboard.keymap != real && wlr_keyboard_keymaps_match(group->keyboard.keymap, real))
+                wlr_keyboard_set_keymap(&group->keyboard, real);
+        });
     // Num Lock on from the start, as Hyprland's numlock_by_default and
     // Plasma's NumLock setting do.
     if (seat.server.config.numlock && !virt) {
@@ -108,6 +121,7 @@ KeyboardGroup::~KeyboardGroup() {
     wl_event_source_remove(repeat_source);
     key.disconnect();
     modifiers.disconnect();
+    keymap.disconnect();
     destroy.disconnect();
     wlr_keyboard_group_destroy(group);
 }
