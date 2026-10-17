@@ -6,6 +6,7 @@
 #include "portal.hpp"
 #include "remote.hpp"
 #include "screencast.hpp"
+#include "wayland_link.hpp"
 
 #include <QCoreApplication>
 
@@ -20,5 +21,8 @@ int main(int argc, char** argv) {
     new atrium::InputCaptureAdaptor(atrium::PortalBackend::instance());
     if (!atrium::PortalBackend::instance()->start())
         return 1;  // another backend already has the name
+    // Ends with the session (the link quits when the compositor goes), so
+    // the next login starts a fresh one, not this build carried over.
+    atrium::WaylandLink::instance();
     return app.exec();
 }
