@@ -460,6 +460,18 @@ bool DockApps::activate(const QString& appId) {
     return false;
 }
 
+void DockApps::cycle(const QString& appId, int step) {
+    const App* a = find(appId);
+    if (!a || a->windows.isEmpty())
+        return;
+    // Most recently used first: the one at the back is next, as Cmd+`
+    // steps; the one after the front is the one before.
+    if (!a->focused || a->windows.size() == 1)
+        Compositor::instance()->focusWindow(a->windows.front());
+    else
+        Compositor::instance()->focusWindow(step > 0 ? a->windows.back() : a->windows.at(1));
+}
+
 void DockApps::reportIcons(QQuickItem* row, const QString& output) {
     if (!row || output.isEmpty())
         return;

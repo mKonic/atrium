@@ -119,6 +119,8 @@ public:
     // True if it was launched.
     Q_INVOKABLE bool activate(const QString& appId);
     Q_INVOKABLE void launch(const QString& appId);
+    // A scroll over its icon: on through its windows (step > 0), or back.
+    Q_INVOKABLE void cycle(const QString& appId, int step);
     // "Launch on …" the GPU apps don't start on by default ("" with one).
     Q_PROPERTY(QString otherGpu READ otherGpu CONSTANT)
     QString otherGpu() const;

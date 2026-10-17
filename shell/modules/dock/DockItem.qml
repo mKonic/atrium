@@ -276,7 +276,7 @@ Item {
 
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         preventStealing: true
         onPressed: event => {
             pressAt = Qt.point(event.x, event.y);
@@ -302,8 +302,21 @@ Item {
                 return;
             if (event.button === Qt.RightButton)
                 root.menuRequested(root);
+            else if (event.button === Qt.MiddleButton)
+                root.apps.launch(root.appId);  // a new window, as on KDE Plasma
             else
                 root.activate();
+        }
+
+        // A notch of the wheel steps through its windows (KDE Plasma's
+        // "cycle through tasks", for this app only).
+        property real wheelRest: 0
+        onWheel: event => {
+            wheelRest += event.angleDelta.y || -event.angleDelta.x;
+            while (Math.abs(wheelRest) >= 120) {
+                root.apps.cycle(root.appId, wheelRest < 0 ? 1 : -1);
+                wheelRest -= wheelRest > 0 ? 120 : -120;
+            }
         }
     }
 }
