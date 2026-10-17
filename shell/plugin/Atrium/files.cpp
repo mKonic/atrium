@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <set>
 #include <utility>
 
 namespace atrium::files {
@@ -175,6 +176,89 @@ std::vector<std::string> filter_suffixes(std::string_view filter) {
         start = end + 1;
     }
     return out;
+}
+
+std::vector<Cell> place(const std::vector<std::string>& names, const std::map<std::string, Cell>& saved, int cols,
+                        int rows) {
+    rows = std::max(1, rows);
+    cols = std::max(1, cols);
+    std::vector<Cell> out(names.size());
+    std::vector<bool> placed(names.size());
+    std::set<Cell> taken;
+    for (size_t i = 0; i < names.size(); ++i) {
+        const auto it = saved.find(names[i]);
+        if (it == saved.end())
+            continue;
+        const Cell c = it->second;
+        if (c.col < 0 || c.row < 0 || c.col >= cols || c.row >= rows || !taken.insert(c).second)
+            continue;
+        out[i] = c;
+        placed[i] = true;
+    }
+    int next = 0;
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (placed[i])
+            continue;
+        Cell c;
+        do
+            c = {next / rows, next % rows}, ++next;
+        while (taken.contains(c));
+        taken.insert(c);
+        out[i] = c;
+    }
+    return out;
+}
+
+int nearest(const std::vector<Cell>& cells, int from, int dx, int dy) {
+    if (cells.empty())
+        return -1;
+    if (from < 0 || from >= int(cells.size()))
+        return grid_order(cells).front();
+    const Cell at = cells[size_t(from)];
+    int best = -1, best_distance = 0;
+    bool best_straight = false;
+    for (int i = 0; i < int(cells.size()); ++i) {
+        const Cell c = cells[size_t(i)];
+        const int along = dx ? (c.col - at.col) * dx : (c.row - at.row) * dy;
+        if (i == from || along <= 0)
+            continue;
+        const int distance = std::abs(c.col - at.col) + std::abs(c.row - at.row);
+        const bool straight = dx ? c.row == at.row : c.col == at.col;
+        if (best < 0 || distance < best_distance || (distance == best_distance && straight && !best_straight)) {
+            best = i;
+            best_distance = distance;
+            best_straight = straight;
+        }
+    }
+    return best;
+}
+
+std::vector<int> grid_order(const std::vector<Cell>& cells) {
+    std::vector<int> order(cells.size());
+    for (size_t i = 0; i < order.size(); ++i)
+        order[i] = int(i);
+    std::ranges::stable_sort(order, [&](int a, int b) { return cells[size_t(a)] < cells[size_t(b)]; });
+    return order;
+}
+
+int type_ahead(const std::vector<std::string>& names, const std::vector<int>& order, int from,
+               std::string_view typed) {
+    const std::string want = lower(typed);
+    if (want.empty())
+        return -1;
+    std::vector<int> matches;
+    for (int i : order)
+        if (lower(names[size_t(i)]).starts_with(want))
+            matches.push_back(i);
+    if (matches.empty())
+        return -1;
+    if (want.size() == 1) {
+        const auto at = std::ranges::find(order, from);
+        for (auto it = at == order.end() ? order.begin() : std::next(at); it != order.end(); ++it)
+            if (std::ranges::contains(matches, *it))
+                return *it;
+    }
+    return matches.front();
 }
 
 } // namespace atrium::files

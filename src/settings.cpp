@@ -765,6 +765,14 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     }
     s.push_back(make("desktop.icons", SettingType::Bool, "Desktop", "Files on the desktop",
         "Show what is in the desktop folder as icons on the desktop.", true, [](Config&, const json&) {}));
+    s.push_back(choice("desktop.sort", "Desktop", "Arrange icons",
+        "Where icons are put by hand, or sorted by name, kind, date or size (folders first).",
+        {"manual", "name", "kind", "date", "size"}, "manual", [](Config&, const json&) {}));
+    s.push_back(choice("desktop.icon_size", "Desktop", "Icon size", "How big the desktop's icons are.",
+        {"small", "medium", "large"}, "medium", [](Config&, const json&) {}));
+    s.push_back(make("desktop.hidden_files", SettingType::Bool, "Desktop", "Hidden files",
+        "Show the desktop folder's hidden files (their names start with a dot), dimmed.", false,
+        [](Config&, const json&) {}));
 
     s.push_back(choice("power.profile", "Power", "Power mode",
         "How the system balances speed against power use. Applied at login and when changed.",

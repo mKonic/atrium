@@ -44,6 +44,7 @@ ShellRoot {
             required property ShellScreen modelData
 
             screen: modelData
+            primary: modelData === Shell.screens[0]
         }
     }
 

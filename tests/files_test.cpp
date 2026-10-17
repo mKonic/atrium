@@ -83,6 +83,32 @@ TEST(Files, FreeNames) {
     EXPECT_FALSE(valid_name("a/b"));
 }
 
+TEST(Files, DesktopGrid) {
+    // Saved cells hold when on the grid and free; the rest fill down the columns.
+    const std::vector<std::string> names{"a", "b", "c", "d"};
+    const std::vector<Cell> cells = place(names, {{"c", {2, 1}}, {"d", {2, 1}}, {"b", {9, 0}}}, 3, 2);
+    EXPECT_EQ(cells, (std::vector<Cell>{{0, 0}, {0, 1}, {2, 1}, {1, 0}}));
+    // Past a full grid, more columns.
+    EXPECT_EQ(place({"x", "y", "z"}, {}, 1, 2).back(), (Cell{1, 0}));
+
+    // Arrows: the nearest that way, a straight line winning a tie.
+    const std::vector<Cell> grid{{0, 0}, {0, 1}, {1, 0}, {1, 2}};
+    EXPECT_EQ(nearest(grid, 0, 1, 0), 2);
+    EXPECT_EQ(nearest(grid, 1, 0, -1), 0);
+    EXPECT_EQ(nearest(grid, 2, 0, 1), 3);
+    EXPECT_EQ(nearest(grid, 0, -1, 0), -1);
+    EXPECT_EQ(nearest(grid, -1, 1, 0), 0);
+
+    // Typing: a letter again steps on, more letters narrow.
+    const std::vector<std::string> shown{"Bravo", "beta", "Alpha", "Ball"};
+    const std::vector<int> order = grid_order({{0, 0}, {0, 1}, {0, 2}, {1, 0}});
+    EXPECT_EQ(type_ahead(shown, order, -1, "b"), 0);
+    EXPECT_EQ(type_ahead(shown, order, 0, "b"), 1);
+    EXPECT_EQ(type_ahead(shown, order, 1, "b"), 3);
+    EXPECT_EQ(type_ahead(shown, order, 0, "ba"), 3);
+    EXPECT_EQ(type_ahead(shown, order, 0, "z"), -1);
+}
+
 namespace {
 
 struct Item {

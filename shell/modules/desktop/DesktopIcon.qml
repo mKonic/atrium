@@ -7,7 +7,8 @@ import shell.components
 import shell.services
 
 // One file on the desktop: its icon (a thumbnail for pictures, the app's
-// own icon for launchers) and name. Drag it out to hand the file to an app.
+// own icon for launchers) and name. Drag it (with the rest selected) to
+// move it, onto a folder or app, or out to hand the files to an app.
 Item {
     id: root
 
@@ -17,30 +18,41 @@ Item {
     required property string iconName
     required property bool isDir
     required property bool isImage
+    required property bool isLink
+    required property bool isHidden
     required property bool selected
     property bool renaming: false
+    property bool dropTarget: false  // a drag over it would drop in
+    property int iconSize: 54
+    // What a drag carries, set when pressed.
+    property string uris: ""
 
-    signal clicked(var event)
+    signal pressed(var event, bool right)
+    signal released(var event, bool onName)
     signal doubleClicked
     signal renamed(string name)
+    signal renameDone  // Enter or Escape
 
-    width: 120
-    height: 104
+    opacity: isHidden ? 0.6 : 1
 
     Rectangle {
         id: tile
 
         anchors.horizontalCenter: parent.horizontalCenter
         y: 2
-        width: 68
-        height: 68
+        width: root.iconSize + 14
+        height: root.iconSize + 14
         radius: Theme.rounding.small
-        color: root.selected ? Theme.palette.fill : "transparent"
+        color: root.dropTarget ? Theme.palette.accentFill
+             : root.selected ? Theme.palette.fill
+             : mouse.containsMouse ? Theme.palette.quaternaryFill : "transparent"
+        border.width: root.dropTarget ? 2 : 0
+        border.color: Theme.palette.accent
     }
 
     IconImage {
         anchors.centerIn: tile
-        implicitSize: 54
+        implicitSize: root.iconSize
         visible: !root.isImage
         source: root.isImage ? "" : Shell.iconPath(root.iconName, "text-x-generic")
         asynchronous: true
@@ -68,19 +80,34 @@ Item {
         id: thumb
 
         anchors.centerIn: tile
-        width: 58
-        height: 58
+        width: root.iconSize + 4
+        height: root.iconSize + 4
         visible: root.isImage
         source: root.isImage ? `file://${root.path}` : ""
-        sourceSize.width: 116
-        sourceSize.height: 116
+        sourceSize.width: (root.iconSize + 4) * 2
+        sourceSize.height: (root.iconSize + 4) * 2
         fillMode: Image.PreserveAspectFit
         asynchronous: true
         smooth: true
         mipmap: true
     }
 
+    // A link: the small arrow Finder and Explorer put on a shortcut.
+    MaterialIcon {
+        anchors.left: tile.left
+        anchors.bottom: tile.bottom
+        anchors.margins: 4
+        visible: root.isLink
+        text: "shortcut"
+        font.pointSize: Theme.font.size.small
+        color: Theme.dark.label
+        style: Text.Outline
+        styleColor: Theme.dark.shadow
+    }
+
     Rectangle {
+        id: nameArea
+
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: tile.bottom
         anchors.topMargin: 4
@@ -119,21 +146,28 @@ Item {
         }
     }
 
-    // Rename in place: the label itself turns editable, same text, same spot.
-    Item {
+    // Rename in place: the name itself turns editable, same text, same
+    // spot. Enter or a click elsewhere keeps the new name, Escape the old.
+    Rectangle {
+        z: 1  // over the icon's mouse area: a click places the cursor
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: tile.bottom
-        anchors.topMargin: 6
+        anchors.topMargin: 4
         width: label.maxWidth
-        height: input.implicitHeight
+        height: input.implicitHeight + 6
+        radius: 6
         visible: root.renaming
+        color: Theme.palette.windowBackground
+        border.width: 1
+        border.color: Theme.palette.accent
 
         TextInput {
             id: input
 
             anchors.fill: parent
+            anchors.margins: 3
             horizontalAlignment: TextInput.AlignHCenter
-            color: Theme.dark.label
+            color: Theme.palette.label
             font.family: Theme.font.sans
             font.pointSize: Theme.font.size.small
             font.weight: Font.Medium
@@ -142,22 +176,19 @@ Item {
             selectedTextColor: Theme.palette.labelOnAccent
             cursorVisible: true
             clip: true
-            onAccepted: root.renamed(text)
-            Keys.onEscapePressed: root.renamed(root.fileName)
-
-            layer.enabled: true
-            layer.effect: MultiEffect {
-                shadowEnabled: true
-                shadowColor: Theme.dark.shadow
-                shadowBlur: 0.45
-                shadowVerticalOffset: 1
+            onAccepted: root.renameDone()
+            Keys.onEscapePressed: {
+                text = root.fileName;
+                root.renameDone();
             }
         }
     }
 
     onRenamingChanged: {
-        if (!renaming)
+        if (!renaming) {
+            root.renamed(input.text);
             return;
+        }
         input.text = fileName;
         input.forceActiveFocus();
         const dot = fileName.lastIndexOf(".");
@@ -168,17 +199,23 @@ Item {
         id: mouse
 
         anchors.fill: parent
+        hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         drag.target: dragProxy
-        onClicked: event => root.clicked(event)
+        drag.threshold: Application.styleHints.startDragDistance
+        onPressed: event => root.pressed(event, event.button === Qt.RightButton)
+        onReleased: event => {
+            if (event.button === Qt.LeftButton && !drag.active)
+                root.released(event, nameArea.contains(mapToItem(nameArea, event.x, event.y)));
+        }
         onDoubleClicked: event => {
             if (event.button === Qt.LeftButton)
                 root.doubleClicked();
         }
     }
 
-    // What leaves the desktop when the icon is dragged: the file's URL, so
-    // any app that takes dropped files takes it.
+    // What leaves the desktop when the icon is dragged: the files' URLs, so
+    // any app that takes dropped files takes them.
     Item {
         id: dragProxy
 
@@ -187,7 +224,7 @@ Item {
         Drag.active: mouse.drag.active
         Drag.dragType: Drag.Automatic
         Drag.supportedActions: Qt.CopyAction | Qt.MoveAction | Qt.LinkAction
-        Drag.mimeData: ({ "text/uri-list": `file://${root.path}\r\n` })
+        Drag.mimeData: ({ "text/uri-list": root.uris })
         Drag.imageSource: root.isImage ? `file://${root.path}` : Shell.iconPath(root.iconName, "text-x-generic")
     }
 }
