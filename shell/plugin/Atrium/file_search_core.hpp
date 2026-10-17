@@ -42,5 +42,14 @@ struct Recent {
 };
 // Local files in a recently-used.xbel, newest first (not checked on disk).
 std::vector<Recent> parse_recent(std::string_view xbel);
+// The local files one app used, newest first: a bookmark's
+// <bookmark:application> whose name is one of `names` (compared without
+// case: a desktop id, the app's name, its window class), or whose exec runs
+// `binary` ("dolphin %f", "'gedit %u'"). When is that app's own use.
+std::vector<Recent> recent_for_app(std::string_view xbel, const std::vector<std::string>& names,
+                                   std::string_view binary);
+// The same list with that app forgotten: its <bookmark:application> entries
+// go, and a bookmark no other app used goes with them.
+std::string forget_app(std::string_view xbel, const std::vector<std::string>& names, std::string_view binary);
 
 } // namespace atrium::file_search

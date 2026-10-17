@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Atrium.Shell
 import shell.components
 import shell.services
 import Atrium
@@ -29,6 +30,11 @@ Rectangle {
                         action: "close" });
         return list;
     }
+
+    // The app's own rows first: its places or recent files, its desktop
+    // file's actions, its player and sound (DockApps.menuExtras).
+    readonly property var extras: item ? item.apps.menuExtras(item.appId) : []
+    readonly property var rows: extras.concat(actions)
 
     function perform(action: string): void {
         const apps = item.apps;
@@ -73,47 +79,153 @@ Rectangle {
         }
 
         Repeater {
-            model: root.actions
+            model: root.rows
 
-            Rectangle {
+            Item {
                 id: row
 
                 required property var modelData
-                readonly property real need: rowContent.implicitWidth + Theme.padding.normal * 2
+                readonly property bool separator: modelData.separator ?? false
+                readonly property bool section: modelData.section !== undefined
+                readonly property bool media: modelData.media ?? false
+                readonly property real need: separator || media ? 0 : rowContent.implicitWidth + Theme.padding.normal * 2 + (check.visible ? check.width + Theme.spacing.small : 0)
 
                 width: column.width
-                height: 34
-                radius: Theme.rounding.small
-                color: hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+                height: separator ? Theme.padding.small * 2 + 1 : section ? 26 : media ? 40 : 34
 
-                Row {
-                    id: rowContent
+                function pick(key: string): void {
+                    root.item.apps.menuPick(root.item.appId, key);
+                    root.closed();
+                }
 
+                Rectangle {
+                    visible: row.separator
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: Theme.padding.normal
+                    height: 1
+                    color: Theme.palette.separator
+                }
+
+                // A heading over the app's rows ("Recent Files").
+                StyledText {
+                    visible: row.section
+                    anchors.left: parent.left
                     anchors.leftMargin: Theme.padding.normal
-                    spacing: Theme.spacing.small
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 4
+                    text: row.modelData.section ?? ""
+                    color: Theme.palette.tertiaryLabel
+                    font.pointSize: Theme.font.size.smaller
+                    font.weight: Font.DemiBold
+                }
 
-                    MaterialIcon {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: row.modelData.icon
-                        font.pointSize: Theme.font.size.normal
-                    }
+                // The player's keys, in one row.
+                Row {
+                    visible: row.media
+                    anchors.centerIn: parent
+                    spacing: Theme.spacing.large
 
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: row.modelData.text
+                    Repeater {
+                        model: [
+                            { key: "media:previous", glyph: "skip_previous", on: row.modelData.canPrevious ?? false },
+                            { key: "media:toggle", glyph: (row.modelData.playing ?? false) ? "pause" : "play_arrow", on: row.modelData.canToggle ?? false },
+                            { key: "media:next", glyph: "skip_next", on: row.modelData.canNext ?? false }
+                        ]
+
+                        Rectangle {
+                            id: mediaKey
+
+                            required property var modelData
+
+                            width: 36
+                            height: 32
+                            radius: Theme.rounding.small
+                            color: keyArea.containsMouse && modelData.on ? Theme.palette.tertiaryFill : "transparent"
+                            opacity: modelData.on ? 1 : 0.35
+
+                            MaterialIcon {
+                                anchors.centerIn: parent
+                                text: mediaKey.modelData.glyph
+                                fill: 1
+                                font.pointSize: Theme.font.size.larger
+                            }
+
+                            MouseArea {
+                                id: keyArea
+
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: mediaKey.modelData.on
+                                onClicked: row.pick(mediaKey.modelData.key)
+                            }
+                        }
                     }
                 }
 
-                MouseArea {
-                    id: hover
-
+                Rectangle {
+                    visible: !row.separator && !row.section && !row.media
                     anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: {
-                        root.perform(row.modelData.action);
-                        root.closed();
+                    radius: Theme.rounding.small
+                    color: hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+
+                    Row {
+                        id: rowContent
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.padding.normal
+                        spacing: Theme.spacing.small
+
+                        MaterialIcon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !row.modelData.themeIcon
+                            text: row.modelData.icon ?? row.modelData.glyph ?? ""
+                            font.pointSize: Theme.font.size.normal
+                        }
+
+                        IconImage {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !!row.modelData.themeIcon
+                            implicitSize: 18
+                            source: row.modelData.themeIcon ? Shell.iconPath(row.modelData.themeIcon, "application-x-executable") : ""
+                            asynchronous: true
+                        }
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.min(implicitWidth, 320)
+                            elide: Text.ElideMiddle
+                            text: row.modelData.text ?? ""
+                        }
+                    }
+
+                    MaterialIcon {
+                        id: check
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.padding.normal
+                        visible: row.modelData.checkable ?? false
+                        text: "check"
+                        opacity: (row.modelData.checked ?? false) ? 1 : 0
+                        color: Theme.palette.accent
+                    }
+
+                    MouseArea {
+                        id: hover
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            if (row.modelData.key !== undefined) {
+                                row.pick(row.modelData.key);
+                            } else {
+                                root.perform(row.modelData.action);
+                                root.closed();
+                            }
+                        }
                     }
                 }
             }

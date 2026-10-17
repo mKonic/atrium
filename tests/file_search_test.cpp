@@ -56,3 +56,38 @@ TEST(FileSearch, RecentlyUsed) {
     EXPECT_EQ(r[1].path, "/home/u/Notes on it.md");
     EXPECT_GT(r[0].when, r[1].when);
 }
+
+TEST(FileSearch, RecentlyUsedByOneApp) {
+    const char* xbel = R"(<xbel version="1.0">
+  <bookmark href="file:///home/u/old.txt" modified="2026-09-01T10:00:00Z">
+    <info><metadata><bookmark:applications>
+      <bookmark:application name="" exec="dolphin %f" modified="2026-09-01T10:00:00Z" count="1"/>
+      <bookmark:application name="org.gnome.TextEditor" exec="&apos;gnome-text-editor %u&apos;" modified="2026-09-03T10:00:00Z" count="1"/>
+    </bookmark:applications></metadata></info>
+  </bookmark>
+  <bookmark href="https://example.org"/>
+  <bookmark href="file:///home/u/new.txt" modified="2026-09-02T10:00:00Z">
+    <info><metadata><bookmark:applications>
+      <bookmark:application name="Dolphin" exec="/usr/bin/dolphin %u" modified="2026-09-02T10:00:00Z" count="2"/>
+    </bookmark:applications></metadata></info>
+  </bookmark>
+</xbel>)";
+    // Dolphin: by its exec in one, by its name (any case) in the other; newest first.
+    const auto d = recent_for_app(xbel, {"org.kde.dolphin", "dolphin"}, "dolphin");
+    ASSERT_EQ(d.size(), 2u);
+    EXPECT_EQ(d[0].path, "/home/u/new.txt");
+    EXPECT_EQ(d[1].path, "/home/u/old.txt");
+    // The text editor's own use of old.txt is the later one.
+    const auto t = recent_for_app(xbel, {"org.gnome.TextEditor"}, "gnome-text-editor");
+    ASSERT_EQ(t.size(), 1u);
+    EXPECT_GT(t[0].when, d[0].when);
+    EXPECT_TRUE(recent_for_app(xbel, {"firefox"}, "firefox").empty());
+
+    // Forgetting Dolphin keeps old.txt for the text editor and drops new.txt.
+    const std::string left = forget_app(xbel, {"dolphin"}, "dolphin");
+    EXPECT_TRUE(recent_for_app(left, {"dolphin"}, "dolphin").empty());
+    ASSERT_EQ(recent_for_app(left, {"org.gnome.TextEditor"}, "").size(), 1u);
+    EXPECT_EQ(left.find("new.txt"), std::string::npos);
+    EXPECT_NE(left.find("https://example.org"), std::string::npos);
+    EXPECT_NE(left.find("</xbel>"), std::string::npos);
+}

@@ -54,6 +54,12 @@ public:
 
     Q_INVOKABLE void makeDefault();
 
+    // An app's stream: who plays it (application.id, application.process.id),
+    // for the Dock to find an app's streams.
+    QString appId() const { return appId_; }
+    qint64 pid() const { return pid_; }
+    void setOwner(const QString& appId, qint64 pid) { appId_ = appId, pid_ = pid; }
+
     // From the server.
     // `base`: the device's own 0 dB (PulseAudio's base volume; 0 for an
     // app's stream), which the shell shows as 100%.
@@ -68,6 +74,8 @@ private:
     Kind kind_;
     uint index_;
     QString name_, label_, icon_;
+    QString appId_;
+    qint64 pid_ = 0;
     QByteArray cvolume_;  // the server's pa_cvolume, to scale keeping balance
     double volume_ = 0;
     bool muted_ = false;

@@ -1,18 +1,24 @@
 #include "apps.hpp"
-#include "launcher_entries.hpp"
 
 #include <QDateTime>
 
+#include "audio.hpp"
+#include "chooser_places.hpp"
 #include "compositor.hpp"
 #include "desktop_entries.hpp"
+#include "file_search_core.hpp"
+#include "launcher_entries.hpp"
+#include "mpris.hpp"
 #include "list_sync.hpp"
 #include "search.hpp"
 
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QMetaMethod>
+#include <QMimeDatabase>
 #include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
@@ -380,6 +386,8 @@ void DockApps::rebuild() {
             if (const QString icon = window_icon(w); !icon.isEmpty())
                 a.icon = icon;  // no desktop entry: what the window says
         a.windows.push_back(w.value("id").toInt());
+        if (const qint64 pid = w.value("pid").toLongLong(); pid > 0 && !a.pids.contains(pid))
+            a.pids.push_back(pid);
         a.focused = a.focused || w.value("focused").toBool();
         a.urgent = a.urgent || w.value("urgent").toBool();
     }
@@ -410,6 +418,7 @@ void DockApps::rebuild() {
         gone.focused = gone.urgent = gone.divider = false;
         gone.badge = gone.progress = -1;
         gone.windows.clear();
+        gone.pids.clear();
         // After whatever came before it, if that is still here.
         size_t at = 0;
         if (i > 0)
@@ -458,6 +467,201 @@ bool DockApps::activate(const QString& appId) {
     // Already in front: step to its next window, as Cmd+` does.
     Compositor::instance()->focusWindow(a->focused && a->windows.size() > 1 ? a->windows.back() : a->windows.front());
     return false;
+}
+
+namespace {
+
+// A process's parent, from /proc.
+qint64 parent_pid(qint64 pid) {
+    QFile f(QString("/proc/%1/stat").arg(pid));
+    if (!f.open(QIODevice::ReadOnly))
+        return 0;
+    const QByteArray stat = f.readAll();
+    // "pid (comm) state ppid ...": comm may hold spaces and parentheses.
+    const qsizetype close = stat.lastIndexOf(')');
+    if (close < 0)
+        return 0;
+    const QList<QByteArray> rest = stat.mid(close + 2).split(' ');
+    return rest.size() > 1 ? rest[1].toLongLong() : 0;
+}
+
+QString home_relative(const QString& path) {
+    const QString home = QDir::homePath();
+    return path.startsWith(home + '/') ? "~" + path.mid(home.size()) : path;
+}
+
+} // namespace
+
+QList<QObject*> DockApps::streamsOf(const App& a) const {
+    // By who plays it: one of the app's processes, or a child of one
+    // (Chromium and Electron play from a helper process); else by its id
+    // or name, as KDE Plasma's task manager matches them.
+    QList<QObject*> out;
+    for (QObject* o : Audio::instance()->apps()) {
+        auto* n = static_cast<AudioNode*>(o);
+        bool mine = false;
+        for (qint64 pid = n->pid(), hops = 0; pid > 1 && hops < 4 && !mine; pid = parent_pid(pid), ++hops)
+            mine = a.pids.contains(pid);
+        if (!mine && !n->appId().isEmpty())
+            mine = n->appId().compare(a.id, Qt::CaseInsensitive) == 0;
+        if (!mine && a.pids.isEmpty())
+            mine = n->label().compare(a.name, Qt::CaseInsensitive) == 0;
+        if (mine)
+            out.push_back(n);
+    }
+    return out;
+}
+
+QObject* DockApps::playerOf(const App& a) const {
+    for (QObject* o : Mpris::instance()->players()) {
+        auto* p = static_cast<MprisPlayer*>(o);
+        const QString entry = p->desktopEntry();
+        if ((!entry.isEmpty() && index_.idForApp(entry) == a.id) || p->identity().compare(a.name, Qt::CaseInsensitive) == 0)
+            return p;
+    }
+    return nullptr;
+}
+
+QVariantList DockApps::menuExtras(const QString& appId) {
+    QVariantList rows;
+    const App* a = find(appId);
+    auto* entry = qobject_cast<shell::DesktopEntry*>(index_.byId(appId));
+    if (!a)
+        return rows;
+    const auto section = [&](const QString& title) {
+        if (!rows.isEmpty())
+            rows.push_back(QVariantMap{{"separator", true}});
+        rows.push_back(QVariantMap{{"section", title}});
+    };
+
+    // A file manager: the places it opens (KDE Plasma's Places); anything
+    // else: the files it used lately (Plasma's Recent Files, from the
+    // recently-used list every GTK and KDE app writes).
+    if (entry && entry->categories().contains("FileManager")) {
+        if (!places_)
+            places_ = new ChooserPlaces(this);
+        QVariantList found;
+        for (const QVariant& v : places_->places()) {
+            const QVariantMap p = v.toMap();
+            const QString path = p.value("path").toString();
+            if (path.startsWith('/') && p.value("section") != "devices")
+                found.push_back(QVariantMap{{"key", "place:" + path}, {"text", p.value("name")}, {"glyph", p.value("icon")}});
+        }
+        if (!found.isEmpty()) {
+            section(tr("Places"));
+            rows.append(found.mid(0, 8));
+        }
+    } else if (entry) {
+        QFile f(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/recently-used.xbel");
+        if (f.open(QIODevice::ReadOnly)) {
+            std::vector<std::string> names{entry->id().toStdString(), entry->name().toStdString(),
+                                           entry->startupClass().toStdString()};
+            const QStringList cmd = entry->command();
+            const std::string binary = cmd.isEmpty() ? std::string() : QFileInfo(cmd.first()).fileName().toStdString();
+            QVariantList found;
+            for (const auto& r : file_search::recent_for_app(f.readAll().toStdString(), names, binary)) {
+                const QString path = QString::fromStdString(r.path);
+                if (!QFileInfo::exists(path))
+                    continue;
+                const bool dir = QFileInfo(path).isDir();
+                found.push_back(QVariantMap{{"key", "recent:" + path}, {"text", QFileInfo(path).fileName()},
+                                            {"tooltip", home_relative(path)},
+                                            {"glyph", dir ? "folder" : "description"}});
+                if (found.size() == 5)
+                    break;
+            }
+            if (!found.isEmpty()) {
+                section(tr("Recent Files"));
+                rows.append(found);
+                rows.push_back(QVariantMap{{"key", "forget-recent"}, {"text", tr("Forget Recent Files")}, {"glyph", "history_toggle_off"}});
+            }
+        }
+    }
+
+    // What the app's desktop file offers (New Private Window...).
+    if (entry && !entry->actions().isEmpty()) {
+        section(tr("Actions"));
+        const QList<QObject*> actions = entry->actions();
+        for (int i = 0; i < actions.size(); ++i) {
+            auto* act = static_cast<shell::DesktopAction*>(actions[i]);
+            rows.push_back(QVariantMap{{"key", QString("action:%1").arg(i)}, {"text", act->name()},
+                                       {"themeIcon", act->icon().isEmpty() ? entry->icon() : act->icon()}});
+        }
+    }
+
+    // Its player and its sound, side by side (Plasma keeps them together).
+    auto* player = static_cast<MprisPlayer*>(playerOf(*a));
+    const QList<QObject*> streams = streamsOf(*a);
+    if (player || !streams.isEmpty()) {
+        if (!rows.isEmpty())
+            rows.push_back(QVariantMap{{"separator", true}});
+        if (player)
+            rows.push_back(QVariantMap{{"media", true}, {"playing", player->isPlaying()},
+                                       {"canPrevious", player->canGoPrevious()}, {"canNext", player->canGoNext()},
+                                       {"canToggle", player->canTogglePlaying()}});
+        if (!streams.isEmpty()) {
+            const bool muted = std::ranges::all_of(streams, [](QObject* o) { return static_cast<AudioNode*>(o)->muted(); });
+            rows.push_back(QVariantMap{{"key", "mute"}, {"text", tr("Mute")}, {"glyph", muted ? "volume_off" : "volume_up"},
+                                       {"checkable", true}, {"checked", muted}});
+        }
+    }
+    if (!rows.isEmpty())
+        rows.push_back(QVariantMap{{"separator", true}});
+    return rows;
+}
+
+void DockApps::menuPick(const QString& appId, const QString& key) {
+    const App* a = find(appId);
+    auto* entry = qobject_cast<shell::DesktopEntry*>(index_.byId(appId));
+    if (key.startsWith("place:") || key.startsWith("recent:")) {
+        const QString path = key.section(':', 1);
+        if (entry && (key.startsWith("place:") || QFileInfo(path).isDir() ||
+                      entry->mimeTypes().contains(QMimeDatabase().mimeTypeForFile(path).name())))
+            entry->open({QUrl::fromLocalFile(path).toString()});
+        else
+            QDesktopServices::openUrl(QUrl::fromLocalFile(path));  // its default app, as Plasma falls back to
+    } else if (key.startsWith("action:") && entry) {
+        const int i = key.section(':', 1).toInt();
+        if (i >= 0 && i < entry->actions().size())
+            static_cast<shell::DesktopAction*>(entry->actions()[i])->execute();
+    } else if (key == "forget-recent" && entry) {
+        forgetRecent(entry);
+    } else if (key == "mute" && a) {
+        const QList<QObject*> streams = streamsOf(*a);
+        const bool muted = std::ranges::all_of(streams, [](QObject* o) { return static_cast<AudioNode*>(o)->muted(); });
+        for (QObject* o : streams)
+            static_cast<AudioNode*>(o)->setMuted(!muted);
+    } else if (key.startsWith("media:") && a) {
+        if (auto* p = static_cast<MprisPlayer*>(playerOf(*a))) {
+            if (key == "media:previous")
+                p->previous();
+            else if (key == "media:next")
+                p->next();
+            else
+                p->togglePlaying();
+        }
+    }
+}
+
+void DockApps::forgetRecent(QObject* o) {
+    auto* entry = static_cast<shell::DesktopEntry*>(o);
+    const QString file = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/recently-used.xbel";
+    QFile in(file);
+    if (!in.open(QIODevice::ReadOnly))
+        return;
+    const std::string before = in.readAll().toStdString();
+    in.close();
+    const QStringList cmd = entry->command();
+    const std::string after = file_search::forget_app(
+        before, {entry->id().toStdString(), entry->name().toStdString(), entry->startupClass().toStdString()},
+        cmd.isEmpty() ? std::string() : QFileInfo(cmd.first()).fileName().toStdString());
+    if (after == before)
+        return;
+    QSaveFile out(file);
+    if (out.open(QIODevice::WriteOnly)) {
+        out.write(after.data(), qint64(after.size()));
+        out.commit();
+    }
 }
 
 void DockApps::cycle(const QString& appId, int step) {

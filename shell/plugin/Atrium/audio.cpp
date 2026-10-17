@@ -285,6 +285,7 @@ void Audio::appCb(pa_context*, const pa_sink_input_info* i, int eol, void* data)
     QString label = prop(i->proplist, PA_PROP_APPLICATION_NAME);
     if (label.isEmpty())
         label = QString::fromUtf8(i->name);
+    n->setOwner(prop(i->proplist, PA_PROP_APPLICATION_ID), prop(i->proplist, PA_PROP_APPLICATION_PROCESS_ID).toLongLong());
     n->update(QString::fromUtf8(i->name), label, prop(i->proplist, PA_PROP_APPLICATION_ICON_NAME), pack(i->volume),
               fraction(i->volume), i->mute);
     if (fresh)

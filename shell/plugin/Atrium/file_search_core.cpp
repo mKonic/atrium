@@ -211,4 +211,134 @@ std::vector<Recent> parse_recent(std::string_view xbel) {
     return unique;
 }
 
+namespace {
+
+// The program an exec line runs, without quotes or a path.
+std::string exec_binary(std::string_view exec) {
+    size_t a = exec.find_first_not_of(" '\"");
+    if (a == std::string_view::npos)
+        return {};
+    size_t b = exec.find_first_of(" '\"", a);
+    std::string_view word = exec.substr(a, b == std::string_view::npos ? std::string_view::npos : b - a);
+    if (const size_t slash = word.rfind('/'); slash != std::string_view::npos)
+        word = word.substr(slash + 1);
+    return std::string(word);
+}
+
+std::vector<std::string> lowered(const std::vector<std::string>& names) {
+    std::vector<std::string> out;
+    for (const std::string& n : names)
+        if (!n.empty())
+            out.push_back(lower(n));
+    return out;
+}
+
+bool is_app(std::string_view atag, const std::vector<std::string>& wanted, std::string_view binary) {
+    const std::string name = lower(unescape(attribute(atag, "name")));
+    return (!name.empty() && std::ranges::find(wanted, name) != wanted.end()) ||
+           (!binary.empty() && exec_binary(unescape(attribute(atag, "exec"))) == binary);
+}
+
+} // namespace
+
+std::vector<Recent> recent_for_app(std::string_view xbel, const std::vector<std::string>& names,
+                                   std::string_view binary) {
+    const std::vector<std::string> wanted = lowered(names);
+    std::vector<Recent> out;
+    size_t at = 0;
+    while ((at = xbel.find("<bookmark ", at)) != std::string_view::npos) {
+        const size_t end = xbel.find('>', at);
+        if (end == std::string_view::npos)
+            break;
+        const std::string_view tag = xbel.substr(at, end - at);
+        if (tag.ends_with('/')) {  // no applications inside
+            at = end;
+            continue;
+        }
+        size_t close = xbel.find("</bookmark>", end);
+        if (close == std::string_view::npos)
+            close = xbel.size();
+        const std::string_view body = xbel.substr(end, close - end);
+        at = close;
+        const std::string href = unescape(attribute(tag, "href"));
+        if (!href.starts_with("file://"))
+            continue;
+        long long when = -1;
+        size_t app = 0;
+        while ((app = body.find("<bookmark:application ", app)) != std::string_view::npos) {
+            const size_t app_end = body.find('>', app);
+            if (app_end == std::string_view::npos)
+                break;
+            const std::string_view atag = body.substr(app, app_end - app);
+            app = app_end;
+            if (is_app(atag, wanted, binary))
+                when = std::max(when, parse_time(attribute(atag, "modified")));
+        }
+        if (when >= 0)
+            out.push_back({percent_decode(std::string_view(href).substr(7)), when});
+    }
+    std::ranges::stable_sort(out, [](const Recent& a, const Recent& b) { return a.when > b.when; });
+    std::vector<Recent> unique;
+    for (Recent& r : out)
+        if (std::ranges::none_of(unique, [&](const Recent& u) { return u.path == r.path; }))
+            unique.push_back(std::move(r));
+    return unique;
+}
+
+std::string forget_app(std::string_view xbel, const std::vector<std::string>& names, std::string_view binary) {
+    const std::vector<std::string> wanted = lowered(names);
+    std::string out;
+    size_t copied = 0, at = 0;
+    while ((at = xbel.find("<bookmark ", at)) != std::string_view::npos) {
+        const size_t end = xbel.find('>', at);
+        if (end == std::string_view::npos)
+            break;
+        if (xbel.substr(at, end - at).ends_with('/')) {
+            at = end;
+            continue;
+        }
+        size_t close = xbel.find("</bookmark>", end);
+        if (close == std::string_view::npos)
+            break;
+        close += 11;
+        // This bookmark, without the app's lines; how many apps are left.
+        std::string kept;
+        int others = 0, mine = 0;
+        size_t from = at, app = end;
+        const std::string_view block = xbel.substr(0, close);
+        while ((app = block.find("<bookmark:application ", app)) != std::string_view::npos) {
+            const size_t app_end = block.find('>', app);
+            if (app_end == std::string_view::npos)
+                break;
+            if (is_app(block.substr(app, app_end - app), wanted, binary)) {
+                ++mine;
+                // The whole line, indent and newline too.
+                size_t line = block.rfind('\n', app);
+                line = line == std::string_view::npos || line < from ? app : line;
+                kept.append(block.substr(from, line - from));
+                from = app_end + 1;
+            } else {
+                ++others;
+            }
+            app = app_end;
+        }
+        kept.append(block.substr(from, close - from));
+        if (mine) {
+            out.append(xbel.substr(copied, at - copied));
+            if (others) {
+                out.append(kept);
+            } else if (out.ends_with("  ")) {
+                while (!out.empty() && (out.back() == ' ' || out.back() == '\t'))
+                    out.pop_back();
+                if (close < xbel.size() && xbel[close] == '\n')
+                    ++close;
+            }
+            copied = close;
+        }
+        at = close;
+    }
+    out.append(xbel.substr(copied));
+    return out;
+}
+
 } // namespace atrium::file_search

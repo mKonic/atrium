@@ -119,6 +119,14 @@ public:
     // True if it was launched.
     Q_INVOKABLE bool activate(const QString& appId);
     Q_INVOKABLE void launch(const QString& appId);
+    // The rows an app's Dock menu has before its own (New Window, Keep in
+    // Dock...): its desktop file's actions, the files it used lately, the
+    // places a file manager opens, media keys for its player, Mute for its
+    // sound. Each row is one of {section: title}, {separator: true},
+    // {media: true, playing, canPrevious, canNext} or
+    // {key, text, glyph | themeIcon, checkable, checked}; menuPick(key) does it.
+    Q_INVOKABLE QVariantList menuExtras(const QString& appId);
+    Q_INVOKABLE void menuPick(const QString& appId, const QString& key);
     // A scroll over its icon: on through its windows (step > 0), or back.
     Q_INVOKABLE void cycle(const QString& appId, int step);
     // "Launch on …" the GPU apps don't start on by default ("" with one).
@@ -155,11 +163,16 @@ private:
         bool divider = false;  // first running-only app after the pinned ones
         bool leaving = false;  // closed: still here a moment, to shrink away
         QList<int> windows;    // most recently used first
+        QList<qint64> pids;    // of its windows' processes
         bool operator==(const App&) const = default;
     };
 
     void rebuild();
     const App* find(const QString& id) const;
+    QList<QObject*> streamsOf(const App& a) const;  // its sound (AudioNodes)
+    QObject* playerOf(const App& a) const;          // its MprisPlayer, or null
+    void forgetRecent(QObject* entry);              // its lines in recently-used.xbel
+    class ChooserPlaces* places_ = nullptr;
     QVariantList reported_;  // the icons atrium last heard of
     QString reported_output_;
 
