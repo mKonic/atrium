@@ -127,6 +127,16 @@ public:
     // {key, text, glyph | themeIcon, checkable, checked}; menuPick(key) does it.
     Q_INVOKABLE QVariantList menuExtras(const QString& appId);
     Q_INVOKABLE void menuPick(const QString& appId, const QString& key);
+    // Things dropped on the Dock: desktop files are pinned at `index` among
+    // the pins (true when all of them were apps); anything else, dropped on
+    // an app, opens in it.
+    Q_INVOKABLE bool pinDropped(const QList<QUrl>& urls, int index);
+    // A text/uri-list's URLs (comments and blank lines skipped): a drop's
+    // KDE copy of it, when Qt finds no files through the document portal.
+    Q_INVOKABLE QList<QUrl> uriList(const QString& text) const;
+    Q_INVOKABLE void openWith(const QString& appId, const QList<QUrl>& urls);
+    // A drag held over an app's icon: its window comes forward, to drop into.
+    Q_INVOKABLE void springOpen(const QString& appId);
     // A scroll over its icon: on through its windows (step > 0), or back.
     Q_INVOKABLE void cycle(const QString& appId, int step);
     // "Launch on …" the GPU apps don't start on by default ("" with one).

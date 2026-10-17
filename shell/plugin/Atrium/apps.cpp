@@ -19,6 +19,7 @@
 #include <QJsonDocument>
 #include <QMetaMethod>
 #include <QMimeDatabase>
+#include <QUrl>
 #include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
@@ -662,6 +663,49 @@ void DockApps::forgetRecent(QObject* o) {
         out.write(after.data(), qint64(after.size()));
         out.commit();
     }
+}
+
+bool DockApps::pinDropped(const QList<QUrl>& urls, int index) {
+    QStringList ids;
+    for (const QUrl& url : urls) {
+        const QString path = url.toLocalFile();
+        if (!path.endsWith(".desktop"))
+            return false;
+        const QString id = QFileInfo(path).completeBaseName();
+        if (!index_.byId(id))
+            return false;  // not an installed app (or one hidden from menus)
+        ids << id;
+    }
+    if (ids.isEmpty())
+        return false;
+    for (const QString& id : ids)
+        placePin(id, index < 0 ? pinnedCount() : index++);
+    return true;
+}
+
+QList<QUrl> DockApps::uriList(const QString& text) const {
+    QList<QUrl> out;
+    for (const QString& line : text.split('\n')) {
+        const QString t = line.trimmed();
+        if (!t.isEmpty() && !t.startsWith('#'))
+            out << QUrl(t);
+    }
+    return out;
+}
+
+void DockApps::openWith(const QString& appId, const QList<QUrl>& urls) {
+    auto* entry = qobject_cast<shell::DesktopEntry*>(index_.byId(appId));
+    if (!entry || urls.isEmpty())
+        return;
+    QStringList targets;
+    for (const QUrl& url : urls)
+        targets << url.toString();
+    entry->open(targets);
+}
+
+void DockApps::springOpen(const QString& appId) {
+    if (const App* a = find(appId); a && !a->windows.isEmpty() && !a->focused)
+        Compositor::instance()->focusWindow(a->windows.front());
 }
 
 void DockApps::cycle(const QString& appId, int step) {

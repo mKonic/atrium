@@ -31,6 +31,7 @@ Item {
 
     property bool launching: false
     property bool menuOpen: false
+    property bool dropOver: false  // something dragged over it, to drop on it
 
     property bool lifted: false  // being dragged to a new place
     // 0 → 1 as it arrives, back to 0 as it leaves: the Dock opens and closes
@@ -104,6 +105,25 @@ Item {
 
         interval: 8000
         onTriggered: root.launching = false
+    }
+
+    // Under a drag: it takes what is dropped.
+    Rectangle {
+        anchors.centerIn: icon
+        width: icon.width + 10
+        height: icon.height + 10
+        radius: Theme.rounding.normal
+        color: Theme.palette.tertiaryFill
+        border.width: 2
+        border.color: Theme.palette.accent
+        opacity: root.dropOver ? 1 : 0
+        visible: opacity > 0
+
+        Behavior on opacity {
+            Anim {
+                duration: Theme.anim.small
+            }
+        }
     }
 
     IconImage {

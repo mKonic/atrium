@@ -72,6 +72,51 @@ PanelWindow {
     }
     property var menuItem: null
 
+    // A drag from another app over the shelf: the icon under it.
+    property Item dropItem: null
+    property point dropAt
+    function itemAt(x: real): Item {
+        for (let i = 0; i < apps.count; ++i) {
+            const it = apps.itemAt(i);
+            if (!it || it.leaving)
+                continue;
+            const box = it.mapToItem(dock.contentItem, 0, 0, it.width, it.height);
+            if (x >= box.x && x < box.x + box.width)
+                return it;
+        }
+        return null;
+    }
+    // Where among the pins dropped apps go.
+    function pinIndexAt(x: real): int {
+        let index = 0;
+        for (let i = 0; i < apps.count; ++i) {
+            const it = apps.itemAt(i);
+            if (!it || !it.pinned)
+                continue;
+            const box = it.mapToItem(dock.contentItem, 0, 0, it.width, it.height);
+            if (box.x + box.width / 2 < x)
+                ++index;
+        }
+        return index;
+    }
+    onDropItemChanged: {
+        for (let i = 0; i < apps.count; ++i) {
+            const it = apps.itemAt(i);
+            if (it)
+                it.dropOver = it === dropItem;
+        }
+        spring.restart();
+    }
+
+    // Held over an app a moment, its window comes forward to drop into
+    // (KDE Plasma's 250 ms; macOS springs folders the same way).
+    Timer {
+        id: spring
+
+        interval: 250
+        onTriggered: if (dock.dropItem) dockApps.springOpen(dock.dropItem.appId)
+    }
+
     // Out of sight over a fullscreen app or a tiled space (or always, with
     // dock.autohide) until the pointer rests at the bottom of the screen, as
     // macOS's Dock: PanelReveal has the rule, the same as the menu bar's.
@@ -106,7 +151,7 @@ PanelWindow {
 
         hides: dock.hides
         edge: dock.home && output.edge === "bottom"
-        hovered: dock.home && hover.hovered
+        hovered: dock.home && (hover.hovered || drops.containsDrag)
         held: dock.menuItem !== null || dock.dragItem !== null
     }
 
@@ -366,6 +411,45 @@ PanelWindow {
                         color: Theme.palette.separator
                     }
                 }
+            }
+        }
+    }
+
+    // Files and apps dragged in from other apps.
+    DropArea {
+        id: drops
+
+        x: reach.x
+        y: reach.y
+        width: reach.width
+        height: reach.height
+        keys: ["text/uri-list"]
+
+        // Accepted as a copy, so the app dragging hands its data over on the
+        // drop (a drag nobody accepted is called off before the drop).
+        onEntered: drag => drag.accept(Qt.CopyAction)
+        onPositionChanged: drag => {
+            drag.accept(Qt.CopyAction);
+            const at = mapToItem(dock.contentItem, drag.x, drag.y);
+            dock.dropAt = at;
+            // What is dragged is only read on the drop (reading it while
+            // dragging asks the app for it early); apps are told apart then.
+            dock.dropItem = dock.itemAt(at.x);
+        }
+        onExited: dock.dropItem = null
+        onDropped: drop => {
+            const target = dock.dropItem;
+            // Qt reads files through the document portal; without one it
+            // gets none, so KDE apps' own copy of the list stands in.
+            let urls = drop.urls;
+            if (urls.length === 0 && drop.formats.includes("application/x-kde4-urilist"))
+                urls = dockApps.uriList(drop.getDataAsString("application/x-kde4-urilist"));
+            dock.dropItem = null;
+            if (dockApps.pinDropped(urls, dock.pinIndexAt(dock.dropAt.x))) {
+                drop.accept(Qt.CopyAction);
+            } else if (target) {
+                dockApps.openWith(target.appId, urls);
+                drop.accept(Qt.CopyAction);
             }
         }
     }
