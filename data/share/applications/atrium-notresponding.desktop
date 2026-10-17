@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Not Responding
+Comment=Wait for an app that stopped answering, or force it to quit
+Icon=dialog-warning
+Exec=false
+Terminal=false
+NoDisplay=true
+StartupWMClass=atrium-notresponding
+OnlyShowIn=atrium;
