@@ -25,7 +25,7 @@ void usage(const char* argv0) {
         "  -g, --greeter       the login screen, for atrium-login or greetd\n"
         "  -d, --debug         verbose logging\n"
         "  -v, --version       print the version and exit\n"
-        "      doctor          whether atrium works with what's installed (atrium-doctor)\n"
+        "      doctor          a health check of atrium and its session (atrium-doctor)\n"
         "      --dump-schema   print the settings' pages, titles, descriptions and choices (JSON) and exit\n",
         argv0);
 }

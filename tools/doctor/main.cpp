@@ -1,15 +1,19 @@
-// atrium-doctor: whether what atrium (and the Qt plugins around it) was built
-// against is still what's installed, and fixing it when it isn't: a newer
-// release, else the latest atrium built from source; AUR packages rebuilt
-// from the AUR. Links nothing but the C++ runtime, so it still runs when
-// what atrium uses has moved under it.
+// atrium-doctor: a health check of atrium and the session it runs, section
+// by section (checks.hpp), as flutter doctor and Neovim's :checkhealth tell
+// theirs; and fixing what's installed when what atrium (and the Qt plugins
+// around it) was built against has moved: a newer release, else the latest
+// atrium built from source; AUR packages rebuilt from the AUR. Links nothing
+// but the C++ runtime, so it still runs when what atrium uses has moved.
 //
-//   atrium-doctor          what's wrong, and how --fix would fix it
-//   atrium-doctor --fix    fix it (asks first)
-//   atrium-doctor --brief  one line when something's wrong (pacman's hook)
-//   atrium-doctor --notify a notification when something's wrong (login)
+//   atrium-doctor [SECTION...] [-v] [--json]   the health check
+//   atrium-doctor --list   its sections
+//   atrium-doctor --fix    fix what's installed (asks first)
+//   atrium-doctor --brief  one line when what's installed is wrong (pacman's hook)
+//   atrium-doctor --notify a notification when it is (login)
 
+#include "checks.hpp"
 #include "doctor_core.hpp"
+#include "probe.hpp"
 #include "updates_core.hpp"
 
 #include <nlohmann/json.hpp>
@@ -31,8 +35,6 @@
 #include <thread>
 #include <vector>
 
-extern char** environ;
-
 namespace fs = std::filesystem;
 using namespace atrium::doctor;
 
@@ -40,214 +42,6 @@ namespace {
 
 constexpr const char* kRepo = "https://github.com/mKonic/atrium.git";
 constexpr const char* kLatest = "https://api.github.com/repos/mKonic/atrium/releases/latest";
-
-// Runs `argv`, its output captured (stderr too when `errors`); "" when it
-// can't start. `status` gets its exit status.
-std::string capture(const std::vector<std::string>& argv, int* status = nullptr, bool errors = false) {
-    int fds[2];
-    if (pipe2(fds, O_CLOEXEC) != 0)
-        return {};
-    posix_spawn_file_actions_t fa;
-    posix_spawn_file_actions_init(&fa);
-    posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
-    if (errors)
-        posix_spawn_file_actions_adddup2(&fa, fds[1], 2);
-    else
-        posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
-    std::vector<char*> args;
-    for (const std::string& a : argv)
-        args.push_back(const_cast<char*>(a.c_str()));
-    args.push_back(nullptr);
-    pid_t pid;
-    const int rc = posix_spawnp(&pid, args[0], &fa, nullptr, args.data(), environ);
-    posix_spawn_file_actions_destroy(&fa);
-    close(fds[1]);
-    std::string out;
-    if (rc == 0) {
-        char buf[4096];
-        for (ssize_t n; (n = read(fds[0], buf, sizeof buf)) > 0;)
-            out.append(buf, size_t(n));
-        int st = 0;
-        waitpid(pid, &st, 0);
-        if (status)
-            *status = WIFEXITED(st) ? WEXITSTATUS(st) : -1;
-    } else if (status) {
-        *status = -1;
-    }
-    close(fds[0]);
-    return out;
-}
-
-// Runs `argv` on this terminal, in `dir`; true when it succeeds.
-bool run(const std::vector<std::string>& argv, const std::string& dir = {}, const std::vector<std::string>& env = {}) {
-    std::string line;
-    for (const std::string& a : argv)
-        line += (line.empty() ? "" : " ") + a;
-    std::printf("\n$ %s\n", line.c_str());
-    std::fflush(stdout);
-    const pid_t pid = fork();
-    if (pid < 0)
-        return false;
-    if (pid == 0) {
-        if (!dir.empty() && chdir(dir.c_str()) != 0)
-            _exit(127);
-        for (const std::string& e : env)
-            putenv(const_cast<char*>(e.c_str()));
-        std::vector<char*> args;
-        for (const std::string& a : argv)
-            args.push_back(const_cast<char*>(a.c_str()));
-        args.push_back(nullptr);
-        execvp(args[0], args.data());
-        _exit(127);
-    }
-    int st = 0;
-    waitpid(pid, &st, 0);
-    return WIFEXITED(st) && WEXITSTATUS(st) == 0;
-}
-
-std::vector<std::string> lines(const std::string& text) {
-    std::vector<std::string> out;
-    size_t at = 0;
-    while (at < text.size()) {
-        const size_t nl = text.find('\n', at);
-        std::string l = text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
-        if (!l.empty())
-            out.push_back(std::move(l));
-        if (nl == std::string::npos)
-            break;
-        at = nl + 1;
-    }
-    return out;
-}
-
-std::string trim(std::string s) {
-    while (!s.empty() && (s.back() == '\n' || s.back() == ' '))
-        s.pop_back();
-    return s;
-}
-
-std::string owner(const std::string& file) {
-    return trim(capture({"pacman", "-Qqo", file}));
-}
-
-bool is_elf(const fs::path& p) {
-    char magic[4] = {};
-    FILE* f = std::fopen(p.c_str(), "rb");
-    if (!f)
-        return false;
-    const bool elf = std::fread(magic, 1, 4, f) == 4 && std::memcmp(magic, "\x7f" "ELF", 4) == 0;
-    std::fclose(f);
-    return elf;
-}
-
-// The installed Qt: where libQt6Core.so.6 points.
-QtVersion installed_qt() {
-    std::error_code ec;
-    const fs::path target = fs::read_symlink("/usr/lib/libQt6Core.so.6", ec);
-    return ec ? QtVersion{} : qt_from_soname(target.filename().string());
-}
-
-struct Mapped {
-    void* data = MAP_FAILED;
-    size_t size = 0;
-    explicit Mapped(const fs::path& p) {
-        const int fd = open(p.c_str(), O_RDONLY | O_CLOEXEC);
-        struct stat st {};
-        if (fd < 0)
-            return;
-        if (fstat(fd, &st) == 0 && st.st_size > 0) {
-            size = size_t(st.st_size);
-            data = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
-        }
-        close(fd);
-    }
-    ~Mapped() {
-        if (data != MAP_FAILED)
-            munmap(data, size);
-    }
-    std::string_view view() const {
-        return data == MAP_FAILED ? std::string_view{} : std::string_view(static_cast<const char*>(data), size);
-    }
-};
-
-struct Context {
-    std::string atrium;  // the package /usr/bin/atrium belongs to
-    std::set<std::string> foreign;  // packages from no repository (pacman -Qm)
-};
-
-Source source_of(const Context& c, const std::string& package) {
-    if (package == c.atrium)
-        return Source::Atrium;
-    return c.foreign.contains(package) ? Source::Aur : Source::Repo;
-}
-
-std::vector<Finding> examine(const Context& c) {
-    std::vector<Finding> found;
-    auto add = [&](const std::string& file, const std::string& problem, std::string package = {}) {
-        if (package.empty())
-            package = owner(file);
-        found.push_back({package, source_of(c, package), file, problem});
-    };
-
-    // atrium's own binaries and libraries: everything they link still there.
-    if (!c.atrium.empty()) {
-        std::vector<std::string> elves;
-        for (const std::string& f : lines(capture({"pacman", "-Qlq", c.atrium})))
-            if (fs::is_regular_file(f) && is_elf(f))
-                elves.push_back(f);
-        std::vector<std::vector<std::string>> problems(elves.size());
-        std::vector<std::thread> workers;
-        const size_t n = std::max(1u, std::min(4u, std::thread::hardware_concurrency()));
-        for (size_t w = 0; w < n; ++w)
-            workers.emplace_back([&, w] {
-                for (size_t i = w; i < elves.size(); i += n)
-                    problems[i] = ldd_problems(capture({"ldd", elves[i]}, nullptr, true));
-            });
-        for (std::thread& t : workers)
-            t.join();
-        for (size_t i = 0; i < elves.size(); ++i)
-            for (const std::string& p : problems[i])
-                add(elves[i], p, c.atrium);
-    }
-
-    // Every Qt plugin, atrium's and the system's: built for the Qt installed.
-    struct Plugin {
-        std::string file, dir;
-        QtVersion built;
-        bool private_api;
-    };
-    const QtVersion qt = installed_qt();
-    std::vector<Plugin> other;  // built for another Qt
-    for (const char* root : {"/usr/lib/qt6/plugins", "/usr/lib/atrium"}) {
-        std::error_code ec;
-        for (auto it = fs::recursive_directory_iterator(root, ec); !ec && it != fs::recursive_directory_iterator();
-             it.increment(ec)) {
-            if (!it->is_regular_file() || it->path().extension() != ".so")
-                continue;
-            const Mapped m(it->path());
-            const QtVersion built = plugin_qt(m.view());
-            if (built.known() && !(built == qt))
-                other.push_back({it->path().string(), it->path().parent_path().filename().string(), built,
-                                 uses_private_qt(m.view())});
-        }
-    }
-    if (other.empty())
-        return found;
-    std::vector<std::string> query = {"pacman", "-Qo"};
-    for (const Plugin& p : other)
-        query.push_back(p.file);
-    const auto owners = parse_owners(capture(query));
-    for (const Plugin& p : other) {
-        std::string package;
-        for (const auto& [file, pkg] : owners)
-            if (file == p.file)
-                package = pkg;
-        const std::string problem = plugin_problem(p.built, qt, p.dir, p.private_api, source_of(c, package));
-        if (!problem.empty())
-            found.push_back({package, source_of(c, package), p.file, problem});
-    }
-    return found;
-}
 
 struct Release {
     std::string tag, url, sha256;
@@ -419,11 +213,74 @@ void notify(const std::string& body) {
     }
 }
 
+// The health check: each section, or those named.
+int health(const std::vector<std::string>& names, bool verbose, bool as_json) {
+    const Context c = context();
+    const Session s = session();
+    const bool tty = isatty(STDERR_FILENO);
+    std::vector<Report> reports;
+    for (const Check& check : checks()) {
+        if (!names.empty() && std::ranges::find(names, check.name) == names.end())
+            continue;
+        if (tty && !as_json)
+            std::fprintf(stderr, "\r\033[Kchecking %s…", check.name);
+        reports.push_back(check.run(c, s));
+    }
+    if (tty && !as_json)
+        std::fprintf(stderr, "\r\033[K");
+    bool wrong = false;
+    for (const Report& r : reports)
+        wrong |= r.status() == Level::Warn || r.status() == Level::Error;
+    if (as_json) {
+        auto level = [](Level l) {
+            switch (l) {
+            case Level::Ok: return "ok";
+            case Level::Info: return "info";
+            case Level::Skip: return "skip";
+            case Level::Warn: return "warn";
+            case Level::Error: return "error";
+            }
+            return "";
+        };
+        nlohmann::json out = {{"version", s.version}, {"sections", nlohmann::json::array()}};
+        for (const Report& r : reports) {
+            nlohmann::json items = nlohmann::json::array();
+            for (const Item& i : r.items)
+                items.push_back({{"level", level(i.level)}, {"text", i.text}, {"advice", i.advice}});
+            out["sections"].push_back({{"name", r.name}, {"title", r.title}, {"status", level(r.status())},
+                                       {"summary", r.summary}, {"items", items}});
+        }
+        std::printf("%s\n", out.dump(2).c_str());
+    } else {
+        const bool color = isatty(STDOUT_FILENO) && !std::getenv("NO_COLOR");
+        std::fputs(render(reports, verbose, color).c_str(), stdout);
+    }
+    return wrong ? 1 : 0;
+}
+
+int usage(bool ok) {
+    std::fprintf(ok ? stdout : stderr,
+                 "usage: atrium-doctor [SECTION...] [-v] [--json]\n"
+                 "       atrium-doctor --list | --fix | --brief | --notify\n"
+                 "  (none)    check atrium and its session, each section (or those named)\n"
+                 "  -v        everything looked at, not just what's wrong\n"
+                 "  --json    the same, for scripts\n"
+                 "  --list    the sections\n"
+                 "  --fix     fix what's installed when what atrium uses moved under it: a newer\n"
+                 "            atrium release, else atrium built from source; AUR packages rebuilt;\n"
+                 "            a system update for the rest\n"
+                 "  --brief   one line when what's installed is wrong, nothing otherwise\n"
+                 "  --notify  a desktop notification when it is\n"
+                 "Exits 1 when something's wrong.\n");
+    return ok ? 0 : 2;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     std::string mode;
-    bool shell_failed = false;
+    bool shell_failed = false, verbose = false, as_json = false;
+    std::vector<std::string> names;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--fix" || a == "--brief" || a == "--notify") {
@@ -432,25 +289,30 @@ int main(int argc, char** argv) {
             // From atrium, in a terminal, when the shell keeps failing.
             mode = "--fix";
             shell_failed = true;
+        } else if (a == "-v" || a == "--verbose") {
+            verbose = true;
+        } else if (a == "--json") {
+            as_json = true;
+        } else if (a == "--list") {
+            for (const Check& c : checks())
+                std::printf("%-9s %s\n", c.name, c.about);
+            return 0;
+        } else if (a == "-h" || a == "--help") {
+            return usage(true);
+        } else if (!a.starts_with("-") &&
+                   std::ranges::any_of(checks(), [&](const Check& c) { return a == c.name; })) {
+            names.push_back(a);
         } else {
-            std::fprintf(stderr,
-                         "usage: atrium-doctor [--fix | --brief | --notify]\n"
-                         "  (none)    what doesn't work with what's installed, and how --fix fixes it\n"
-                         "  --fix     fix it: a newer atrium release, else atrium built from source;\n"
-                         "            AUR packages rebuilt; a system update for the rest\n"
-                         "  --brief   one line when something's wrong, nothing otherwise\n"
-                         "  --notify  a desktop notification when something's wrong\n");
-            return a == "-h" || a == "--help" ? 0 : 2;
+            if (!a.starts_with("-"))
+                std::fprintf(stderr, "atrium-doctor: no section \"%s\" (atrium-doctor --list)\n", a.c_str());
+            return usage(false);
         }
     }
+    if (mode.empty())
+        return health(names, verbose, as_json);
 
-    Context c;
-    if (fs::exists("/usr/bin/atrium"))
-        c.atrium = owner("/usr/bin/atrium");
-    for (const std::string& p : lines(capture({"pacman", "-Qqm"})))
-        c.foreign.insert(p);
+    const Context c = context();
     const std::vector<Finding> found = examine(c);
-
     if (mode == "--brief" || mode == "--notify") {
         const std::string line = brief(found);
         if (!line.empty()) {

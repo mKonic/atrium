@@ -4,7 +4,9 @@
 #include <array>
 #include <charconv>
 #include <cstdint>
+#include <cctype>
 #include <cstring>
+#include <map>
 
 namespace atrium::doctor {
 
@@ -191,6 +193,173 @@ std::string remedy(Source source, bool newer_release) {
                "this Qt yet";
     }
     return {};
+}
+
+// --- the health report ---------------------------------------------------------
+
+Level Report::status() const {
+    if (skipped)
+        return Level::Skip;
+    Level worst = Level::Ok;
+    for (const Item& i : items)
+        if (i.level != Level::Skip)
+            worst = std::max(worst, i.level == Level::Info ? Level::Ok : i.level);
+    return worst;
+}
+
+namespace {
+
+// `text`, its lines after the first indented by `indent`.
+std::string hang(std::string_view text, std::string_view indent) {
+    std::string out;
+    for (char c : text) {
+        out += c;
+        if (c == '\n')
+            out += indent;
+    }
+    return out;
+}
+
+} // namespace
+
+std::string render(const std::vector<Report>& reports, bool verbose, bool color) {
+    auto paint = [color](std::string_view code, std::string_view text) {
+        return color ? "\033[" + std::string(code) + "m" + std::string(text) + "\033[0m" : std::string(text);
+    };
+    auto mark = [&](Level l) {
+        switch (l) {
+        case Level::Ok: return paint("32", "✓");
+        case Level::Info: return paint("2", "•");
+        case Level::Skip: return paint("2", "-");
+        case Level::Warn: return paint("33", "!");
+        case Level::Error: return paint("31", "✗");
+        }
+        return std::string();
+    };
+    std::string out;
+    int errors = 0, warnings = 0;
+    for (const Report& r : reports) {
+        const Level status = r.status();
+        errors += status == Level::Error;
+        warnings += status == Level::Warn;
+        out += "[" + mark(status) + "] " + paint("1", r.title);
+        if (!r.summary.empty())
+            out += status == Level::Skip ? paint("2", " · " + r.summary) : " · " + r.summary;
+        out += "\n";
+        for (const Item& i : r.items) {
+            if (!verbose && i.level != Level::Warn && i.level != Level::Error)
+                continue;
+            out += "    " + mark(i.level) + " " + hang(i.text, "      ") + "\n";
+            if (!i.advice.empty())
+                out += "      " + paint("36", "→") + " " + hang(i.advice, "        ") + "\n";
+        }
+    }
+    out += "\n";
+    if (errors + warnings == 0) {
+        out += paint("32", "•") + " No issues found.";
+    } else {
+        auto sections = [](int n) { return std::to_string(n) + (n == 1 ? " section" : " sections"); };
+        out += paint(errors ? "31" : "33", "!") + " ";
+        if (errors)
+            out += "Problems in " + sections(errors) + (warnings ? ", warnings in " + sections(warnings) : "") + ".";
+        else
+            out += "Warnings in " + sections(warnings) + ".";
+    }
+    if (!verbose)
+        out += paint("2", " atrium-doctor -v shows everything it looked at.");
+    return out + "\n";
+}
+
+std::string build_commit(std::string_view version) {
+    // The last "g" after a '-' or '.' followed by hex digits only.
+    for (size_t at = version.size(); at-- > 1;) {
+        if (version[at] != 'g' || (version[at - 1] != '-' && version[at - 1] != '.'))
+            continue;
+        size_t end = at + 1;
+        while (end < version.size() && std::isxdigit(static_cast<unsigned char>(version[end])))
+            ++end;
+        if (end - at - 1 >= 7 && (end == version.size() || version[end] == '-' || version[end] == ' '))
+            return std::string(version.substr(at + 1, end - at - 1));
+    }
+    return {};
+}
+
+std::string duration(long long seconds) {
+    if (seconds < 60)
+        return std::to_string(std::max(0LL, seconds)) + "s";
+    const long long m = seconds / 60, h = m / 60, d = h / 24;
+    if (d > 0)
+        return std::to_string(d) + "d " + std::to_string(h % 24) + "h";
+    if (h > 0)
+        return std::to_string(h) + "h " + std::to_string(m % 60) + "m";
+    return std::to_string(m) + "m";
+}
+
+std::vector<Tally> tally(const std::vector<std::string>& lines) {
+    auto shape = [](std::string_view line) {
+        std::string out;
+        for (size_t i = 0; i < line.size();) {
+            if (line.substr(i, 2) == "0x") {
+                i += 2;
+                while (i < line.size() && std::isxdigit(static_cast<unsigned char>(line[i])))
+                    ++i;
+                out += '#';
+            } else if (std::isdigit(static_cast<unsigned char>(line[i]))) {
+                while (i < line.size() && std::isdigit(static_cast<unsigned char>(line[i])))
+                    ++i;
+                out += '#';
+            } else {
+                out += line[i++];
+            }
+        }
+        return out;
+    };
+    std::vector<Tally> out;
+    std::map<std::string, size_t> at;
+    for (const std::string& l : lines) {
+        auto [it, fresh] = at.try_emplace(shape(l), out.size());
+        if (fresh)
+            out.push_back({l, 0});
+        ++out[it->second].count;
+    }
+    std::ranges::stable_sort(out, [](const Tally& a, const Tally& b) { return a.count > b.count; });
+    return out;
+}
+
+std::string top_frame(std::string_view info) {
+    // "    #0  0x00007f8dfc9c1a48 pw_thread_loop_stop (libpipewire-0.3.so.0 + 0x8da48)"
+    const size_t at = info.find("#0 ");
+    if (at == std::string_view::npos)
+        return {};
+    std::string_view line = info.substr(at + 3);
+    line = line.substr(0, line.find('\n'));
+    line.remove_prefix(std::min(line.find_first_not_of(' '), line.size()));
+    line.remove_prefix(std::min(line.find(' '), line.size()));  // the address
+    line.remove_prefix(std::min(line.find_first_not_of(' '), line.size()));
+    const size_t open = line.find(" (");
+    std::string_view function = line.substr(0, open);
+    std::string_view module;
+    if (open != std::string_view::npos) {
+        module = line.substr(open + 2);
+        module = module.substr(0, std::min(module.find(" + "), module.find(')')));
+        if (module.ends_with(" (deleted"))
+            module.remove_suffix(9);
+        module = module.substr(module.rfind('/') == std::string_view::npos ? 0 : module.rfind('/') + 1);
+    }
+    if (function.empty() || function == "n/a")
+        return module.empty() ? std::string() : "somewhere in " + std::string(module);
+    return std::string(function) + (module.empty() ? "" : " (" + std::string(module) + ")");
+}
+
+bool qml_error(std::string_view line) {
+    if (line.find(".qml:") == std::string_view::npos)
+        return false;
+    for (std::string_view tell : {"TypeError", "ReferenceError", "is not a function", "Cannot read property",
+                                  "Unable to assign", "is not defined", "Binding loop", "Cannot assign",
+                                  "Type error", "Error:"})
+        if (line.find(tell) != std::string_view::npos)
+            return true;
+    return false;
 }
 
 } // namespace atrium::doctor

@@ -100,11 +100,11 @@ executable('atriumctl',
   install: true,
 )
 
-# Whether what atrium was built against is still what's installed, and
-# fixing it (tools/doctor): nothing but the C++ runtime, so it runs when
-# that has moved under atrium.
+# A health check of atrium and its session, and fixing what's installed
+# when what atrium was built against moved (tools/doctor): nothing but the
+# C++ runtime, so it runs when that has moved under atrium.
 executable('atrium-doctor', '../tools/doctor/main.cpp', '../tools/doctor/doctor_core.cpp',
-  '../shell/plugin/Atrium/updates_core.cpp',
+  '../tools/doctor/checks.cpp', '../tools/doctor/probe.cpp', '../shell/plugin/Atrium/updates_core.cpp',
   include_directories: include_directories('../shell/plugin/Atrium'),
   dependencies: [json],
   install: true,

@@ -142,3 +142,62 @@ TEST(Doctor, FixDependsOnWhereItCameFrom) {
     EXPECT_NE(remedy(Source::Aur, false).find("AUR"), std::string::npos);
     EXPECT_NE(remedy(Source::Repo, false).find("pacman -Syu"), std::string::npos);
 }
+
+TEST(Doctor, ASectionIsAsBadAsItsWorstLine) {
+    Report r{"portals", "Portals"};
+    r.ok("answers");
+    r.info("a note");
+    EXPECT_EQ(r.status(), Level::Ok);
+    r.warn("stale", "kill it");
+    EXPECT_EQ(r.status(), Level::Warn);
+    r.error("gone");
+    EXPECT_EQ(r.status(), Level::Error);
+    Report skipped{"log", "Log"};
+    skipped.skip("not in an atrium session");
+    EXPECT_EQ(skipped.status(), Level::Skip);
+}
+
+TEST(Doctor, TheReportShowsWhatsWrongAndHidesTheRestUnlessAsked) {
+    Report fine{"sound", "Sound", "speakers"};
+    fine.ok("pipewire is active");
+    Report wrong{"portals", "Portals"};
+    wrong.warn("stale backend", "kill 1509\n(D-Bus starts it again)");
+    const std::string brief = render({fine, wrong}, false, false);
+    EXPECT_NE(brief.find("[✓] Sound · speakers\n"), std::string::npos);
+    EXPECT_EQ(brief.find("pipewire is active"), std::string::npos);
+    EXPECT_NE(brief.find("    ! stale backend\n      → kill 1509\n        (D-Bus starts it again)\n"), std::string::npos);
+    EXPECT_NE(brief.find("Warnings in 1 section."), std::string::npos);
+    EXPECT_NE(render({fine, wrong}, true, false).find("    ✓ pipewire is active\n"), std::string::npos);
+    EXPECT_NE(render({fine}, false, false).find("No issues found."), std::string::npos);
+}
+
+TEST(Doctor, TheCommitABuildWasMadeFrom) {
+    EXPECT_EQ(build_commit("v0.3.0-37-g90a9a21"), "90a9a21");
+    EXPECT_EQ(build_commit("0.3.0.r37.g90a9a21-1"), "90a9a21");
+    EXPECT_EQ(build_commit("v0.3.0"), "");
+    EXPECT_EQ(build_commit("0.3.0-1"), "");
+}
+
+TEST(Doctor, LinesAlikeButForNumbersAreCountedTogether) {
+    const std::vector<Tally> t = tally({"commit failed on CRTC 85", "xcb error 0x1a", "commit failed on CRTC 86",
+                                        "commit failed on CRTC 85"});
+    ASSERT_EQ(t.size(), 2u);
+    EXPECT_EQ(t[0].example, "commit failed on CRTC 85");
+    EXPECT_EQ(t[0].count, 3);
+    EXPECT_EQ(t[1].count, 1);
+}
+
+TEST(Doctor, TheFrameACrashHappenedIn) {
+    EXPECT_EQ(top_frame("Stack trace of thread 1460:\n"
+                        "                #0  0x00007f8dfc9c1a48 pw_thread_loop_stop (libpipewire-0.3.so.0 + 0x8da48)\n"
+                        "                #1  0x000055932d117e89 n/a (/usr/bin/atrium-phonelink (deleted) + 0x42e89)\n"),
+              "pw_thread_loop_stop (libpipewire-0.3.so.0)");
+    EXPECT_EQ(top_frame("#0  0x000055cc7e1a4b12 n/a (zsh + 0x38b12)\n"), "somewhere in zsh");
+    EXPECT_EQ(top_frame("no stack trace"), "");
+}
+
+TEST(Doctor, QmlErrorsAreBugsQtsChatterIsNot) {
+    EXPECT_TRUE(qml_error("file:///usr/share/atrium/shell/modules/dock/Dock.qml:120: TypeError: Cannot read property 'x' of null"));
+    EXPECT_FALSE(qml_error("QtWaylandClient::QWaylandTextInputv3::disableSurface Trying to disable 0x55 but 0x0 is focused"));
+    EXPECT_FALSE(qml_error("Dock.qml:12: some harmless note"));
+}

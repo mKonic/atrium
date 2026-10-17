@@ -1,7 +1,8 @@
 #pragma once
 // atrium-doctor's reasoning, without the system: what a Qt plugin was built
-// for, whether the installed Qt will run it, what ldd complains about, and
-// how a finding is told.
+// for, whether the installed Qt will run it, what ldd complains about, how a
+// finding is told, and the health report's sections (as Neovim's
+// :checkhealth and flutter doctor tell theirs).
 
 #include <string>
 #include <string_view>
@@ -66,5 +67,67 @@ std::string brief(const std::vector<Finding>& findings);
 
 // How a package gets fixed, as atrium-doctor --fix will do it.
 std::string remedy(Source source, bool newer_release);
+
+// --- the health report ---------------------------------------------------------
+
+// Worst last: a section is as bad as its worst line. Skip: not looked at
+// (outside an atrium session, say).
+enum class Level { Ok, Info, Skip, Warn, Error };
+
+struct Item {
+    Level level = Level::Info;
+    std::string text;
+    std::string advice;  // what to do about it ("" for none)
+};
+
+struct Report {
+    std::string name;     // what picks it on the command line: "portals"
+    std::string title;    // "Portals"
+    std::string summary;  // beside the title: "xdg-desktop-portal answers"
+    std::vector<Item> items;
+    bool skipped = false;
+
+    void ok(std::string text) { items.push_back({Level::Ok, std::move(text), {}}); }
+    void info(std::string text) { items.push_back({Level::Info, std::move(text), {}}); }
+    void warn(std::string text, std::string advice = {}) {
+        items.push_back({Level::Warn, std::move(text), std::move(advice)});
+    }
+    void error(std::string text, std::string advice = {}) {
+        items.push_back({Level::Error, std::move(text), std::move(advice)});
+    }
+    void skip(std::string why) {
+        skipped = true;
+        summary = std::move(why);
+    }
+    Level status() const;
+};
+
+// The report for a terminal: a line per section ([✓] [!] [✗] [-]), under
+// it what's wrong and what to do (and, `verbose`, everything looked at),
+// then one line on the whole. `color`: ANSI colors.
+std::string render(const std::vector<Report>& reports, bool verbose, bool color);
+
+// "v0.3.0-37-g90a9a21" or "0.3.0.r37.g90a9a21-1" → "90a9a21": the commit a
+// build was made from, "" when it doesn't say.
+std::string build_commit(std::string_view version);
+
+// 8000 → "2h 13m", 90 → "1m", 30 → "30s".
+std::string duration(long long seconds);
+
+// Log lines alike but for their numbers, counted: the most often first,
+// each told by its first line.
+struct Tally {
+    std::string example;
+    int count = 0;
+};
+std::vector<Tally> tally(const std::vector<std::string>& lines);
+
+// From `coredumpctl info`: the crashed thread's innermost frame, as
+// "pw_thread_loop_stop (libpipewire-0.3.so.0)"; "" when it has none.
+std::string top_frame(std::string_view info);
+
+// A QML error worth a bug report (a TypeError, a binding to an undefined
+// property...), not Qt's chatter.
+bool qml_error(std::string_view line);
 
 } // namespace atrium::doctor
