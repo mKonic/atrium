@@ -191,6 +191,7 @@ private:
 
     void new_constraint(wlr_pointer_constraint_v1* constraint);
     void activate_constraint(wlr_pointer_constraint_v1* constraint);
+    wlr_pointer_constraint_v1* constraint_in_front(wlr_surface* focused) const;
     void warp_to_constraint_hint();
 
     friend struct KeyboardGroup;

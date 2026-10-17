@@ -1113,9 +1113,7 @@ void Seat::motion(uint32_t time, wlr_input_device* device, double dx, double dy,
         wlr_relative_pointer_manager_v1_send_relative_motion(server.relative_pointer_manager, wlr,
             uint64_t(time) * 1000, dx, dy, dx_unaccel, dy_unaccel);
 
-        activate_constraint(focused ? wlr_pointer_constraints_v1_constraint_for_surface(
-                                          server.pointer_constraints, focused, wlr)
-                                    : nullptr);
+        activate_constraint(constraint_in_front(focused));
 
         if (active_constraint_ && mode != Mode::Move && mode != Mode::Resize &&
             active_constraint_->surface == focused) {
@@ -1913,6 +1911,24 @@ void Seat::new_constraint(wlr_pointer_constraint_v1* c) {
         std::erase_if(constraints_, [raw](auto& p) { return p.get() == raw; });
     });
     constraints_.push_back(std::move(constraint));
+}
+
+// The constraint on the surface under the pointer, while its window is the
+// one in front, the keyboard's too (as KWin and sway have it). An overlay
+// opening over a game holding the pointer (the screenshot's region, the
+// launcher) takes the keyboard, and so the pointer: under a lock, motion
+// never got as far as finding the overlay under it.
+wlr_pointer_constraint_v1* Seat::constraint_in_front(wlr_surface* focused) const {
+    if (!focused)
+        return nullptr;
+    wlr_pointer_constraint_v1* c = wlr_pointer_constraints_v1_constraint_for_surface(server.pointer_constraints, focused, wlr);
+    wlr_surface* keys = wlr->keyboard_state.focused_surface;
+    if (!c || !keys)
+        return nullptr;
+    if (wlr_surface_get_root_surface(keys) == wlr_surface_get_root_surface(focused))
+        return c;
+    const Owner a = Server::owner_of(keys), b = Server::owner_of(focused);
+    return a.view && a.view == b.view ? c : nullptr;
 }
 
 void Seat::activate_constraint(wlr_pointer_constraint_v1* c) {
