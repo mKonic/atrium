@@ -46,7 +46,7 @@ void PopupBlur::update() {
     if (!blur_) {
         blur_ = wlr_scene_blur_create(tree_, 0, 0);
         wlr_scene_blur_set_should_only_blur_bottom_layer(blur_, false);  // the window under it too
-        wlr_scene_blur_set_mask_alpha_threshold(blur_, kIgnoreAlpha);
+        wlr_scene_blur_set_ignore_alpha_threshold(blur_, kIgnoreAlpha);
     }
     int tx = 0, ty = 0, bx = 0, by = 0;
     wlr_scene_node_coords(&tree_->node, &tx, &ty);
