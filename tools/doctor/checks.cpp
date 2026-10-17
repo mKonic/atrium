@@ -216,9 +216,10 @@ Report session_report(const Context& c, const Session& s) {
     // The build running against the one installed.
     const std::string running = build_commit(s.version);
     const std::string installed = c.atrium.empty() ? "" : build_commit(installed_version(c.atrium));
-    if (!running.empty() && !installed.empty() && running != installed)
+    const bool outdated = !running.empty() && !installed.empty() && running != installed;
+    if (outdated)
         r.warn("The desktop running (" + s.version + ") isn't the build installed (" +
-                   installed_version(c.atrium) + ")",
+                   installed_version(c.atrium) + "), nor are its helpers",
                "Log out and back in to start the installed one.");
     else
         r.ok("running the build installed");
@@ -242,7 +243,9 @@ Report session_report(const Context& c, const Session& s) {
             continue;
         }
         const Process& p = ps.front();
-        if (p.stale)
+        if (p.stale && outdated)
+            r.info(std::string(h.name) + " (pid " + std::to_string(p.pid) + ") runs the build from before the update");
+        else if (p.stale)
             r.warn(std::string(h.name) + " (pid " + std::to_string(p.pid) +
                        ") runs the build from before the last update",
                    "Log out and back in.");
