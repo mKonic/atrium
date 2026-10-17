@@ -13,6 +13,8 @@
 // - Summoned by a key it stays 3 s (Plasma), and longer while used. Summoned
 //   again while out it goes at once, and stays away though the pointer is
 //   still on it, until the pointer has left.
+// - Peeked (an app in it wants attention) it comes out for the same 3 s, and
+//   if already out it just stays at least that long.
 // - Told to hide while nothing keeps it (a window goes fullscreen) it goes at
 //   once: the 50 ms is for the pointer leaving, not for a change of mode.
 #include <optional>
@@ -36,6 +38,9 @@ public:
     bool update(const Inputs& in, double now_ms);
     // The key: out for a while, or away if it is out. Returns the same.
     bool summon(double now_ms);
+    // Out for a while to show something (an app asking for attention); unlike
+    // the key it never sends the panel away.
+    bool peek(double now_ms);
     bool out() const { return out_; }
     std::optional<double> wake_in(double now_ms) const;
 

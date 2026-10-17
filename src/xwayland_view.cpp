@@ -86,8 +86,12 @@ XwaylandView::XwaylandView(Server& srv, wlr_xwayland_surface* xs) : View(srv, Ki
     });
     set_geometry_.connect(&xsurface->events.set_geometry, [this](void*) { set_geometry(); });
     set_hints_.connect(&xsurface->events.set_hints, [this](void*) {
-        if (this != server.focused_view && xsurface->hints)
+        if (this != server.focused_view && xsurface->hints) {
+            const bool was = urgent;
             urgent = xcb_icccm_wm_hints_get_urgency(xsurface->hints);
+            if (mapped && urgent != was)
+                server.notify_window(*this, "changed");
+        }
     });
     set_title_.connect(&xsurface->events.set_title, [this](void*) { update_title(); });
     set_class_.connect(&xsurface->events.set_class, [this](void*) { update_title(); });

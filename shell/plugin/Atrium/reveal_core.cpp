@@ -56,6 +56,16 @@ bool Reveal::summon(double now_ms) {
     return out_;
 }
 
+bool Reveal::peek(double now_ms) {
+    if (!in_.hides)
+        return out_;
+    dismissed_ = false;
+    summon_until_ = std::max(summon_until_.value_or(0), now_ms + kSummonMs);
+    leave_at_.reset();
+    out_ = true;
+    return out_;
+}
+
 std::optional<double> Reveal::wake_in(double now_ms) const {
     std::optional<double> at = leave_at_;
     if (summon_until_ && (!at || *summon_until_ < *at))

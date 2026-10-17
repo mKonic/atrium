@@ -1637,8 +1637,9 @@ void Server::activation_request(wlr_xdg_activation_v1_request_activate_event* ev
         if (view->minimized)
             view->set_minimized(false);
         focus_view(view);
-    } else {
+    } else if (!view->urgent) {
         view->urgent = true;
+        notify_window(*view, "changed");
     }
 }
 

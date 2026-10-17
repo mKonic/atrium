@@ -21,6 +21,10 @@ void PanelReveal::summon() {
     settle(core_.summon(double(clock_.elapsed())));
 }
 
+void PanelReveal::peek() {
+    settle(core_.peek(double(clock_.elapsed())));
+}
+
 void PanelReveal::settle(bool out) {
     if (const auto in = core_.wake_in(double(clock_.elapsed())))
         wake_.start(int(*in));

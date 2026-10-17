@@ -182,3 +182,13 @@ TEST(Reveal, NoLongerHidingForgetsTheSummon) {
     EXPECT_FALSE(r.wake_in(200));
     EXPECT_FALSE(r.update({.hides = true}, 300));
 }
+
+TEST(Reveal, PeekedItComesOutAndNeverToggles) {
+    reveal::Reveal r;
+    r.update({.hides = true}, 0);
+    EXPECT_TRUE(r.peek(100));
+    EXPECT_TRUE(r.peek(200));  // a second app asking: still out, not sent away
+    EXPECT_TRUE(r.update({.hides = true}, 3199));
+    EXPECT_TRUE(r.update({.hides = true}, 3200));  // the grace after it
+    EXPECT_FALSE(r.update({.hides = true}, 3250));
+}

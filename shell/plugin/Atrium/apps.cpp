@@ -331,6 +331,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
     case WindowCountRole: return int(a.windows.size());
     case DividerRole: return a.divider;
     case LeavingRole: return a.leaving;
+    case UrgentRole: return a.urgent;
     default: return {};
     }
 }
@@ -338,7 +339,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> DockApps::roleNames() const {
     return {{AppIdRole, "appId"}, {NameRole, "name"}, {IconRole, "icon"}, {PinnedRole, "pinned"},
             {RunningRole, "running"}, {FocusedRole, "focused"}, {WindowCountRole, "windowCount"},
-            {DividerRole, "divider"}, {LeavingRole, "leaving"}};
+            {DividerRole, "divider"}, {LeavingRole, "leaving"}, {UrgentRole, "urgent"}};
 }
 
 void DockApps::rebuildLater() {
@@ -376,6 +377,7 @@ void DockApps::rebuild() {
                 a.icon = icon;  // no desktop entry: what the window says
         a.windows.push_back(w.value("id").toInt());
         a.focused = a.focused || w.value("focused").toBool();
+        a.urgent = a.urgent || w.value("urgent").toBool();
     }
     // Apps that went away linger as leaving for a moment, where they were.
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
@@ -394,7 +396,7 @@ void DockApps::rebuild() {
         leavingSince_.insert(old.id, since);
         App gone = old;
         gone.leaving = true;
-        gone.focused = gone.divider = false;
+        gone.focused = gone.urgent = gone.divider = false;
         gone.windows.clear();
         // After whatever came before it, if that is still here.
         size_t at = 0;

@@ -327,6 +327,9 @@ PanelWindow {
                         const d = Math.abs(dock.pointerX - center) / (dock.iconSize * 2.2);
                         return 1 + 0.55 * Math.max(0, Math.cos(Math.min(d, 1) * Math.PI / 2));
                     }
+                    // Out from hiding for a moment so the hop is seen, but
+                    // never over a fullscreen app.
+                    onAttention: if (!dock.fullscreen && dock.home && !dock.empty) reveal.peek()
                     onMenuRequested: item => dock.menuItem = dock.menuItem === item ? null : item
                     onDragStarted: (item, at) => {
                         dock.menuItem = null;

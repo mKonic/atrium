@@ -20,6 +20,7 @@ Item {
     required property bool focused
     required property int windowCount
     required property bool leaving  // just closed: shrinking away
+    required property bool urgent   // a window of it asks for attention
     required property DockApps apps
     required property real magnification  // 1 at rest; the dock grows neighbours
     // Under the pointer (not pressed, no menu): the Dock shows its name.
@@ -84,6 +85,18 @@ Item {
             launching = false;
     }
 
+    // Asking for attention (a mention, a finished download, a window that
+    // wanted the front): three hops, as macOS does for an informational
+    // request, rather than hopping until it is looked at.
+    signal attention
+    onUrgentChanged: {
+        if (urgent && !focused) {
+            if (Theme.anim.on)
+                attentionBounce.restart();
+            attention();
+        }
+    }
+
     Timer {
         id: launchTimeout
 
@@ -124,7 +137,28 @@ Item {
     }
 
     SequentialAnimation {
-        running: root.launching && Theme.anim.on  // the bounce stays still with reduced motion
+        id: attentionBounce
+
+        loops: 3
+
+        Anim {
+            target: bounce
+            property: "offset"
+            to: root.iconSize * 0.5
+            duration: 300
+            easing.bezierCurve: Theme.anim.emphasizedDecel
+        }
+        Anim {
+            target: bounce
+            property: "offset"
+            to: 0
+            duration: 300
+            easing.type: Easing.OutBounce
+        }
+    }
+
+    SequentialAnimation {
+        running: root.launching && !attentionBounce.running && Theme.anim.on  // the bounce stays still with reduced motion
         loops: Animation.Infinite
         alwaysRunToEnd: true
 

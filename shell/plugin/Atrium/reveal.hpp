@@ -33,6 +33,8 @@ public:
 
     // The key that brings it out for a while, or sends it away.
     Q_INVOKABLE void summon();
+    // Out for a while without the key's toggle (reveal_core.hpp).
+    Q_INVOKABLE void peek();
 
 signals:
     void inputsChanged();
