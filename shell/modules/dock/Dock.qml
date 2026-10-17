@@ -83,11 +83,23 @@ PanelWindow {
         name: dock.screen?.name ?? ""
     }
     readonly property bool autohide: Atrium.settings["dock.autohide"] ?? false
+    // Out until a window would go over it (KDE Plasma's Dodge Windows).
+    readonly property bool dodge: !autohide && (Atrium.settings["dock.dodge"] ?? false)
+    readonly property bool covered: dodge && output.dockCovered
+    // Where the shelf rests, for the compositor to watch (Dodge Windows).
+    readonly property rect shelfRest: Qt.rect(Math.round(((dock.screen?.width ?? 0) - shelf.width) / 2),
+                                              (dock.screen?.height ?? 0) - shelfHeight - gap,
+                                              Math.round(shelf.width), shelfHeight)
+    readonly property var shelfWatch: [output.name, dodge && home && !empty, shelfRest]
+    onShelfWatchChanged: {
+        const on = dodge && home && !empty;
+        Atrium.setDockShelf(output.name, shelfRest.x, shelfRest.y, on ? shelfRest.width : 0, shelfRest.height);
+    }
     // Nothing pinned and nothing open: no Dock at all, not an empty shelf.
     readonly property bool empty: dockApps.count === 0
     // One Dock, on DockPlace.screen (dock.every_screen puts one on each).
     readonly property bool home: (Atrium.settings["dock.every_screen"] ?? false) || DockPlace.screen === output.name
-    readonly property bool hides: fullscreen || output.tiled || autohide || !home
+    readonly property bool hides: fullscreen || output.tiled || autohide || covered || !home
 
     PanelReveal {
         id: reveal
@@ -157,7 +169,7 @@ PanelWindow {
     // Room above the shelf for the hovered app's name, magnified icons and
     // its menu, however many rows that has.
     implicitHeight: shelfHeight + gap + Math.max(150, menu.height + menu.anchors.bottomMargin + 16)
-    exclusiveZone: autohide || empty || output.tiled || !home ? 0 : shelfHeight + gap
+    exclusiveZone: autohide || dodge || empty || output.tiled || !home ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
     // The keyboard while its menu is open, for Escape.

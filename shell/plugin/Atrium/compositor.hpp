@@ -134,6 +134,9 @@ public:
     // How deep the panel at an output's "top" or "bottom" is, for the pointer
     // keeping it out (src/panel_edge_core.hpp).
     Q_INVOKABLE void setPanelBand(const QString& output, const QString& edge, int size);
+    // Where the Dock's shelf rests on a screen (its own coordinates), for
+    // Dodge Windows; a zero width stops watching it.
+    Q_INVOKABLE void setDockShelf(const QString& output, int x, int y, int width, int height);
     Q_INVOKABLE void setPinned(const QString& appId, bool pinned);
     // A display's mode, scale, rotation, place or power: { width, height,
     // refresh, scale, transform, x, y, enabled }.
@@ -204,6 +207,7 @@ signals:
     // The pointer reached the top or bottom of a screen with a fullscreen
     // app, where the bar and the Dock wait out of sight.
     void edgeReached(const QString& output, const QString& edge);
+    void dockCovered(const QString& output, bool covered);
     // A tap of Mod alone on `output` (see OutputState).
     void superTapped(const QString& output);
     // Logging out (or restarting, shutting down) waits on apps that haven't

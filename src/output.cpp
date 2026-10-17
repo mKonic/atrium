@@ -420,6 +420,7 @@ void Output::render() {
     for (View* v : server.views)
         if (v->output == this)
             v->motion_frame();
+    server.check_dock_cover(*this);
     // The screen shader's uniforms; one that changes by itself (time, the
     // pointer) is drawn whole every frame, as Hyprland requires.
     {

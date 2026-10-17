@@ -242,6 +242,8 @@ void Compositor::applyEvent(const QJsonObject& e) {
         emit logoutWaiting(e.toVariantMap());
     } else if (kind == "logout.done") {
         emit logoutDone();
+    } else if (kind == "output.dock_covered") {
+        emit dockCovered(e.value("output").toString(), e.value("covered").toBool());
     } else if (kind == "output.summon") {
         emit superTapped(e.value("output").toString());
     } else if (kind == "outputs.changed") {
@@ -705,6 +707,11 @@ void Compositor::setDockIcons(const QString& output, const QVariantList& icons) 
 void Compositor::setPanelBand(const QString& output, const QString& edge, int size) {
     if (!output.isEmpty())
         change({{"cmd", "panel.band"}, {"output", output}, {"edge", edge}, {"size", size}});
+}
+
+void Compositor::setDockShelf(const QString& output, int x, int y, int width, int height) {
+    if (!output.isEmpty())
+        change({{"cmd", "dock.shelf"}, {"output", output}, {"x", x}, {"y", y}, {"width", width}, {"height", height}});
 }
 
 void Compositor::setPinned(const QString& appId, bool pinned) {

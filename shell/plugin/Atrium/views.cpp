@@ -14,6 +14,12 @@ OutputState::OutputState(QObject* parent) : QObject(parent) {
             emit edgeChanged();
         }
     });
+    connect(c, &Compositor::dockCovered, this, [this](const QString& output, bool covered) {
+        if (output == name_ && covered != dockCovered_) {
+            dockCovered_ = covered;
+            emit dockCoveredChanged();
+        }
+    });
     connect(c, &Compositor::superTapped, this, [this, c](const QString& output) {
         if (output != name_)
             return;

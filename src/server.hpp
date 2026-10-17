@@ -154,6 +154,10 @@ public:
     // another window brought over it (alt-tab, an app launched) drops back
     // among the windows, under that one.
     void restack_fullscreen();
+    // After a frame: whether a window shown there now reaches into the
+    // Dock's shelf; the shell hears when that changes (Dodge Windows).
+    // `tell`: say so even unchanged (a shell that just asked).
+    void check_dock_cover(Output& output, bool tell = false);
     // Where the Dock shows each app's icon (Dock surface pixels), with the
     // windows it stands for: minimising shrinks a window into its own icon.
     struct DockIcon {

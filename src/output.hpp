@@ -49,6 +49,10 @@ public:
     // How deep the shell's panels at the top and the bottom are: where the
     // pointer keeps one it brought out (panel_edge_core.hpp).
     std::array<int, 2> panel_band{1, 1};
+    // Where the Dock's shelf rests, screen coordinates (width 0: no Dock that
+    // dodges here), and whether a window reaches into it (Dodge Windows).
+    wlr_box dock_shelf{};
+    bool dock_covered = false;
     std::array<hot_corners::Edge, 4> corners;  // its hot corners, by hot_corners::Corner
 
     std::vector<LayerSurface*> layers[4];  // indexed by zwlr_layer_shell_v1_layer

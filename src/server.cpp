@@ -1522,6 +1522,28 @@ std::optional<Server::DockTarget> Server::dock_icon_of(const View& view) const {
     return std::nullopt;
 }
 
+void Server::check_dock_cover(Output& o, bool tell) {
+    bool covered = false;
+    if (o.dock_shelf.width > 0) {
+        const wlr_box shelf{o.box.x + o.dock_shelf.x, o.box.y + o.dock_shelf.y, o.dock_shelf.width,
+                            o.dock_shelf.height};
+        for (const View* v : views) {
+            if (v->output != &o || v->unmanaged() || !v->visible())
+                continue;
+            wlr_box overlap;
+            if (wlr_box_intersection(&overlap, &v->geom, &shelf)) {
+                covered = true;
+                break;
+            }
+        }
+    }
+    if (covered == o.dock_covered && !tell)
+        return;
+    o.dock_covered = covered;
+    if (ipc)
+        ipc->broadcast("outputs", {{"event", "output.dock_covered"}, {"output", o.wlr->name}, {"covered", covered}});
+}
+
 // As on Windows, macOS and KDE: a fullscreen window is over everything only
 // while it's the front window of its screen and space.
 void Server::restack_fullscreen() {

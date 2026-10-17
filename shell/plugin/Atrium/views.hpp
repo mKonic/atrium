@@ -26,6 +26,9 @@ class OutputState : public QObject {
     // Over a fullscreen app, the edge the pointer rests on: "top", "bottom"
     // or "", where the bar and the Dock wait to be brought over.
     Q_PROPERTY(QString edge READ edge NOTIFY edgeChanged)
+    // A window reaches into the Dock's shelf here (only watched while the
+    // Dock dodges windows: Compositor::setDockShelf).
+    Q_PROPERTY(bool dockCovered READ dockCovered NOTIFY dockCoveredChanged)
 
 public:
     explicit OutputState(QObject* parent = nullptr);
@@ -38,11 +41,13 @@ public:
     QVariantList spaces() const { return spaces_; }
     QVariantList secrets() const { return secrets_; }
     QString edge() const { return edge_; }
+    bool dockCovered() const { return dockCovered_; }
 
 signals:
     void nameChanged();
     void changed();
     void edgeChanged();
+    void dockCoveredChanged();
     // A tap of Mod on this screen, for the bar or the Dock as dock.super_tap
     // says: each brings itself out if hidden, or sends itself away.
     void barSummoned();
@@ -54,6 +59,7 @@ private:
 
     QString name_;
     QString edge_;
+    bool dockCovered_ = false;
     int active_ = 1;
     bool fullscreen_ = false;
     bool tiled_ = false;

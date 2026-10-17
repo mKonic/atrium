@@ -814,6 +814,10 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(make("dock.autohide", SettingType::Bool, "Dock", "Hide the Dock",
         "Keep the Dock out of sight until the pointer reaches the bottom of the screen.", false,
         [](Config&, const json&) {}));
+    s.push_back(make("dock.dodge", SettingType::Bool, "Dock", "Hide when a window covers it",
+        "With Hide the Dock off, keep the Dock out until a window would go over it, as KDE Plasma's Dodge Windows: "
+        "move the window away, or rest the pointer at the bottom of the screen, to bring it back.", false,
+        [](Config&, const json&) {}));
     s.push_back(choice("dock.super_tap", "Dock", "Tap Super to show",
         "While the menu bar or the Dock is out of sight (over a fullscreen app, on a tiled space, or hidden), a tap "
         "of Super alone brings it out for a few seconds; another tap sends it away.",

@@ -864,6 +864,7 @@ json Ipc::handle(Client& c, const json& req) {
                 {"scale", o->wlr->scale},
                 {"edge", server_.seat->edge_on(o->wlr->name)},
                 {"panel_band", {{"top", o->panel_band[0]}, {"bottom", o->panel_band[1]}}},
+                {"dock_covered", o->dock_covered},
                 {"transform", int(o->wlr->transform)},
                 {"refresh", o->wlr->refresh / 1000.0},
                 {"focused", o == server_.focused_output},
@@ -1010,6 +1011,20 @@ json Ipc::handle(Client& c, const json& req) {
         }
         server_.dock_icons[req["output"].get<std::string>()] = std::move(icons);
         return ok();
+    }
+    if (cmd == "dock.shelf") {
+        // {output, x, y, width, height}: where the Dock's shelf rests on that
+        // screen (its own coordinates), for Dodge Windows; width 0 stops it.
+        if (!req.contains("output") || !req["output"].is_string())
+            return fail("dock.shelf needs \"output\"");
+        for (Output* o : server_.outputs)
+            if (o->wlr->name == req["output"].get<std::string>()) {
+                o->dock_shelf = {req.value("x", 0), req.value("y", 0), std::max(0, req.value("width", 0)),
+                                 std::max(0, req.value("height", 0))};
+                server_.check_dock_cover(*o, true);
+                return ok();
+            }
+        return fail("no such output");
     }
     if (cmd == "panel.band") {
         // {output, edge: "top"|"bottom", size}: how deep the panel there is.
