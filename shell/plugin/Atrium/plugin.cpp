@@ -52,6 +52,7 @@
 #include "phone_clipboard.hpp"
 #include "phone_link.hpp"
 #include "privacy.hpp"
+#include "dock_folder.hpp"
 #include "vpn.hpp"
 #include "quicklink_files.hpp"
 #include "recorder.hpp"
@@ -312,6 +313,7 @@ public:
         qmlRegisterType<NetSpeed>(uri, 1, 0, "NetSpeed");
         qmlRegisterType<OutputState>(uri, 1, 0, "OutputState");
         qmlRegisterType<PanelReveal>(uri, 1, 0, "PanelReveal");
+        qmlRegisterType<DockFolder>(uri, 1, 0, "DockFolder");
         qmlRegisterType<SpaceWindows>(uri, 1, 0, "SpaceWindows");
         qmlRegisterType<LauncherResults>(uri, 1, 0, "LauncherResults");
         qmlRegisterType<LauncherModel>(uri, 1, 0, "LauncherModel");

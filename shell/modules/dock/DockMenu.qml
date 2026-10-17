@@ -17,14 +17,17 @@ Rectangle {
         if (!item)
             return [];
         const list = [];
-        if (item.running)
+        if (item.isTile)
+            return list;
+        if (item.running || item.fixed)
             list.push({ icon: "add", text: qsTr("New Window"), action: "launch" });
         if (item.windowCount > 1)
             list.push({ icon: "select_window", text: qsTr("Show All Windows"), action: "expose" });
         if (item.apps.otherGpu && (Atrium.settings["dock.other_gpu"] ?? false))
             list.push({ icon: "memory", text: qsTr("Launch on %1").arg(item.apps.otherGpu), action: "launch-gpu" });
-        list.push(item.pinned ? { icon: "keep_off", text: qsTr("Remove from Dock"), action: "unpin" }
-                              : { icon: "keep", text: qsTr("Keep in Dock"), action: "pin" });
+        if (!item.fixed)  // the file manager always stays
+            list.push(item.pinned ? { icon: "keep_off", text: qsTr("Remove from Dock"), action: "unpin" }
+                                  : { icon: "keep", text: qsTr("Keep in Dock"), action: "pin" });
         if (item.running)
             list.push({ icon: "close", text: item.windowCount > 1 ? qsTr("Close %1 Windows").arg(item.windowCount) : qsTr("Quit"),
                         action: "close" });
@@ -33,7 +36,7 @@ Rectangle {
 
     // The app's own rows first: its places or recent files, its desktop
     // file's actions, its player and sound (DockApps.menuExtras).
-    readonly property var extras: item ? item.apps.menuExtras(item.appId) : []
+    readonly property var extras: !item ? [] : item.isTile ? item.menuRows : item.apps.menuExtras(item.appId)
     readonly property var rows: extras.concat(actions)
 
     function perform(action: string): void {
@@ -94,8 +97,12 @@ Rectangle {
                 height: separator ? Theme.padding.small * 2 + 1 : section ? 26 : media ? 40 : 34
 
                 function pick(key: string): void {
-                    root.item.apps.menuPick(root.item.appId, key);
+                    const item = root.item;
                     root.closed();
+                    if (item.isTile)
+                        item.pick(key);
+                    else
+                        item.apps.menuPick(item.appId, key);
                 }
 
                 Rectangle {
@@ -166,6 +173,8 @@ Rectangle {
 
                 Rectangle {
                     visible: !row.separator && !row.section && !row.media
+                    enabled: row.modelData.enabled ?? true
+                    opacity: enabled ? 1 : 0.4
                     anchors.fill: parent
                     radius: Theme.rounding.small
                     color: hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"

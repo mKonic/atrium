@@ -71,14 +71,49 @@ PanelWindow {
             dockApps.placePin(item.appId, index);
     }
     property var menuItem: null
+    onMenuItemChanged: if (menuItem) stackOpen = confirmEmpty = false
+
+    function tileHover(tile: Item): void {
+        if (tile.hovered) {
+            hoverItem = tile;
+            hoverName = tile.name;
+        } else if (hoverItem === tile && !shelfHover.hovered) {
+            hoverItem = null;
+        }
+    }
+
+    // Downloads and the Trash at the Dock's end (dock.stacks), as on a Mac.
+    readonly property bool stacks: Atrium.settings["dock.stacks"] ?? true
+    property bool stackOpen: false
+    property bool confirmEmpty: false
+
+    DockFolder {
+        id: downloads
+
+        kind: "downloads"
+        onArrived: downloadsTile.hop()
+    }
+
+    DockFolder {
+        id: trash
+
+        kind: "trash"
+    }
+
+    // How much an icon centred at `center` (in the row) grows.
+    function magnifyAt(center: real): real {
+        if (!magnify || pointerX < 0)
+            return 1;
+        const d = Math.abs(pointerX - center) / (iconSize * 2.2);
+        return 1 + 0.55 * Math.max(0, Math.cos(Math.min(d, 1) * Math.PI / 2));
+    }
 
     // A drag from another app over the shelf: the icon under it.
     property Item dropItem: null
     property point dropAt
     function itemAt(x: real): Item {
-        for (let i = 0; i < apps.count; ++i) {
-            const it = apps.itemAt(i);
-            if (!it || it.leaving)
+        for (const it of row.children) {
+            if (!it.visible || (it.appId === undefined && !it.isTile) || it.leaving)
                 continue;
             const box = it.mapToItem(dock.contentItem, 0, 0, it.width, it.height);
             if (x >= box.x && x < box.x + box.width)
@@ -100,11 +135,9 @@ PanelWindow {
         return index;
     }
     onDropItemChanged: {
-        for (let i = 0; i < apps.count; ++i) {
-            const it = apps.itemAt(i);
-            if (it)
+        for (const it of row.children)
+            if (it.dropOver !== undefined)
                 it.dropOver = it === dropItem;
-        }
         spring.restart();
     }
 
@@ -114,7 +147,7 @@ PanelWindow {
         id: spring
 
         interval: 250
-        onTriggered: if (dock.dropItem) dockApps.springOpen(dock.dropItem.appId)
+        onTriggered: if (dock.dropItem && !dock.dropItem.isTile) dockApps.springOpen(dock.dropItem.appId)
     }
 
     // Out of sight over a fullscreen app or a tiled space (or always, with
@@ -152,7 +185,7 @@ PanelWindow {
         hides: dock.hides
         edge: dock.home && output.edge === "bottom"
         hovered: dock.home && (hover.hovered || drops.containsDrag)
-        held: dock.menuItem !== null || dock.dragItem !== null
+        held: dock.menuItem !== null || dock.dragItem !== null || dock.stackOpen || dock.confirmEmpty
     }
 
     readonly property bool revealed: reveal.out && home && !empty
@@ -210,21 +243,32 @@ PanelWindow {
     }
 
     anchors.bottom: true
-    implicitWidth: Math.max(shelf.width + 40, menu.width + 40)
+    // The stack fans out to the right of its icon's middle too.
+    implicitWidth: Math.max(shelf.width + 40, menu.width + 40) + (stackFan.visible ? 240 : 0)
     // Room above the shelf for the hovered app's name, magnified icons and
-    // its menu, however many rows that has.
-    implicitHeight: shelfHeight + gap + Math.max(150, menu.height + menu.anchors.bottomMargin + 16)
+    // its menu (however many rows that has), or the Downloads stack.
+    implicitHeight: shelfHeight + gap + Math.max(150, menu.height + menu.anchors.bottomMargin + 16,
+                                                 stackFan.visible ? stackFan.height + 16 : 0,
+                                                 confirm.visible ? confirm.height + 26 : 0)
     exclusiveZone: autohide || dodge || empty || output.tiled || !home ? 0 : shelfHeight + gap
     color: "transparent"
     WlrLayershell.namespace: "atrium-dock"
     // The keyboard while its menu is open, for Escape.
-    WlrLayershell.keyboardFocus: menuItem ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: menuItem || stackOpen || confirmEmpty ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     mask: Region {
         item: dock.revealed ? reach : null
 
         Region {
             item: dock.menuItem ? menu : null
+        }
+
+        Region {
+            item: dock.stackOpen ? stackFan : null
+        }
+
+        Region {
+            item: dock.confirmEmpty ? confirm : null
         }
     }
 
@@ -377,13 +421,7 @@ PanelWindow {
                             dock.hoverItem = null;
                         }
                     }
-                    magnification: {
-                        if (!dock.magnify || dock.pointerX < 0)
-                            return 1;
-                        const center = x + width / 2 + row.x;
-                        const d = Math.abs(dock.pointerX - center) / (dock.iconSize * 2.2);
-                        return 1 + 0.55 * Math.max(0, Math.cos(Math.min(d, 1) * Math.PI / 2));
-                    }
+                    magnification: dock.magnifyAt(x + width / 2 + row.x)
                     // Out from hiding for a moment so the hop is seen, but
                     // never over a fullscreen app.
                     onAttention: if (!dock.fullscreen && dock.home && !dock.empty) reveal.peek()
@@ -411,6 +449,59 @@ PanelWindow {
                         color: Theme.palette.separator
                     }
                 }
+            }
+
+            // Downloads and the Trash, past a divider.
+            Item {
+                visible: dock.stacks
+                width: 1
+                height: dock.iconSize
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 1
+                    height: dock.iconSize * 0.8
+                    color: Theme.palette.separator
+                }
+            }
+
+            DockTile {
+                id: downloadsTile
+
+                visible: dock.stacks
+                iconSize: dock.iconSize
+                magnification: dock.magnifyAt(x + width / 2 + row.x)
+                name: downloads.name
+                icon: "folder-download"
+                menuOpen: dock.menuItem === downloadsTile
+                menuRows: [{ key: "open", text: qsTr("Open in Files"), glyph: "folder_open" }]
+                onActivated: {
+                    dock.menuItem = null;
+                    dock.stackOpen = !dock.stackOpen;
+                }
+                onPicked: downloads.openFolder()
+                onMenuRequested: item => dock.menuItem = dock.menuItem === item ? null : item
+                onHoveredChanged: dock.tileHover(downloadsTile)
+            }
+
+            DockTile {
+                id: trashTile
+
+                visible: dock.stacks
+                iconSize: dock.iconSize
+                magnification: dock.magnifyAt(x + width / 2 + row.x)
+                name: trash.name
+                icon: trash.count > 0 ? "user-trash-full" : "user-trash"
+                menuOpen: dock.menuItem === trashTile
+                menuRows: [
+                    { key: "open", text: qsTr("Open"), glyph: "delete" },
+                    { separator: true },
+                    { key: "empty", text: qsTr("Empty Trash…"), glyph: "delete_forever", enabled: trash.count > 0 }
+                ]
+                onActivated: trash.openFolder()
+                onPicked: key => key === "open" ? trash.openFolder() : dock.confirmEmpty = true
+                onMenuRequested: item => dock.menuItem = dock.menuItem === item ? null : item
+                onHoveredChanged: dock.tileHover(trashTile)
             }
         }
     }
@@ -447,7 +538,10 @@ PanelWindow {
             dock.dropItem = null;
             if (dockApps.pinDropped(urls, dock.pinIndexAt(dock.dropAt.x))) {
                 drop.accept(Qt.CopyAction);
-            } else if (target) {
+            } else if (target === trashTile) {
+                trash.trash(urls);
+                drop.accept(Qt.MoveAction);
+            } else if (target && !target.isTile) {
                 dockApps.openWith(target.appId, urls);
                 drop.accept(Qt.CopyAction);
             }
@@ -535,14 +629,104 @@ PanelWindow {
         Keys.onEscapePressed: dock.menuItem = null
     }
 
+    // Downloads, fanned up out of its icon.
+    StackFan {
+        id: stackFan
+
+        folder: downloads
+        open: dock.stackOpen
+        x: {
+            void (shelf.x + row.x + downloadsTile.x + dock.width);
+            const p = downloadsTile.mapToItem(dock.contentItem, downloadsTile.width / 2, 0);
+            return Math.min(dock.width - width, p.x + 24 - width);
+        }
+        anchors.bottom: shelf.top
+        anchors.bottomMargin: 6
+        onClosed: dock.stackOpen = false
+        focus: dock.stackOpen
+        Keys.onEscapePressed: dock.stackOpen = false
+    }
+
+    // Emptying the Trash asks first, as everywhere: it can't be undone.
+    Rectangle {
+        id: confirm
+
+        visible: dock.confirmEmpty
+        x: {
+            void (shelf.x + row.x + trashTile.x + dock.width);
+            const p = trashTile.mapToItem(dock.contentItem, trashTile.width / 2, 0);
+            return Math.max(8, Math.min(dock.width - width - 8, p.x - width / 2));
+        }
+        anchors.bottom: shelf.top
+        anchors.bottomMargin: 10
+        width: 320
+        height: confirmColumn.implicitHeight + Theme.padding.large * 2
+        radius: Theme.rounding.normal
+        color: Theme.material.regular
+        border.width: Theme.lens ? 0 : 1
+        border.color: Theme.palette.separator
+        focus: dock.confirmEmpty
+        Keys.onEscapePressed: dock.confirmEmpty = false
+        Keys.onReturnPressed: confirmEmptyButton.clicked()
+
+        Glass {}
+
+        Column {
+            id: confirmColumn
+
+            anchors.fill: parent
+            anchors.margins: Theme.padding.large
+            spacing: Theme.spacing.normal
+
+            StyledText {
+                width: parent.width
+                text: qsTr("Empty the Trash?")
+                font.weight: Font.DemiBold
+            }
+
+            StyledText {
+                width: parent.width
+                wrapMode: Text.Wrap
+                text: trash.count === 1 ? qsTr("The item in the Trash will be erased for good. This can't be undone.")
+                                        : qsTr("The %1 items in the Trash will be erased for good. This can't be undone.").arg(trash.count)
+                color: Theme.palette.secondaryLabel
+                font.pointSize: Theme.font.size.smaller
+            }
+
+            Row {
+                anchors.right: parent.right
+                spacing: Theme.spacing.small
+
+                DialogButton {
+                    text: qsTr("Cancel")
+                    onClicked: dock.confirmEmpty = false
+                }
+
+                DialogButton {
+                    id: confirmEmptyButton
+
+                    text: qsTr("Empty Trash")
+                    primary: true
+                    onClicked: {
+                        trash.empty();
+                        dock.confirmEmpty = false;
+                    }
+                }
+            }
+        }
+    }
+
     // A press anywhere else closes the menu. (Not focus: the focused window's
     // record changes with its title, which some apps change all the time.)
     Connections {
         target: Atrium
 
         function onPointerPressed(layerNamespace: string): void {
-            if (layerNamespace !== "atrium-dock")
+            if (layerNamespace !== "atrium-dock") {
                 dock.menuItem = null;
+                dock.stackOpen = false;
+                dock.confirmEmpty = false;
+            }
         }
     }
 }

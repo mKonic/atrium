@@ -5,6 +5,7 @@
 #include "audio.hpp"
 #include "chooser_places.hpp"
 #include "compositor.hpp"
+#include "default_apps.hpp"
 #include "desktop_entries.hpp"
 #include "file_search_core.hpp"
 #include "launcher_entries.hpp"
@@ -343,6 +344,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
     case UrgentRole: return a.urgent;
     case BadgeRole: return a.badge;
     case ProgressRole: return a.progress;
+    case FixedRole: return a.fixed;
     default: return {};
     }
 }
@@ -350,7 +352,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> DockApps::roleNames() const {
     return {{AppIdRole, "appId"}, {NameRole, "name"}, {IconRole, "icon"}, {PinnedRole, "pinned"},
             {RunningRole, "running"}, {FocusedRole, "focused"}, {WindowCountRole, "windowCount"},
-            {DividerRole, "divider"}, {LeavingRole, "leaving"}, {UrgentRole, "urgent"}, {BadgeRole, "badge"}, {ProgressRole, "progress"}};
+            {DividerRole, "divider"}, {LeavingRole, "leaving"}, {UrgentRole, "urgent"}, {BadgeRole, "badge"}, {ProgressRole, "progress"}, {FixedRole, "fixed"}};
 }
 
 void DockApps::rebuildLater() {
@@ -372,6 +374,12 @@ void DockApps::rebuild() {
             a.icon = id;
         return next.emplace_back(std::move(a));
     };
+    // The file manager comes first and stays, as Finder does on a Mac.
+    fixed_ = DefaultApps::defaultFor("inode/directory");
+    if (!index_.byId(fixed_))
+        fixed_.clear();
+    if (!fixed_.isEmpty())
+        add(fixed_, false).fixed = true;
     for (const QString& id : Compositor::instance()->dockPins())
         if (index_.byId(id) && std::ranges::none_of(next, [&](const App& a) { return a.id == id; }))
             add(id, true);
@@ -774,7 +782,7 @@ void DockApps::placePin(const QString& appId, int index) {
             at = i;
             break;
         }
-        if (index_.byId(list[i]))
+        if (index_.byId(list[i]) && list[i] != fixed_)  // the file manager isn't counted: it is always first
             ++shown;
     }
     list.insert(at, appId);

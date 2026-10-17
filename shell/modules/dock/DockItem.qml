@@ -21,6 +21,7 @@ Item {
     required property int windowCount
     required property bool leaving  // just closed: shrinking away
     required property bool urgent   // a window of it asks for attention
+    required property bool fixed    // the file manager: always first, never dragged off
     required property real badge     // the app's own count; -1: none
     required property real progress  // 0..1 of what it is doing; -1: none
     required property DockApps apps
@@ -306,7 +307,7 @@ Item {
             if (!(event.buttons & Qt.LeftButton))
                 return;
             const at = mapToItem(null, event.x, event.y);
-            if (!dragging && Math.abs(event.x - pressAt.x) + Math.abs(event.y - pressAt.y) > 8) {
+            if (!dragging && !root.fixed && Math.abs(event.x - pressAt.x) + Math.abs(event.y - pressAt.y) > 8) {
                 dragging = true;
                 root.dragStarted(root, at);
             }

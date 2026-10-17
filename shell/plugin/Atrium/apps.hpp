@@ -103,7 +103,7 @@ class DockApps : public QAbstractListModel {
 
 public:
     enum Role { AppIdRole = Qt::UserRole + 1, NameRole, IconRole, PinnedRole, RunningRole, FocusedRole,
-                WindowCountRole, DividerRole, LeavingRole, UrgentRole, BadgeRole, ProgressRole };
+                WindowCountRole, DividerRole, LeavingRole, UrgentRole, BadgeRole, ProgressRole, FixedRole };
 
     explicit DockApps(QObject* parent = nullptr);
 
@@ -168,6 +168,7 @@ private:
         bool pinned = false;
         bool focused = false;
         bool urgent = false;   // a window of it asks for attention
+        bool fixed = false;    // the file manager, always first, as a Mac's Finder
         qint64 badge = -1;     // its own count (launcher_entries.hpp); -1: none
         double progress = -1;  // 0..1 of something it is doing; -1: none
         bool divider = false;  // first running-only app after the pinned ones
@@ -183,6 +184,7 @@ private:
     QObject* playerOf(const App& a) const;          // its MprisPlayer, or null
     void forgetRecent(QObject* entry);              // its lines in recently-used.xbel
     class ChooserPlaces* places_ = nullptr;
+    QString fixed_;  // the file manager's id, kept first
     QVariantList reported_;  // the icons atrium last heard of
     QString reported_output_;
 

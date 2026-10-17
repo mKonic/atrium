@@ -147,6 +147,10 @@ static QString currentFor(const QStringList& types) {
     return {};
 }
 
+QString DefaultApps::defaultFor(const QString& mime) {
+    return currentFor({mime});
+}
+
 static QVariantList appsFor(const QString& type) {
     return entries([&](DesktopEntry* e) { return e->mimeTypes().contains(type); });
 }

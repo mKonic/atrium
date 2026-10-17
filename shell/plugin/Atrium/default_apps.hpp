@@ -28,6 +28,9 @@ public:
     QString terminal() const;
 
     QVariantList kinds() const;
+    // The desktop id that opens `mime` (mimeapps.list, else the first app
+    // for it, as xdg-open picks): "inode/directory" is the file manager.
+    static QString defaultFor(const QString& mime);
 
     // The app for one of `kinds` (the browser included).
     Q_INVOKABLE void setDefault(const QString& kind, const QString& id);

@@ -827,6 +827,9 @@ std::vector<SettingSchema> build_schema(const Config& d) {
         true, [](Config&, const json&) {}));
     s.push_back(make("bar.net_speed", SettingType::Bool, "Menu Bar", "Network speed",
         "Show download and upload speed next to the network icon.", true, [](Config&, const json&) {}));
+    s.push_back(make("dock.stacks", SettingType::Bool, "Dock", "Downloads and Trash",
+        "Keep your Downloads folder and the Trash at the Dock's end, as on a Mac: Downloads opens as a stack of "
+        "its newest files, and files dropped on the Trash go into it.", true, [](Config&, const json&) {}));
     s.push_back(make("dock.magnify", SettingType::Bool, "Dock", "Magnification",
         "Icons grow as the pointer passes over them.", false, [](Config&, const json&) {}));
     s.push_back(make("dock.other_gpu", SettingType::Bool, "Dock", "Launch on the other graphics card",
