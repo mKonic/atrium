@@ -13,6 +13,11 @@ Row {
 
     required property var screen
     readonly property bool shown: AppMenu.menus.length > 0
+    // The app's name before the titles (ActiveWindow): the first menu, with
+    // Hide, Hide Others, Show All and Quit, as a Mac's bold app menu.
+    property Item appItem: null
+    readonly property int offset: appItem?.shown ? 1 : 0
+    readonly property bool appMenuOpen: panel.visible && offset === 1 && panel.index === 0
     // The room before the bar's right side: the titles past it are left out.
     property real maxWidth: 10000
     // How many titles fit; when not all, room is kept for » with the rest.
@@ -36,6 +41,10 @@ Row {
     // Each title's place in the bar, for the panel to follow the pointer along them.
     function spans(): var {
         const out = [];
+        if (offset) {
+            const p = appItem.mapToItem(null, 0, 0);
+            out.push({ x: p.x, width: appItem.width, bottom: p.y + appItem.height, menu: { id: AppMenu.appMenuId } });
+        }
         for (let i = 0; i < root.fitting; ++i) {
             const t = titles.itemAt(i);
             const p = t.mapToItem(null, 0, 0);
@@ -48,6 +57,13 @@ Row {
         return out;
     }
 
+    function openApp(): void {
+        if (appMenuOpen)
+            panel.close();
+        else if (offset)
+            open(0);
+    }
+
     function open(index: int): void {
         const all = spans();
         if (index < 0 || index >= all.length)
@@ -56,7 +72,6 @@ Row {
     }
 
     spacing: 0
-    visible: shown
 
     Repeater {
         id: titles
@@ -68,7 +83,7 @@ Row {
 
             required property var modelData
             required property int index
-            readonly property bool current: panel.visible && panel.index === index
+            readonly property bool current: panel.visible && panel.index === index + root.offset
 
             visible: index < root.fitting
             implicitWidth: label.implicitWidth + Theme.padding.normal * 2
@@ -89,7 +104,7 @@ Row {
 
                 anchors.fill: parent
                 hoverEnabled: true
-                onClicked: title.current ? panel.close() : root.open(title.index)
+                onClicked: title.current ? panel.close() : root.open(title.index + root.offset)
             }
         }
     }
@@ -97,7 +112,7 @@ Row {
     Rectangle {
         id: more
 
-        readonly property bool current: panel.visible && panel.index === root.fitting
+        readonly property bool current: panel.visible && panel.index === root.fitting + root.offset
 
         visible: root.fitting < titles.count
         implicitWidth: moreLabel.implicitWidth + Theme.padding.normal * 2
@@ -117,7 +132,7 @@ Row {
 
             anchors.fill: parent
             hoverEnabled: true
-            onClicked: more.current ? panel.close() : root.open(root.fitting)
+            onClicked: more.current ? panel.close() : root.open(root.fitting + root.offset)
         }
     }
 

@@ -52,14 +52,24 @@ private:
 
 class AppMenu : public QObject {
     Q_OBJECT
-    // The focused window's menus: [{ id, text, enabled }]; none when it
-    // shares none.
+    // The focused window's menus: [{ id, text, enabled }]. An app that
+    // shares none still gets a Window menu, and the desktop (nothing in
+    // front) has the file manager's File, Go and Window, as Finder owns a
+    // Mac's desktop: atrium's own menus, by negative ids.
     Q_PROPERTY(QVariantList menus READ menus NOTIFY changed)
+    // The menu under the app's name (Hide, Hide Others, Show All, Quit), by
+    // id: open it with items(appMenuId).
+    Q_PROPERTY(int appMenuId READ appMenuId CONSTANT)
+    // With nothing in front, the app the menu bar names: the file manager
+    // ({ name, icon }; empty with none).
+    Q_PROPERTY(QVariantMap desktopApp READ desktopApp NOTIFY changed)
 
 public:
     explicit AppMenu(QObject* parent = nullptr);
 
     QVariantList menus() const { return menus_; }
+    int appMenuId() const { return kAppMenu; }
+    QVariantMap desktopApp() const;
     // A menu's items, as dbusmenu::layout gives them (asked when it opens).
     Q_INVOKABLE QVariantList items(int id) const;
     Q_INVOKABLE void trigger(int id) const;
@@ -74,6 +84,18 @@ private:
     void follow();  // the focused window's menu, now
     void reload();
 
+    // atrium's own menus and their items, all by negative ids.
+    static constexpr int kAppMenu = -10, kWindowMenu = -1, kFileMenu = -2, kGoMenu = -3;
+    enum Item {
+        Hide = -11, HideOthers = -12, ShowAll = -13, Quit = -14,
+        Minimize = -21, Zoom = -22, FullScreen = -23, Close = -24, BringAll = -25,
+        NewWindow = -31,
+        GoHome = -41, GoDocuments = -42, GoDownloads = -43, GoDesktop = -44, GoTrash = -45,
+    };
+    QVariantList ownItems(int menu) const;
+    void ownTrigger(int id) const;
+    QVariantList exported_;  // what the app shares itself
+    bool desktop_ = true;    // nothing in front
     AppMenuRegistrar* registrar_ = nullptr;
     QString service_, path_;
     QVariantList menus_;

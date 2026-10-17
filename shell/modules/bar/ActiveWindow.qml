@@ -9,7 +9,12 @@ Item {
     id: root
 
     readonly property var window: Atrium.focusedWindow
-    readonly property string appName: window ? Icons.appName(window.app_id) : ""
+    // With nothing in front, the desktop belongs to the file manager, as to
+    // Finder on a Mac.
+    readonly property string appName: window ? Icons.appName(window.app_id) : AppMenu.desktopApp.name ?? ""
+    // Its menu is open (AppMenus): drawn pressed.
+    property bool menuOpen: false
+    signal clicked
     // Titles often end in the app's name ("notes — Kate"); the name is already shown.
     readonly property string title: {
         const t = window?.title ?? "";
@@ -26,10 +31,20 @@ Item {
 
     // Nothing focused (or no app): nothing shown, not an empty pill. (The
     // bar sets this item's own opacity, so the content fades instead.)
-    readonly property bool shown: !!window && appName !== ""
+    readonly property bool shown: appName !== ""
 
     implicitHeight: Theme.bar.inner
     implicitWidth: shown ? row.implicitWidth + (Theme.lens ? Theme.padding.normal * 2 : 0) : 0
+
+    MouseArea {
+        id: nameArea
+
+        anchors.fill: parent
+        hoverEnabled: true
+        enabled: root.shown
+        z: 2
+        onClicked: root.clicked()
+    }
 
     // Liquid Glass: in a glass pill, so it reads over any wallpaper.
     Rectangle {
@@ -44,6 +59,16 @@ Item {
         Behavior on opacity {
             Anim {}
         }
+    }
+
+    // Pressed while its menu is open, lit under the pointer.
+    Rectangle {
+        anchors.fill: parent
+        anchors.leftMargin: Theme.lens ? 0 : -Theme.padding.small
+        anchors.rightMargin: Theme.lens ? 0 : -Theme.padding.small
+        radius: Theme.lens ? height / 2 : Theme.rounding.small
+        visible: root.shown
+        color: root.menuOpen ? Theme.palette.secondaryFill : nameArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
     }
 
     Row {
@@ -61,7 +86,7 @@ Item {
         IconImage {
             anchors.verticalCenter: parent.verticalCenter
             implicitSize: 18
-            source: root.window ? Icons.appIcon(root.window.app_id) : ""
+            source: root.window ? Icons.appIcon(root.window.app_id) : Shell.iconPath(AppMenu.desktopApp.icon ?? "", "system-file-manager")
             asynchronous: true
         }
 
