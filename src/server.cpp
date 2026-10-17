@@ -946,13 +946,14 @@ void Server::run(const char* startup_cmd) {
     leave_hdr();
 }
 
-// A screen in HDR goes back to SDR before atrium lets go of it. Leaving HDR,
-// NVIDIA's driver tells the monitor so with an SDR infoframe every frame for
-// two seconds (nvkms-dpy.c), and a modeset in that time (the console taking
-// the screen back, the greeter, a reboot) cuts it short: the monitor can
-// stay in HDR mode, through the next boot's firmware logo too, showing
-// everything far too bright and saturated. So the screens stay atrium's,
-// drawn in SDR, until the two seconds are up.
+// A screen in HDR goes back to SDR before atrium lets go of it: CTA-861-H
+// has a source ending HDR send an SDR infoframe for two seconds (wlroots'
+// DRM backend does), and the next DRM master's modeset (the console, the
+// greeter, a reboot) would cut that short: the monitor can stay in HDR
+// mode, through the next boot's firmware logo too, showing everything far
+// too bright and saturated. So the screens stay atrium's, drawn in SDR,
+// until the two seconds are up. (A sink left in HDR anyway, by a crash or a
+// power cut, gets the same when the next session starts.)
 void Server::leave_hdr() {
     if (!backend || (session && !session->active))
         return;
