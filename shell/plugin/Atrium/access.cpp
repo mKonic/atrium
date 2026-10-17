@@ -1,5 +1,7 @@
 #include "access.hpp"
 
+#include "desktop_entries.hpp"
+
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonDocument>
@@ -27,6 +29,26 @@ AccessPrompt::AccessPrompt(QObject* parent) : QObject(parent) {
         m["options"] = options;
         choices_.append(m);
     }
+}
+
+QString AccessPrompt::title() const {
+    QString t = q_.value("title").toString();
+    if (!t.contains("{app}"))
+        return t;
+    // Its name as its desktop file gives it ("Google Chrome"), else its id's last part.
+    using shell::DesktopEntries;
+    const QString id = app();
+    QString name;
+    if (shell::DesktopEntry* e = DesktopEntries::instance()->byId(id); e)
+        name = e->name();
+    else if (shell::DesktopEntry* h = DesktopEntries::instance()->heuristicLookup(id); h)
+        name = h->name();
+    if (name.isEmpty()) {
+        name = id.section('.', -1);
+        if (!name.isEmpty())
+            name[0] = name[0].toUpper();
+    }
+    return t.replace("{app}", name);
 }
 
 QString AccessPrompt::grantLabel() const {

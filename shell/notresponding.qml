@@ -6,27 +6,44 @@ import Atrium
 import shell.modules.access
 import shell.services
 
-// "Application Not Responding": Terminate or Wait. Run by the compositor
-// when an app stops answering, as Hyprland runs hyprland-dialog; a window of
-// its own, so the rest of the desktop stays usable. Closing it waits.
+// "“Foot” isn't responding": Force Quit or Wait. Run by the compositor when
+// an app stops answering; a card over its window, as GNOME attaches one,
+// not a window of its own with a title bar and a Dock icon. Nothing else is
+// dimmed or held: the rest of the desktop stays usable, and the keyboard
+// stays where it was until the card is clicked.
 ShellRoot {
-    FloatingWindow {
+    PanelWindow {
+        id: sheet
+
+        readonly property var around: AccessPrompt.around
+        readonly property bool placed: around.width !== undefined
+
         visible: true
-        title: qsTr("Application Not Responding")
-        color: Theme.palette.windowBackground
-        implicitWidth: card.width
-        implicitHeight: card.height
-        onVisibleChanged: if (!visible) AccessPrompt.answer(false)
+        screen: Shell.screen(around.output ?? Atrium.focusedOutput?.name)
+        anchors {
+            top: true
+            left: true
+        }
+        // Centred on the window, never off the screen.
+        margins {
+            left: sheet.placed ? Math.max(0, Math.min(sheet.screen.width - sheet.implicitWidth, sheet.around.x + (sheet.around.width - sheet.implicitWidth) / 2))
+                               : (sheet.screen.width - sheet.implicitWidth) / 2
+            top: sheet.placed ? Math.max(0, Math.min(sheet.screen.height - sheet.implicitHeight, sheet.around.y + (sheet.around.height - sheet.implicitHeight) / 3))
+                              : (sheet.screen.height - sheet.implicitHeight) / 3
+        }
+        implicitWidth: card.width + 48
+        implicitHeight: card.height + 48
+        exclusiveZone: -1
+        color: "transparent"
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.namespace: "atrium-notresponding"
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
         AccessCard {
             id: card
 
-            // The window is the frame.
+            // Room around it for its shadow.
             anchors.centerIn: parent
-            radius: 0
-            color: "transparent"
-            border.width: 0
-            layer.enabled: false
         }
     }
 }

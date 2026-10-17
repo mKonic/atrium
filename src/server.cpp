@@ -937,8 +937,16 @@ void Server::run(const char* startup_cmd) {
     }
 
     focused_output = output_at(seat->cursor->x, seat->cursor->y);
-    // Put the cursor image where the cursor actually is.
-    wlr_cursor_warp_closest(seat->cursor, nullptr, seat->cursor->x, seat->cursor->y);
+    // The pointer starts in the middle of the first screen, as KWin and
+    // Hyprland start it: not in a corner, where a hot corner is. Then the
+    // cursor image goes where the cursor actually is.
+    wlr_box first{};
+    if (focused_output)
+        wlr_output_layout_get_box(output_layout, focused_output->wlr, &first);
+    if (!wlr_box_empty(&first))
+        wlr_cursor_warp_closest(seat->cursor, nullptr, first.x + first.width / 2.0, first.y + first.height / 2.0);
+    else
+        wlr_cursor_warp_closest(seat->cursor, nullptr, seat->cursor->x, seat->cursor->y);
     seat->set_default_cursor();
 
     wlr_log(WLR_INFO, "running on WAYLAND_DISPLAY=%s", socket);

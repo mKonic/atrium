@@ -1,6 +1,7 @@
 #include "not_responding.hpp"
 #include "i18n.hpp"
 
+#include "output.hpp"
 #include "server.hpp"
 #include "shell_process.hpp"
 #include "view.hpp"
@@ -109,15 +110,25 @@ void NotResponding::tick() {
 }
 
 void NotResponding::open_dialog(wl_client* client, App& app, const View& view) {
-    const std::string title = view.title() && *view.title() ? view.title() : "(unknown)";
-    const std::string cls = view.app_id() && *view.app_id() ? view.app_id() : "(unknown)";
-    const nlohmann::json question{
+    // In the words GNOME's and a Mac's use; the dialog puts the app's own
+    // name for {app}, and itself over the window.
+    const std::string title = view.title() ? view.title() : "";
+    nlohmann::json question{
         {"app", view.app_id() ? view.app_id() : ""},
-        {"title", tr("Application Not Responding")},
-        {"body", trf("An application {} - {} is not responding.\nWhat do you want to do with it?", title, cls)},
-        {"grant", tr("Terminate")},
+        {"title", tr("“{app}” isn't responding")},
+        {"body", title.empty() ? tr("It stopped answering. Wait for it to catch up, or force it to quit: "
+                                    "anything unsaved in it is lost.")
+                               : trf("Its window “{}” stopped answering. Wait for it to catch up, or force it to "
+                                     "quit: anything unsaved in it is lost.", title)},
+        {"grant", tr("Force Quit")},
         {"deny", tr("Wait")},
     };
+    if (view.output)
+        question["around"] = {{"output", view.output->wlr->name},
+                              {"x", view.geom.x - view.output->box.x},
+                              {"y", view.geom.y - view.output->box.y},
+                              {"width", view.geom.width},
+                              {"height", view.geom.height}};
     int in[2], out[2];
     if (pipe2(in, O_CLOEXEC) < 0)
         return;

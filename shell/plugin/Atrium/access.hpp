@@ -1,8 +1,9 @@
 #pragma once
 // The portal's permission question (access.qml), read from stdin as JSON:
 // {app, title, subtitle, body, icon, grant, deny, choices: [{id, label,
-// options: [{id, label}], value}]}. `answer(allowed)` writes
-// {response, choices: {id: value}} to stdout and quits.
+// options: [{id, label}], value}], around}. "{app}" in the title is the
+// app's own name. `answer(allowed)` writes {response, choices: {id: value}}
+// to stdout and quits.
 
 #include <QObject>
 #include <QVariantList>
@@ -21,18 +22,22 @@ class AccessPrompt : public QObject {
     Q_PROPERTY(QString denyLabel READ denyLabel CONSTANT)
     // [{id, label, options: [{value, label}], value}]; no options: a switch.
     Q_PROPERTY(QVariantList choices READ choices NOTIFY choicesChanged)
+    // The window it's about, when it's about one: {output, x, y, width,
+    // height}, output-local.
+    Q_PROPERTY(QVariantMap around READ around CONSTANT)
 
 public:
     explicit AccessPrompt(QObject* parent = nullptr);
 
     QString app() const { return q_.value("app").toString(); }
-    QString title() const { return q_.value("title").toString(); }
+    QString title() const;
     QString subtitle() const { return q_.value("subtitle").toString(); }
     QString body() const { return q_.value("body").toString(); }
     QString icon() const { return q_.value("icon").toString(); }
     QString grantLabel() const;
     QString denyLabel() const;
     QVariantList choices() const { return choices_; }
+    QVariantMap around() const { return q_.value("around").toMap(); }
 
     Q_INVOKABLE void setChoice(const QString& id, const QString& value);
     Q_INVOKABLE void answer(bool allowed);

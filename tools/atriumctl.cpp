@@ -11,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -21,6 +22,19 @@ using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 namespace {
+
+// A number argument: anything else is a usage error, not a crash.
+long long number(const std::string& s) {
+    size_t used = 0;
+    try {
+        const long long n = std::stoll(s, &used);
+        if (used == s.size())
+            return n;
+    } catch (const std::logic_error&) {
+    }
+    std::fprintf(stderr, "atriumctl: not a number: '%s'\n", s.c_str());
+    std::exit(2);
+}
 
 void usage() {
     std::fputs(
@@ -284,18 +298,18 @@ int main(int argc, char** argv) {
     } else if (cmd == "scene") {
         req = {{"cmd", "scene.dump"}};
         if (!args.empty())
-            req["window"] = std::stoull(args[0]);
+            req["window"] = number(args[0]);
     } else if (cmd == "space") {
         need(1);
-        req = {{"cmd", "space.switch"}, {"number", std::stoi(args[0])}};
+        req = {{"cmd", "space.switch"}, {"number", number(args[0])}};
     } else if (cmd == "secret") {
         need(1);
         req = {{"cmd", "secret.toggle"}, {"name", args[0]}};
     } else if (cmd == "send") {
         need(2);
-        req = {{"cmd", "window.to_space"}, {"window", std::stoull(args[0])}};
+        req = {{"cmd", "window.to_space"}, {"window", number(args[0])}};
         if (!args[1].empty() && std::isdigit(static_cast<unsigned char>(args[1][0])))
-            req["number"] = std::stoi(args[1]);
+            req["number"] = number(args[1]);
         else
             req["secret"] = args[1];
     } else if (cmd == "get") {
@@ -344,14 +358,14 @@ int main(int argc, char** argv) {
     } else if (cmd == "focus" || cmd == "close" || cmd == "minimize" || cmd == "maximize" || cmd == "fullscreen") {
         req = {{"cmd", "window." + cmd}};
         if (!args.empty())
-            req["window"] = std::stoull(args[0]);
+            req["window"] = number(args[0]);
     } else if (cmd == "move") {
         need(3);
-        req = {{"cmd", "window.move"}, {"window", std::stoull(args[0])}, {"x", std::stoi(args[1])}, {"y", std::stoi(args[2])}};
+        req = {{"cmd", "window.move"}, {"window", number(args[0])}, {"x", number(args[1])}, {"y", number(args[2])}};
     } else if (cmd == "resize") {
         need(3);
-        req = {{"cmd", "window.resize"}, {"window", std::stoull(args[0])},
-               {"width", std::stoi(args[1])}, {"height", std::stoi(args[2])}};
+        req = {{"cmd", "window.resize"}, {"window", number(args[0])},
+               {"width", number(args[1])}, {"height", number(args[2])}};
     } else if (cmd == "apps" || (cmd == "dock" && args.empty())) {
         req = {{"cmd", "apps.list"}};
     } else if (cmd == "dock") {

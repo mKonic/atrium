@@ -84,9 +84,11 @@ int main(int argc, char** argv) {
     atrium::i18n_init();
 
     // Inside another compositor (a window on a desktop, or a test box) that
-    // compositor keeps Super for itself.
+    // compositor keeps Super for itself. ATRIUM_BOX: a headless test box
+    // (`vc box`) beside the user's own session, whose services, phone and
+    // screens it leaves alone just as a nested one does.
     const bool nested = std::getenv("WAYLAND_DISPLAY") || std::getenv("WAYLAND_SOCKET") ||
-                        std::getenv("DISPLAY");
+                        std::getenv("DISPLAY") || std::getenv("ATRIUM_BOX");
 
 #ifdef ATRIUM_JOURNAL
     // Started on a console by a display manager, the log (and every app's
