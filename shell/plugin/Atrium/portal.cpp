@@ -567,7 +567,7 @@ void InhibitAdaptor::Inhibit(const QDBusObjectPath& handle, const QString& app, 
 }
 
 uint InhibitAdaptor::CreateMonitor(const QDBusObjectPath&, const QDBusObjectPath& session, const QString& app,
-                                   const QString&, QVariantMap&) {
+                                   const QString&) {
     auto* s = new PortalSession(session.path(), app, PortalBackend::instance());
     PortalBackend::instance()->addSession(s);
     // After the reply, which makes the session the app's.

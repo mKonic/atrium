@@ -295,7 +295,7 @@ public slots:
     // The session's state for apps that watch it: always running, never
     // a screensaver (atrium has none).
     uint CreateMonitor(const QDBusObjectPath& handle, const QDBusObjectPath& session, const QString& app,
-                       const QString& window, QVariantMap& results);
+                       const QString& window);
     void QueryEndResponse(const QDBusObjectPath&) {}
 
 signals:
