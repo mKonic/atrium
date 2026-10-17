@@ -46,6 +46,8 @@
 // MIC_START    (PC) u16 UDP port to send to, u16 frames per packet: something
 //              here records from the phone's microphone
 // MIC_STOP     (PC) nothing: nothing does any more
+// KEY          (phone) u8 key (PhoneKey), u8 1 pressed or 0 let go: its user
+//              gave this PC its volume keys ("Media controls")
 //
 // Both send HELLO. Then the PC goes on with what it knows:
 // - It has a key for the phone's id: AUTH. The phone answers AUTH and PROOF
@@ -125,6 +127,7 @@ enum class Type : std::uint8_t {
     MicState = 23,
     MicStart = 24,
     MicStop = 25,
+    Key = 26,
 };
 
 enum class AudioState : std::uint8_t { Stopped = 0, Streaming = 1, Failed = 2 };
@@ -132,6 +135,8 @@ enum class AudioState : std::uint8_t { Stopped = 0, Streaming = 1, Failed = 2 };
 // Off: not shared. Ready: shared, closed until MIC_START. Live: recording.
 // Failed: shared, but it couldn't record (the reason says why).
 enum class MicState : std::uint8_t { Off = 0, Ready = 1, Live = 2, Failed = 3 };
+
+enum class PhoneKey : std::uint8_t { VolumeUp = 1, VolumeDown = 2 };
 
 struct Identity {
     std::string id;  // kIdSize bytes

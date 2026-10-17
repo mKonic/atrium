@@ -25,8 +25,10 @@
 // The phone's media session shows up as an MPRIS player (mpris.hpp), and a
 // phone that shares its microphone as a PipeWire source, "<phone>
 // microphone": the phone opens its microphone only while something here
-// records from it.
+// records from it. A phone that gives this PC its volume keys has them
+// press Right (up) and Left (down) here.
 
+#include "keys.hpp"
 #include "link_core.hpp"
 #include "mpris.hpp"
 #include "playback.hpp"
@@ -100,7 +102,8 @@ class Daemon : public QObject {
     Q_OBJECT
 
 public:
-    explicit Daemon(QObject* parent = nullptr);
+    // `display`: the session's Wayland connection, for the phone's keys.
+    explicit Daemon(wl_display* display, QObject* parent = nullptr);
     ~Daemon() override;
 
     void pairWith(const QString& id);
@@ -126,6 +129,7 @@ private:
         bool micUsed = false, micStarted = false;
         QTimer* micIdle = nullptr;
         bool streaming = false, closed = false;
+        std::uint32_t keysDown = 0;  // by PhoneKey's bit: let go when it drops
         QString name, failed;
         Media media;
     };
@@ -153,6 +157,8 @@ private:
     void message(Conn* c, Type type, const std::string& body);
     void drop(Conn* c, const QString& why);
     void micMessage(Conn* c, const std::string& body);
+    void keyMessage(Conn* c, const std::string& body);
+    void releaseKeys(Conn* c);
     void micUsed(const QString& id, bool used);
     void closeMic(Conn* c);
     void updateMedia();
@@ -183,6 +189,7 @@ private:
     QTimer retry_;
     Status* status_;
     Mpris* mpris_;
+    Keys keys_;
     AvahiClient* avahi_ = nullptr;
     AvahiServiceBrowser* browser_ = nullptr;
 };

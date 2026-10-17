@@ -19,9 +19,10 @@ int main(int argc, char** argv) {
     if (!QDBusConnection::sessionBus().registerService(QStringLiteral("org.atrium.PhoneLink")))
         return 0;
     // The session ends with the compositor: when its Wayland connection
-    // goes, so does this (and the phone gets its sound back). Nothing is
-    // asked of the connection but that it stays up.
-    if (wl_display* display = wl_display_connect(nullptr)) {
+    // goes, so does this (and the phone gets its sound back). It also
+    // carries the keys a phone presses (Keys).
+    wl_display* display = wl_display_connect(nullptr);
+    if (display) {
         auto* n = new QSocketNotifier(wl_display_get_fd(display), QSocketNotifier::Read, &app);
         QObject::connect(n, &QSocketNotifier::activated, &app, [display, n] {
             if (wl_display_dispatch(display) < 0) {
@@ -34,7 +35,7 @@ int main(int argc, char** argv) {
     int r;
     {
         // Its playbacks stop their PipeWire loops: before pw_deinit.
-        atrium::phonelink::Daemon daemon;
+        atrium::phonelink::Daemon daemon(display);
         r = app.exec();
     }
     pw_deinit();

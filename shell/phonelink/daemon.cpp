@@ -17,6 +17,7 @@
 #include <QSaveFile>
 #include <QSysInfo>
 
+#include <linux/input-event-codes.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
@@ -57,9 +58,10 @@ void Status::Forget(const QString& id) { d_.forget(id.toLower()); }
 
 // --- Daemon ------------------------------------------------------------------
 
-Daemon::Daemon(QObject* parent)
+Daemon::Daemon(wl_display* display, QObject* parent)
     : QObject(parent), status_(new Status(*this)),
-      mpris_(new Mpris(qEnvironmentVariable("XDG_RUNTIME_DIR", QDir::tempPath()) + "/atrium-phonelink", this)) {
+      mpris_(new Mpris(qEnvironmentVariable("XDG_RUNTIME_DIR", QDir::tempPath()) + "/atrium-phonelink", this)),
+      keys_(display) {
     QString state = qEnvironmentVariable("XDG_STATE_HOME");
     if (state.isEmpty())
         state = QDir::homePath() + "/.local/state";
@@ -446,6 +448,10 @@ void Daemon::message(Conn* c, Type type, const std::string& body) {
         micMessage(c, body);
         return;
     }
+    if (type == Type::Key) {
+        keyMessage(c, body);
+        return;
+    }
     if (type != Type::AudioState || body.empty())
         return;
     const auto state = AudioState(std::uint8_t(body[0]));
@@ -485,12 +491,47 @@ void Daemon::drop(Conn* c, const QString& why) {
     }
     conns_.remove(c->id);
     closeMic(c);
+    releaseKeys(c);
     updateMedia();
     c->socket->disconnect(this);
     c->socket->abort();
     // Not from inside the socket's own signal.
     QTimer::singleShot(0, this, [c] { delete c; });
     updateStatus();
+}
+
+// --- the phone's keys --------------------------------------------------------
+
+namespace {
+
+// The evdev key a phone's key presses here.
+std::uint32_t pcKey(PhoneKey k) {
+    switch (k) {
+    case PhoneKey::VolumeUp: return KEY_RIGHT;
+    case PhoneKey::VolumeDown: return KEY_LEFT;
+    }
+    return 0;
+}
+
+} // namespace
+
+void Daemon::keyMessage(Conn* c, const std::string& body) {
+    if (body.size() < 2 || !c->link->ready())
+        return;
+    const auto k = PhoneKey(std::uint8_t(body[0]));
+    const std::uint32_t key = pcKey(k), bit = 1u << std::uint8_t(k);
+    const bool down = body[1] != 0;
+    if (!key || bool(c->keysDown & bit) == down)
+        return;
+    c->keysDown = down ? c->keysDown | bit : c->keysDown & ~bit;
+    keys_.key(key, down);
+}
+
+void Daemon::releaseKeys(Conn* c) {
+    for (PhoneKey k : {PhoneKey::VolumeUp, PhoneKey::VolumeDown})
+        if (c->keysDown & (1u << std::uint8_t(k)))
+            keys_.key(pcKey(k), false);
+    c->keysDown = 0;
 }
 
 // --- the microphone ----------------------------------------------------------
