@@ -80,6 +80,8 @@ public:
     bool hdr_active() const;
     // Signal and compositing as set; false when the screen refused HDR.
     bool apply_hdr();
+    // To SDR as the session ends, the setting kept; true when it was on.
+    bool leave_hdr();
     bool add_hdr(wlr_output_state& state);
     // SDR brightness 0-100 as the nits white is shown at in HDR: 80 (what
     // SDR is mastered for) up to the screen's peak, never past it. Content

@@ -300,6 +300,17 @@ bool Output::add_hdr(wlr_output_state& state) {
     return ok;
 }
 
+bool Output::leave_hdr() {
+    if (!hdr_active())
+        return false;
+    const bool wanted = hdr;
+    hdr = false;
+    apply_hdr();
+    hdr = wanted;  // still the setting, for the next session
+    wlr_output_schedule_frame(wlr);  // drawn again for SDR
+    return !hdr_active();
+}
+
 bool Output::apply_hdr() {
     const bool want = hdr && hdr_supported();
     // The HDR calibration first: its peak goes in the metadata.

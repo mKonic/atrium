@@ -422,6 +422,7 @@ public:
 private:
     void setup();
     void teardown();
+    void leave_hdr();
     void prepare_session_environment();
     void start_clipboard_history();
     void start_clipboard_sync();

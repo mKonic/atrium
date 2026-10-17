@@ -15,6 +15,7 @@
 #include "launch_feedback.hpp"
 #include "toplevel_drag.hpp"
 #include "paths.hpp"
+#include <chrono>
 #include <cstring>
 #include <sys/un.h>
 #include <fstream>
@@ -942,6 +943,30 @@ void Server::run(const char* startup_cmd) {
 
     wlr_log(WLR_INFO, "running on WAYLAND_DISPLAY=%s", socket);
     wl_display_run(display);
+    leave_hdr();
+}
+
+// A screen in HDR goes back to SDR before atrium lets go of it. Leaving HDR,
+// NVIDIA's driver tells the monitor so with an SDR infoframe every frame for
+// two seconds (nvkms-dpy.c), and a modeset in that time (the console taking
+// the screen back, the greeter, a reboot) cuts it short: the monitor can
+// stay in HDR mode, through the next boot's firmware logo too, showing
+// everything far too bright and saturated. So the screens stay atrium's,
+// drawn in SDR, until the two seconds are up.
+void Server::leave_hdr() {
+    if (!backend || (session && !session->active))
+        return;
+    bool left = false;
+    for (Output* o : outputs)
+        left |= o->leave_hdr();
+    if (!left)
+        return;
+    wlr_log(WLR_INFO, "leaving HDR: telling the screens for two seconds before quitting");
+    using clock = std::chrono::steady_clock;
+    const clock::time_point until = clock::now() + std::chrono::milliseconds(2200);
+    while (clock::now() < until && (!session || session->active))
+        wl_event_loop_dispatch(
+            loop, int(std::chrono::duration_cast<std::chrono::milliseconds>(until - clock::now()).count()) + 1);
 }
 
 // A marker holds our pid while we run. Still there at the next start, with
