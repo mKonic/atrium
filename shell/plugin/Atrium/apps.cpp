@@ -1,4 +1,5 @@
 #include "apps.hpp"
+#include "launcher_entries.hpp"
 
 #include <QDateTime>
 
@@ -299,6 +300,7 @@ DockApps::DockApps(QObject* parent) : QAbstractListModel(parent) {
     connect(Compositor::instance(), &Compositor::appsChanged, this, &DockApps::rebuild);
     sweep_.setSingleShot(true);
     connect(&sweep_, &QTimer::timeout, this, &DockApps::rebuild);
+    connect(LauncherEntries::instance(), &LauncherEntries::changed, this, &DockApps::rebuild);
 }
 
 void DockApps::setEntries(QObject* entries) {
@@ -332,6 +334,8 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
     case DividerRole: return a.divider;
     case LeavingRole: return a.leaving;
     case UrgentRole: return a.urgent;
+    case BadgeRole: return a.badge;
+    case ProgressRole: return a.progress;
     default: return {};
     }
 }
@@ -339,7 +343,7 @@ QVariant DockApps::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> DockApps::roleNames() const {
     return {{AppIdRole, "appId"}, {NameRole, "name"}, {IconRole, "icon"}, {PinnedRole, "pinned"},
             {RunningRole, "running"}, {FocusedRole, "focused"}, {WindowCountRole, "windowCount"},
-            {DividerRole, "divider"}, {LeavingRole, "leaving"}, {UrgentRole, "urgent"}};
+            {DividerRole, "divider"}, {LeavingRole, "leaving"}, {UrgentRole, "urgent"}, {BadgeRole, "badge"}, {ProgressRole, "progress"}};
 }
 
 void DockApps::rebuildLater() {
@@ -379,6 +383,13 @@ void DockApps::rebuild() {
         a.focused = a.focused || w.value("focused").toBool();
         a.urgent = a.urgent || w.value("urgent").toBool();
     }
+    // What apps say about themselves: a count, progress, a call for attention.
+    for (App& a : next) {
+        const LauncherEntries::Entry e = LauncherEntries::instance()->entry(a.id);
+        a.badge = e.countVisible ? e.count : -1;
+        a.progress = e.progressVisible ? e.progress : -1;
+        a.urgent = a.urgent || e.urgent;
+    }
     // Apps that went away linger as leaving for a moment, where they were.
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     for (const App& a : next)
@@ -397,6 +408,7 @@ void DockApps::rebuild() {
         App gone = old;
         gone.leaving = true;
         gone.focused = gone.urgent = gone.divider = false;
+        gone.badge = gone.progress = -1;
         gone.windows.clear();
         // After whatever came before it, if that is still here.
         size_t at = 0;

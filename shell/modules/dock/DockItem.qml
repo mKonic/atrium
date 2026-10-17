@@ -21,6 +21,8 @@ Item {
     required property int windowCount
     required property bool leaving  // just closed: shrinking away
     required property bool urgent   // a window of it asks for attention
+    required property real badge     // the app's own count; -1: none
+    required property real progress  // 0..1 of what it is doing; -1: none
     required property DockApps apps
     required property real magnification  // 1 at rest; the dock grows neighbours
     // Under the pointer (not pressed, no menu): the Dock shows its name.
@@ -125,6 +127,70 @@ Item {
             SmoothedAnimation {
                 velocity: -1
                 duration: Theme.anim.small
+            }
+        }
+    }
+
+    // The app's count (unread messages), as a Mac's red badge; quiet under
+    // Do Not Disturb, as on KDE Plasma.
+    Rectangle {
+        readonly property bool shown: root.badge > 0 && !(Atrium.settings["notifications.dnd"] ?? false)
+
+        anchors.right: icon.right
+        anchors.top: icon.top
+        anchors.rightMargin: -width * 0.25
+        anchors.topMargin: -height * 0.2
+        width: Math.max(height, badgeText.implicitWidth + 10)
+        height: Math.round(root.iconSize * 0.4)
+        radius: height / 2
+        color: Theme.palette.red
+        scale: shown ? 1 : 0
+        visible: scale > 0
+
+        Behavior on scale {
+            Anim {
+                duration: Theme.anim.small
+                easing.bezierCurve: Theme.anim.emphasizedDecel
+            }
+        }
+
+        StyledText {
+            id: badgeText
+
+            anchors.centerIn: parent
+            text: root.badge > 99 ? "99+" : root.badge
+            color: Theme.dark.label
+            font.pointSize: Theme.font.size.smaller
+            font.weight: Font.DemiBold
+        }
+    }
+
+    // What it is busy with (a download), as a Mac's bar across the icon.
+    Rectangle {
+        anchors.horizontalCenter: icon.horizontalCenter
+        anchors.bottom: icon.bottom
+        anchors.bottomMargin: icon.height * 0.08
+        width: icon.width * 0.8
+        height: Math.max(4, Math.round(root.iconSize * 0.1))
+        radius: height / 2
+        color: Theme.material.thick
+        border.width: 1
+        border.color: Theme.palette.separator
+        visible: root.progress >= 0
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.margins: 1
+            width: Math.max(height, (parent.width - 2) * root.progress)
+            radius: height / 2
+            color: Theme.palette.accent
+
+            Behavior on width {
+                Anim {
+                    duration: Theme.anim.small
+                }
             }
         }
     }

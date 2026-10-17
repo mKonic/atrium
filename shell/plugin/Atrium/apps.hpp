@@ -103,7 +103,7 @@ class DockApps : public QAbstractListModel {
 
 public:
     enum Role { AppIdRole = Qt::UserRole + 1, NameRole, IconRole, PinnedRole, RunningRole, FocusedRole,
-                WindowCountRole, DividerRole, LeavingRole, UrgentRole };
+                WindowCountRole, DividerRole, LeavingRole, UrgentRole, BadgeRole, ProgressRole };
 
     explicit DockApps(QObject* parent = nullptr);
 
@@ -148,6 +148,8 @@ private:
         bool pinned = false;
         bool focused = false;
         bool urgent = false;   // a window of it asks for attention
+        qint64 badge = -1;     // its own count (launcher_entries.hpp); -1: none
+        double progress = -1;  // 0..1 of something it is doing; -1: none
         bool divider = false;  // first running-only app after the pinned ones
         bool leaving = false;  // closed: still here a moment, to shrink away
         QList<int> windows;    // most recently used first
