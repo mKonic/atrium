@@ -31,8 +31,12 @@ int main(int argc, char** argv) {
         });
         wl_display_flush(display);
     }
-    atrium::phonelink::Daemon daemon;
-    const int r = app.exec();
+    int r;
+    {
+        // Its playbacks stop their PipeWire loops: before pw_deinit.
+        atrium::phonelink::Daemon daemon;
+        r = app.exec();
+    }
     pw_deinit();
     return r;
 }
