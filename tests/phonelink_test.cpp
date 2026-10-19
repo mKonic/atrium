@@ -545,6 +545,17 @@ TEST(PhonelinkJitter, ResyncsAfterSilence) {
     EXPECT_EQ(j.stats().resyncs, 2u);
 }
 
+TEST(PhonelinkJitter, ResyncsAfterRunningDry) {
+    JitterBuffer j(kTarget);
+    for (std::uint32_t i = 0; i < 4; i++)
+        j.push(tone(i, i * kPacketFrames), 0);
+    pull(j, kTarget + 10 * kPacketFrames);  // played past the phone, no flag
+    j.push(tone(4, 4 * kPacketFrames), 0);
+    EXPECT_TRUE(j.playing());
+    EXPECT_EQ(j.stats().late, 0u);
+    EXPECT_EQ(j.stats().resyncs, 2u);
+}
+
 TEST(PhonelinkJitter, CatchesUpOnAPile) {
     JitterBuffer j(kTarget);
     for (std::uint32_t i = 0; i < 40; i++)

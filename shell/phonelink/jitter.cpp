@@ -56,8 +56,9 @@ void JitterBuffer::push(const AudioPacket& p, std::uint64_t now) {
         lastTs_ = 0;
         lastTs32_ = p.timestamp;
         resync(0);
-    } else if ((p.flags & Discontinuity) && newestEnd_ <= play_) {
-        // The phone was silent and the buffer ran dry: start over at it.
+    } else if (newestEnd_ <= play_ && ((p.flags & Discontinuity) || ts + frames <= play_)) {
+        // The buffer ran dry, the phone silent or playback outrunning it:
+        // start over at it, or every packet from now on would be late.
         resync(ts);
     } else if (ts + frames <= play_) {
         stats_.late++;

@@ -226,9 +226,10 @@ void Playback::process() {
     }
     // The phone's clock against the sound card's: play a touch faster or
     // slower to stay at the target.
-    // (pw_stream_set_rate is the RT-safe way; set_control from here isn't.)
+    // (pw_stream_set_rate is the RT-safe way; set_control from here isn't.
+    // Its rate is the resampler's, the inverse: above 1 consumes slower.)
     if (playing) {
-        pw_stream_set_rate(stream_, drift_.update(level, target_, frames));
+        pw_stream_set_rate(stream_, 1.0 / drift_.update(level, target_, frames));
     } else if (wasPlaying_) {
         drift_.reset();
         pw_stream_set_rate(stream_, 1.0);
