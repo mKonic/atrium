@@ -1,36 +1,36 @@
-// atrium-record: atrium's own gpu-screen-recorder. Records a screen (through
-// ext-image-copy-capture) and, if asked, what the speakers play (PipeWire),
-// into an MP4, taking gpu-screen-recorder's options:
+// atrium-record: atrium's own gpu-screen-recorder (design/recorder.md). Takes
+// its recording options, captures a screen as GPU buffers
+// (ext-image-copy-capture into dmabufs), converts them in a shader into the
+// encoder's planes on the same GPU (NVENC through CUDA, VA-API, Vulkan, or
+// libx264 with -encoder cpu), and records sound from PipeWire, on a fixed
+// clock that never waits on the compositor.
 //
-//   atrium-record -w OUTPUT -o FILE [-f FPS] [-a default_output]
-//                 [-k h264|hevc|av1] [-q medium|high|very_high|ultra] [-cursor yes|no]
+//   atrium-record -w DP-1 -f 60 -a default_output -o video.mp4
 //
-// SIGINT (or SIGTERM) finishes the file. The picture goes to the GPU's
-// encoder (NVENC, or VA-API), else to libx264, at a constant quantizer as
-// gpu-screen-recorder's default; frames come as the screen changes (a
-// variable frame rate) at most FPS a second.
+// SIGINT/SIGTERM save and stop, SIGUSR2 pauses and resumes. The saved path is
+// printed on stdout; exit codes are gpu-screen-recorder's.
 
+#include "audio.hpp"
+#include "capture.hpp"
+#include "encoder.hpp"
+#include "gpu.hpp"
 #include "record_core.hpp"
-
-#include "ext-image-capture-source-v1-client-protocol.h"
-#include "ext-image-copy-capture-v1-client-protocol.h"
+#include "screen_color.hpp"
+#include "version.hpp"
 
 extern "C" {
-#include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
-#include <libavutil/hwcontext.h>
+#include <libavutil/mastering_display_metadata.h>
 #include <libavutil/opt.h>
 #include <libswresample/swresample.h>
-#include <libswscale/swscale.h>
 }
 
-#include <pipewire/pipewire.h>
-#include <spa/param/audio/format-utils.h>
-
+#include <fcntl.h>
+#include <malloc.h>
 #include <poll.h>
-#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
-#include <wayland-client.h>
 
 #include <algorithm>
 #include <atomic>
@@ -39,8 +39,8 @@ extern "C" {
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -49,6 +49,7 @@ using namespace atrium::record;
 namespace {
 
 std::atomic<bool> g_stop{false};
+std::atomic<int> g_toggle_pause{0};
 
 int64_t now_ns() {
     timespec ts;
@@ -62,597 +63,615 @@ std::string av_error(int err) {
     return buf;
 }
 
-// --- capture ---------------------------------------------------------------------------
-
-struct Shm {
-    wl_buffer* wl = nullptr;
-    uint8_t* data = nullptr;
-    size_t size = 0;
-    int stride = 0;
-};
-
-struct Capture {
-    wl_shm* shm = nullptr;
-    ext_image_copy_capture_manager_v1* copy = nullptr;
-    ext_output_image_capture_source_manager_v1* sources = nullptr;
-    struct Out {
-        wl_output* wl;
-        std::string name;
-    };
-    std::vector<std::unique_ptr<Out>> outputs;
-
-    ext_image_copy_capture_session_v1* session = nullptr;
-    ext_image_copy_capture_frame_v1* frame = nullptr;
-    int width = 0, height = 0;
-    uint32_t format = 0;
-    bool have_format = false, ready = false, stopped = false;
-    Shm buffer;
-    // A frame just taken, waiting to be encoded.
-    bool fresh = false;
-    int64_t frame_ns = 0;
-};
-
-// The screen's formats as FFmpeg names them: the 32-bit ones, and the
-// 24-bit ones some GPUs read back in (NVIDIA's BGR888).
-AVPixelFormat pixel_format(uint32_t f) {
-    switch (f) {
-    case WL_SHM_FORMAT_XRGB8888:
-    case WL_SHM_FORMAT_ARGB8888: return AV_PIX_FMT_BGR0;
-    case WL_SHM_FORMAT_XBGR8888:
-    case WL_SHM_FORMAT_ABGR8888: return AV_PIX_FMT_RGB0;
-    case WL_SHM_FORMAT_BGR888: return AV_PIX_FMT_RGB24;
-    case WL_SHM_FORMAT_RGB888: return AV_PIX_FMT_BGR24;
-    default: return AV_PIX_FMT_NONE;
-    }
+[[noreturn]] void finish(int code) {
+    std::fflush(stdout);
+    std::fflush(stderr);
+    // gsr: CUDA's atexit handlers can hang the exit on some NVIDIA drivers.
+    _exit(code);
 }
 
-int bytes_per_pixel(uint32_t f) {
-    return f == WL_SHM_FORMAT_BGR888 || f == WL_SHM_FORMAT_RGB888 ? 3 : 4;
+[[noreturn]] void die(int code, const std::string& message) {
+    std::fprintf(stderr, "atrium-record: %s\n", message.c_str());
+    finish(code);
 }
 
-uint32_t preferred(uint32_t a, uint32_t b) {
-    auto rank = [](uint32_t f) {
-        return f == WL_SHM_FORMAT_XRGB8888 ? 0 : f == WL_SHM_FORMAT_XBGR8888 ? 1 : f == WL_SHM_FORMAT_ARGB8888 ? 2
-             : f == WL_SHM_FORMAT_ABGR8888 ? 3 : 4;
-    };
-    return rank(a) <= rank(b) ? a : b;
+// gsr's set_environment_variables.
+void set_environment(bool low_power) {
+    setenv("CUDA_DISABLE_PERF_BOOST", "1", 1);  // NVENC otherwise pins the GPU at P2
+    setenv("__GL_MaxFramesAllowed", "1", 1);
+    setenv("__GL_THREADED_OPTIMIZATIONS", "0", 1);  // else cuGraphicsGLRegisterImage fails on EGL
+    unsetenv("LIBVA_DRIVER_NAME");
+    unsetenv("__GL_SYNC_TO_VBLANK");
+    unsetenv("vblank_mode");
+    if (!low_power)
+        setenv("AMD_DEBUG", "lowlatencyenc", 1);
 }
 
-const ext_image_copy_capture_frame_v1_listener kFrame = {
-    .transform = [](void*, ext_image_copy_capture_frame_v1*, uint32_t) {},
-    .damage = [](void*, ext_image_copy_capture_frame_v1*, int32_t, int32_t, int32_t, int32_t) {},
-    .presentation_time = [](void* data, ext_image_copy_capture_frame_v1*, uint32_t hi, uint32_t lo, uint32_t ns) {
-        static_cast<Capture*>(data)->frame_ns = int64_t((uint64_t(hi) << 32) | lo) * 1000000000 + ns;
-    },
-    .ready = [](void* data, ext_image_copy_capture_frame_v1* f) {
-        auto* c = static_cast<Capture*>(data);
-        ext_image_copy_capture_frame_v1_destroy(f);
-        c->frame = nullptr;
-        c->fresh = true;
-    },
-    .failed = [](void* data, ext_image_copy_capture_frame_v1* f, uint32_t reason) {
-        auto* c = static_cast<Capture*>(data);
-        ext_image_copy_capture_frame_v1_destroy(f);
-        c->frame = nullptr;
-        if (reason == EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_STOPPED)
-            c->stopped = true;
-    },
-};
-
-const ext_image_copy_capture_session_v1_listener kSession = {
-    .buffer_size = [](void* data, ext_image_copy_capture_session_v1*, uint32_t w, uint32_t h) {
-        auto* c = static_cast<Capture*>(data);
-        if (c->ready && (int(w) != c->width || int(h) != c->height)) {
-            std::fprintf(stderr, "atrium-record: the screen changed size; stopping\n");
-            g_stop = true;
-        }
-        c->width = int(w);
-        c->height = int(h);
-    },
-    .shm_format = [](void* data, ext_image_copy_capture_session_v1*, uint32_t f) {
-        auto* c = static_cast<Capture*>(data);
-        if (pixel_format(f) == AV_PIX_FMT_NONE)
-            return;
-        c->format = c->have_format ? preferred(c->format, f) : f;
-        c->have_format = true;
-    },
-    .dmabuf_device = [](void*, ext_image_copy_capture_session_v1*, wl_array*) {},
-    .dmabuf_format = [](void*, ext_image_copy_capture_session_v1*, uint32_t, wl_array*) {},
-    .done = [](void* data, ext_image_copy_capture_session_v1*) { static_cast<Capture*>(data)->ready = true; },
-    .stopped = [](void* data, ext_image_copy_capture_session_v1*) { static_cast<Capture*>(data)->stopped = true; },
-};
-
-const wl_output_listener kOutput = {
-    .geometry = [](void*, wl_output*, int32_t, int32_t, int32_t, int32_t, int32_t, const char*, const char*, int32_t) {},
-    .mode = [](void*, wl_output*, uint32_t, int32_t, int32_t, int32_t) {},
-    .done = [](void*, wl_output*) {},
-    .scale = [](void*, wl_output*, int32_t) {},
-    .name = [](void* data, wl_output*, const char* n) { static_cast<Capture::Out*>(data)->name = n; },
-    .description = [](void*, wl_output*, const char*) {},
-};
-
-const wl_registry_listener kRegistry = {
-    .global = [](void* data, wl_registry* reg, uint32_t name, const char* iface, uint32_t version) {
-        auto* c = static_cast<Capture*>(data);
-        auto is = [iface](const wl_interface& i) { return std::strcmp(iface, i.name) == 0; };
-        if (is(wl_shm_interface)) {
-            c->shm = static_cast<wl_shm*>(wl_registry_bind(reg, name, &wl_shm_interface, 1));
-        } else if (is(wl_output_interface) && version >= 4) {
-            auto o = std::make_unique<Capture::Out>();
-            o->wl = static_cast<wl_output*>(wl_registry_bind(reg, name, &wl_output_interface, 4));
-            wl_output_add_listener(o->wl, &kOutput, o.get());
-            c->outputs.push_back(std::move(o));
-        } else if (is(ext_image_copy_capture_manager_v1_interface)) {
-            c->copy = static_cast<ext_image_copy_capture_manager_v1*>(
-                wl_registry_bind(reg, name, &ext_image_copy_capture_manager_v1_interface, 1));
-        } else if (is(ext_output_image_capture_source_manager_v1_interface)) {
-            c->sources = static_cast<ext_output_image_capture_source_manager_v1*>(
-                wl_registry_bind(reg, name, &ext_output_image_capture_source_manager_v1_interface, 1));
-        }
-    },
-    .global_remove = [](void*, wl_registry*, uint32_t) {},
-};
-
-bool make_shm(Capture& c) {
-    c.buffer.stride = (c.width * bytes_per_pixel(c.format) + 3) & ~3;
-    c.buffer.size = size_t(c.buffer.stride) * size_t(c.height);
-    const int fd = memfd_create("atrium-record", MFD_CLOEXEC);
-    if (fd < 0 || ftruncate(fd, off_t(c.buffer.size)) < 0)
-        return false;
-    void* p = mmap(nullptr, c.buffer.size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (p == MAP_FAILED) {
-        close(fd);
-        return false;
-    }
-    c.buffer.data = static_cast<uint8_t*>(p);
-    wl_shm_pool* pool = wl_shm_create_pool(c.shm, fd, int32_t(c.buffer.size));
-    c.buffer.wl = wl_shm_pool_create_buffer(pool, 0, c.width, c.height, c.buffer.stride, c.format);
-    wl_shm_pool_destroy(pool);
-    close(fd);
-    return true;
-}
-
-void request_frame(Capture& c) {
-    c.frame = ext_image_copy_capture_session_v1_create_frame(c.session);
-    ext_image_copy_capture_frame_v1_add_listener(c.frame, &kFrame, &c);
-    ext_image_copy_capture_frame_v1_attach_buffer(c.frame, c.buffer.wl);
-    ext_image_copy_capture_frame_v1_damage_buffer(c.frame, 0, 0, INT32_MAX, INT32_MAX);
-    ext_image_copy_capture_frame_v1_capture(c.frame);
-}
-
-// --- sound -----------------------------------------------------------------------------
-
-constexpr int kRate = 48000, kChannels = 2;
-
-struct Sound {
-    pw_thread_loop* loop = nullptr;
-    pw_stream* stream = nullptr;
-    spa_hook listener{};
-    std::mutex lock;
-    std::vector<float> samples;  // interleaved, waiting to be encoded
-    int64_t first_ns = -1;       // when the first sample came
-};
-
-void sound_process(void* data) {
-    auto* s = static_cast<Sound*>(data);
-    pw_buffer* b = pw_stream_dequeue_buffer(s->stream);
-    if (!b)
+// gsr's install_cuda_no_stable_perf_limit: an application profile so CUDA
+// doesn't lock the memory clock down while recording.
+void install_cuda_profile() {
+    if (access("/proc/driver/nvidia/version", F_OK) != 0)
         return;
-    spa_buffer* buf = b->buffer;
-    if (buf->datas[0].data && buf->datas[0].chunk->size > 0) {
-        const auto* p = static_cast<const float*>(buf->datas[0].data) + buf->datas[0].chunk->offset / sizeof(float);
-        const size_t n = buf->datas[0].chunk->size / sizeof(float);
-        std::lock_guard g(s->lock);
-        if (s->first_ns < 0)
-            s->first_ns = now_ns();
-        s->samples.insert(s->samples.end(), p, p + n);
+    const char* home = std::getenv("HOME");
+    if (!home)
+        return;
+    const std::filesystem::path dir = std::filesystem::path(home) / ".nv" / "nvidia-application-profiles-rc.d";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const std::filesystem::path file = dir / "10-atrium-record-cuda-no-stable-perf-limit";
+    if (std::filesystem::exists(file, ec))
+        return;
+    if (FILE* f = std::fopen(file.c_str(), "wb")) {
+        std::fputs("{\n"
+                   "    \"profiles\": [\n"
+                   "        {\n"
+                   "            \"name\": \"CudaNoStablePerfLimit\",\n"
+                   "            \"settings\": [\"0x166c5e\", 0]\n"
+                   "        }\n"
+                   "    ],\n"
+                   "    \"rules\": [\n"
+                   "        { \"pattern\": \"atrium-record\", \"profile\": \"CudaNoStablePerfLimit\" }\n"
+                   "    ]\n"
+                   "}\n",
+                   f);
+        std::fclose(f);
     }
-    pw_stream_queue_buffer(s->stream, b);
 }
 
-bool start_sound(Sound& s) {
-    s.loop = pw_thread_loop_new("atrium-record", nullptr);
-    if (!s.loop)
-        return false;
-    static const pw_stream_events events = [] {
-        pw_stream_events e{};
-        e.version = PW_VERSION_STREAM_EVENTS;
-        e.process = sound_process;
-        return e;
-    }();
-    // What the speakers play: the default sink's monitor.
-    pw_properties* props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture",
-                                             PW_KEY_MEDIA_ROLE, "Screen", PW_KEY_STREAM_CAPTURE_SINK, "true",
-                                             PW_KEY_NODE_NAME, "atrium-record", nullptr);
-    s.stream = pw_stream_new_simple(pw_thread_loop_get_loop(s.loop), "Screen recording", props, &events, &s);
-    if (!s.stream)
-        return false;
-    uint8_t storage[1024];
-    spa_pod_builder b = SPA_POD_BUILDER_INIT(storage, sizeof storage);
-    spa_audio_info_raw info{};
-    info.format = SPA_AUDIO_FORMAT_F32;
-    info.rate = kRate;
-    info.channels = kChannels;
-    info.position[0] = SPA_AUDIO_CHANNEL_FL;
-    info.position[1] = SPA_AUDIO_CHANNEL_FR;
-    const spa_pod* params[1] = {spa_format_audio_raw_build(&b, SPA_PARAM_EnumFormat, &info)};
-    if (pw_stream_connect(s.stream, PW_DIRECTION_INPUT, PW_ID_ANY,
-                          pw_stream_flags(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS | PW_STREAM_FLAG_RT_PROCESS),
-                          params, 1) < 0)
-        return false;
-    return pw_thread_loop_start(s.loop) == 0;
+bool piped(const std::string& path) {
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && (S_ISFIFO(st.st_mode) || S_ISCHR(st.st_mode));
 }
 
-// --- encoding --------------------------------------------------------------------------
+// -sc: run with the saved file and its kind, detached (gsr double-forks).
+void run_script(const std::string& script, const std::string& file) {
+    const pid_t pid = fork();
+    if (pid == 0) {
+        setsid();
+        if (fork() == 0) {
+            execl(script.c_str(), script.c_str(), file.c_str(), "regular", static_cast<char*>(nullptr));
+            _exit(127);
+        }
+        _exit(0);
+    }
+    if (pid > 0) {
+        int status = 0;
+        waitpid(pid, &status, 0);
+    }
+}
 
-struct Encoder {
-    AVFormatContext* mux = nullptr;
-    AVCodecContext* video = nullptr;
-    AVStream* video_stream = nullptr;
-    AVBufferRef* hw_device = nullptr;
-    SwsContext* sws = nullptr;
-    AVFrame* frame = nullptr;     // what the encoder takes (on the GPU for VA-API)
-    AVFrame* sw_frame = nullptr;  // VA-API's: converted on the CPU first
-    std::string name;
+// The output file and its streams, written as gsr's muxer.c/encoder.c do.
+struct Output {
+    AVFormatContext* fmt = nullptr;
+    AVStream* video = nullptr;
+    std::vector<AVStream*> audio;
+    bool written = false, hybrid = false;
+    std::string ts_file;  // -write-first-frame-ts
+    AVPacket* packet = av_packet_alloc();
 
-    AVCodecContext* audio = nullptr;
-    AVStream* audio_stream = nullptr;
-    SwrContext* swr = nullptr;
-    AVFrame* audio_frame = nullptr;
-    int64_t audio_pts = 0;  // in samples
-    bool audio_started = false;
-
-    AVPacket* packet = nullptr;
+    void write(AVCodecContext* ctx, AVStream* st, bool is_audio, int64_t& audio_pts) {
+        while (avcodec_receive_packet(ctx, packet) == 0) {
+            if (is_audio) {
+                // gsr: audio counts its own time (a frame a packet) and what
+                // falls before the start is dropped.
+                packet->pts = packet->dts = audio_pts;
+                audio_pts += ctx->frame_size;
+                if (packet->pts < 0) {
+                    av_packet_unref(packet);
+                    continue;
+                }
+            }
+            packet->stream_index = st->index;
+            av_packet_rescale_ts(packet, ctx->time_base, st->time_base);
+            if (!ts_file.empty() && !is_audio) {
+                if (FILE* f = std::fopen(ts_file.c_str(), "w")) {
+                    timespec mono, real;
+                    clock_gettime(CLOCK_MONOTONIC, &mono);
+                    clock_gettime(CLOCK_REALTIME, &real);
+                    std::fprintf(f, "monotonic_microsec\trealtime_microsec\n%lld\t%lld\n",
+                                 (long long)mono.tv_sec * 1000000 + mono.tv_nsec / 1000,
+                                 (long long)real.tv_sec * 1000000 + real.tv_nsec / 1000);
+                    std::fclose(f);
+                }
+                ts_file.clear();
+            }
+            // Not interleaved: gsr found av_interleaved_write_frame skipping
+            // and duplicating frames.
+            const int err = av_write_frame(fmt, packet);
+            if (err >= 0)
+                written = true;
+            else
+                std::fprintf(stderr, "atrium-record: failed to write a packet (%s)\n", av_error(err).c_str());
+            av_packet_unref(packet);
+        }
+    }
 };
 
-bool nvidia() {
-    return access("/proc/driver/nvidia/version", R_OK) == 0;
-}
+struct AudioEncoder {
+    AVCodecContext* ctx = nullptr;
+    SwrContext* swr = nullptr;
+    AVFrame* frame = nullptr;
+    int64_t pts = 0;         // the next frame's, in samples (starts before 0 by the codec's head start)
+    int64_t packet_pts = 0;  // the next packet's
+    std::vector<float> buffer;
+};
 
-bool open_video(Encoder& e, const Options& o, int width, int height, AVPixelFormat input) {
-    for (const std::string& name : encoders(o.codec, nvidia())) {
-        const AVCodec* codec = avcodec_find_encoder_by_name(name.c_str());
-        if (!codec)
-            continue;
-        AVCodecContext* c = avcodec_alloc_context3(codec);
-        c->width = width;
-        c->height = height;
-        c->time_base = {1, AV_TIME_BASE};  // a variable frame rate, in microseconds
-        c->framerate = {o.fps, 1};
-        c->gop_size = o.fps * 2;
-        c->max_b_frames = 0;
-        c->color_range = AVCOL_RANGE_MPEG;
-        c->color_primaries = AVCOL_PRI_BT709;
-        c->color_trc = AVCOL_TRC_BT709;
-        c->colorspace = AVCOL_SPC_BT709;
-        if (e.mux->oformat->flags & AVFMT_GLOBALHEADER)
-            c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-        const int qp = codec_qp(name == "libx264" ? Codec::H264 : o.codec, o.quality);
-        AVDictionary* opts = nullptr;
-        av_dict_set_int(&opts, "qp", qp, 0);
-        AVBufferRef* device = nullptr;
-        if (name.ends_with("_nvenc")) {
-            // NVENC takes 32-bit pixels as they are and converts them
-            // itself; 24-bit ones become NV12 first.
-            c->pix_fmt = input == AV_PIX_FMT_BGR0 || input == AV_PIX_FMT_RGB0 ? input : AV_PIX_FMT_NV12;
-            av_dict_set(&opts, "rc", "constqp", 0);
-            av_dict_set(&opts, "tune", "ll", 0);
-            av_dict_set_int(&opts, "forced-idr", 1, 0);
-        } else if (name.ends_with("_vaapi")) {
-            if (av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0) < 0) {
-                avcodec_free_context(&c);
-                continue;
-            }
-            AVBufferRef* frames = av_hwframe_ctx_alloc(device);
-            auto* fc = reinterpret_cast<AVHWFramesContext*>(frames->data);
-            fc->format = AV_PIX_FMT_VAAPI;
-            fc->sw_format = AV_PIX_FMT_NV12;
-            fc->width = width;
-            fc->height = height;
-            fc->initial_pool_size = 4;
-            if (av_hwframe_ctx_init(frames) < 0) {
-                av_buffer_unref(&frames);
-                av_buffer_unref(&device);
-                avcodec_free_context(&c);
-                continue;
-            }
-            c->pix_fmt = AV_PIX_FMT_VAAPI;
-            c->hw_frames_ctx = frames;
-            av_dict_set(&opts, "rc_mode", "CQP", 0);
-            av_dict_set_int(&opts, "async_depth", 3, 0);
-            c->global_quality = qp;
-        } else {
-            c->pix_fmt = AV_PIX_FMT_YUV420P;
-            av_dict_set(&opts, "preset", "veryfast", 0);
-            av_dict_set(&opts, "tune", "film", 0);
-        }
-        if (codec->id == AV_CODEC_ID_H264)
-            av_dict_set(&opts, "coder", "cabac", 0);
-        const int err = avcodec_open2(c, codec, &opts);
-        av_dict_free(&opts);
-        if (err < 0) {
-            std::fprintf(stderr, "atrium-record: %s didn't open (%s); trying the next\n", name.c_str(), av_error(err).c_str());
-            avcodec_free_context(&c);
-            av_buffer_unref(&device);
-            continue;
-        }
-        e.video = c;
-        e.hw_device = device;
-        e.name = name;
-        e.frame = av_frame_alloc();
-        if (c->pix_fmt == AV_PIX_FMT_VAAPI) {
-            e.sw_frame = av_frame_alloc();
-            e.sw_frame->format = AV_PIX_FMT_NV12;
-            e.sw_frame->width = width;
-            e.sw_frame->height = height;
-            av_frame_get_buffer(e.sw_frame, 0);
-            e.sws = sws_getContext(width, height, input, width, height, AV_PIX_FMT_NV12, SWS_BILINEAR,
-                                   nullptr, nullptr, nullptr);
-        } else {
-            e.frame->format = c->pix_fmt;
-            e.frame->width = width;
-            e.frame->height = height;
-            av_frame_get_buffer(e.frame, 0);
-            if (c->pix_fmt != input)
-                e.sws = sws_getContext(width, height, input, width, height, c->pix_fmt, SWS_BILINEAR,
-                                       nullptr, nullptr, nullptr);
-        }
-        e.video_stream = avformat_new_stream(e.mux, nullptr);
-        e.video_stream->time_base = c->time_base;
-        avcodec_parameters_from_context(e.video_stream->codecpar, c);
-        std::fprintf(stderr, "atrium-record: encoding with %s\n", name.c_str());
-        return true;
+AVCodecContext* open_audio(AudioCodec c, const Options& o, bool mixed, std::string& error) {
+    const AVCodecID id = c == AudioCodec::Aac ? AV_CODEC_ID_AAC : c == AudioCodec::Mp3 ? AV_CODEC_ID_MP3 : AV_CODEC_ID_OPUS;
+    const AVCodec* codec = avcodec_find_encoder(id);
+    if (!codec) {
+        error = std::string("FFmpeg has no ") + avcodec_get_name(id) + " encoder";
+        return nullptr;
     }
-    return false;
-}
-
-bool open_audio(Encoder& e) {
-    // Opus, as gpu-screen-recorder's default; AAC where there's no libopus.
-    for (const char* name : {"libopus", "aac"}) {
-        const AVCodec* codec = avcodec_find_encoder_by_name(name);
-        if (!codec)
-            continue;
-        AVCodecContext* c = avcodec_alloc_context3(codec);
-        c->sample_rate = kRate;
-        av_channel_layout_default(&c->ch_layout, kChannels);
-        const AVSampleFormat* fmts = nullptr;
-        avcodec_get_supported_config(c, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, reinterpret_cast<const void**>(&fmts), nullptr);
-        c->sample_fmt = fmts ? fmts[0] : AV_SAMPLE_FMT_FLTP;
-        c->bit_rate = 128000;
-        c->time_base = {1, kRate};
-        if (e.mux->oformat->flags & AVFMT_GLOBALHEADER)
-            c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-        if (avcodec_open2(c, codec, nullptr) < 0) {
-            avcodec_free_context(&c);
-            continue;
-        }
-        e.audio = c;
-        e.audio_stream = avformat_new_stream(e.mux, nullptr);
-        e.audio_stream->time_base = c->time_base;
-        avcodec_parameters_from_context(e.audio_stream->codecpar, c);
-        AVChannelLayout in = AV_CHANNEL_LAYOUT_STEREO;
-        swr_alloc_set_opts2(&e.swr, &c->ch_layout, c->sample_fmt, kRate, &in, AV_SAMPLE_FMT_FLT, kRate, 0, nullptr);
-        swr_init(e.swr);
-        e.audio_frame = av_frame_alloc();
-        e.audio_frame->format = c->sample_fmt;
-        e.audio_frame->nb_samples = c->frame_size > 0 ? c->frame_size : 1024;
-        av_channel_layout_copy(&e.audio_frame->ch_layout, &c->ch_layout);
-        e.audio_frame->sample_rate = kRate;
-        av_frame_get_buffer(e.audio_frame, 0);
-        return true;
-    }
-    return false;
-}
-
-void drain(Encoder& e, AVCodecContext* c, AVStream* st) {
-    while (avcodec_receive_packet(c, e.packet) == 0) {
-        av_packet_rescale_ts(e.packet, c->time_base, st->time_base);
-        e.packet->stream_index = st->index;
-        av_interleaved_write_frame(e.mux, e.packet);
-    }
-}
-
-void encode_video(Encoder& e, const Capture& cap, int64_t pts) {
-    // The encoder's size: the screen's, made even.
-    const int w = e.video->width, h = e.video->height;
-    const uint8_t* src[1] = {cap.buffer.data};
-    const int stride[1] = {cap.buffer.stride};
-    if (e.sw_frame) {
-        av_frame_make_writable(e.sw_frame);
-        sws_scale(e.sws, src, stride, 0, h, e.sw_frame->data, e.sw_frame->linesize);
-        av_frame_unref(e.frame);
-        av_hwframe_get_buffer(e.video->hw_frames_ctx, e.frame, 0);
-        av_hwframe_transfer_data(e.frame, e.sw_frame, 0);
-    } else {
-        av_frame_make_writable(e.frame);
-        if (e.sws)
-            sws_scale(e.sws, src, stride, 0, h, e.frame->data, e.frame->linesize);
-        else
-            for (int y = 0; y < h; y++)
-                std::memcpy(e.frame->data[0] + size_t(y) * size_t(e.frame->linesize[0]),
-                            cap.buffer.data + size_t(y) * size_t(cap.buffer.stride), size_t(w) * 4);  // 32-bit only
-    }
-    e.frame->pts = pts;
-    if (avcodec_send_frame(e.video, e.frame) == 0)
-        drain(e, e.video, e.video_stream);
-}
-
-void encode_audio(Encoder& e, Sound& s, int64_t start_ns, bool flush) {
-    std::vector<float> take;
-    int64_t first = -1;
-    {
-        std::lock_guard g(s.lock);
-        take.swap(s.samples);
-        first = s.first_ns;
-    }
-    if (!e.audio_started) {
-        if (first < 0)
-            return;
-        // The first sound sits where it came in the recording.
-        e.audio_pts = pts_us(first, start_ns) * kRate / 1000000;
-        e.audio_started = true;
-    }
-    if (!take.empty()) {
-        const uint8_t* in[1] = {reinterpret_cast<const uint8_t*>(take.data())};
-        swr_convert(e.swr, nullptr, 0, in, int(take.size() / kChannels));
-    }
-    const int n = e.audio_frame->nb_samples;
-    while (swr_get_out_samples(e.swr, 0) >= n || (flush && swr_get_out_samples(e.swr, 0) > 0)) {
-        av_frame_make_writable(e.audio_frame);
-        const int got = swr_convert(e.swr, e.audio_frame->data, n, nullptr, 0);
-        if (got <= 0)
+    AVCodecContext* ctx = avcodec_alloc_context3(codec);
+    // gsr's audio_codec.c: opus S16 when it can (float when devices are
+    // mixed), aac planar float.
+    const AVSampleFormat* fmts = nullptr;
+    int n = 0;
+    avcodec_get_supported_config(ctx, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, reinterpret_cast<const void**>(&fmts), &n);
+    std::vector<AVSampleFormat> want = c == AudioCodec::Opus && !mixed
+                                           ? std::vector<AVSampleFormat>{AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_FLTP}
+                                           : std::vector<AVSampleFormat>{AV_SAMPLE_FMT_FLTP, AV_SAMPLE_FMT_FLT, AV_SAMPLE_FMT_S16P,
+                                                                         AV_SAMPLE_FMT_S16};
+    ctx->sample_fmt = fmts && n > 0 ? fmts[0] : AV_SAMPLE_FMT_FLTP;
+    for (AVSampleFormat w : want)
+        if (fmts && std::find(fmts, fmts + n, w) != fmts + n) {
+            ctx->sample_fmt = w;
             break;
-        if (got < n)  // the last bit: silence after it
-            av_samples_set_silence(e.audio_frame->data, got, n - got, kChannels, AVSampleFormat(e.audio_frame->format));
-        e.audio_frame->pts = e.audio_pts;
-        e.audio_pts += n;
-        if (avcodec_send_frame(e.audio, e.audio_frame) == 0)
-            drain(e, e.audio, e.audio_stream);
+        }
+    ctx->bit_rate = int64_t(o.audio_bitrate > 0 ? o.audio_bitrate : audio_bitrate(c)) * 1000;
+    ctx->sample_rate = kSampleRate;
+    if (c == AudioCodec::Aac)
+        ctx->profile = AV_PROFILE_AAC_LOW;
+    av_channel_layout_default(&ctx->ch_layout, kChannels);
+    ctx->time_base = {1, kSampleRate};
+    ctx->thread_count = 1;
+    ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    AVDictionary* opts = nullptr;
+    av_dict_set(&opts, "strict", "experimental", 0);
+    if (!o.ffmpeg_audio_opts.empty())
+        av_dict_parse_string(&opts, o.ffmpeg_audio_opts.c_str(), "=", ";", 0);
+    const int err = avcodec_open2(ctx, codec, &opts);
+    av_dict_free(&opts);
+    if (err < 0) {
+        error = std::string("the ") + codec->name + " audio encoder wouldn't open (" + av_error(err) + ")";
+        avcodec_free_context(&ctx);
+        return nullptr;
     }
+    return ctx;
+}
+
+// The screen to record: by name, "screen" (the first), or the one holding a
+// region's centre.
+Screen* find_screen(Capture& cap, const Options& o) {
+    auto& screens = cap.screens();
+    if (screens.empty())
+        return nullptr;
+    if (o.source == "screen")
+        return screens.front().get();
+    if (o.source == "region") {
+        const int cx = o.region->x + o.region->width / 2, cy = o.region->y + o.region->height / 2;
+        for (auto& s : screens)
+            if (cx >= s->x && cy >= s->y && cx < s->x + s->logical_width && cy < s->y + s->logical_height)
+                return s.get();
+        return nullptr;
+    }
+    for (auto& s : screens)
+        if (s->name == o.source)
+            return s.get();
+    return nullptr;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-    const Parsed parsed = parse_args(std::vector<std::string>(argv + 1, argv + argc));
-    if (!parsed.options) {
-        std::fprintf(stderr, "atrium-record: %s\n"
-                     "usage: atrium-record -w OUTPUT -o FILE [-f FPS] [-a default_output] [-k h264|hevc|av1]\n"
-                     "                     [-q medium|high|very_high|ultra] [-cursor yes|no]\n",
-                     parsed.error.c_str());
-        return 2;
-    }
-    const Options& o = *parsed.options;
+    mallopt(M_MMAP_THRESHOLD, 65536);
     std::signal(SIGINT, [](int) { g_stop = true; });
     std::signal(SIGTERM, [](int) { g_stop = true; });
+    std::signal(SIGUSR2, [](int) { g_toggle_pause++; });
+    // Replay's signals (gsr: save replay, toggle replay recording): no
+    // replay here yet, so they do nothing rather than kill the recording.
+    std::signal(SIGUSR1, SIG_IGN);
+    for (int i = 0; i <= 6; i++)
+        std::signal(SIGRTMIN + i, SIG_IGN);
+    std::signal(SIGPIPE, SIG_IGN);
 
-    wl_display* display = wl_display_connect(nullptr);
-    if (!display) {
-        std::fprintf(stderr, "atrium-record: no Wayland display\n");
-        return 1;
+    if (geteuid() == 0)
+        die(kFailed, "don't run atrium-record as the root user");
+
+    const Parsed parsed = parse_args(std::vector<std::string>(argv + 1, argv + argc));
+    if (parsed.help) {
+        std::fputs(kUsage, stdout);
+        finish(kOk);
     }
-    Capture cap;
-    wl_registry* registry = wl_display_get_registry(display);
-    wl_registry_add_listener(registry, &kRegistry, &cap);
-    wl_display_roundtrip(display);
-    wl_display_roundtrip(display);
-    if (!cap.copy || !cap.sources || !cap.shm) {
-        std::fprintf(stderr, "atrium-record: the compositor has no ext-image-copy-capture\n");
-        return 1;
+    if (parsed.version) {
+        std::printf("%s\n", ATRIUM_VERSION);
+        finish(kOk);
     }
-    wl_output* output = nullptr;
-    for (auto& out : cap.outputs)
-        if (out->name == o.output)
-            output = out->wl;
-    if (!output) {
-        std::fprintf(stderr, "atrium-record: no screen named '%s'\n", o.output.c_str());
-        return 1;
+    if (!parsed.options) {
+        std::fprintf(stderr, "atrium-record: %s\n%s", parsed.error.c_str(), kUsage);
+        finish(parsed.exit);
     }
-    ext_image_capture_source_v1* source = ext_output_image_capture_source_manager_v1_create_source(cap.sources, output);
-    cap.session = ext_image_copy_capture_manager_v1_create_session(
-        cap.copy, source, o.cursor ? EXT_IMAGE_COPY_CAPTURE_MANAGER_V1_OPTIONS_PAINT_CURSORS : 0);
-    ext_image_copy_capture_session_v1_add_listener(cap.session, &kSession, &cap);
-    ext_image_capture_source_v1_destroy(source);
-    while (!cap.ready && wl_display_dispatch(display) != -1) {
+    Options o = *parsed.options;
+    set_environment(o.low_power);
+    install_cuda_profile();
+
+    if (!o.script.empty()) {
+        struct stat st;
+        if (stat(o.script.c_str(), &st) != 0 || !S_ISREG(st.st_mode))
+            die(kFailed, "Script \"" + o.script + "\" either doesn't exist or it's not a file");
+        if (!(st.st_mode & S_IXUSR))
+            die(kFailed, "Script \"" + o.script + "\" is not executable");
     }
-    if (!cap.have_format || cap.width <= 0 || !make_shm(cap)) {
-        std::fprintf(stderr, "atrium-record: the screen can't be copied into shared memory\n");
-        return 1;
+    if (o.file.empty())
+        o.file = "/dev/stdout";
+    const bool is_pipe = piped(o.file);
+    if (!is_pipe) {
+        const std::filesystem::path dir = std::filesystem::path(o.file).parent_path();
+        std::error_code ec;
+        if (!dir.empty())
+            std::filesystem::create_directories(dir, ec);
+        if (ec)
+            die(kFailed, "failed to create directory for output file: " + o.file);
+    } else if (o.write_first_frame_ts) {
+        std::fprintf(stderr, "atrium-record: warning: -write-first-frame-ts is ignored when output is piped\n");
+        o.write_first_frame_ts = false;
+    }
+    if (is_pipe && !o.script.empty())
+        o.script.clear();
+    // The extension gsr's rules go by: -c's, else the file's.
+    const std::string ext = o.container == "matroska" ? "mkv" : !o.container.empty() ? o.container : extension(o.file);
+    const bool low_latency = is_pipe;
+
+    // --- video: the screen, the GPU, the encoder ---------------------------------------
+    std::unique_ptr<Capture> cap;
+    std::unique_ptr<Gpu> gpu;
+    std::unique_ptr<VideoEncoder> video;
+    ScreenColorWatch colors;
+    Screen* screen = nullptr;
+    int crop[4] = {0, 0, 0, 0};
+    Size video_size;
+    const int64_t interval = 1000000000LL / o.fps;
+    if (!o.source.empty()) {
+        cap = std::make_unique<Capture>();
+        std::string error;
+        if (!cap->connect(error))
+            die(kCaptureFailed, error);
+        screen = find_screen(*cap, o);
+        if (!screen) {
+            std::string list;
+            for (auto& s : cap->screens())
+                list += "    " + s->name + " (" + std::to_string(s->width) + "x" + std::to_string(s->height) + ")\n";
+            die(kMonitorMissing, (o.source == "region" ? "no monitor holds the region's centre" : "\"" + o.source + "\" isn't a monitor") +
+                                     ", expected one of:\n" + list);
+        }
+        if (!colors.start(screen->name) && o.verbose)
+            std::fprintf(stderr, "atrium-record: no atrium to ask about HDR and night light; taking the screen as SDR\n");
+        const ScreenColor color = colors.get();
+        if (!cap->start(*screen, o.cursor, color.hdr, interval, error))
+            die(kCaptureFailed, error);
+        gpu = std::make_unique<Gpu>();
+        if (!gpu->open(cap->render_node(), o.gl_debug, error))
+            die(kGlFailed, error);
+
+        // The picture: the screen upright, or a region of it in its pixels.
+        const bool sideways = screen->transform & 1;
+        Size upright = sideways ? Size{cap->height(), cap->width()} : Size{cap->width(), cap->height()};
+        Size picture = upright;
+        if (o.region && o.region->width > 0 && o.region->height > 0 && screen->logical_width > 0) {
+            const double sx = double(upright.width) / screen->logical_width, sy = double(upright.height) / screen->logical_height;
+            crop[0] = int((o.region->x - screen->x) * sx);
+            crop[1] = int((o.region->y - screen->y) * sy);
+            crop[2] = std::max(1, int(o.region->width * sx));
+            crop[3] = std::max(1, int(o.region->height * sy));
+            picture = {crop[2], crop[3]};
+        }
+        video_size = fit(picture, o.size);
+        ColorSetup setup{o.codec.ten_bit, o.codec.hdr, o.full_range};
+        if (!gpu->prepare(setup, error))
+            die(kGlFailed, error);
+        int code = kFailed;
+        video = VideoEncoder::open(*gpu, o, ext, video_size, low_latency, code, error);
+        if (!video)
+            die(code, error);
+        if (video->ten_bit() != setup.ten_bit || video->hdr() != setup.hdr_video) {
+            setup.ten_bit = video->ten_bit();
+            setup.hdr_video = video->hdr();
+            if (!gpu->prepare(setup, error))
+                die(kGlFailed, error);
+        }
+        if (o.verbose)
+            std::fprintf(stderr, "atrium-record: %s %dx%d from %s on %s (%s)%s\n", video->name().c_str(), video->context()->width,
+                         video->context()->height, screen->name.c_str(), cap->render_node().c_str(), gpu->vendor().c_str(),
+                         setup.hdr_video ? ", HDR" : "");
     }
 
-    Encoder e;
-    if (avformat_alloc_output_context2(&e.mux, nullptr, nullptr, o.file.c_str()) < 0 || !e.mux) {
-        std::fprintf(stderr, "atrium-record: can't write '%s'\n", o.file.c_str());
-        return 1;
+    // --- sound --------------------------------------------------------------------------
+    Clock clock;
+    std::unique_ptr<AudioCapture> sound;
+    std::vector<AudioEncoder> audio(o.audio.size());
+    AudioCodec acodec = AudioCodec::Opus;
+    bool mixed = false;
+    for (const AudioTrack& t : o.audio)
+        mixed |= t.sources.size() > 1;
+    if (!o.audio.empty()) {
+        std::string why;
+        acodec = audio_codec_for(o.audio_codec, ext, mixed, &why);
+        if (o.audio_codec_given && !why.empty())
+            std::fprintf(stderr, "atrium-record: warning: %s\n", why.c_str());
+        for (AudioEncoder& a : audio) {
+            std::string error;
+            a.ctx = open_audio(acodec, o, mixed, error);
+            if (!a.ctx)
+                die(kFailed, error);
+            if (a.ctx->frame_size <= 0)
+                a.ctx->frame_size = audio_frame_size(acodec);
+        }
+        // gsr's head start for the sound (its codec's delay), unless the
+        // container can't take sound before 0.
+        const bool offset_ok = (ext == "mp4" || ext == "mkv" || ext == "webm") && !low_latency;
+        const int64_t shift = offset_ok ? int64_t(audio_delay(acodec, o.fps) * kSampleRate) : 0;
+        for (AudioEncoder& a : audio) {
+            a.pts = a.packet_pts = -shift;
+            a.frame = av_frame_alloc();
+            a.frame->format = a.ctx->sample_fmt;
+            a.frame->nb_samples = a.ctx->frame_size;
+            a.frame->sample_rate = kSampleRate;
+            av_channel_layout_copy(&a.frame->ch_layout, &a.ctx->ch_layout);
+            av_frame_get_buffer(a.frame, 0);
+            const AVChannelLayout in = AV_CHANNEL_LAYOUT_STEREO;
+            swr_alloc_set_opts2(&a.swr, &a.ctx->ch_layout, a.ctx->sample_fmt, kSampleRate, &in, AV_SAMPLE_FMT_FLT, kSampleRate, 0,
+                                nullptr);
+            swr_init(a.swr);
+            a.buffer.resize(size_t(a.ctx->frame_size) * kChannels);
+        }
+        sound = std::make_unique<AudioCapture>();
+        int code = kFailed;
+        std::string error;
+        if (!sound->start(o.audio, audio[0].ctx->frame_size, clock, code, error))
+            die(code, error);
     }
-    // Encoders want even sizes.
-    if (!open_video(e, o, cap.width & ~1, cap.height & ~1, pixel_format(cap.format))) {
-        std::fprintf(stderr, "atrium-record: no video encoder works here\n");
-        return 1;
-    }
-    Sound sound;
-    if (o.audio) {
-        pw_init(&argc, &argv);
-        if (!open_audio(e) || !start_sound(sound)) {
-            std::fprintf(stderr, "atrium-record: no sound: recording the picture only\n");
-            e.audio = nullptr;
+
+    // --- the file -----------------------------------------------------------------------
+    Output out;
+    avformat_alloc_output_context2(&out.fmt, nullptr, o.container.empty() ? nullptr : o.container.c_str(), o.file.c_str());
+    if (!out.fmt)
+        die(kFailed, "failed to create output context for '" + o.file + "'");
+    if (const AVOption* flags = av_opt_find(out.fmt->priv_data, "movflags", nullptr, 0, 0); flags && flags->unit) {
+        if (is_pipe) {
+            // Nothing to seek back into: fragments from the start.
+            av_opt_set(out.fmt->priv_data, "movflags", "+frag_keyframe+empty_moov", 0);
+        } else if (av_opt_find(out.fmt->priv_data, "hybrid_fragmented", flags->unit, 0, 0)) {
+            // Crash-safe: fragmented while recording, a normal MP4 at the end.
+            av_opt_set(out.fmt->priv_data, "use_editlist", "1", 0);
+            av_opt_set(out.fmt->priv_data, "movflags", "+hybrid_fragmented", 0);
+            out.hybrid = true;
+        } else {
+            std::fprintf(stderr, "atrium-record: warning: this FFmpeg has no hybrid_fragmented mp4s; a killed recording won't play\n");
         }
     }
-    if (avio_open(&e.mux->pb, o.file.c_str(), AVIO_FLAG_WRITE) < 0 || avformat_write_header(e.mux, nullptr) < 0) {
-        std::fprintf(stderr, "atrium-record: can't write '%s'\n", o.file.c_str());
-        return 1;
-    }
-    e.packet = av_packet_alloc();
-
-    const int64_t start = now_ns();
-    // At most FPS a second; a little early, so a frame that lands on the
-    // screen's refresh isn't put off to the next.
-    const int64_t interval = std::max<int64_t>(0, 1000000000 / o.fps - 2000000);
-    int64_t last_request = 0, last_pts = -1;
-    request_frame(cap);
-    last_request = now_ns();
-    const int fd = wl_display_get_fd(display);
-    while (!g_stop && !cap.stopped) {
-        wl_display_flush(display);
-        pollfd p{fd, POLLIN, 0};
-        // Wake for the next request when one is owed, else for the sound.
-        int wait_ms = 5;
-        if (!cap.frame)
-            wait_ms = int(std::clamp<int64_t>((interval - (now_ns() - last_request)) / 1000000, 0, 5));
-        if (poll(&p, 1, wait_ms) > 0 && wl_display_dispatch(display) < 0)
-            break;
-        wl_display_dispatch_pending(display);
-        // A new picture, or the last one again after a second of nothing
-        // changing (a still screen still has a length, and seeks).
-        const bool stale = last_pts >= 0 && pts_us(now_ns(), start) - last_pts >= 1000000;
-        if (cap.fresh || stale) {
-            int64_t pts = pts_us(cap.fresh && cap.frame_ns ? cap.frame_ns : now_ns(), start);
-            cap.fresh = false;
-            if (pts <= last_pts)
-                pts = last_pts + 1;
-            last_pts = pts;
-            encode_video(e, cap, pts);
+    if (video) {
+        AVCodecContext* vc = video->context();
+        out.video = avformat_new_stream(out.fmt, nullptr);
+        out.video->id = int(out.fmt->nb_streams) - 1;
+        out.video->time_base = vc->time_base;
+        out.video->avg_frame_rate = vc->framerate;
+        avcodec_parameters_from_context(out.video->codecpar, vc);
+        if (video->hdr()) {
+            // atrium's copies are SDR: gsr's metadata for an SDR source,
+            // everything at most the reference white.
+            const double peak = 203.0;
+            size_t size = 0;
+            AVMasteringDisplayMetadata* m = av_mastering_display_metadata_alloc_size(&size);
+            const double prim[3][2] = {{0.708, 0.292}, {0.170, 0.797}, {0.131, 0.046}};  // BT.2020
+            for (int i = 0; i < 3; i++) {
+                m->display_primaries[i][0] = av_d2q(prim[i][0], 50000);
+                m->display_primaries[i][1] = av_d2q(prim[i][1], 50000);
+            }
+            m->white_point[0] = av_d2q(0.3127, 50000);
+            m->white_point[1] = av_d2q(0.3290, 50000);
+            m->min_luminance = av_d2q(0.0, 10000);
+            m->max_luminance = av_d2q(peak, 10000);
+            m->has_primaries = m->has_luminance = 1;
+            size_t light_size = 0;
+            AVContentLightMetadata* l = av_content_light_metadata_alloc(&light_size);
+            l->MaxCLL = unsigned(peak);
+            l->MaxFALL = 0;
+            av_packet_side_data_add(&out.video->codecpar->coded_side_data, &out.video->codecpar->nb_coded_side_data,
+                                    AV_PKT_DATA_MASTERING_DISPLAY_METADATA, m, size, 0);
+            av_packet_side_data_add(&out.video->codecpar->coded_side_data, &out.video->codecpar->nb_coded_side_data,
+                                    AV_PKT_DATA_CONTENT_LIGHT_LEVEL, l, light_size, 0);
         }
-        // The next frame no sooner than the frame rate allows.
-        if (!cap.frame && now_ns() - last_request >= interval) {
-            request_frame(cap);
-            last_request = now_ns();
+    }
+    for (size_t i = 0; i < audio.size(); i++) {
+        AVStream* st = avformat_new_stream(out.fmt, nullptr);
+        st->id = int(out.fmt->nb_streams) - 1;
+        st->time_base = audio[i].ctx->time_base;
+        avcodec_parameters_from_context(st->codecpar, audio[i].ctx);
+        const std::string title = sound->title(i);
+        if (!title.empty() && !o.exclude_metadata)
+            av_dict_set(&st->metadata, "title", title.c_str(), 0);
+        out.audio.push_back(st);
+    }
+    if (int err = avio_open(&out.fmt->pb, o.file.c_str(), AVIO_FLAG_WRITE); err < 0)
+        die(kFailed, "could not open '" + o.file + "': " + av_error(err));
+    {
+        AVDictionary* opts = nullptr;
+        av_dict_set(&opts, "strict", "experimental", 0);
+        if (!o.ffmpeg_opts.empty())
+            av_dict_parse_string(&opts, o.ffmpeg_opts.c_str(), "=", ";", 0);
+        const int err = avformat_write_header(out.fmt, &opts);
+        av_dict_free(&opts);
+        if (err < 0)
+            die(kFailed, "error occurred when writing header to output file: " + av_error(err));
+    }
+    if (o.write_first_frame_ts && video)
+        out.ts_file = o.file + ".ts";
+
+    // --- recording ----------------------------------------------------------------------
+    // The clock starts with the first frame (a moment after the copy is
+    // asked for), so the video starts at 0.
+    if (cap) {
+        const int64_t give_up = now_ns() + 2000000000LL;
+        while (!cap->latest() && !cap->stopped() && now_ns() < give_up && !g_stop) {
+            cap->pump(now_ns());
+            cap->flush();
+            pollfd p{cap->fd(), POLLIN, 0};
+            if (poll(&p, 1, 50) > 0 && !cap->dispatch())
+                break;
         }
-        if (e.audio)
-            encode_audio(e, sound, start, false);
+        if (!cap->latest())
+            die(kCaptureFailed, "no frame came from the compositor");
+    }
+    clock.start(now_ns());
+
+    int64_t last_index = -1, last_pts = -1, cfr_pts = 0;
+    uint64_t last_frame_count = 0;
+    int64_t no_audio_pts = 0;  // Output::write's counter, unused for video
+    auto encode_audio = [&](bool flush) {
+        const int64_t rec = clock.at(now_ns());
+        for (size_t i = 0; i < audio.size(); i++) {
+            AudioEncoder& a = audio[i];
+            int64_t pos = 0;
+            // 300 ms: a device that has sent nothing by then is silent.
+            while (sound->pop(i, a.ctx->frame_size, flush ? INT64_MAX / 4 : rec, 300000000, a.buffer.data(), pos)) {
+                const uint8_t* in[1] = {reinterpret_cast<const uint8_t*>(a.buffer.data())};
+                av_frame_make_writable(a.frame);
+                swr_convert(a.swr, a.frame->data, a.ctx->frame_size, in, a.ctx->frame_size);
+                a.frame->pts = a.pts;
+                a.pts += a.ctx->frame_size;
+                if (avcodec_send_frame(a.ctx, a.frame) == 0)
+                    out.write(a.ctx, out.audio[i], true, a.packet_pts);
+                if (flush && pos * 1000000000 / kSampleRate > clock.at(now_ns()))
+                    break;
+            }
+        }
+    };
+
+    auto encode_video = [&](int64_t rec_ns) {
+        const Dmabuf* frame = cap->latest();
+        const Planes* planes = video->begin();
+        if (!frame || !planes)
+            return;
+        AVCodecContext* vc = video->context();
+        if (!gpu->draw(*frame, cap->frame_transform(), crop, colors.get(), *planes, video_size.width, video_size.height))
+            return;
+        if (gpu->nvidia())
+            glFinish();  // gsr: without it the cursor flickers on NVIDIA
+        AVFrame* f = video->end();
+        if (!f)
+            return;
+        f->color_range = vc->color_range;
+        f->color_primaries = vc->color_primaries;
+        f->color_trc = vc->color_trc;
+        f->colorspace = vc->colorspace;
+        f->chroma_location = AVCHROMA_LOC_LEFT;
+        const int64_t index = frame_index(rec_ns, o.fps);
+        if (o.fm == FrameRateMode::Cfr) {
+            // Every frame the clock passed, the missed ones as copies.
+            const int64_t missed = last_index < 0 ? 1 : std::max<int64_t>(1, index - last_index);
+            for (int64_t i = 0; i < missed; i++) {
+                AVFrame* copy = av_frame_clone(f);
+                copy->pts = cfr_pts++;
+                if (avcodec_send_frame(vc, copy) == 0)
+                    out.write(vc, out.video, false, no_audio_pts);
+                av_frame_free(&copy);
+            }
+        } else {
+            const int64_t pts = rec_ns / 1000;
+            if (pts != last_pts) {
+                f->pts = pts;
+                last_pts = pts;
+                if (avcodec_send_frame(vc, f) == 0)
+                    out.write(vc, out.video, false, no_audio_pts);
+            }
+        }
+        av_frame_free(&f);
+        last_index = index;
+        last_frame_count = cap->frames();
+    };
+
+    bool paused = false;
+    int handled_pauses = 0;
+    while (!g_stop) {
+        if (int toggles = g_toggle_pause.load(); toggles != handled_pauses) {
+            handled_pauses = toggles;
+            paused = !paused;
+            clock.set_paused(paused, now_ns());
+            std::fprintf(stderr, "atrium-record: %s\n", paused ? "paused" : "resumed");
+        }
+        const int64_t now = now_ns();
+        int64_t wake = now + 10000000;  // the sound, every 10 ms at least
+        if (cap) {
+            cap->pump(now);
+            if (!cap->flush())
+                break;
+            const int64_t rec = clock.at(now);
+            if (rec >= 0) {
+                const int64_t index = frame_index(rec, o.fps);
+                // gsr: on Wayland the screen always counts as changed; with
+                // -fm content only frames the compositor sent count.
+                const bool due = index > last_index;
+                const bool changed = o.fm != FrameRateMode::Content || cap->frames() != last_frame_count;
+                if (due && changed)
+                    encode_video(rec);
+                // The next frame boundary.
+                const int64_t next_rec = (frame_index(clock.at(now_ns()), o.fps) + 1) * 1000000000LL / o.fps;
+                wake = std::min(wake, now + std::max<int64_t>(0, next_rec - clock.at(now_ns())));
+            }
+            wake = std::min(wake, cap->next_wake());
+        }
+        if (sound)
+            encode_audio(false);
+        const int64_t wait_ns = std::max<int64_t>(0, wake - now_ns());
+        if (cap) {
+            pollfd p{cap->fd(), POLLIN, 0};
+            const int r = poll(&p, 1, int((wait_ns + 999999) / 1000000));
+            if (r > 0 && !cap->dispatch()) {
+                std::fprintf(stderr, "atrium-record: the Wayland connection broke; saving\n");
+                break;
+            }
+            if (cap->stopped()) {
+                std::fprintf(stderr, "atrium-record: the compositor stopped the capture (the screen went away); saving\n");
+                break;
+            }
+        } else {
+            timespec ts{0, long(std::min<int64_t>(wait_ns, 10000000))};
+            nanosleep(&ts, nullptr);
+        }
     }
 
-    // Finish: what's left in the encoders, then the file's index.
-    if (sound.loop)
-        pw_thread_loop_stop(sound.loop);
-    if (e.audio) {
-        encode_audio(e, sound, start, true);
-        avcodec_send_frame(e.audio, nullptr);
-        drain(e, e.audio, e.audio_stream);
+    // --- the end: what's left in the encoders, then the file's index --------------------
+    if (cap && video && !paused) {
+        // The picture as it is at the end, so the video lasts until then.
+        const int64_t rec = clock.at(now_ns());
+        if (rec >= 0 && frame_index(rec, o.fps) > last_index)
+            encode_video(rec);
     }
-    // The picture as it was at the end, so the video lasts until then.
-    if (last_pts >= 0)
-        encode_video(e, cap, std::max(last_pts + 1, pts_us(now_ns(), start)));
-    avcodec_send_frame(e.video, nullptr);
-    drain(e, e.video, e.video_stream);
-    av_write_trailer(e.mux);
-    avio_closep(&e.mux->pb);
-    // Freed before exiting: NVENC's CUDA threads hang an exit that leaves them.
-    avcodec_free_context(&e.video);
-    avcodec_free_context(&e.audio);
-    av_frame_free(&e.frame);
-    av_frame_free(&e.sw_frame);
-    av_frame_free(&e.audio_frame);
-    av_packet_free(&e.packet);
-    av_buffer_unref(&e.hw_device);
-    sws_freeContext(e.sws);
-    swr_free(&e.swr);
-    avformat_free_context(e.mux);
-    if (sound.stream)
-        pw_stream_destroy(sound.stream);
-    if (sound.loop)
-        pw_thread_loop_destroy(sound.loop);
-    wl_display_disconnect(display);
-    std::fprintf(stderr, "atrium-record: saved %s\n", o.file.c_str());
-    return 0;
+    if (sound) {
+        encode_audio(true);
+        sound->stop();
+        for (size_t i = 0; i < audio.size(); i++) {
+            avcodec_send_frame(audio[i].ctx, nullptr);
+            out.write(audio[i].ctx, out.audio[i], true, audio[i].packet_pts);
+        }
+    }
+    if (video) {
+        avcodec_send_frame(video->context(), nullptr);
+        out.write(video->context(), out.video, false, no_audio_pts);
+    }
+    if (!out.written && out.hybrid)
+        std::fprintf(stderr, "atrium-record: warning: not finalizing the video file because it has no video/audio data\n");
+    else
+        av_write_trailer(out.fmt);
+    avio_closep(&out.fmt->pb);
+    avformat_free_context(out.fmt);
+    if (!is_pipe) {
+        std::printf("%s\n", o.file.c_str());
+        if (!o.script.empty())
+            run_script(o.script, o.file);
+    }
+    if (o.verbose)
+        std::fprintf(stderr, "atrium-record: saved %s\n", o.file.c_str());
+    finish(kOk);
 }

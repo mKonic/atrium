@@ -39,7 +39,7 @@ depends=(
   # apps looking at home
   adw-gtk-theme breeze-icons
 )
-makedepends=(git meson ninja wayland-protocols gtest cmake hwdata)
+makedepends=(git meson ninja wayland-protocols gtest cmake hwdata vulkan-headers)
 optdepends=(
   'cups: printing'
   'uwsm: the uwsm-managed session'

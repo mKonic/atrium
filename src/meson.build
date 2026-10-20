@@ -118,9 +118,12 @@ executable('atrium-screenshot', '../tools/screenshot/main.cpp', '../tools/screen
 )
 
 # atrium's own gpu-screen-recorder (tools/record).
-executable('atrium-record', '../tools/record/main.cpp', '../tools/record/record_core.cpp', capture_client_protocols,
+executable('atrium-record', '../tools/record/main.cpp', '../tools/record/record_core.cpp', '../tools/record/capture.cpp',
+  '../tools/record/gpu.cpp', '../tools/record/encoder.cpp', '../tools/record/vulkan.cpp', '../tools/record/audio.cpp',
+  '../tools/record/screen_color.cpp', capture_client_protocols, version_h,
   include_directories: include_directories('../protocols'),
   dependencies: [dependency('wayland-client'), dependency('libavcodec'), dependency('libavformat'), dependency('libavutil'),
-    dependency('libswscale'), dependency('libswresample'), dependency('libpipewire-0.3')],
+    dependency('libswresample'), dependency('libpipewire-0.3'), dependency('gbm'), dependency('egl'), dependency('glesv2'),
+    dependency('libdrm'), dependency('vulkan').partial_dependency(compile_args: true, includes: true), json],
   install: true,
 )
