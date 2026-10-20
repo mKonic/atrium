@@ -842,6 +842,16 @@ json Ipc::handle(Client& c, const json& req) {
         return ok(dump_scene(&server_.scene->tree.node));
     }
     if (cmd == "outputs") {
+        // Night light's gain in linear light that copies of a screen still
+        // carry (1: none); a screen recorder divides it back out. An SDR
+        // screen's renderer draws it in; an HDR screen's copies are turned
+        // back into SDR without it.
+        auto night_gain = [this](const Output* o) {
+            const NightLight* n = server_.night_light.get();
+            const bool drawn = n && !o->hdr_active() && !wlr_gamma_control_manager_v1_get_control(server_.gamma_manager, o->wlr);
+            const night::Rgb w = drawn ? n->linear_white() : night::Rgb{};
+            return json::array({w.r, w.g, w.b});
+        };
         json list = json::array();
         for (Output* o : server_.outputs) {
             json modes = json::array();
@@ -884,6 +894,7 @@ json Ipc::handle(Client& c, const json& req) {
                 {"icc_hdr", o->icc_hdr},
                 {"sdr_white_nits", o->sdr_white_nits()},
                 {"max_luminance", o->peak_nits()},
+                {"night_light_gain", night_gain(o)},
             });
         }
         return ok(list);
