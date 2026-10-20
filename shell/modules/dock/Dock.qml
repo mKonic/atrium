@@ -20,6 +20,10 @@ PanelWindow {
     // The shelf itself never changes size for it.
     property Item hoverItem: null
     property string hoverName
+    // The icon the name was last over: the name fades out there, rather
+    // than jumping to the corner as hoverItem goes null.
+    property Item labelItem: null
+    onHoverItemChanged: if (hoverItem) labelItem = hoverItem
 
     readonly property bool magnify: Atrium.settings["dock.magnify"] ?? false
 
@@ -281,7 +285,7 @@ PanelWindow {
         // Where the icon is in the window; re-read as it magnifies and the
         // shelf slides.
         readonly property rect icon: {
-            const it = dock.hoverItem;
+            const it = dock.labelItem;
             if (!it)
                 return Qt.rect(0, 0, 0, 0);
             void (it.width + it.height + it.x + dock.pointerX + shelf.y + row.x);
@@ -310,13 +314,13 @@ PanelWindow {
 
         // Left where it was while it fades.
         Binding on x {
-            when: dock.hoverItem !== null
+            when: dock.labelItem !== null
             restoreMode: Binding.RestoreNone
             value: Math.max(4, Math.min(dock.width - hoverLabel.width - 4,
                                         hoverLabel.icon.x + hoverLabel.icon.width / 2 - hoverLabel.width / 2))
         }
         Binding on y {
-            when: dock.hoverItem !== null
+            when: dock.labelItem !== null
             restoreMode: Binding.RestoreNone
             value: hoverLabel.icon.y - hoverLabel.height - 10
         }
