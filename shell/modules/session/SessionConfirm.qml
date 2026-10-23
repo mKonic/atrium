@@ -42,8 +42,8 @@ PanelWindow {
         id: card
 
         anchors.centerIn: parent
-        width: 340
-        height: column.implicitHeight + 48
+        width: 350
+        height: column.implicitHeight + 42
         radius: 35
         color: Theme.material.thick
 
@@ -64,54 +64,54 @@ PanelWindow {
             shadowVerticalOffset: 8
         }
 
+        // The kit's alert, side by side: its symbol, the question in bold
+        // and what will happen, left-aligned, over two buttons that share
+        // the width.
         Column {
             id: column
 
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 24
-            width: parent.width - 48
+            y: 21
+            width: parent.width - 42
             spacing: 10
 
             Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 56
-                height: 56
-                radius: 28
+                width: 48
+                height: 48
+                radius: 24
                 color: Theme.palette.accent
 
                 MaterialIcon {
                     anchors.centerIn: parent
                     text: root.w.glyph
-                    font.pointSize: 22
+                    font.pointSize: 19
                     color: Theme.palette.labelOnAccent
                 }
             }
 
             StyledText {
                 width: parent.width
-                horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: root.action === "logout" ? qsTr("Are you sure you want to quit all apps and log out now?")
                                                : `Are you sure you want to ${root.w.verb} your computer now?`
-                font.weight: Font.DemiBold
+                font.weight: Font.Bold
             }
 
             StyledText {
                 width: parent.width
-                horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 text: root.action === "logout" ? qsTr("If you do nothing, you will be logged out automatically in %1 seconds.").arg(Session.secondsLeft)
                                                : `If you do nothing, the computer will ${root.w.verb} automatically in ${Session.secondsLeft} seconds.`
-                font.pointSize: Theme.font.size.small
-                color: Theme.palette.secondaryLabel
             }
 
             // macOS's checkbox: the apps open now open again at the next login.
             Row {
-                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
                 spacing: 8
 
                 Switch {
+                    id: reopen
+
                     name: qsTr("Reopen windows when logging back in")
                     anchors.verticalCenter: parent.verticalCenter
                     checked: Atrium.settings["session.reopen_windows"] ?? true
@@ -120,8 +120,10 @@ PanelWindow {
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - reopen.width - parent.spacing
+                    wrapMode: Text.WordWrap
                     text: qsTr("Reopen windows when logging back in")
-                    font.pointSize: Theme.font.size.small
+                    color: Theme.palette.secondaryLabel
                 }
             }
 
@@ -131,15 +133,16 @@ PanelWindow {
             }
 
             Row {
-                anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 10
 
                 DialogButton {
+                    width: (column.width - 10) / 2
                     text: qsTr("Cancel")
                     onClicked: Session.cancel()
                 }
 
                 DialogButton {
+                    width: (column.width - 10) / 2
                     text: root.w.button
                     primary: true
                     onClicked: Session.confirm()
