@@ -27,7 +27,7 @@ TEST(Accent, NamesAndSeeds) {
     EXPECT_EQ(names().size(), 9u);
     EXPECT_FALSE(seed("multicolor"));
     EXPECT_FALSE(seed("chartreuse"));
-    EXPECT_EQ(seed("blue"), 0x0a84ffu);
+    EXPECT_EQ(seed("blue"), 0x0091ffu);
     EXPECT_EQ(gnome_name("graphite"), "slate");
     EXPECT_EQ(label("graphite"), "Graphite");
     EXPECT_EQ(label("multicolor"), "Multicolour");
@@ -64,8 +64,8 @@ TEST(Accent, KeepsTheHue) {
 }
 
 TEST(Accent, EachAppearanceHasItsOwnShade) {
-    EXPECT_EQ(rgb("blue", false), 0x0a84ffu);
-    EXPECT_EQ(rgb("blue", true), 0x007affu);
+    EXPECT_EQ(rgb("blue", false), 0x0091ffu);
+    EXPECT_EQ(rgb("blue", true), 0x0088ffu);
     EXPECT_EQ(rgb("multicolor", true), rgb("blue", true));
     EXPECT_EQ(rgb("chartreuse", false), rgb("blue", false));
     for (std::string_view n : names()) {
@@ -80,12 +80,12 @@ TEST(Accent, EachAppearanceHasItsOwnShade) {
 TEST(Palette, MacosRoles) {
     using namespace atrium::palette;
     const Palette dark = make(false, "multicolor"), light = make(true, "no-such-accent");
-    EXPECT_EQ(dark.label, 0xffffffd8u);
-    EXPECT_EQ(light.label, 0x000000d8u);
-    EXPECT_EQ(dark.accent, 0x0a84ffffu);
-    EXPECT_EQ(light.accent, 0x007affffu);
-    EXPECT_EQ(dark.red, 0xff453affu);
-    EXPECT_EQ(light.red, 0xff3b30ffu);
+    EXPECT_EQ(dark.label, 0xffffffffu);
+    EXPECT_EQ(light.label, 0x000000d9u);
+    EXPECT_EQ(dark.accent, 0x0091ffffu);
+    EXPECT_EQ(light.accent, 0x0088ffffu);
+    EXPECT_EQ(dark.red, 0xff4245ffu);
+    EXPECT_EQ(light.red, 0xff383cffu);
     // Labels and fills step down in strength.
     for (const Palette& p : {dark, light}) {
         EXPECT_GT(p.label & 0xff, p.secondary_label & 0xff);
@@ -100,7 +100,7 @@ TEST(Palette, MacosRoles) {
 TEST(Palette, AnAccentOnlyChangesTheAccentRoles) {
     using namespace atrium::palette;
     const Palette base = make(false, "multicolor"), red = make(false, "red");
-    EXPECT_EQ(red.accent, 0xff453affu);
+    EXPECT_EQ(red.accent, 0xff4245ffu);
     EXPECT_EQ(red.accent_fill >> 8, red.accent >> 8);
     EXPECT_LT(red.accent_fill & 0xff, 0xffu);
     EXPECT_EQ(red.label, base.label);

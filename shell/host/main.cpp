@@ -112,11 +112,10 @@ void add_icon_base_dirs() {
     QIcon::setFallbackSearchPaths(dirs);
 }
 
-// The fonts atrium brings along (Rubik, which Arch only has in the AUR):
+// The fonts atrium brings along (Inter, the shell's face):
 // installed, else the source tree's. Given to fontconfig before Qt starts,
 // not QFontDatabase::addApplicationFont: that registers a variable font's
-// first named instance only (Rubik's Light), so every weight was Light
-// with bold faked. fontconfig lists all of them, as a system install does.
+// first named instance only, so every weight was that one with bold faked. fontconfig lists all of them, as a system install does.
 void load_fonts() {
     for (const QString& dir : {QStringLiteral(ATRIUM_DATADIR "/fonts"), QStringLiteral(ATRIUM_SOURCE_DIR "/data/share/atrium/fonts")}) {
         if (QDir(dir).entryList({"*.ttf", "*.otf"}, QDir::Files).isEmpty())

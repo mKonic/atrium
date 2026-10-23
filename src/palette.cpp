@@ -9,30 +9,32 @@ namespace atrium::palette {
 
 namespace {
 
-// macOS's values (NSColor's dynamic colours; the fills are UIKit's, which
-// have the full ladder AppKit lacks).
+// Apple's macOS 27 UI Kit (its colour swatches, window and material layer
+// styles), ~/dev/os/inspiration/apple-macos27-ui-kit.
 constexpr Palette kDark{
-    .label = 0xffffffd8, .secondary_label = 0xffffff8c, .tertiary_label = 0xffffff3f, .quaternary_label = 0xffffff19,
-    .fill = 0x7878805c, .secondary_fill = 0x78788052, .tertiary_fill = 0x7676803d, .quaternary_fill = 0x7676802e,
-    .separator = 0xffffff19,
-    .window_background = 0x323232ff, .control_background = 0x1e1e1eff, .control = 0xffffff3f, .thumb = 0xdcdcdcff, .grouped_background = 0x3d3d3fff,
+    .label = 0xffffffff, .secondary_label = 0xffffff8c, .tertiary_label = 0xffffff40, .quaternary_label = 0xffffff1a,
+    .fill = 0xffffff1a, .secondary_fill = 0xffffff14, .tertiary_fill = 0xffffff0d, .quaternary_fill = 0xffffff08,
+    .separator = 0xffffff1a,
+    .window_background = 0x1e1e1eff, .control_background = 0x1e1e1eff, .control = 0xffffff12, .thumb = 0xffffffff, .grouped_background = 0xffffff0d,
+    .material = 0x2c2c2cff,
     .accent = 0, .on_accent = 0, .accent_fill = 0, .focus_ring = 0,
-    .red = 0xff453aff, .orange = 0xff9f0aff, .yellow = 0xffd60aff, .green = 0x32d74bff, .mint = 0x63e6e2ff,
-    .teal = 0x40c8e0ff, .cyan = 0x64d2ffff, .blue = 0x0a84ffff, .indigo = 0x5e5ce6ff, .purple = 0xbf5af2ff,
-    .pink = 0xff375fff, .brown = 0xac8e68ff, .gray = 0x98989dff,
-    .shadow = 0x00000080, .scrim = 0x00000066,
+    .red = 0xff4245ff, .orange = 0xff9230ff, .yellow = 0xffd600ff, .green = 0x30d158ff, .mint = 0x00dac3ff,
+    .teal = 0x00d2e0ff, .cyan = 0x3cd3feff, .blue = 0x0091ffff, .indigo = 0x6d7cffff, .purple = 0xdb34f2ff,
+    .pink = 0xff375fff, .brown = 0xb78a66ff, .gray = 0x98989dff,
+    .shadow = 0x00000066, .scrim = 0x00000066,
 };
 
 constexpr Palette kLight{
-    .label = 0x000000d8, .secondary_label = 0x0000007f, .tertiary_label = 0x00000042, .quaternary_label = 0x00000019,
-    .fill = 0x78788033, .secondary_fill = 0x78788029, .tertiary_fill = 0x7676801f, .quaternary_fill = 0x74748014,
+    .label = 0x000000d9, .secondary_label = 0x00000080, .tertiary_label = 0x00000040, .quaternary_label = 0x0000001a,
+    .fill = 0x0000001a, .secondary_fill = 0x00000014, .tertiary_fill = 0x0000000d, .quaternary_fill = 0x00000008,
     .separator = 0x0000001a,
-    .window_background = 0xecececff, .control_background = 0xffffffff, .control = 0xffffffff, .thumb = 0xffffffff, .grouped_background = 0xffffffff,
+    .window_background = 0xffffffff, .control_background = 0xffffffff, .control = 0x00000014, .thumb = 0xffffffff, .grouped_background = 0x00000008,
+    .material = 0xecececff,
     .accent = 0, .on_accent = 0, .accent_fill = 0, .focus_ring = 0,
-    .red = 0xff3b30ff, .orange = 0xff9500ff, .yellow = 0xffcc00ff, .green = 0x28cd41ff, .mint = 0x00c7beff,
-    .teal = 0x30b0c7ff, .cyan = 0x32ade6ff, .blue = 0x007affff, .indigo = 0x5856d6ff, .purple = 0xaf52deff,
-    .pink = 0xff2d55ff, .brown = 0xa2845eff, .gray = 0x8e8e93ff,
-    .shadow = 0x0000004d, .scrim = 0x0000004d,
+    .red = 0xff383cff, .orange = 0xff8d28ff, .yellow = 0xffcc00ff, .green = 0x34c759ff, .mint = 0x00c8b3ff,
+    .teal = 0x00c3d0ff, .cyan = 0x00c0e8ff, .blue = 0x0088ffff, .indigo = 0x6155f5ff, .purple = 0xcb30e0ff,
+    .pink = 0xff2d55ff, .brown = 0xac7f5eff, .gray = 0x8e8e93ff,
+    .shadow = 0x00000066, .scrim = 0x0000004d,
 };
 
 double channel(uint32_t rgba, int shift) {

@@ -27,6 +27,9 @@ struct Palette {
     // the thumb of a slider or switch; grouped content (Settings' cards),
     // a step lighter than the window in both appearances.
     uint32_t window_background, control_background, control, thumb, grouped_background;
+    // What panels are made of (the bar, Dock, menus, popovers): the kit's
+    // material base, drawn translucent over blur or opaque without it.
+    uint32_t material;
     // The accent, the text and symbols drawn on it, a translucent wash of it
     // for selected rows, and the keyboard focus ring.
     uint32_t accent, on_accent, accent_fill, focus_ring;

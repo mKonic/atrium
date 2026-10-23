@@ -32,7 +32,7 @@ depends=(
   pacman-contrib
   # atrium-screenshot, atrium-record
   libpng libjpeg-turbo ffmpeg libarchive
-  # the shell's icons and monospace font (Rubik comes with it)
+  # the shell's icons and monospace font (Inter comes with it)
   ttf-material-symbols-variable ttf-cascadia-code-nerd
   # apps' text and emoji (fontconfig's sans-serif, serif and emoji; the emoji picker)
   noto-fonts noto-fonts-emoji

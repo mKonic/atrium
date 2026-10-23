@@ -4,8 +4,9 @@ import QtQuick
 import Atrium.Shell
 import Atrium
 
-// Design tokens: caelestia's sizes, rounding and motion, and macOS's colours
-// (palette.hpp): semantic roles for dark or light and appearance.accent.
+// Design tokens: Apple's macOS 27 UI Kit (colours in palette.hpp, type and
+// materials here), with caelestia's motion. Colours are semantic roles for
+// dark or light and appearance.accent.
 // Name what a colour is for (palette.label, palette.separator,
 // material.regular), never a shade or an opacity.
 Singleton {
@@ -37,6 +38,7 @@ Singleton {
         readonly property color control: root.colors.control
         readonly property color thumb: root.colors.thumb
         readonly property color groupedBackground: root.colors.groupedBackground
+        readonly property color material: root.colors.material
         readonly property color accent: root.colors.accent
         readonly property color labelOnAccent: root.colors.labelOnAccent
         readonly property color accentFill: root.colors.accentFill
@@ -75,6 +77,7 @@ Singleton {
         readonly property color control: root.darkColors.control
         readonly property color thumb: root.darkColors.thumb
         readonly property color groupedBackground: root.darkColors.groupedBackground
+        readonly property color material: root.darkColors.material
         readonly property color accent: root.darkColors.accent
         readonly property color labelOnAccent: root.darkColors.labelOnAccent
         readonly property color accentFill: root.darkColors.accentFill
@@ -109,7 +112,7 @@ Singleton {
         // Dialogs and sheets.
         readonly property color thick: root.glassy(0.92)
         // A bar pill: clear glass, or a step off the bar when solid.
-        readonly property color pill: root.glass ? root.glassy(0.7) : Qt.tint(root.palette.windowBackground, root.palette.quaternaryFill)
+        readonly property color pill: root.glass ? root.glassy(0.7) : Qt.tint(root.palette.material, root.palette.fill)
     }
 
     readonly property QtObject rounding: QtObject {
