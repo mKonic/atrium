@@ -24,9 +24,9 @@ Pill {
 
         Repeater {
             model: [
-                { on: Privacy.screen, color: Theme.palette.purple },
-                { on: Privacy.camera, color: Theme.palette.green },
-                { on: Privacy.microphone, color: Theme.palette.orange }
+                { on: Privacy.screen, color: Theme.bar.palette.purple },
+                { on: Privacy.camera, color: Theme.bar.palette.green },
+                { on: Privacy.microphone, color: Theme.bar.palette.orange }
             ]
 
             Rectangle {

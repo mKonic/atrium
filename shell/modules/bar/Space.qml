@@ -55,7 +55,7 @@ Item {
             text: root.number
             font.pointSize: Theme.font.size.normal
             font.weight: root.active ? Font.DemiBold : Font.Medium
-            color: root.inverted ? Theme.palette.labelOnAccent : root.occupied ? Theme.palette.label : Theme.palette.tertiaryLabel
+            color: root.inverted ? Theme.bar.palette.labelOnAccent : root.occupied ? Theme.bar.palette.label : Theme.bar.palette.tertiaryLabel
         }
 
         Repeater {
@@ -75,7 +75,7 @@ Item {
                 text: Icons.appCategoryIcon(window.app_id)
                 font.pointSize: Theme.font.size.larger
                 fill: window.focused ? 1 : 0
-                color: root.inverted ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
+                color: root.inverted ? Theme.bar.palette.labelOnAccent : Theme.bar.palette.secondaryLabel
 
                 // Pops in when the app opens.
                 Anim on scale {

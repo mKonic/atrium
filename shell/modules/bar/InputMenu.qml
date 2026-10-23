@@ -21,6 +21,7 @@ Pill {
     implicitWidth: code.implicitWidth + Theme.padding.normal * 2
 
     StyledText {
+        color: Theme.bar.palette.label
         id: code
 
         anchors.centerIn: parent

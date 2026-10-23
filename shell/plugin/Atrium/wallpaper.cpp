@@ -10,6 +10,7 @@
 #include <QProcess>
 #include <QStandardPaths>
 
+#include <algorithm>
 #include <functional>
 
 namespace atrium {
@@ -90,6 +91,30 @@ void Wallpaper::set(const QUrl& file) {
 
 void Wallpaper::setPath(const QString& path) {
     Compositor::instance()->setSetting("appearance.wallpaper", path);
+}
+
+bool Wallpaper::darkTop(const QString& path) const {
+    if (path == toneOf_)
+        return dark_;
+    toneOf_ = path;
+    QImageReader reader(path);
+    const QSize size = reader.size();
+    if (!size.isValid())
+        return dark_ = true;
+    // Small is plenty for a mean (JPEG decodes straight to it), and the top
+    // twentieth is where the bar is.
+    reader.setScaledSize(size.scaled(64, 64, Qt::KeepAspectRatio));
+    const QImage image = reader.read().convertToFormat(QImage::Format_RGB32);
+    if (image.isNull())
+        return dark_ = true;
+    const int rows = std::max(1, image.height() / 20);
+    double sum = 0;
+    for (int y = 0; y < rows; ++y)
+        for (int x = 0; x < image.width(); ++x) {
+            const QRgb c = image.pixel(x, y);
+            sum += 0.2126 * qRed(c) + 0.7152 * qGreen(c) + 0.0722 * qBlue(c);
+        }
+    return dark_ = sum / (rows * image.width()) < 150;
 }
 
 } // namespace atrium

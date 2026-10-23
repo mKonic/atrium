@@ -57,7 +57,7 @@ Item {
     // Magnification changes with every pointer move, so follow it smoothly
     // rather than restarting an animation each time.
     // The gap to its neighbours is part of it, so it closes with it too.
-    readonly property real gap: 8
+    readonly property real gap: 12
     implicitWidth: (iconSize * magnification + gap) * presence
     implicitHeight: iconSize
     opacity: (lifted ? 0.25 : 1) * presence
@@ -269,10 +269,10 @@ Item {
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.bottom
-        anchors.topMargin: 3
-        width: root.focused ? 12 : 4
-        height: 4
-        radius: 2
+        anchors.topMargin: 4
+        width: root.focused ? 12 : 5
+        height: 5
+        radius: 2.5
         color: root.focused ? Theme.palette.accent : Theme.palette.secondaryLabel
         opacity: root.running ? 1 : 0
 

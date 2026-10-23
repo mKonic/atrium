@@ -9,7 +9,7 @@ Pill {
 
     visible: Recorder.recording
     implicitWidth: row.implicitWidth + Theme.padding.normal * 2
-    color: Theme.palette.red
+    color: Theme.bar.palette.red
 
     Row {
         id: row

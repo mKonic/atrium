@@ -31,7 +31,7 @@ Row {
 
             anchors.verticalCenter: parent?.verticalCenter
             implicitWidth: row.implicitWidth + Theme.padding.normal * 2
-            color: modelData.shown ? Theme.palette.accent : Theme.material.pill
+            color: modelData.shown ? Theme.bar.palette.accent : Theme.lens ? Theme.bar.pill : Theme.bar.palette.fill
 
             Glass {}
 
@@ -51,7 +51,7 @@ Row {
                     anchors.verticalCenter: parent?.verticalCenter
                     text: "visibility_off"
                     font.pointSize: Theme.font.size.normal
-                    color: chip.modelData.shown ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
+                    color: chip.modelData.shown ? Theme.bar.palette.labelOnAccent : Theme.bar.palette.secondaryLabel
                 }
 
                 Repeater {
@@ -63,7 +63,7 @@ Row {
                         anchors.verticalCenter: parent?.verticalCenter
                         text: Icons.appCategoryIcon(modelData)
                         font.pointSize: Theme.font.size.larger
-                        color: chip.modelData.shown ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
+                        color: chip.modelData.shown ? Theme.bar.palette.labelOnAccent : Theme.bar.palette.secondaryLabel
                     }
                 }
             }

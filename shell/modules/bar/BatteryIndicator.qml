@@ -28,11 +28,12 @@ Pill {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             text: Battery.glyph
-            font.pointSize: Theme.font.size.normal
-            color: Battery.percentage <= 10 && !Battery.plugged ? Theme.palette.red : Theme.palette.label
+            font.pointSize: Theme.font.size.larger
+            color: Battery.percentage <= 10 && !Battery.plugged ? Theme.bar.palette.red : Theme.bar.palette.label
         }
 
         StyledText {
+            color: Theme.bar.palette.label
             anchors.verticalCenter: parent.verticalCenter
             text: `${Battery.percentage}%`
             font.pointSize: Theme.font.size.smaller

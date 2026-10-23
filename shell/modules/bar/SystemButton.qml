@@ -26,7 +26,7 @@ Item {
         anchors.fill: parent
         radius: height / 2
         visible: Theme.lens
-        color: Theme.material.pill
+        color: Theme.bar.pill
 
         Glass {}
     }
@@ -34,8 +34,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: height / 2
-        color: root.open ? Theme.palette.accentFill
-             : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+        color: root.open ? Theme.bar.selected
+             : area.containsMouse ? Theme.bar.palette.fill : "transparent"
     }
 
     IconImage {
@@ -52,7 +52,7 @@ Item {
     // the logo's own alpha (edges and all).
     Rectangle {
         anchors.fill: logo
-        color: Theme.palette.label
+        color: Theme.bar.palette.label
         layer.enabled: true
         layer.effect: MultiEffect {
             maskEnabled: true

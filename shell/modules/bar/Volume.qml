@@ -30,15 +30,15 @@ Pill {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             text: root.muted ? "volume_off" : root.volume >= 0.5 ? "volume_up" : root.volume > 0 ? "volume_down" : "volume_mute"
-            font.pointSize: Theme.font.size.normal
-            color: root.muted ? Theme.palette.tertiaryLabel : Theme.palette.label
+            font.pointSize: Theme.font.size.larger
+            color: root.muted ? Theme.bar.palette.tertiaryLabel : Theme.bar.palette.label
         }
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
             text: `${Math.round(root.volume * 100)}%`
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.secondaryLabel
+            color: Theme.bar.palette.secondaryLabel
         }
     }
 

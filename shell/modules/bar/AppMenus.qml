@@ -88,10 +88,11 @@ Row {
             visible: index < root.fitting
             implicitWidth: label.implicitWidth + Theme.padding.normal * 2
             implicitHeight: Theme.bar.inner
-            radius: Theme.rounding.small
-            color: current ? Theme.palette.secondaryFill : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+            radius: height / 2
+            color: current ? Theme.bar.selected : area.containsMouse ? Theme.bar.palette.fill : "transparent"
 
             StyledText {
+                color: Theme.bar.palette.label
                 id: label
 
                 anchors.centerIn: parent
@@ -117,10 +118,11 @@ Row {
         visible: root.fitting < titles.count
         implicitWidth: moreLabel.implicitWidth + Theme.padding.normal * 2
         implicitHeight: Theme.bar.inner
-        radius: Theme.rounding.small
-        color: current ? Theme.palette.secondaryFill : moreArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+        radius: height / 2
+        color: current ? Theme.bar.selected : moreArea.containsMouse ? Theme.bar.palette.fill : "transparent"
 
         StyledText {
+            color: Theme.bar.palette.label
             id: moreLabel
 
             anchors.centerIn: parent

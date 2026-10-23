@@ -44,8 +44,8 @@ Pill {
         MaterialIcon {
             anchors.verticalCenter: parent.verticalCenter
             text: Network.glyph
-            font.pointSize: Theme.font.size.normal
-            color: Network.online ? Theme.palette.label : Theme.palette.tertiaryLabel
+            font.pointSize: Theme.font.size.larger
+            color: Network.online ? Theme.bar.palette.label : Theme.bar.palette.tertiaryLabel
         }
 
         Rate {
@@ -59,17 +59,19 @@ Pill {
         }
 
         MaterialIcon {
+            color: Theme.bar.palette.label
             anchors.verticalCenter: parent.verticalCenter
             visible: Vpn.connected
             text: "vpn_key"
-            font.pointSize: Theme.font.size.normal
+            font.pointSize: Theme.font.size.larger
         }
 
         MaterialIcon {
+            color: Theme.bar.palette.label
             anchors.verticalCenter: parent.verticalCenter
             visible: root.bluetooth
             text: "bluetooth"
-            font.pointSize: Theme.font.size.normal
+            font.pointSize: Theme.font.size.larger
         }
     }
 
@@ -90,7 +92,7 @@ Pill {
             anchors.verticalCenter: parent.verticalCenter
             text: rate.glyph
             font.pointSize: Theme.font.size.smaller
-            color: Theme.palette.secondaryLabel
+            color: Theme.bar.palette.secondaryLabel
         }
 
         StyledText {
@@ -99,7 +101,7 @@ Pill {
             text: rate.text
             font.pointSize: Theme.font.size.smaller
             font.features: { "tnum": 1 }
-            color: Theme.palette.secondaryLabel
+            color: Theme.bar.palette.secondaryLabel
         }
     }
 }

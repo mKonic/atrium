@@ -13,8 +13,9 @@ PanelWindow {
     id: dock
 
     readonly property real iconSize: 48
-    readonly property real shelfPadding: 8
-    readonly property real shelfHeight: iconSize + shelfPadding * 2 + 6
+    // The kit's Dock at atrium's scale: a 77px slab, rounded 20.
+    readonly property real shelfPadding: 10
+    readonly property real shelfHeight: iconSize + 29
     readonly property real gap: 8  // under the shelf
     // The icon under the pointer: its name floats above it, as on a Mac.
     // The shelf itself never changes size for it.
@@ -341,10 +342,10 @@ PanelWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: dock.revealed ? dock.gap : -(dock.shelfHeight + 4)
-        // The icons' own gaps reach 4px past each end; the padding covers the rest.
-        width: Math.max(0, row.width - 8) + dock.shelfPadding * 2
+        // The icons' own gaps reach 6px past each end; the padding covers the rest.
+        width: Math.max(0, row.width - 12) + dock.shelfPadding * 2
         height: dock.shelfHeight
-        radius: 22
+        radius: 20
         color: Theme.material.thin
 
         Glass {}
@@ -378,7 +379,7 @@ PanelWindow {
 
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: dock.shelfPadding + 6
+            anchors.bottomMargin: dock.shelfPadding + 4
             spacing: 0  // each icon carries its own gap (DockItem.gap)
             // No move transition: neighbours glide because the icons beside
             // them grow and shrink; a transition here would restart on every
@@ -449,7 +450,7 @@ PanelWindow {
                         anchors.leftMargin: -0.5
                         anchors.verticalCenter: parent.verticalCenter
                         width: 1
-                        height: dock.iconSize * 0.8
+                        height: dock.shelfHeight - 22
                         color: Theme.palette.separator
                     }
                 }
@@ -464,7 +465,7 @@ PanelWindow {
                 Rectangle {
                     anchors.centerIn: parent
                     width: 1
-                    height: dock.iconSize * 0.8
+                    height: dock.shelfHeight - 22
                     color: Theme.palette.separator
                 }
             }

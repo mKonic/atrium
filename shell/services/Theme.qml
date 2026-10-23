@@ -139,15 +139,17 @@ Singleton {
     }
 
     readonly property QtObject font: QtObject {
-        readonly property string sans: "Rubik"
+        readonly property string sans: "Inter Variable"
         readonly property string mono: "CaskaydiaCove NF"
         readonly property string icons: "Material Symbols Rounded"
+        // The kit's text styles: Subheadline 11, Callout 12, Body 13,
+        // Title 3 15, Title 2 17.
         readonly property QtObject size: QtObject {
             readonly property int small: Math.round(11 * root.textScale)
             readonly property int smaller: Math.round(12 * root.textScale)
             readonly property int normal: Math.round(13 * root.textScale)
             readonly property int larger: Math.round(15 * root.textScale)
-            readonly property int large: Math.round(18 * root.textScale)
+            readonly property int large: Math.round(17 * root.textScale)
         }
     }
 
@@ -170,7 +172,42 @@ Singleton {
 
     readonly property QtObject bar: QtObject {
         readonly property int height: 40
-        readonly property int inner: 30  // height of the pills inside it
+        readonly property int inner: 32  // height of the pills inside it
+        // On a band of its own (Settings > Menu Bar), or in Liquid Glass's
+        // pills; otherwise straight on the wallpaper, as macOS 27's.
+        readonly property bool solid: (Atrium.settings["bar.background"] ?? false) || root.lens
+        // The text over a bare bar follows the wallpaper under it, not the
+        // appearance: light over a dark picture, dark over a light one.
+        readonly property bool overDark: {
+            const path = Atrium.settings["appearance.wallpaper"] ?? "";
+            if (path !== "" && Wallpaper.url(path) != "")
+                return Wallpaper.darkTop(path);
+            return Qt.color(Atrium.settings["appearance.background"] ?? "#000000").hslLightness < 0.6;
+        }
+        readonly property var colors: solid ? root.colors : Atrium.palette(!overDark, root.accent, root.highContrast)
+        readonly property QtObject palette: QtObject {
+            readonly property color label: root.bar.colors.label
+            readonly property color secondaryLabel: root.bar.colors.secondaryLabel
+            readonly property color tertiaryLabel: root.bar.colors.tertiaryLabel
+            readonly property color quaternaryLabel: root.bar.colors.quaternaryLabel
+            readonly property color fill: root.bar.colors.fill
+            readonly property color secondaryFill: root.bar.colors.secondaryFill
+            readonly property color tertiaryFill: root.bar.colors.tertiaryFill
+            readonly property color quaternaryFill: root.bar.colors.quaternaryFill
+            readonly property color separator: root.bar.colors.separator
+            readonly property color accent: root.bar.colors.accent
+            readonly property color labelOnAccent: root.bar.colors.labelOnAccent
+            readonly property color accentFill: root.bar.colors.accentFill
+            readonly property color red: root.bar.colors.red
+            readonly property color orange: root.bar.colors.orange
+            readonly property color yellow: root.bar.colors.yellow
+            readonly property color green: root.bar.colors.green
+        }
+        // An item whose panel or menu is open (the kit's Selected item).
+        readonly property color selected: root.alpha(palette.label, Qt.color(palette.label).hslLightness > 0.5 ? 0.2 : 0.1)
+        // The rounded place a bar item sits in: glass, a step off the band,
+        // or nothing at all.
+        readonly property color pill: root.lens ? root.glassy(0.7) : "transparent"
     }
 
     // Liquid Glass (appearance.liquid_glass): panels clearer still, lensed
@@ -184,7 +221,7 @@ Singleton {
     readonly property bool lens: liquid && (Atrium.settings["appearance.blur"] ?? true)
 
     function glassy(a: real): color {
-        return lens ? alpha(palette.windowBackground, 0.06) : glass ? alpha(palette.windowBackground, a) : palette.windowBackground;
+        return lens ? alpha(palette.material, 0.06) : glass ? alpha(palette.material, a) : palette.material;
     }
 
     // A color with its alpha replaced.

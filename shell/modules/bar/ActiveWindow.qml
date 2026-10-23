@@ -4,7 +4,7 @@ import shell.components
 import shell.services
 import Atrium
 
-// The focused app, as a macOS menu bar names it: its icon and title.
+// The focused app, as a macOS menu bar names it: in bold, then its title.
 Item {
     id: root
 
@@ -52,7 +52,7 @@ Item {
         radius: height / 2
         visible: Theme.lens
         opacity: root.shown ? 1 : 0
-        color: Theme.material.pill
+        color: Theme.bar.pill
 
         Glass {}
 
@@ -64,11 +64,11 @@ Item {
     // Pressed while its menu is open, lit under the pointer.
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: Theme.lens ? 0 : -Theme.padding.small
-        anchors.rightMargin: Theme.lens ? 0 : -Theme.padding.small
-        radius: Theme.lens ? height / 2 : Theme.rounding.small
+        anchors.leftMargin: Theme.lens ? 0 : -Theme.padding.normal
+        anchors.rightMargin: Theme.lens ? 0 : -Theme.padding.normal
+        radius: height / 2
         visible: root.shown
-        color: root.menuOpen ? Theme.palette.secondaryFill : nameArea.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+        color: root.menuOpen ? Theme.bar.selected : nameArea.containsMouse ? Theme.bar.palette.fill : "transparent"
     }
 
     Row {
@@ -83,17 +83,11 @@ Item {
             Anim {}
         }
 
-        IconImage {
-            anchors.verticalCenter: parent.verticalCenter
-            implicitSize: 18
-            source: root.window ? Icons.appIcon(root.window.app_id) : Shell.iconPath(AppMenu.desktopApp.icon ?? "", "system-file-manager")
-            asynchronous: true
-        }
-
         StyledText {
+            color: Theme.bar.palette.label
             anchors.verticalCenter: parent.verticalCenter
             text: root.appName
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
         }
 
         StyledText {
@@ -103,7 +97,7 @@ Item {
             width: Math.max(0, Math.min(implicitWidth, 420, root.maxWidth - x - (Theme.lens ? Theme.padding.normal * 2 : 0)))
             elide: Text.ElideRight
             text: root.title
-            color: Theme.palette.secondaryLabel
+            color: Theme.bar.palette.secondaryLabel
             visible: root.showTitle && text.length > 0 && width > 40
         }
     }

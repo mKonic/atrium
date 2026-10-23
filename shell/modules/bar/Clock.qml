@@ -16,8 +16,8 @@ Pill {
 
     readonly property bool open: Panels.open === "calendar"
 
-    color: open ? Theme.palette.accentFill : Theme.material.pill
-    implicitWidth: row.implicitWidth + Theme.padding.normal * 2 + Theme.padding.small
+    color: open ? Theme.bar.selected : Theme.bar.pill
+    implicitWidth: row.implicitWidth + Theme.padding.normal * 2
 
     SystemClock {
         id: clock
@@ -40,17 +40,10 @@ Pill {
         anchors.centerIn: parent
         spacing: Theme.spacing.small
 
-        MaterialIcon {
-            anchors.verticalCenter: parent.verticalCenter
-            text: "calendar_month"
-            font.pointSize: Theme.font.size.normal
-            color: Theme.palette.accent
-        }
-
         StyledText {
+            color: Theme.bar.palette.label
             anchors.verticalCenter: parent.verticalCenter
             text: Qt.locale().toString(clock.date, (Atrium.settings["clock.24_hour"] ?? false) ? "ddd d MMM   H:mm" : "ddd d MMM   h:mm AP")
-            font.weight: Font.Medium
         }
     }
 

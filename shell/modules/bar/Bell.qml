@@ -18,7 +18,7 @@ Pill {
     readonly property bool open: Panels.open === "notifications"
 
     implicitWidth: implicitHeight
-    color: open ? Theme.palette.accentFill : Theme.material.pill
+    color: open ? Theme.bar.selected : Theme.bar.pill
 
     Glass {}
 
@@ -26,8 +26,8 @@ Pill {
         anchors.centerIn: parent
         text: root.dnd ? "notifications_off" : NotificationHistory.unread > 0 ? "notifications_unread" : "notifications"
         fill: root.open ? 1 : 0
-        font.pointSize: Theme.font.size.normal
-        color: NotificationHistory.unread > 0 && !root.dnd ? Theme.palette.accent : Theme.palette.label
+        font.pointSize: Theme.font.size.larger
+        color: NotificationHistory.unread > 0 && !root.dnd ? Theme.bar.palette.accent : Theme.bar.palette.label
     }
 
     TapHandler {

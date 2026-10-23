@@ -14,15 +14,16 @@ Pill {
     readonly property bool open: Panels.open === "control"
 
     implicitWidth: implicitHeight
-    color: open ? Theme.palette.accentFill : Theme.material.pill
+    color: open ? Theme.bar.selected : Theme.bar.pill
 
     Glass {}
 
     MaterialIcon {
+        color: Theme.bar.palette.label
         anchors.centerIn: parent
         text: "tune"
         fill: root.open ? 1 : 0
-        font.pointSize: Theme.font.size.normal
+        font.pointSize: Theme.font.size.larger
     }
 
     TapHandler {

@@ -23,6 +23,8 @@ Pill {
     readonly property int groupOffset: Math.floor((active - 1) / shown) * shown
 
     implicitWidth: row.implicitWidth + 6
+    // The one bar item drawn as a group even on a bare bar.
+    color: Theme.lens ? Theme.bar.pill : Theme.bar.palette.fill
 
     Rectangle {
         id: indicator
@@ -34,7 +36,7 @@ Pill {
         width: target?.width ?? 0
         height: row.height
         radius: Theme.rounding.full
-        color: Theme.palette.accent
+        color: Theme.bar.palette.accent
         visible: target !== null
         clip: true
         z: 1  // over the row: its copy is what shows where it covers

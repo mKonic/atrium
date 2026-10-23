@@ -113,8 +113,9 @@ PanelWindow {
 
             Glass {}
 
-            // Liquid Glass: no bar, each pill its own piece of glass.
-            opacity: bar.chrome && !Theme.lens ? 1 : 0
+            // Only with Show menu bar background: bare, as macOS 27's, the
+            // items sit on the wallpaper. Liquid Glass: each pill its own glass.
+            opacity: bar.chrome && Theme.bar.solid && !Theme.lens ? 1 : 0
 
             Behavior on opacity {
                 Anim {}

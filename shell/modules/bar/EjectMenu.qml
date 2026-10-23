@@ -17,9 +17,10 @@ Pill {
     implicitWidth: implicitHeight
 
     MaterialIcon {
+        color: Theme.bar.palette.label
         anchors.centerIn: parent
         text: "eject"
-        font.pointSize: Theme.font.size.normal
+        font.pointSize: Theme.font.size.larger
     }
 
     MouseArea {

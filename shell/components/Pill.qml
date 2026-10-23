@@ -1,9 +1,9 @@
 import QtQuick
 import shell.services
 
-// The rounded container every bar item sits in.
+// The rounded place a bar item sits in: bare on the wallpaper, or glass.
 Rectangle {
-    color: Theme.material.pill
+    color: Theme.bar.pill
 
     Glass {}
     radius: Theme.rounding.full
