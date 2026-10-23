@@ -24,16 +24,18 @@ Rectangle {
         return c.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     }
 
-    implicitWidth: row.implicitWidth + 6
-    implicitHeight: 30
-    radius: 9
-    color: Theme.palette.tertiaryFill
+    // The kit's segmented control: segments flush in a faint track, the
+    // chosen one filled with the accent.
+    implicitWidth: row.implicitWidth
+    implicitHeight: 32
+    radius: 11
+    color: Theme.palette.secondaryFill
 
     Row {
         id: row
 
         anchors.centerIn: parent
-        spacing: 2
+        spacing: 0
 
         Repeater {
             model: root.choices
@@ -44,10 +46,10 @@ Rectangle {
                 required property string modelData
                 readonly property bool current: modelData === root.value
 
-                width: text.implicitWidth + 22
-                height: 24
-                radius: 7
-                color: current ? Theme.palette.accent : area.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+                width: text.implicitWidth + 26
+                height: 32
+                radius: 11
+                color: current ? Theme.palette.accent : area.pressed ? Theme.palette.fill : area.containsMouse ? Theme.palette.quaternaryFill : "transparent"
 
                 Accessible.role: Accessible.RadioButton
                 Accessible.name: qsTranslate("settings", root.label(modelData))
@@ -60,8 +62,7 @@ Rectangle {
 
                     anchors.centerIn: parent
                     text: qsTranslate("settings", root.label(segment.modelData))
-                    font.pointSize: Theme.font.size.small
-                    font.weight: segment.current ? Font.DemiBold : Font.Normal
+                    font.weight: segment.current ? Font.Medium : Font.Normal
                     color: segment.current ? Theme.palette.labelOnAccent : Theme.palette.label
                 }
 
