@@ -102,7 +102,7 @@ struct Config {
     Color background{0.10f, 0.11f, 0.13f, 1.0f};
     Color fullscreen_background{0.0f, 0.0f, 0.0f, 1.0f};
     Color lock_background{0.1f, 0.1f, 0.1f, 1.0f};
-    int corner_radius = 12;
+    int corner_radius = 21;
     bool shadows = true;
     float shadow_sigma = 28.0f;
     float shadow_sigma_inactive = 14.0f;

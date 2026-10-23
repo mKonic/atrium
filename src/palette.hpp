@@ -30,6 +30,8 @@ struct Palette {
     // What panels are made of (the bar, Dock, menus, popovers): the kit's
     // material base, drawn translucent over blur or opaque without it.
     uint32_t material;
+    // A window's sidebar pane, as the kit's over its window background.
+    uint32_t sidebar;
     // The accent, the text and symbols drawn on it, a translucent wash of it
     // for selected rows, and the keyboard focus ring.
     uint32_t accent, on_accent, accent_fill, focus_ring;

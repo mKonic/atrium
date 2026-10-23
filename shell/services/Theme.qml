@@ -39,6 +39,7 @@ Singleton {
         readonly property color thumb: root.colors.thumb
         readonly property color groupedBackground: root.colors.groupedBackground
         readonly property color material: root.colors.material
+        readonly property color sidebar: root.colors.sidebar
         readonly property color accent: root.colors.accent
         readonly property color labelOnAccent: root.colors.labelOnAccent
         readonly property color accentFill: root.colors.accentFill
@@ -78,6 +79,7 @@ Singleton {
         readonly property color thumb: root.darkColors.thumb
         readonly property color groupedBackground: root.darkColors.groupedBackground
         readonly property color material: root.darkColors.material
+        readonly property color sidebar: root.darkColors.sidebar
         readonly property color accent: root.darkColors.accent
         readonly property color labelOnAccent: root.darkColors.labelOnAccent
         readonly property color accentFill: root.darkColors.accentFill

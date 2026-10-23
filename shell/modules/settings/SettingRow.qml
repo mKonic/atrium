@@ -44,7 +44,6 @@ Item {
             width: parent.width
             text: qsTranslate("settings", root.setting.title)
             wrapMode: Text.WordWrap
-            font.weight: Font.Medium
         }
 
         StyledText {

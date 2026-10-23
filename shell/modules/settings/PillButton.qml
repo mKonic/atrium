@@ -22,7 +22,7 @@ Rectangle {
     radius: 15
     opacity: enabled ? 1 : 0.5
     color: primary ? (area.containsMouse ? Qt.lighter(Theme.palette.accent, 1.06) : Theme.palette.accent)
-                   : (area.containsMouse ? Theme.palette.fill : Theme.palette.tertiaryFill)
+                   : (area.containsMouse ? Theme.palette.fill : Theme.palette.control)
 
     Row {
         id: row
@@ -41,8 +41,6 @@ Rectangle {
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
-            font.pointSize: Theme.font.size.small
-            font.weight: Font.Medium
             color: root.primary ? Theme.palette.labelOnAccent : Theme.palette.label
         }
     }

@@ -36,19 +36,20 @@ Rgba darker(Rgba c, double f) {
 
 // Geometry of the bar in logical pixels.
 constexpr int kHeight = Titlebar::kHeight;
-constexpr double kButton = 12.0;   // diameter
+constexpr double kButton = 13.0;   // diameter
 constexpr double kGap = 8.0;       // between buttons
 constexpr double kRight = 13.0;    // last button's right edge, from the bar's right
 constexpr double kHitPad = 4.0;    // clickable slack around each button
 
-// macOS window chrome, dark and light.
+// macOS window chrome, dark and light: the macOS 27 UI Kit's title bar, the
+// window's own background (palette.cpp's window_background) over a hairline.
 struct Chrome {
     Rgba bar_active, bar_inactive, separator, highlight, title_active, title_inactive, button_inactive;
 };
-constexpr Chrome kDark{hex(0x26272c), hex(0x1d1e22), hex(0x000000, 0.45), hex(0xffffff, 0.06),
-                       hex(0xe8e8ec), hex(0x77787f), hex(0x45464c)};
-constexpr Chrome kLight{hex(0xececee), hex(0xf6f6f7), hex(0x000000, 0.14), hex(0xffffff, 0.7),
-                        hex(0x2a2a2e), hex(0xa4a4aa), hex(0xd0d0d4)};
+constexpr Chrome kDark{hex(0x1e1e1e), hex(0x1e1e1e), hex(0xffffff, 0.08), hex(0xffffff, 0),
+                       hex(0xffffff), hex(0x565656), hex(0x3d3d3d)};
+constexpr Chrome kLight{hex(0xffffff), hex(0xffffff), hex(0x000000, 0.1), hex(0xffffff, 0),
+                        hex(0x262626), hex(0xbfbfbf), hex(0xdcdcdc)};
 constexpr Rgba kClose = hex(0xff5f57);
 constexpr Rgba kMinimize = hex(0xfebc2e);
 constexpr Rgba kMaximize = hex(0x28c840);
@@ -259,7 +260,7 @@ void Titlebar::draw_title(cairo_t* cr, int width, int height) {
     const double avail = width - 2 * reserve;
     if (avail > 20 && !drawn_.title.empty()) {
         PangoLayout* layout = pango_cairo_create_layout(cr);
-        PangoFontDescription* font = pango_font_description_from_string("Sans Semi-Bold 10");
+        PangoFontDescription* font = pango_font_description_from_string("Sans Bold 10");
         pango_layout_set_font_description(layout, font);
         pango_font_description_free(font);
         pango_layout_set_text(layout, drawn_.title.c_str(), -1);

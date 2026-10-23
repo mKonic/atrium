@@ -20,10 +20,11 @@ Rectangle {
 
     implicitWidth: 260
     implicitHeight: 32
+    // The kit's text field: a well of the content background, edged.
     radius: 8
-    color: Theme.palette.tertiaryFill
-    border.width: 1
-    border.color: input.activeFocus ? Theme.palette.focusRing : "transparent"
+    color: Theme.palette.controlBackground
+    border.width: input.activeFocus ? 2 : 1
+    border.color: input.activeFocus ? Theme.palette.focusRing : Theme.palette.separator
 
     TextInput {
         id: input

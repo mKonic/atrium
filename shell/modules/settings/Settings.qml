@@ -69,11 +69,10 @@ FloatingWindow {
         width: 240 - inset
         height: parent.height - 2 * inset
         radius: 16
-        // A shade off the window, nearly opaque (Finder's is a few steps
-        // darker in dark mode), and a rim that catches the light.
-        color: Theme.light ? Qt.darker(Theme.palette.windowBackground, 1.035) : Qt.darker(Theme.palette.windowBackground, 1.16)
+        // The kit's sidebar pane, a shade off the window, and its rim.
+        color: Theme.palette.sidebar
         border.width: 1
-        border.color: Theme.light ? Qt.rgba(0, 0, 0, 0.09) : Qt.rgba(1, 1, 1, 0.14)
+        border.color: Theme.palette.separator
 
         // Its top, level with the toolbar, moves the window as a title bar
         // would; the rest is the sidebar's own.
@@ -168,8 +167,9 @@ FloatingWindow {
 
                 width: pageList.width
                 height: 36
-                radius: 9
-                color: current ? Theme.palette.accentFill
+                radius: 11
+                // Picked out in grey, as the kit's sidebars are.
+                color: current ? Theme.palette.fill
                      : area.containsMouse ? Theme.palette.quaternaryFill : "transparent"
 
                 Rectangle {
@@ -199,7 +199,7 @@ FloatingWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTranslate("settings", entry.modelData.name)
                     elide: Text.ElideRight
-                    font.weight: entry.current ? Font.DemiBold : Font.Normal
+                    font.weight: Font.Medium
                 }
 
                 MouseArea {

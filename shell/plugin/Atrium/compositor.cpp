@@ -504,6 +504,7 @@ QVariantMap Compositor::palette(bool light, const QString& accent, bool highCont
             {"thumb", c(p.thumb)},
             {"groupedBackground", c(p.grouped_background)},
             {"material", c(p.material)},
+            {"sidebar", c(p.sidebar)},
             {"accent", c(p.accent)},
             {"labelOnAccent", c(p.on_accent)},
             {"accentFill", c(p.accent_fill)},

@@ -15,7 +15,9 @@ Rectangle {
     height: column.implicitHeight
     radius: 14
     color: Theme.palette.groupedBackground
-    border.width: 1
+    // A lift of the window, no outline, as the kit's forms (Increase
+    // Contrast draws one).
+    border.width: Theme.highContrast ? 1 : 0
     border.color: Theme.palette.separator
 
     Column {

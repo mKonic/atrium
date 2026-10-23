@@ -57,7 +57,7 @@ TEST(Color, RoundTrips) {
 
 TEST(Settings, DefaultsComeFromTheConfig) {
     Settings s(Config::defaults(false), nullptr);
-    EXPECT_EQ(s.get("appearance.corner_radius"), 12);
+    EXPECT_EQ(s.get("appearance.corner_radius"), 21);
     EXPECT_EQ(s.get("shortcuts.modifier"), "super");
     EXPECT_EQ(Settings(Config::defaults(true), nullptr).get("shortcuts.modifier"), "alt");
 }
@@ -148,7 +148,7 @@ TEST(Settings, StoresOnlyChangedValues) {
     Registry r(":memory:");
     {
         Settings s(Config::defaults(false), &r);
-        ASSERT_FALSE(s.set("appearance.corner_radius", 12));  // the default
+        ASSERT_FALSE(s.set("appearance.corner_radius", 21));  // the default
         ASSERT_FALSE(s.set("keyboard.repeat_rate", 50));
     }
     const auto stored = r.settings();
@@ -170,7 +170,7 @@ TEST(Settings, BadStoredValuesNeverBlockStartup) {
     r.set_setting("keyboard.repeat_rate", 20);
     Settings s(Config::defaults(false), &r);
     s.load();
-    EXPECT_EQ(s.get("appearance.corner_radius"), 12);  // rejected, default kept
+    EXPECT_EQ(s.get("appearance.corner_radius"), 21);  // rejected, default kept
     EXPECT_EQ(s.get("keyboard.repeat_rate"), 20);      // the rest still loads
     EXPECT_FALSE(r.settings().contains("gone.key"));   // and the dead ones are cleared
 }

@@ -27,7 +27,6 @@ Item {
             width: parent.width
             text: row.title
             wrapMode: Text.WordWrap
-            font.weight: Font.Medium
         }
 
         StyledText {

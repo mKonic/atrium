@@ -1,7 +1,7 @@
 import QtQuick
 import shell.services
 
-// An on/off switch, as macOS 26 has it: held, its knob turns to glass over
+// An on/off switch, as macOS 27 has it: held, its knob turns to glass over
 // the track (and slides when let go).
 Item {
     id: root
@@ -18,8 +18,9 @@ Item {
     Accessible.onToggleAction: toggled()
     Accessible.onPressAction: toggled()
 
-    implicitWidth: 40
-    implicitHeight: 24
+    // The kit's form switch (Mini): a long track, its knob a capsule.
+    implicitWidth: 48
+    implicitHeight: 22
 
     Rectangle {
         id: track
@@ -39,7 +40,7 @@ Item {
     Thumb {
         x: root.checked ? root.width - width - 2 : 2
         anchors.verticalCenter: parent.verticalCenter
-        width: root.height - 4 + 4
+        width: Math.round(root.width * 0.6)
         height: root.height - 4
         pressed: area.pressed
         backdrop: track
