@@ -19,7 +19,7 @@ Rectangle {
 
     width: 320
     height: column.implicitHeight + 48
-    radius: 26
+    radius: 35
     color: Theme.material.thick
 
     Glass {}

@@ -125,7 +125,7 @@ PanelWindow {
         id: card
 
         anchors.fill: parent
-        radius: 22
+        radius: 27
         color: Theme.material.regular
 
         Glass {}

@@ -19,10 +19,11 @@ Rectangle {
     Accessible.role: Accessible.PopupMenu
     Accessible.name: title
 
-    // At least 220, wider for a long row.
-    width: Math.max(220, column.widest + Theme.padding.small * 2)
-    height: column.implicitHeight + Theme.padding.small * 2
-    radius: Theme.rounding.normal
+    // At least 220, wider for a long row. The kit's menu: rounded 16, its
+    // highlight 7px in from the edge.
+    width: Math.max(220, column.widest + Theme.padding.smaller * 2)
+    height: column.implicitHeight + Theme.padding.smaller * 2
+    radius: 16
     color: Theme.material.regular
 
     Glass {}
@@ -36,19 +37,17 @@ Rectangle {
         readonly property real widest: Math.max(0, ...children.map(c => c.implicitWidth ?? 0))
 
         anchors.fill: parent
-        anchors.margins: Theme.padding.small
+        anchors.margins: Theme.padding.smaller
 
         StyledText {
             visible: root.title.length > 0
             width: parent.width
             leftPadding: Theme.padding.normal
             rightPadding: Theme.padding.normal
-            topPadding: Theme.padding.small
-            bottomPadding: Theme.padding.small
+            height: 32
             text: root.title
             elide: Text.ElideMiddle
-            font.weight: Font.DemiBold
-            font.pointSize: Theme.font.size.smaller
+            font.weight: Font.Bold
             color: Theme.palette.secondaryLabel
         }
 
@@ -70,11 +69,11 @@ Rectangle {
         id: separator
 
         Item {
-            height: 9
+            height: 15
 
             Rectangle {
                 anchors.centerIn: parent
-                width: parent.width - Theme.padding.normal * 2
+                width: parent.width - Theme.padding.normal * 2 - Theme.padding.small
                 height: 1
                 color: Theme.palette.separator
             }
@@ -90,12 +89,14 @@ Rectangle {
             readonly property var action: (parent as Loader).modelData
             readonly property bool usable: action.enabled ?? true
 
-            implicitWidth: content.implicitWidth + Theme.padding.normal * 2 + (trailingIcon.visible ? trailingIcon.implicitWidth + Theme.spacing.normal : 0)
+            implicitWidth: content.implicitWidth + Theme.padding.normal * 2 + Theme.spacing.large + (trailingIcon.visible ? trailingIcon.implicitWidth + Theme.spacing.normal : 0)
                            + (hint.visible ? hint.implicitWidth + Theme.spacing.large * 2 : 0)
-            height: 34
-            radius: Theme.rounding.small
+            height: 32
+            radius: 11
             opacity: usable ? 1 : 0.4
-            color: hover.containsMouse && usable ? Theme.palette.tertiaryFill : "transparent"
+            // Picked out in the accent, as a Mac's menus do.
+            readonly property bool lit: hover.containsMouse && usable
+            color: lit ? (item.action.danger ? Theme.palette.red : Theme.palette.accent) : "transparent"
 
             Accessible.role: Accessible.MenuItem
             Accessible.name: action.text ?? ""
@@ -117,13 +118,14 @@ Rectangle {
                     horizontalAlignment: Text.AlignHCenter
                     text: item.action.icon ?? ""
                     font.pointSize: Theme.font.size.normal
-                    color: item.action.danger ? Theme.palette.red : Theme.palette.label
+                    color: item.lit ? Theme.palette.labelOnAccent : item.action.danger ? Theme.palette.red : Theme.palette.label
                 }
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     text: item.action.text
-                    color: item.action.danger ? Theme.palette.red : Theme.palette.label
+                    font.weight: Font.Medium
+                    color: item.lit ? Theme.palette.labelOnAccent : item.action.danger ? Theme.palette.red : Theme.palette.label
                 }
             }
 
@@ -136,7 +138,8 @@ Rectangle {
                 anchors.rightMargin: trailingIcon.visible ? Theme.spacing.small : Theme.padding.normal
                 visible: text.length > 0
                 text: item.action.hint ?? ""
-                color: Theme.palette.tertiaryLabel
+                font.weight: Font.Medium
+                color: item.lit ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
             }
 
             // A submenu's chevron, at the end.
@@ -149,7 +152,7 @@ Rectangle {
                 visible: text.length > 0
                 text: item.action.trailing ?? ""
                 font.pointSize: Theme.font.size.normal
-                color: Theme.palette.secondaryLabel
+                color: item.lit ? Theme.palette.labelOnAccent : Theme.palette.secondaryLabel
             }
 
             MouseArea {

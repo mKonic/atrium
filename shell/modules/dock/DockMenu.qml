@@ -55,9 +55,10 @@ Rectangle {
 
     visible: item !== null
     // As wide as its widest row ("Launch on GeForce RTX 5060 Ti"), 200 at least.
-    width: Math.max(200, ...column.children.map(c => c.need ?? 0)) + Theme.padding.small * 2
-    height: column.implicitHeight + Theme.padding.small * 2
-    radius: Theme.rounding.normal
+    // The kit's menu, as Menu's: rounded 16, rows lit in the accent.
+    width: Math.max(200, ...column.children.map(c => c.need ?? 0)) + Theme.padding.smaller * 2
+    height: column.implicitHeight + Theme.padding.smaller * 2
+    radius: 16
     color: Theme.material.regular
 
     Glass {}
@@ -68,17 +69,15 @@ Rectangle {
         id: column
 
         anchors.fill: parent
-        anchors.margins: Theme.padding.small
+        anchors.margins: Theme.padding.smaller
 
         StyledText {
             width: parent.width
+            height: 32
             leftPadding: Theme.padding.normal
-            topPadding: Theme.padding.small
-            bottomPadding: Theme.padding.small
             text: root.item?.name ?? ""
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
             color: Theme.palette.secondaryLabel
-            font.pointSize: Theme.font.size.smaller
         }
 
         Repeater {
@@ -91,10 +90,10 @@ Rectangle {
                 readonly property bool separator: modelData.separator ?? false
                 readonly property bool section: modelData.section !== undefined
                 readonly property bool media: modelData.media ?? false
-                readonly property real need: separator || media ? 0 : rowContent.implicitWidth + Theme.padding.normal * 2 + (check.visible ? check.width + Theme.spacing.small : 0)
+                readonly property real need: separator || media ? 0 : rowContent.implicitWidth + Theme.padding.normal * 2 + Theme.spacing.large + (check.visible ? check.width + Theme.spacing.small : 0)
 
                 width: column.width
-                height: separator ? Theme.padding.small * 2 + 1 : section ? 26 : media ? 40 : 34
+                height: separator ? 15 : section ? 28 : media ? 40 : 32
 
                 function pick(key: string): void {
                     const item = root.item;
@@ -110,7 +109,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.margins: Theme.padding.normal
+                    anchors.margins: Theme.padding.normal + Theme.padding.small
                     height: 1
                     color: Theme.palette.separator
                 }
@@ -123,9 +122,8 @@ Rectangle {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 4
                     text: row.modelData.section ?? ""
-                    color: Theme.palette.tertiaryLabel
-                    font.pointSize: Theme.font.size.smaller
-                    font.weight: Font.DemiBold
+                    color: Theme.palette.secondaryLabel
+                    font.weight: Font.Bold
                 }
 
                 // The player's keys, in one row.
@@ -176,8 +174,9 @@ Rectangle {
                     enabled: row.modelData.enabled ?? true
                     opacity: enabled ? 1 : 0.4
                     anchors.fill: parent
-                    radius: Theme.rounding.small
-                    color: hover.containsMouse ? Theme.palette.tertiaryFill : "transparent"
+                    radius: 11
+                    readonly property bool lit: hover.containsMouse && enabled
+                    color: lit ? Theme.palette.accent : "transparent"
 
                     Row {
                         id: rowContent
@@ -192,6 +191,7 @@ Rectangle {
                             visible: !row.modelData.themeIcon
                             text: row.modelData.icon ?? row.modelData.glyph ?? ""
                             font.pointSize: Theme.font.size.normal
+                            color: rowContent.parent.lit ? Theme.palette.labelOnAccent : Theme.palette.label
                         }
 
                         IconImage {
@@ -207,6 +207,8 @@ Rectangle {
                             width: Math.min(implicitWidth, 320)
                             elide: Text.ElideMiddle
                             text: row.modelData.text ?? ""
+                            font.weight: Font.Medium
+                            color: rowContent.parent.lit ? Theme.palette.labelOnAccent : Theme.palette.label
                         }
                     }
 
@@ -219,7 +221,7 @@ Rectangle {
                         visible: row.modelData.checkable ?? false
                         text: "check"
                         opacity: (row.modelData.checked ?? false) ? 1 : 0
-                        color: Theme.palette.accent
+                        color: parent.lit ? Theme.palette.labelOnAccent : Theme.palette.accent
                     }
 
                     MouseArea {

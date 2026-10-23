@@ -195,7 +195,7 @@ PanelWindow {
         y: Math.round(launcher.height * 0.18)
         width: Math.min(760, launcher.width - 64)
         height: Math.min(480, launcher.height - y - 48)
-        radius: 22
+        radius: 27
         color: Theme.material.regular
 
         Glass {}

@@ -41,7 +41,7 @@ PanelWindow {
         anchors.centerIn: parent
         width: 420
         height: column.implicitHeight + 56
-        radius: 26
+        radius: 35
         color: Theme.material.thick
 
         Glass {}

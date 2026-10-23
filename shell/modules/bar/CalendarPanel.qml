@@ -61,7 +61,7 @@ PanelWindow {
 
         width: parent.width
         height: body.implicitHeight + 28
-        radius: 22
+        radius: 27
         color: Theme.material.regular
         border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator

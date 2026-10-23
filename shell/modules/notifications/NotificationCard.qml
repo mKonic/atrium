@@ -115,8 +115,10 @@ Rectangle {
         onTapped: root.dismissed()
     }
 
-    implicitHeight: content.implicitHeight + 24
-    radius: 18
+    // The kit's notification: rounded 24, the app's icon at the left, the
+    // title in bold over the message, and the time at the top right.
+    implicitHeight: content.implicitHeight + 32
+    radius: 24
     color: Theme.material.regular
 
     Glass {}
@@ -128,6 +130,19 @@ Rectangle {
         id: hover
     }
 
+    StyledText {
+        id: when
+
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 16
+        anchors.rightMargin: 20
+        text: NotificationHistory.ago(root.time)
+        font.pointSize: Theme.font.size.small
+        color: Theme.palette.secondaryLabel
+        visible: !(root.expandable && root.hovered)
+    }
+
     TapHandler {
         onTapped: root.clicked()
     }
@@ -135,14 +150,14 @@ Rectangle {
     Row {
         id: content
 
-        x: 12
-        y: 12
-        width: parent.width - 24
-        spacing: 12
+        x: 16
+        y: 16
+        width: parent.width - 32
+        spacing: 14
 
         Item {
-            width: 40
-            height: 40
+            width: 42
+            height: 42
 
             Rectangle {
                 anchors.fill: parent
@@ -171,38 +186,16 @@ Rectangle {
         }
 
         Column {
-            width: parent.width - 52
+            width: parent.width - 56
             spacing: 2
 
-            Row {
-                width: parent.width
-                spacing: 6
-
-                StyledText {
-                    visible: !root.compact  // its group already says
-                    text: root.app
-                    font.pointSize: Theme.font.size.small
-                    font.weight: Font.Medium
-                    color: Theme.palette.secondaryLabel
-                    elide: Text.ElideRight
-                    width: Math.min(implicitWidth, parent.width - when.implicitWidth - 30)
-                }
-
-                StyledText {
-                    id: when
-
-                    text: root.compact ? NotificationHistory.ago(root.time) : `· ${NotificationHistory.ago(root.time)}`
-                    font.pointSize: Theme.font.size.small
-                    color: Theme.palette.tertiaryLabel
-                }
-            }
-
             StyledText {
-                width: parent.width
-                text: root.summary
-                font.weight: Font.DemiBold
+                // Clear of the time in the corner.
+                width: parent.width - when.implicitWidth - Theme.spacing.normal
+                // A message with no title goes by its app's name.
+                text: root.summary.length > 0 ? root.summary : root.app
+                font.weight: Font.Bold
                 elide: Text.ElideRight
-                visible: text.length > 0
             }
 
             StyledText {
@@ -215,7 +208,6 @@ Rectangle {
                 maximumLineCount: root.expanded ? 14 : 1
                 elide: Text.ElideRight
                 color: Theme.palette.secondaryLabel
-                font.pointSize: Theme.font.size.smaller
                 visible: text.length > 0
             }
 
@@ -261,16 +253,15 @@ Rectangle {
         }
     }
 
-    // More: the whole text and the buttons.
+    // More: the whole text and the buttons. In the time's place on hover.
     Rectangle {
-        anchors.top: parent.top
-        anchors.right: closeButton.left
-        anchors.topMargin: 8
-        anchors.rightMargin: 4
-        width: 22
-        height: 22
-        radius: 11
-        visible: root.expandable
+        anchors.verticalCenter: when.verticalCenter
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+        width: 24
+        height: 24
+        radius: 12
+        visible: root.expandable && root.hovered
         color: moreArea.containsMouse ? Theme.palette.secondaryFill : "transparent"
 
         MaterialIcon {
@@ -290,16 +281,18 @@ Rectangle {
         }
     }
 
-    // Close, on hover.
+    // Close, on hover: at the top left corner, as a Mac's.
     Rectangle {
         id: closeButton
 
         anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 8
+        anchors.left: parent.left
+        anchors.margins: 4
         width: 22
         height: 22
         radius: 11
+        border.width: Theme.lens ? 0 : 1
+        border.color: Theme.palette.separator
         color: closeArea.containsMouse ? Theme.material.thick : Theme.material.regular
 
         Glass {}

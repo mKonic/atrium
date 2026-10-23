@@ -51,7 +51,7 @@ PanelWindow {
         anchors.top: parent.top
         height: Math.min(body.implicitHeight + 16, center.height)
         clip: true
-        radius: 22
+        radius: 27
 
         // Its own animation for entries coming and going; a card that
         // grows or shrinks is followed as it goes, or the panel would trail it.
