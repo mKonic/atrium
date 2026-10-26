@@ -28,7 +28,7 @@ Column {
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
-            width: 150
+            width: 180
             text: parent.label
             font.pointSize: Theme.font.size.small
             color: Theme.palette.secondaryLabel

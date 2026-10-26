@@ -14,11 +14,21 @@ Column {
 
     property string expanded: ""  // the app whose details are open
     property bool picking: false
+    // Where a new app is picked from: the windows open now, or the installed apps.
+    property string source: "open-windows"
+    // An open window's app picked, with nothing kept for it yet: listed first
+    // until one of its options is set (which makes its record).
+    property string draft: ""
+    readonly property var listed: draft !== "" && !Atrium.apps.some(a => a.app_id === draft)
+        ? [{ app_id: draft, secret: "", space: 0, launch: "", dock: null, draft: true }].concat(Atrium.apps)
+        : Atrium.apps
 
     spacing: 12
 
+    // Its installed name, else the title of a window of it that's open (a
+    // game started by Steam or Wine has no entry under its window's app id).
     function nameOf(id: string): string {
-        return DesktopEntries.heuristicLookup(id)?.name ?? id;
+        return DesktopEntries.heuristicLookup(id)?.name ?? Atrium.windows.find(w => w.app_id === id && w.title)?.title ?? id;
     }
 
     function iconOf(id: string): string {
@@ -35,6 +45,7 @@ Column {
             primary: !root.picking
             onClicked: {
                 root.picking = !root.picking;
+                root.source = "open-windows";
                 search.text = "";
             }
         }
@@ -66,7 +77,36 @@ Column {
             width: parent.width - 24
             spacing: 4
 
+            ChoiceControl {
+                name: qsTr("Pick from")
+                choices: ["open-windows", "installed"]
+                value: root.source
+                onPicked: v => root.source = v
+            }
+
+            Item {
+                width: 1
+                height: 6
+            }
+
+            // An open window: the app id its windows really have (a launcher's
+            // name for an app can differ from it, as Wine and Steam games' do).
+            WindowPicker {
+                visible: root.picking && root.source === "open-windows"
+                width: parent.width
+                needsAppId: true
+                onPicked: w => {
+                    if (!w.app_id)
+                        return;
+                    if (!Atrium.apps.some(a => a.app_id === w.app_id))
+                        root.draft = w.app_id;
+                    root.expanded = w.app_id;
+                    root.picking = false;
+                }
+            }
+
             Rectangle {
+                visible: root.source === "installed"
                 width: parent.width
                 height: 34
                 radius: 9
@@ -97,7 +137,7 @@ Column {
             }
 
             Repeater {
-                model: found
+                model: root.source === "installed" ? found : []
 
                 Rectangle {
                     id: hit
@@ -159,14 +199,14 @@ Column {
             width: parent.width
 
             StyledText {
-                visible: Atrium.apps.length === 0
+                visible: root.listed.length === 0
                 padding: 16
                 text: qsTr("No apps yet.")
                 color: Theme.palette.secondaryLabel
             }
 
             Repeater {
-                model: Atrium.apps
+                model: root.listed
 
                 Column {
                     id: app
@@ -188,8 +228,12 @@ Column {
                             parts.push("Fullscreen");
                         else if (modelData.maximized)
                             parts.push("Maximized");
+                        if (modelData.render_unfocused)
+                            parts.push("Keeps drawing out of sight");
                         if (modelData.placement)
                             parts.push("Size remembered");
+                        if (modelData.draft)
+                            parts.push(qsTr("Nothing set yet"));
                         return parts.join(" · ");
                     }
 
@@ -311,7 +355,12 @@ Column {
 
                             PillButton {
                                 text: qsTr("Forget App")
-                                onClicked: Atrium.forgetApp(app.modelData.app_id)
+                                onClicked: {
+                                    if (app.modelData.draft)
+                                        root.draft = "";
+                                    else
+                                        Atrium.forgetApp(app.modelData.app_id);
+                                }
                             }
                         }
                     }
@@ -328,7 +377,7 @@ Column {
 
         StyledText {
             anchors.verticalCenter: parent.verticalCenter
-            width: 150
+            width: 180
             text: parent.label
             font.pointSize: Theme.font.size.small
             color: Theme.palette.secondaryLabel

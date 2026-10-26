@@ -147,20 +147,30 @@ Rectangle {
 
         property var rule: null  // the one being edited; null: a new one
         property var draft: ({})
+        // Choosing an open window rather than typing patterns: where a new rule starts.
+        property bool choosing: false
 
         function edit(r: var): void {
             rule = r;
             draft = r ? Object.assign({}, r) : {};
             appField.text = r?.app_pattern ?? "";
             titleField.text = r?.title_pattern ?? "";
+            choosing = !r && picker.windows.length > 0;
             open();
+        }
+
+        // A window chosen: its exact app id, or its exact title when it has none.
+        function take(w: var): void {
+            appField.text = w.app_id ? picker.exactly(w.app_id) : "";
+            titleField.text = w.app_id ? "" : picker.exactly(w.title);
+            choosing = false;
         }
 
         width: 600
         title: rule ? qsTr("Edit Rule") : qsTr("New Rule")
         action: rule ? "Save" : "Add"
         ready: appField.text.trim() !== "" || titleField.text.trim() !== ""
-        onOpened: appField.focusField()
+        onOpened: if (!choosing) appField.focusField()
         onSubmitted: {
             const fields = Object.assign({}, draft, {
                 app_pattern: appField.text.trim(),
@@ -190,7 +200,39 @@ Rectangle {
             }
         }
 
+        Row {
+            width: parent.width
+            spacing: 12
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - choose.width - 12
+                wrapMode: Text.WordWrap
+                text: sheet.choosing ? qsTr("Choose the window the rule is for.") : qsTr("Match a window by its app id or title, or choose one that's open.")
+                font.pointSize: Theme.font.size.small
+                color: Theme.palette.secondaryLabel
+            }
+
+            PillButton {
+                id: choose
+
+                anchors.verticalCenter: parent.verticalCenter
+                text: sheet.choosing ? qsTr("Type Patterns") : qsTr("Choose a Window…")
+                icon: sheet.choosing ? "edit" : "select_window"
+                onClicked: sheet.choosing = !sheet.choosing
+            }
+        }
+
+        WindowPicker {
+            id: picker
+
+            visible: sheet.choosing
+            width: parent.width
+            onPicked: w => sheet.take(w)
+        }
+
         StyledText {
+            visible: !sheet.choosing
             width: parent.width
             wrapMode: Text.WordWrap
             text: qsTr("Patterns are regular expressions, matched anywhere and without regard to case: “firefox”, “^steam_app_”.")
@@ -199,11 +241,12 @@ Rectangle {
         }
 
         Row {
+            visible: !sheet.choosing
             spacing: 12
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 150
+                width: 180
                 text: qsTr("App id")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
@@ -212,18 +255,19 @@ Rectangle {
             Field {
                 id: appField
 
-                implicitWidth: 360
+                implicitWidth: 340
                 placeholder: qsTr("Any")
                 onAccepted: if (sheet.ready) sheet.submitted()
             }
         }
 
         Row {
+            visible: !sheet.choosing
             spacing: 12
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 150
+                width: 180
                 text: qsTr("Title")
                 font.pointSize: Theme.font.size.small
                 color: Theme.palette.secondaryLabel
@@ -232,13 +276,14 @@ Rectangle {
             Field {
                 id: titleField
 
-                implicitWidth: 360
+                implicitWidth: 340
                 placeholder: qsTr("Any")
                 onAccepted: if (sheet.ready) sheet.submitted()
             }
         }
 
         WindowOptions {
+            visible: !sheet.choosing
             record: sheet.draft
             onChanged: fields => sheet.draft = Object.assign({}, sheet.draft, fields)
         }

@@ -46,4 +46,5 @@ TextControl 1.0 TextControl.qml
 UsersPage 1.0 UsersPage.qml
 WallpaperControl 1.0 WallpaperControl.qml
 WindowOptions 1.0 WindowOptions.qml
+WindowPicker 1.0 WindowPicker.qml
 LauncherPage 1.0 LauncherPage.qml

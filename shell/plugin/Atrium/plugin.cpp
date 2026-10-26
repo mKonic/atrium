@@ -33,6 +33,7 @@
 #include "keyboard_layouts.hpp"
 #include "welcome.hpp"
 #include "share.hpp"
+#include "window_shots.hpp"
 #include "file_chooser.hpp"
 #include "app_chooser.hpp"
 #include "print_prompt.hpp"
@@ -325,6 +326,7 @@ public:
         qmlRegisterType<FolderModel>(uri, 1, 0, "FolderModel");
         qmlRegisterType<ChooserModel>(uri, 1, 0, "ChooserModel");
         qmlRegisterType<ChooserPlaces>(uri, 1, 0, "ChooserPlaces");
+        qmlRegisterType<WindowShots>(uri, 1, 0, "WindowShots");
     }
 };
 
