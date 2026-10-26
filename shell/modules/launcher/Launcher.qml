@@ -698,6 +698,7 @@ PanelWindow {
             radius: 14
             visible: launcher.menuOpen
             color: Theme.material.thick
+            Glass {}
             border.width: 1
             border.color: Theme.palette.separator
             clip: true
@@ -880,6 +881,7 @@ PanelWindow {
                 height: askColumn.implicitHeight + 36
                 radius: 18
                 color: Theme.material.thick
+                Glass {}
                 border.width: 1
                 border.color: Theme.palette.separator
 

@@ -60,6 +60,7 @@ Module {
         height: label.implicitHeight + 6
         radius: height / 2
         color: Theme.material.thick
+        Glass {}
         opacity: area.containsMouse ? 1 : 0
         visible: opacity > 0
 

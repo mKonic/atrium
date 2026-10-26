@@ -195,6 +195,7 @@ Item {
         height: Math.max(4, Math.round(root.iconSize * 0.1))
         radius: height / 2
         color: Theme.material.thick
+        Glass {}
         border.width: 1
         border.color: Theme.palette.separator
         visible: root.progress >= 0
