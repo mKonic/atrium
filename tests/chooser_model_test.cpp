@@ -130,6 +130,33 @@ TEST(ChooserModel, SearchesUnderTheFolder) {
     EXPECT_EQ(m.mode(), "browse");
 }
 
+// Hits arrive in their final order and are only ever appended (a reset per
+// batch hung the dialog on a big home); links to folders aren't walked.
+TEST(ChooserModel, SearchAppendsInOrder) {
+    QTemporaryDir dir;
+    QDir d(dir.path());
+    for (const char* sub : {"a/b", "a b", "z"})
+        d.mkpath(sub);
+    for (const char* file : {"hit 2", "a/hit", "a/b/hit", "a b/hit", "z/hit10", "z/hit9"})
+        QFile(d.filePath(file)).open(QIODevice::WriteOnly);
+    QFile::link(d.filePath("z"), d.filePath("link"));
+    ChooserModel m;
+    m.setFolder(dir.path());
+    m.startSearch();
+    int resets = 0;
+    QObject::connect(&m, &QAbstractItemModel::modelReset, [&] { ++resets; });
+    m.setQuery("hit");
+    QElapsedTimer t;
+    t.start();
+    while ((m.searching() || m.count() < 6) && t.elapsed() < 5000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    QStringList where;
+    for (int i = 0; i < m.count(); ++i)
+        where << QDir(dir.path()).relativeFilePath(m.row(i).value("path").toString());
+    EXPECT_EQ(where, (QStringList{"hit 2", "a/hit", "a/b/hit", "a b/hit", "z/hit9", "z/hit10"}));
+    EXPECT_LE(resets, 1);  // the one clearing the old results
+}
+
 TEST(ChooserModel, CompletesTypedPaths) {
     Folder f;
     ChooserModel m;

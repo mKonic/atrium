@@ -6,7 +6,6 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
-#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QMimeDatabase>
@@ -14,7 +13,11 @@
 #include <QStandardPaths>
 #include <QUrl>
 
+#include <sys/vfs.h>
+
 #include <algorithm>
+#include <chrono>
+#include <filesystem>
 
 namespace atrium {
 
@@ -61,6 +64,47 @@ std::string collateKey(const QString& name) {
     return out.toStdString();
 }
 
+// A folder as a sort key: its parts' collation keys, joined by NUL (which no
+// name holds), so "a/b" sorts before "a b" and a folder before its subfolders:
+// the order the search walks in.
+std::string dirKeyFor(const QString& dir) {
+    std::string key;
+    for (const QString& part : dir.split('/', Qt::SkipEmptyParts)) {
+        key += '\0';
+        key += collateKey(part);
+    }
+    return key;
+}
+
+// Kernel and device filesystems hold no files to choose (and /proc never ends).
+bool pseudoFilesystem(const std::string& dir) {
+    struct statfs fs {};
+    if (statfs(dir.c_str(), &fs) != 0)
+        return true;
+    switch (static_cast<unsigned long>(fs.f_type)) {
+    case 0x9fa0:      // proc
+    case 0x62656572:  // sysfs
+    case 0x1cd1:      // devpts
+    case 0x27e0eb:    // cgroup
+    case 0x63677270:  // cgroup2
+    case 0x64626720:  // debugfs
+    case 0x74726163:  // tracefs
+    case 0x73636673:  // securityfs
+    case 0x6165676c:  // pstore
+    case 0xcafe4a11:  // bpf
+    case 0x62656570:  // configfs
+    case 0x65735543:  // fusectl
+    case 0xde5e81e4:  // efivarfs
+    case 0x42494e4d:  // binfmt_misc
+    case 0x958458f6:  // hugetlbfs
+    case 0x19800202:  // mqueue
+    case 0x0187:      // autofs (entering one mounts it)
+        return true;
+    default:
+        return dir == "/dev";
+    }
+}
+
 } // namespace
 
 ChooserModel::ChooserModel(QObject* parent) : QAbstractListModel(parent) {
@@ -71,6 +115,12 @@ ChooserModel::ChooserModel(QObject* parent) : QAbstractListModel(parent) {
             loadFolder();
     });
     connect(&watcher_, &QFileSystemWatcher::directoryChanged, this, [this] { settle_.start(); });
+    queryDelay_.setSingleShot(true);
+    queryDelay_.setInterval(150);
+    connect(&queryDelay_, &QTimer::timeout, this, [this] {
+        if (mode_ == "search")
+            runSearch();
+    });
 }
 
 ChooserModel::~ChooserModel() {
@@ -120,8 +170,15 @@ void ChooserModel::setQuery(const QString& query) {
         return;
     query_ = query;
     emit queryChanged();
-    if (mode_ == "search")
+    if (mode_ != "search")
+        return;
+    // Cleared: at once. Typed: once the typing pauses.
+    if (query_.trimmed().isEmpty()) {
+        queryDelay_.stop();
         runSearch();
+    } else {
+        queryDelay_.start();
+    }
 }
 
 void ChooserModel::setPatterns(const QVariantList& patterns) {
@@ -217,19 +274,23 @@ void ChooserModel::setMultiple(bool on) {
     emit selectionChanged();
 }
 
-bool ChooserModel::lets(const QFileInfo& info) const {
+ChooserModel::Lens ChooserModel::lens() const {
+    return {act(), mode_ != "browse", !patterns_.isEmpty(), globs_, mimes_};
+}
+
+bool ChooserModel::passes(const Lens& lens, const QFileInfo& info) {
     // Folders are never filtered: they are there to go into.
-    if (info.isDir() || patterns_.isEmpty())
+    if (!lens.filtered || info.isDir())
         return true;
     const std::string name = info.fileName().toStdString();
-    for (const std::string& glob : globs_)
+    for (const std::string& glob : lens.globs)
         if (files::glob_match(name, glob))
             return true;
-    if (mimes_.isEmpty())
+    if (lens.mimes.isEmpty())
         return false;
-    static const QMimeDatabase db;
+    const QMimeDatabase db;
     const QMimeType type = db.mimeTypeForFile(info);
-    for (const QString& m : mimes_) {
+    for (const QString& m : lens.mimes) {
         if (m == "*" || m == "*/*")
             return true;
         if (m.endsWith("/*")) {
@@ -244,14 +305,14 @@ bool ChooserModel::lets(const QFileInfo& info) const {
     return false;
 }
 
-ChooserModel::Row ChooserModel::makeRow(const QFileInfo& info, qint64 time) const {
-    static const QMimeDatabase db;
+ChooserModel::Row ChooserModel::buildRow(const Lens& lens, const QFileInfo& info, qint64 time) {
+    const QMimeDatabase db;
     Row r;
     r.path = info.absoluteFilePath();
     r.name = info.fileName();
     r.isDir = info.isDir();
     r.hidden = r.name.startsWith('.') || r.name.endsWith('~');
-    r.sensitive = chooser::sensitive(act(), r.isDir);
+    r.sensitive = chooser::sensitive(lens.act, r.isDir);
     r.time = time ? time : info.lastModified().toSecsSinceEpoch();
     r.nameKey = collateKey(r.name);
     if (r.isDir) {
@@ -269,7 +330,8 @@ ChooserModel::Row ChooserModel::makeRow(const QFileInfo& info, qint64 time) cons
     }
     // Recent and search say where each one is: home-relative.
     const QString dir = info.absolutePath();
-    if (mode_ != "browse") {
+    if (lens.located) {
+        r.dirKey = dirKeyFor(dir);
         if (dir == homePath())
             r.location = "Home";
         else if (dir.startsWith(homePath() + "/"))
@@ -292,9 +354,11 @@ void ChooserModel::sortRows(std::vector<Row>& rows) const {
         return;
     }
     if (mode_ == "search") {
-        // By where, then name.
+        // By where, then name: the order the walk finds them in.
         std::ranges::stable_sort(rows, [](const Row& a, const Row& b) {
-            return a.location != b.location ? a.location < b.location : a.nameKey < b.nameKey;
+            if (a.dirKey != b.dirKey)
+                return a.dirKey < b.dirKey;
+            return a.nameKey != b.nameKey ? a.nameKey < b.nameKey : a.name < b.name;
         });
         return;
     }
@@ -418,50 +482,91 @@ void ChooserModel::cancelSearch() {
 }
 
 void ChooserModel::runSearch() {
+    queryDelay_.stop();
     cancelSearch();
     setRows({});
     const QString text = query_.trimmed();
     if (text.isEmpty())
         return;
     // Every word somewhere in the name, ignoring case; under the folder
-    // being browsed, hidden ones left out unless shown.
+    // being browsed, hidden ones left out unless shown. Rows are made on the
+    // thread and arrive in their final order (each folder's names sorted,
+    // its matches before its subfolders'), so the list only ever grows at
+    // the end. Symlinks aren't followed; kernel filesystems aren't entered.
     const std::vector<std::string> terms = file_search::terms(text.toStdString());
     auto stop = std::make_shared<std::atomic<bool>>(false);
     searchStop_ = stop;
     searching_ = true;
     emit searchingChanged();
-    const QString root = folder_;
+    const std::string root = QFile::encodeName(folder_).toStdString();
     const bool hidden = showHidden_;
-    searchThread_ = std::thread([this, stop, root, hidden, terms] {
-        QDir::Filters flags = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
-        if (hidden)
-            flags |= QDir::Hidden;
-        QDirIterator it(root, flags, QDirIterator::Subdirectories);
-        QStringList batch;
+    const Lens lens = this->lens();
+    searchThread_ = std::thread([this, stop, root, hidden, terms, lens] {
+        namespace fs = std::filesystem;
+        using Clock = std::chrono::steady_clock;
+        std::vector<Row> batch;
+        auto sent = Clock::now();
         auto send = [&] {
-            if (batch.isEmpty())
+            sent = Clock::now();
+            if (batch.empty() || stop->load())
                 return;
-            QMetaObject::invokeMethod(this, [this, batch, stop] {
+            auto rows = std::make_shared<std::vector<Row>>(std::move(batch));
+            batch.clear();
+            QMetaObject::invokeMethod(this, [this, rows, stop] {
+                if (!stop->load())
+                    appendRows(std::move(*rows));
+            }, Qt::QueuedConnection);
+        };
+        struct Entry {
+            std::string name, key;
+            QString qname;
+            bool dir = false;  // a real folder (not a link to one): walked into
+        };
+        auto visit = [&](auto& self, const std::string& dir, int depth) -> void {
+            if (stop->load() || depth > 64 || pseudoFilesystem(dir))
+                return;
+            std::error_code ec;
+            fs::directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec);
+            if (ec)
+                return;
+            std::vector<Entry> entries;
+            for (const fs::directory_entry& e : it) {
                 if (stop->load())
                     return;
-                std::vector<Row> rows = rows_;
-                for (const QString& p : batch) {
-                    const QFileInfo info(p);
-                    if (lets(info))
-                        rows.push_back(makeRow(info, 0));
-                }
-                setRows(std::move(rows));
-            }, Qt::QueuedConnection);
-            batch.clear();
-        };
-        while (!stop->load() && it.hasNext()) {
-            it.next();
-            const QFileInfo info = it.fileInfo();
-            if (file_search::name_matches(info.fileName().toLower().toStdString(), terms))
-                batch << info.absoluteFilePath();
-            if (batch.size() >= 500)
+                std::string name = e.path().filename().string();
+                if (!hidden && (name.starts_with('.') || name.ends_with('~')))
+                    continue;
+                Entry entry;
+                entry.qname = QFile::decodeName(QByteArray::fromStdString(name));
+                entry.key = collateKey(entry.qname);
+                // The type readdir gave: no stat, and a link stays a link.
+                entry.dir = e.symlink_status(ec).type() == fs::file_type::directory;
+                entry.name = std::move(name);
+                entries.push_back(std::move(entry));
+            }
+            std::ranges::sort(entries, [](const Entry& a, const Entry& b) {
+                return a.key != b.key ? a.key < b.key : a.qname < b.qname;
+            });
+            const std::string prefix = dir == "/" ? dir : dir + "/";
+            for (const Entry& e : entries) {
+                if (stop->load())
+                    return;
+                if (!file_search::name_matches(e.qname.toLower().toStdString(), terms))
+                    continue;
+                const QFileInfo info(QFile::decodeName(QByteArray::fromStdString(prefix + e.name)));
+                if (passes(lens, info))
+                    batch.push_back(buildRow(lens, info, 0));
+                if (batch.size() >= 500)
+                    send();
+            }
+            // What's found so far shows soon, even while matches are few.
+            if (!batch.empty() && Clock::now() - sent > std::chrono::milliseconds(100))
                 send();
-        }
+            for (const Entry& e : entries)
+                if (e.dir)
+                    self(self, prefix + e.name, depth + 1);
+        };
+        visit(visit, root, 0);
         send();
         QMetaObject::invokeMethod(this, [this, stop] {
             if (stop->load() || !searching_)
@@ -470,6 +575,17 @@ void ChooserModel::runSearch() {
             emit searchingChanged();
         }, Qt::QueuedConnection);
     });
+}
+
+void ChooserModel::appendRows(std::vector<Row> rows) {
+    if (rows.empty())
+        return;
+    const int first = count();
+    beginInsertRows({}, first, first + int(rows.size()) - 1);
+    std::ranges::move(rows, std::back_inserter(rows_));
+    endInsertRows();
+    emit countChanged();
+    applyPending();
 }
 
 void ChooserModel::setMode(const QString& mode) {
@@ -635,7 +751,7 @@ QVariantMap ChooserModel::row(int i) const {
     if (i < 0 || i >= count())
         return {};
     const Row& r = rows_[size_t(i)];
-    return {{"path", r.path}, {"name", r.name}, {"isDir", r.isDir}, {"sensitive", r.sensitive}};
+    return {{"path", r.path}, {"name", r.name}, {"isDir", r.isDir}, {"sensitive", r.sensitive}, {"selected", r.selected}};
 }
 
 QVariantMap ChooserModel::activate(int i) {

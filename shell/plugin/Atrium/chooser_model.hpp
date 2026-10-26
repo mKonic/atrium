@@ -151,10 +151,24 @@ private:
         bool isDir = false, hidden = false, selected = false, sensitive = true;
         qint64 size = 0, time = 0;
         std::string nameKey;
+        std::string dirKey;  // recent and search: the folder, for sorting by where
     };
 
-    Row makeRow(const QFileInfo& info, qint64 time) const;
-    bool lets(const QFileInfo& info) const;
+    // What decides a row, copied so the search thread needn't touch the model.
+    struct Lens {
+        chooser::Action act = chooser::Action::Open;
+        bool located = false;  // recent and search: rows say where they are
+        bool filtered = false;
+        std::vector<std::string> globs;
+        QStringList mimes;
+    };
+    Lens lens() const;
+    static Row buildRow(const Lens& lens, const QFileInfo& info, qint64 time);
+    static bool passes(const Lens& lens, const QFileInfo& info);
+    Row makeRow(const QFileInfo& info, qint64 time) const { return buildRow(lens(), info, time); }
+    bool lets(const QFileInfo& info) const { return passes(lens(), info); }
+    // Search hits arrive in order: added at the end, nothing else redone.
+    void appendRows(std::vector<Row> rows);
     void setRows(std::vector<Row> rows);
     void sortRows(std::vector<Row>& rows) const;
     void loadFolder();
@@ -180,6 +194,7 @@ private:
     QStringList trail_;      // the path bar's folders, deepest last
     QFileSystemWatcher watcher_;
     QTimer settle_;
+    QTimer queryDelay_;  // typing settles before a search starts (GtkSearchEntry's 150 ms)
     std::shared_ptr<std::atomic<bool>> searchStop_;
     std::thread searchThread_;
 };

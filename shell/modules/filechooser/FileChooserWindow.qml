@@ -18,6 +18,9 @@ FloatingWindow {
     readonly property string action: FileChooser.action  // open, save, folder
     readonly property bool saving: action === "save"
     property bool locating: false  // the location field instead of the path bar
+    // Opened from the path bar: the folder's path, picked to type over. Left
+    // as it was, clicking elsewhere turns it back into the path bar.
+    property string locationShown: ""
     property string sidebarCurrent: model.mode === "recent" ? "recent" : otherLocations ? "other" : model.folder
     property bool otherLocations: false
 
@@ -55,7 +58,9 @@ FloatingWindow {
     function applyText(next: var, typed: string): void {
         if (next.enter) {
             go(next.enter);
-            if (next.clear && !saving)
+            if (next.clear && !saving && locationShown !== "")
+                stopLocation();  // typed from the path bar: back to it
+            else if (next.clear && !saving)
                 locationField.setText("");
             else if (next.clear)
                 nameField.text = nameField.text.slice(nameField.text.lastIndexOf("/") + 1);
@@ -121,12 +126,24 @@ FloatingWindow {
             return;
         }
         locating = true;
+        locationShown = "";
         locationField.setText(text);
         locationField.focusField();
     }
 
+    // The path bar clicked beside its buttons: the folder's path, ready to edit.
+    function editLocation(): void {
+        if (saving || model.mode !== "browse")
+            return;
+        const path = model.folder === "/" ? "/" : model.folder + "/";
+        startLocation(path);
+        locationShown = path;
+        locationField.select(0, path.length);
+    }
+
     function stopLocation(): void {
         locating = false;
+        locationShown = "";
         list.focusList();
     }
 
@@ -262,8 +279,8 @@ FloatingWindow {
         onActivated: {
             if (prompt.open)
                 prompt.close();
-            else if (menu.visible)
-                menu.visible = false;
+            else if (menu.shown)
+                menu.shown = false;
             else if (model.mode === "search")
                 root.toggleSearch();
             else if (root.locating)
@@ -331,6 +348,7 @@ FloatingWindow {
                 anchors.rightMargin: 8
                 height: parent.height
                 model: model
+                onEditRequested: root.editLocation()
             }
 
             StyledText {
@@ -353,6 +371,10 @@ FloatingWindow {
                 inlineCompletion: true
                 onAccepted: root.accept()
                 onEscaped: root.stopLocation()
+                onEditingChanged: {
+                    if (!editing && root.locating && root.locationShown !== "" && text === root.locationShown)
+                        root.locating = false;
+                }
             }
 
             Field {
@@ -668,13 +690,13 @@ FloatingWindow {
         id: menuLayer
 
         anchors.fill: parent
-        visible: menu.visible
+        visible: menu.shown  // not menu.visible: inside a hidden layer that is always false
         z: 10
 
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.AllButtons
-            onPressed: menu.visible = false
+            onPressed: menu.shown = false
         }
 
         Menu {
@@ -687,9 +709,8 @@ FloatingWindow {
                 kind = what;
                 place = row;
                 actions = what === "list" ? listActions() : placeActions(row);
-                x = Math.max(8, Math.min(at.x + page.x, root.width - width - 8));
-                y = Math.max(8, Math.min(at.y + page.y, root.height - height - 8));
-                visible = true;
+                origin = Qt.point(at.x + page.x, at.y + page.y);
+                shown = true;
                 forceActiveFocus();
             }
 
@@ -747,9 +768,14 @@ FloatingWindow {
                 return out;
             }
 
-            visible: false
-            onPicked: visible = false
-            Keys.onEscapePressed: visible = false
+            property bool shown: false
+            // Where it was asked for; kept inside the window once its size is known
+            // (a binding: the rows lay out after showFor returns).
+            property point origin
+            x: Math.max(8, Math.min(origin.x, menuLayer.width - width - 8))
+            y: Math.max(8, Math.min(origin.y, menuLayer.height - height - 8))
+            onPicked: shown = false
+            Keys.onEscapePressed: shown = false
         }
     }
 

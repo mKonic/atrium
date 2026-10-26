@@ -150,6 +150,24 @@ FocusScope {
         ListView {
             id: list
 
+            // A long press with a finger opens the menu too, on a row
+            // (picking it first) or beside them, as GTK's touch gesture does.
+            TapHandler {
+                acceptedDevices: PointerDevice.TouchScreen
+                gesturePolicy: TapHandler.DragThreshold
+                onLongPressed: {
+                    const at = point.position;
+                    const index = list.indexAt(at.x + list.contentX, at.y + list.contentY);
+                    if (index >= 0) {
+                        list.currentIndex = index;
+                        if (!root.model.row(index).selected)
+                            root.model.select(index, ChooserModel.Only);
+                    }
+                    const p = list.mapToItem(root, at.x, at.y);
+                    root.menuAt(p.x, p.y);
+                }
+            }
+
             anchors.top: heading.bottom
             anchors.topMargin: 2
             anchors.bottom: parent.bottom
@@ -404,6 +422,23 @@ FocusScope {
                         return;  // our own rows
                     root.dropped(d.urls.map(u => decodeURIComponent(String(u).replace(/^file:\/\//, ""))));
                 }
+            }
+        }
+
+        // A right click on the room below the rows (on top of the list, which
+        // would take it): the same menu as on a row (GTK).
+        MouseArea {
+            readonly property real rowsEnd: list.y + Math.max(0, list.contentHeight - list.contentY)
+
+            x: list.x
+            y: Math.min(list.y + list.height, rowsEnd)
+            width: list.width
+            height: list.y + list.height - y
+            acceptedButtons: Qt.RightButton
+            onPressed: mouse => {
+                list.forceActiveFocus();
+                const p = mapToItem(root, mouse.x, mouse.y);
+                root.menuAt(p.x, p.y);
             }
         }
     }

@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Effects
 import shell.components
 import shell.services
 import Atrium
@@ -27,6 +28,7 @@ Rectangle {
 
     function select(start: int, end: int): void {
         input.select(start, end);
+        refresh();  // names follow what's in front of the selection: none for a whole one
     }
 
     function setText(t: string): void {
@@ -140,18 +142,38 @@ Rectangle {
         }
     }
 
-    // The names that fit, under the field.
+    FontMetrics {
+        id: metrics
+
+        font.family: Theme.font.sans
+        font.pointSize: Theme.font.size.small
+    }
+
+    // The widest name among the first few hundred (enough to size the popup).
+    readonly property real widestMatch: Math.max(0, ...matches.slice(0, 300).map(m => metrics.advanceWidth(m.name)))
+
+    // The names that fit, dropping down from the field: solid and shadowed
+    // like the other dropdowns, and only as wide as its names need, so it
+    // reads as a popup over the window rather than part of it.
     Rectangle {
         visible: root.listing
         z: 100
         anchors.top: parent.bottom
         anchors.topMargin: 4
-        width: parent.width
+        width: Math.min(parent.width, Math.max(240, root.widestMatch + 64))
         height: Math.min(8, root.matches.length) * 28 + 8
         radius: Theme.rounding.normal
-        color: Theme.material.regular
+        color: Theme.palette.windowBackground
         border.width: 1
         border.color: Theme.palette.separator
+
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Theme.palette.shadow
+            shadowBlur: 0.8
+            shadowVerticalOffset: 4
+        }
 
         ListView {
             id: drop

@@ -8,16 +8,35 @@ import Atrium
 // GTK's path bar: a button for each folder down to where the list is, the
 // current one pressed. Going up keeps the deeper ones, so a click goes
 // back down. Inside home it starts at Home; the folders above are behind
-// the arrow at its start (GTK's fake root). Long trails scroll.
+// the arrow at its start (GTK's fake root). Long trails scroll. A click
+// beside the buttons asks to type the location instead.
 Item {
     id: root
 
     required property ChooserModel model
+    signal editRequested
     property bool showAbove: false
     readonly property var shown: model.trail.filter(c => showAbove || !c.aboveHome)
     readonly property bool hasAbove: model.trail.some(c => c.aboveHome)
 
     implicitHeight: 32
+
+    // The room beside the buttons: looks like a field under the pointer,
+    // and a click (or tap) there turns the bar into one.
+    Rectangle {
+        anchors.fill: parent
+        radius: 8
+        color: editArea.containsMouse ? Theme.palette.quaternaryFill : "transparent"
+
+        MouseArea {
+            id: editArea
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.IBeamCursor
+            onClicked: root.editRequested()
+        }
+    }
 
     // The ones above home.
     Rectangle {
@@ -50,7 +69,8 @@ Item {
 
         anchors.left: above.right
         anchors.leftMargin: above.visible ? 4 : 0
-        anchors.right: parent.right
+        // Only as wide as the buttons, so the room after them is free to click.
+        width: Math.min(root.width - x, buttons.width)
         height: parent.height
         clip: true
         contentWidth: buttons.width
