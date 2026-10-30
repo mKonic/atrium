@@ -131,6 +131,22 @@ struct CommitPacing::Surface {
         std::erase_if(held, [](const Held& h) { return !h.fifo_lock && !h.timer_lock; });
     }
 
+    // No barrier up: commits waiting on one go through in order, up to one
+    // that sets the next (once it's gone, or while its time still holds it).
+    // A frame's commit and the empty one NVIDIA's driver sends after it
+    // both queue behind the frame before, and only the first sets a barrier.
+    void drain() {
+        for (Held& h : held) {
+            if (barrier)
+                break;
+            if (h.fifo_lock)
+                release(h, true, false);
+            if (h.sets_barrier)
+                break;
+        }
+        prune();
+    }
+
     void release_all() {
         for (Held& h : held)
             release(h, true, true);
@@ -187,7 +203,7 @@ struct CommitPacing::Surface {
                 for (Held& x : w.self->held)
                     if (x.seq == w.seq && x.timer_lock)
                         w.self->release(x, false, true);
-                w.self->prune();
+                w.self->drain();
                 return 0;
             }, h.wake);
             wl_event_source_timer_update(h.timer, int(std::max<int64_t>(1, (target - now + 999'999) / 1'000'000)));
@@ -331,7 +347,7 @@ CommitPacing::CommitPacing(Server& srv) : server(srv) {
             for (Surface::Held& h : s->held)
                 if (now - h.since_ns > kLongestHoldMs * 1'000'000)
                     s->release(h, true, true);
-            s->prune();
+            s->drain();
         }
         wl_event_source_timer_update(self->safety_, 250);
         return 0;
@@ -456,7 +472,7 @@ void CommitPacing::refreshed(wlr_output* output) {
         for (Surface::Held& h : s->held)
             if (h.timer_lock && h.target_ns <= now + period)
                 s->release(h, false, true);
-        s->prune();
+        s->drain();
         // Waiting on a barrier: a frame must come to show what set it.
         if (s->barrier && std::ranges::any_of(s->held, [](const Surface::Held& h) { return h.fifo_lock; }))
             wlr_output_schedule_frame(output);
@@ -470,16 +486,11 @@ void CommitPacing::presented(wlr_output* output, uint32_t commit_seq) {
         const auto it = std::ranges::find(s->barrier_after, output, &std::pair<wlr_output*, uint32_t>::first);
         if (it == s->barrier_after.end() || int32_t(commit_seq - it->second) <= 0)
             continue;
-        // What set the barrier is on the screen: it clears, and the first
-        // commit waiting on it goes through (it may set the next).
+        // What set the barrier is on the screen: it clears, and what waited
+        // on it goes through (it may set the next).
         s->barrier = false;
         s->barrier_after.clear();
-        for (Surface::Held& h : s->held)
-            if (h.fifo_lock) {
-                s->release(h, true, false);
-                break;
-            }
-        s->prune();
+        s->drain();
     }
 }
 
