@@ -3,8 +3,9 @@
 // games pacing their frames) hold a commit back until the screen has shown
 // the one before (a barrier), or until a time. Specced from Hyprland
 // (protocols/Fifo.cpp, CommitTiming.cpp) and KWin: a held commit is a lock
-// on the surface's cached state (wlr_surface_lock_pending), let go on the
-// next refresh of a screen the surface is on. Never held while it's on no
+// on the surface's cached state (wlr_surface_lock_pending), let go once a
+// screen the surface is on has presented the commit that set the barrier
+// (as Hyprland does), or at the refresh before its time. Never held while it's on no
 // screen or its screen tears, and never for long: the protocol asks that a
 // wait ends in finite time.
 
@@ -32,9 +33,11 @@ public:
     struct Surface;
     struct Screen;
 
-    // A refresh cycle of `output` went by: barriers there clear, and commits
-    // whose time has come go through.
+    // A refresh cycle of `output` went by: commits whose time has come go
+    // through.
     void refreshed(wlr_output* output);
+    // `output` showed its commit `commit_seq`: barriers it drew clear.
+    void presented(wlr_output* output, uint32_t commit_seq);
     Surface* surface_for(wlr_surface* s, bool create);
     void drop(Surface* s);
     void watch(wlr_output* output);

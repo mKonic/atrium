@@ -39,8 +39,14 @@ struct CommitPacing::Surface {
     bool timed = false;
     int64_t target_ns = 0;
 
-    // A commit applied with set_barrier, not yet followed by a refresh.
+    // A commit made with set_barrier (state barrier_state), not yet shown.
+    // barrier_after: each screen's commit count when that state was applied;
+    // empty until it is. The barrier clears once a screen presents a later
+    // commit, which drew it: clearing it any sooner lets the next commit
+    // replace it unseen, and its presentation feedback is discarded.
     bool barrier = false;
+    uint32_t barrier_state = 0;
+    std::vector<std::pair<wlr_output*, uint32_t>> barrier_after;
 
     struct Wake {
         Surface* self;
@@ -57,7 +63,7 @@ struct CommitPacing::Surface {
     };
     std::deque<Held> held;
 
-    wl_listener commit{}, destroy{};
+    wl_listener commit{}, applied_listener{}, destroy{};
 
     bool on(wlr_output* o) const {
         wlr_surface_output* so;
@@ -91,7 +97,25 @@ struct CommitPacing::Surface {
         }
         if (!h.fifo_lock && !h.timer_lock && h.sets_barrier) {
             h.sets_barrier = false;
-            barrier = true;
+            raise_barrier(h.seq);
+        }
+    }
+
+    void raise_barrier(uint32_t state) {
+        barrier = true;
+        barrier_state = state;
+        barrier_after.clear();
+        applied();
+    }
+
+    // The surface's state changed: note when the barrier's state got applied.
+    void applied() {
+        if (!barrier || !barrier_after.empty() || int32_t(s->current.seq - barrier_state) < 0)
+            return;
+        wlr_surface_output* so;
+        wl_list_for_each(so, &s->current_outputs, link) {
+            barrier_after.emplace_back(so->output, so->output->commit_seq);
+            owner->watch(so->output);
         }
     }
 
@@ -112,6 +136,7 @@ struct CommitPacing::Surface {
             release(h, true, true);
         held.clear();
         barrier = false;
+        barrier_after.clear();
     }
 
     void client_commit() {
@@ -127,14 +152,15 @@ struct CommitPacing::Surface {
         const bool fifo_hold =
             wait && !synced && show && (barrier || std::ranges::any_of(held, [](const Held& h) { return h.fifo_lock || h.sets_barrier; }));
         const int64_t now = now_ns();
-        // A time beyond the longest hold is not a frame time: NVIDIA's Vulkan
-        // driver, once its schedule runs away (hours ahead after a space
-        // switch), would otherwise have every frame wait out the safety net.
+        // A time beyond the longest hold is not a frame time (NVIDIA's Vulkan
+        // driver, its schedule run away, asked for hours ahead): holding it
+        // would only make every frame wait out the safety net.
         const bool time_hold = has_time && show && target > now && target - now <= kLongestHoldMs * 1'000'000;
 
         if (!fifo_hold && !time_hold) {
+            // Applied right after this, unless another lock holds it.
             if (set)
-                barrier = true;
+                raise_barrier(s->pending.seq);
             return;
         }
         Held h;
@@ -143,7 +169,7 @@ struct CommitPacing::Surface {
         if (fifo_hold) {
             h.seq = wlr_surface_lock_pending(s);
             h.fifo_lock = true;
-            // A refresh must come to let it go, damage or not.
+            // A frame must come to let it go, damage or not.
             wlr_surface_output* so;
             wl_list_for_each(so, &s->current_outputs, link) {
                 owner->watch(so->output);
@@ -176,7 +202,7 @@ struct CommitPacing::Surface {
 struct CommitPacing::Screen {
     CommitPacing* owner;
     wlr_output* output;
-    wl_listener frame{}, destroy{};
+    wl_listener frame{}, present{}, destroy{};
 };
 
 namespace {
@@ -318,6 +344,7 @@ CommitPacing::~CommitPacing() {
         wl_event_source_remove(safety_);
     for (auto& [_, screen] : screens_) {
         wl_list_remove(&screen->frame.link);
+        wl_list_remove(&screen->present.link);
         wl_list_remove(&screen->destroy.link);
     }
     for (auto& [_, s] : std::unordered_map<wlr_surface*, std::unique_ptr<Surface>>(std::move(surfaces_))) {
@@ -327,6 +354,7 @@ CommitPacing::~CommitPacing() {
         if (s->timer)
             wl_resource_set_user_data(s->timer, nullptr);
         wl_list_remove(&s->commit.link);
+        wl_list_remove(&s->applied_listener.link);
         wl_list_remove(&s->destroy.link);
     }
     if (fifo_global_)
@@ -349,6 +377,11 @@ CommitPacing::Surface* CommitPacing::surface_for(wlr_surface* s, bool create) {
         self->client_commit();
     };
     wl_signal_add(&s->events.client_commit, &sp->commit);
+    sp->applied_listener.notify = [](wl_listener* l, void*) {
+        Surface* self = wl_container_of(l, self, applied_listener);
+        self->applied();
+    };
+    wl_signal_add(&s->events.commit, &sp->applied_listener);
     sp->destroy.notify = [](wl_listener* l, void*) {
         Surface* self = wl_container_of(l, self, destroy);
         self->owner->drop(self);
@@ -368,6 +401,7 @@ void CommitPacing::drop(Surface* s) {
     if (s->timer)
         wl_resource_set_user_data(s->timer, nullptr);
     wl_list_remove(&s->commit.link);
+    wl_list_remove(&s->applied_listener.link);
     wl_list_remove(&s->destroy.link);
     surfaces_.erase(s->s);
 }
@@ -383,10 +417,16 @@ void CommitPacing::watch(wlr_output* output) {
         self->owner->refreshed(self->output);
     };
     wl_signal_add(&output->events.frame, &sc->frame);
+    sc->present.notify = [](wl_listener* l, void* data) {
+        Screen* self = wl_container_of(l, self, present);
+        self->owner->presented(self->output, static_cast<wlr_output_event_present*>(data)->commit_seq);
+    };
+    wl_signal_add(&output->events.present, &sc->present);
     sc->destroy.notify = [](wl_listener* l, void*) {
         Screen* self = wl_container_of(l, self, destroy);
         CommitPacing* owner = self->owner;
         wl_list_remove(&self->frame.link);
+        wl_list_remove(&self->present.link);
         wl_list_remove(&self->destroy.link);
         owner->screens_.erase(self->output);
     };
@@ -412,22 +452,34 @@ void CommitPacing::refreshed(wlr_output* output) {
         }
         if (!s->on(output))
             continue;
-        // A refresh cycle: the barrier clears, and the first commit waiting
-        // on it goes through (it may set the next).
-        s->barrier = false;
-        for (Surface::Held& h : s->held)
-            if (h.fifo_lock) {
-                s->release(h, true, false);
-                break;
-            }
         // Commits timed for this refresh or before it go through now.
         for (Surface::Held& h : s->held)
             if (h.timer_lock && h.target_ns <= now + period)
                 s->release(h, false, true);
         s->prune();
-        // More still held: another refresh is needed.
-        if (std::ranges::any_of(s->held, [](const Surface::Held& h) { return h.fifo_lock; }))
+        // Waiting on a barrier: a frame must come to show what set it.
+        if (s->barrier && std::ranges::any_of(s->held, [](const Surface::Held& h) { return h.fifo_lock; }))
             wlr_output_schedule_frame(output);
+    }
+}
+
+void CommitPacing::presented(wlr_output* output, uint32_t commit_seq) {
+    for (auto& [_, s] : surfaces_) {
+        if (!s->barrier)
+            continue;
+        const auto it = std::ranges::find(s->barrier_after, output, &std::pair<wlr_output*, uint32_t>::first);
+        if (it == s->barrier_after.end() || int32_t(commit_seq - it->second) <= 0)
+            continue;
+        // What set the barrier is on the screen: it clears, and the first
+        // commit waiting on it goes through (it may set the next).
+        s->barrier = false;
+        s->barrier_after.clear();
+        for (Surface::Held& h : s->held)
+            if (h.fifo_lock) {
+                s->release(h, true, false);
+                break;
+            }
+        s->prune();
     }
 }
 
