@@ -127,7 +127,10 @@ struct CommitPacing::Surface {
         const bool fifo_hold =
             wait && !synced && show && (barrier || std::ranges::any_of(held, [](const Held& h) { return h.fifo_lock || h.sets_barrier; }));
         const int64_t now = now_ns();
-        const bool time_hold = has_time && show && target > now;
+        // A time beyond the longest hold is not a frame time: NVIDIA's Vulkan
+        // driver, once its schedule runs away (hours ahead after a space
+        // switch), would otherwise have every frame wait out the safety net.
+        const bool time_hold = has_time && show && target > now && target - now <= kLongestHoldMs * 1'000'000;
 
         if (!fifo_hold && !time_hold) {
             if (set)
