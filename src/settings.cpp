@@ -477,7 +477,7 @@ std::vector<SettingSchema> build_schema(const Config& d) {
     s.push_back(number("appearance.blur_noise", T::Float, "Appearance", "Blur grain",
         "The fine noise over the blur that hides banding, against the style's own (1); 0 for none.", &Config::blur_noise, d, 0, 4));
     s.push_back(number("appearance.glass_tint", T::Float, "Appearance", "Glass tint",
-        "How much of the palette colours Liquid Glass, against its own look (1).", &Config::glass_tint, d, 0, 2));
+        "How dense Liquid Glass's own colour is (1: as designed, 0: none).", &Config::glass_tint, d, 0, 2));
     s.push_back(number("appearance.glass_refraction", T::Float, "Appearance", "Glass refraction",
         "How far Liquid Glass bends what is behind at its edge (1: as designed, 0: flat).", &Config::glass_refraction, d, 0, 2));
     s.push_back(number("appearance.glass_highlight", T::Float, "Appearance", "Glass highlight",

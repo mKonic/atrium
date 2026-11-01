@@ -104,8 +104,8 @@ Singleton {
     // What panels are made of, thinnest to thickest: with transparency off a
     // solid window background, otherwise frosted glass (atrium blurs behind
     // it) letting less through the thicker it is. Liquid Glass is the
-    // compositor's: its lens, tint and lit rim are drawn behind the panel,
-    // which only leaves a breath of colour to mark where the glass is.
+    // compositor's, all of it (its fills, lit edges and shadow are drawn
+    // behind the panel, by the material its Glass names): panels paint none.
     readonly property QtObject material: QtObject {
         // Bar, Dock and bar pills.
         readonly property color thin: root.glassy(0.7)
@@ -219,11 +219,11 @@ Singleton {
     readonly property bool safeMode: Shell.env("ATRIUM_SAFE_MODE") === "1"
     readonly property bool glass: liquid || (!highContrast && (Atrium.settings["appearance.transparency"] ?? false))
     // atrium draws Liquid Glass behind the panels (only with blur on): its
-    // tint, rim light and shadow. Panels then leave all three to it.
+    // fills, lit edges and shadow. Panels then leave all of it to atrium.
     readonly property bool lens: liquid && (Atrium.settings["appearance.blur"] ?? true)
 
     function glassy(a: real): color {
-        return lens ? alpha(palette.material, 0.06) : glass ? alpha(palette.material, a) : palette.material;
+        return lens ? "transparent" : glass ? alpha(palette.material, a) : palette.material;
     }
 
     // A color with its alpha replaced.

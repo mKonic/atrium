@@ -4,6 +4,7 @@ import QtQuick
 import shell.components
 import shell.services
 import Atrium
+import Atrium.Shell
 
 // Secret spaces next to the numbered ones: a chip for each that holds
 // windows (communication: Discord, WhatsApp...), with its apps, lit while it
@@ -33,7 +34,9 @@ Row {
             implicitWidth: row.implicitWidth + Theme.padding.normal * 2
             color: modelData.shown ? Theme.bar.palette.accent : Theme.lens ? Theme.bar.pill : Theme.bar.palette.fill
 
-            Glass {}
+            Glass {
+                material: GlassShape.Control
+            }
 
             Behavior on color {
                 CAnim {

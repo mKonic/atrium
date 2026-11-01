@@ -295,7 +295,9 @@ Rectangle {
         border.color: Theme.palette.separator
         color: closeArea.containsMouse ? Theme.material.thick : Theme.material.regular
 
-        Glass {}
+        Glass {
+            material: closeArea.containsMouse ? GlassShape.Thick : GlassShape.Regular
+        }
         opacity: root.hovered ? 1 : 0
         visible: opacity > 0
 

@@ -1323,17 +1323,16 @@ void View::update_decorations() {
     wlr_scene_blur_set_should_only_blur_bottom_layer(blur, !is_glass);
     if (!is_glass) {
         wlr_scene_blur_set_strength(blur, 1.0f);
-        wlr_scene_blur_set_refraction(blur, 0, 0);
         wlr_scene_blur_set_glass_shapes(blur, nullptr, 0);
     }
     if (is_glass) {
-        const int reach = kGlassShadowReach;
+        const int reach = glass_reach(*given, c);
         const int w = geom.width, h = geom.height - top();
         wlr_scene_node_set_position(&blur->node, -reach, top() - reach);
         wlr_scene_blur_set_size(blur, w + 2 * reach, h + 2 * reach);
         wlr_scene_blur_set_corner_radius(blur, 0);
         wlr_scene_blur_set_alpha(blur, alpha_);
-        apply_glass(blur, *given, float(reach), float(reach), w, h, 1.0, c);
+        apply_glass(blur, *given, float(reach), float(reach), 1.0, c);
     } else if (show_blur && asked) {
         // In surface coordinates, from the content's corner under the title bar.
         const wlr_box content_area{0, 0, geom.width, geom.height - top()};

@@ -29,7 +29,7 @@
     geometry rather than guessing it from the surface's pixels.
   </description>
 
-  <interface name="atrium_glass_manager_v1" version="2">
+  <interface name="atrium_glass_manager_v1" version="3">
     <request name="destroy" type="destructor"/>
 
     <request name="get_glass">
@@ -41,7 +41,7 @@
     </request>
   </interface>
 
-  <interface name="atrium_glass_v1" version="2">
+  <interface name="atrium_glass_v1" version="3">
     <description summary="a surface's glass shapes">
       Double-buffered: shapes set take effect on the surface's next commit,
       with the buffer they belong to. When the surface is destroyed, this
@@ -67,6 +67,25 @@
         shows in (x, y, width, height, surface-local), such as the list it
         was scrolled half out of. The glass is cut there, with no rim along
         the cut. A width of 0 is the whole shape.
+      </description>
+      <arg name="shapes" type="array"/>
+    </request>
+    <enum name="material" since="3">
+      <description summary="what a piece of glass is made of">
+        Thinnest to thickest as macOS's materials. Shapes set without one
+        are regular.
+      </description>
+      <entry name="regular" value="0" summary="popovers: menus, notifications, panels"/>
+      <entry name="thin" value="1" summary="the bar and the Dock"/>
+      <entry name="thick" value="2" summary="dialogs and sheets"/>
+      <entry name="control" value="3" summary="small controls on glass: bar items"/>
+      <entry name="clear" value="4" summary="the clearest, over rich content"/>
+    </enum>
+    <request name="set_material_shapes" since="3">
+      <description summary="the glass on the surface, each of its material">
+        As set_clipped_shapes, with one more wl_fixed value a shape: its
+        material, a value of the material enum. Later shapes lie over earlier
+        ones.
       </description>
       <arg name="shapes" type="array"/>
     </request>

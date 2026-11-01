@@ -111,7 +111,9 @@ PanelWindow {
             anchors.fill: parent
             color: Theme.material.thin
 
-            Glass {}
+            Glass {
+                material: GlassShape.Thin
+            }
 
             // Only with Show menu bar background: bare, as macOS 27's, the
             // items sit on the wallpaper. Liquid Glass: each pill its own glass.

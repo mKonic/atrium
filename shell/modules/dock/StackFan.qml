@@ -53,7 +53,9 @@ Item {
         border.width: Theme.lens ? 0 : 1
         border.color: Theme.palette.separator
 
-        Glass {}
+        Glass {
+            material: headerArea.containsMouse ? GlassShape.Thick : GlassShape.Regular
+        }
 
         StyledText {
             id: headerText

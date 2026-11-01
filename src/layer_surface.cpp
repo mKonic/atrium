@@ -212,13 +212,11 @@ wlr_scene_buffer* main_buffer(wlr_scene_tree* tree, wlr_surface* surface) {
 
 } // namespace
 
-// Liquid Glass (macOS 26, WWDC25 "Meet Liquid Glass"): not frosted but a
-// lens. What is behind is only lightly blurred, bent at the edge like a
-// rounded bevel, and thicker glass, on a bigger panel, bends it further. It
-// takes on just enough of the appearance's colour to keep what is on it
-// legible (more where the backdrop fights that), makes the colours behind a
-// little richer, and its rim catches a light from the top left. Clear lets
-// the most through; Tinted (macOS 26.1) is more opaque.
+// Liquid Glass (macOS 26, WWDC25 "Meet Liquid Glass"), as Apple's UI kit
+// builds it: what is behind frosted and bent inward at the edge, under
+// layered fills, lit edges and a shadow that set it off whatever it is over
+// (see glass.cpp). Clear lets the most through; Tinted (macOS 26.1) is more
+// opaque.
 
 void LayerSurface::update_blur() {
     const Config& c = server.config;
@@ -243,19 +241,18 @@ void LayerSurface::update_blur() {
     const int width = wlr->surface->current.width, height = wlr->surface->current.height;
     wlr_scene_node_lower_to_bottom(&blur_->node);
     wlr_scene_node_set_enabled(&blur_->node, true);
-    // Liquid Glass casts a soft shadow past the panel's edge: room for it.
-    const int reach = is_glass ? kGlassShadowReach : 0;
+    // Liquid Glass casts a shadow past the panel's edge: room for it.
+    const int reach = is_glass ? glass_reach(*given, c) : 0;
     wlr_scene_node_set_position(&blur_->node, mask->node.x - reach, mask->node.y - reach);
     wlr_scene_blur_set_size(blur_, width + 2 * reach, height + 2 * reach);
     // Only where the panel actually draws: a dock's window is mostly empty.
     wlr_scene_blur_set_transparency_mask_source(blur_, mask);
     if (!is_glass) {
         wlr_scene_blur_set_strength(blur_, 1.0f);
-        wlr_scene_blur_set_refraction(blur_, 0, 0);
         wlr_scene_blur_set_glass_shapes(blur_, nullptr, 0);
         return;
     }
-    apply_glass(blur_, *given, float(reach), float(reach), width, height, lensing_, c);
+    apply_glass(blur_, *given, float(reach), float(reach), lensing_, c);
 }
 
 void LayerSurface::unmap() {

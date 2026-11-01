@@ -28,7 +28,9 @@ Item {
         visible: Theme.lens
         color: Theme.bar.pill
 
-        Glass {}
+        Glass {
+            material: GlassShape.Control
+        }
     }
 
     Rectangle {

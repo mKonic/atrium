@@ -16,8 +16,6 @@ Pill {
     implicitWidth: implicitHeight
     color: open ? Theme.bar.selected : Theme.bar.pill
 
-    Glass {}
-
     MaterialIcon {
         color: Theme.bar.palette.label
         anchors.centerIn: parent

@@ -31,7 +31,7 @@ atrium_glass_manager_v1* manager() {
             .global = [](void* data, wl_registry* r, uint32_t name, const char* iface, uint32_t version) {
                 if (std::strcmp(iface, atrium_glass_manager_v1_interface.name) == 0)
                     *static_cast<atrium_glass_manager_v1**>(data) = static_cast<atrium_glass_manager_v1*>(
-                        wl_registry_bind(r, name, &atrium_glass_manager_v1_interface, std::min(version, 2u)));
+                        wl_registry_bind(r, name, &atrium_glass_manager_v1_interface, std::min(version, 3u)));
             },
             .global_remove = [](void*, wl_registry*, uint32_t) {},
         };
@@ -91,8 +91,9 @@ private:
             sent_.clear();
             sent_once_ = false;
         }
-        // Version 2 takes a clip with each shape.
-        const bool clipping = wl_proxy_get_version(reinterpret_cast<wl_proxy*>(glass_)) >= 2;
+        // Version 2 takes a clip with each shape, 3 its material too.
+        const uint32_t version = wl_proxy_get_version(reinterpret_cast<wl_proxy*>(glass_));
+        const bool clipping = version >= 2, materials = version >= 3;
         std::vector<wl_fixed_t> now;
         for (GlassShape* s : shapes_) {
             if (!s || !s->isVisible())
@@ -128,6 +129,8 @@ private:
                 for (qreal v : {c.x(), c.y(), c.width(), c.height()})
                     now.push_back(wl_fixed_from_double(v));
             }
+            if (materials)
+                now.push_back(wl_fixed_from_int(int(s->material())));
         }
         if (sent_once_ && now == sent_)
             return;
@@ -137,7 +140,9 @@ private:
             void* data = wl_array_add(&array, now.size() * sizeof(wl_fixed_t));
             std::memcpy(data, now.data(), now.size() * sizeof(wl_fixed_t));
         }
-        if (clipping)
+        if (materials)
+            atrium_glass_v1_set_material_shapes(glass_, &array);
+        else if (clipping)
             atrium_glass_v1_set_clipped_shapes(glass_, &array);
         else
             atrium_glass_v1_set_shapes(glass_, &array);
@@ -169,6 +174,14 @@ GlassShape::GlassShape(QQuickItem* parent) : QQuickItem(parent) {
 
 GlassShape::~GlassShape() {
     attach(nullptr);
+}
+
+void GlassShape::setMaterial(Material m) {
+    if (m == material_)
+        return;
+    material_ = m;
+    emit materialChanged();
+    changed();
 }
 
 void GlassShape::setRadius(qreal r) {

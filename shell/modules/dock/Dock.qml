@@ -348,7 +348,9 @@ PanelWindow {
         radius: 20
         color: Theme.material.thin
 
-        Glass {}
+        Glass {
+            material: GlassShape.Thin
+        }
 
         Behavior on color {
             CAnim {}

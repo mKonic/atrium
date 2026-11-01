@@ -1,6 +1,7 @@
 import QtQuick
 import shell.components
 import shell.services
+import Atrium.Shell
 
 // A one-cell round button (Do Not Disturb, Night Light): white when on, as
 // macOS 26's are. Its name shows on hover.
@@ -60,7 +61,9 @@ Module {
         height: label.implicitHeight + 6
         radius: height / 2
         color: Theme.material.thick
-        Glass {}
+        Glass {
+            material: GlassShape.Thick
+        }
         opacity: area.containsMouse ? 1 : 0
         visible: opacity > 0
 

@@ -54,7 +54,9 @@ Item {
         opacity: root.shown ? 1 : 0
         color: Theme.bar.pill
 
-        Glass {}
+        Glass {
+            material: GlassShape.Control
+        }
 
         Behavior on opacity {
             Anim {}
